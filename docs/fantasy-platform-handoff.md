@@ -52,7 +52,10 @@ Projections model → tiering → Sleeper league import (read-only) → ownershi
 The community-maintained NFL data project. Published as CSV/Parquet to GitHub Releases at `github.com/nflverse/nflverse-data/releases`, refreshed weekly during the season, licensed **CC BY 4.0** — meaning you can legally redistribute it as long as you attribute. That license is the reason this is the right backbone and a scraper is not.
 
 Datasets you need:
-- `player_stats` — weekly per-player box score (~114 columns, one row per player-week)
+- **`stats_player_week`** (from the `stats_player` release) — weekly per-player box score, **150 columns, 18,983 rows for the 2024 season**. This is the backbone table.
+  - Chosen over the older `player_stats` release (53 columns, **5,597 rows for 2024**, offense only) for two reasons: it carries the kicking and defensive columns that K/DST scoring needs, and six seasons of it is ~114K rows versus ~34K — the volume §9 assumes. You can always filter down to fantasy-relevant positions with a `WHERE`; you cannot widen the schema without a re-ingest.
+  - Every row carries `game_id` (e.g. `2024_01_NYJ_SF`), so stat lines resolve to a game directly instead of joining on team + week.
+  - **It also ships `fantasy_points` and `fantasy_points_ppr`. Do not store them.** The entire architecture is that points are computed on demand from raw stats; persisting the source's precomputed values would quietly reintroduce the thing you designed the system to avoid.
 - `players` — player master with cross-platform IDs (gsis, espn, sleeper, pfr)
 - `rosters_weekly` — team/status by week
 - `schedules` — games, byes, opponents
@@ -147,7 +150,7 @@ Flock's rankings come from paid analysts. Yours will come from data. Three hones
 
 ```sql
 teams (
-  id            SERIAL PK,
+  id            INT IDENTITY PK,
   abbr          VARCHAR(4) UNIQUE,   -- 'DET'
   name          VARCHAR(64),
   conference    VARCHAR(4),
@@ -155,7 +158,7 @@ teams (
 );
 
 players (
-  id            BIGSERIAL PK,
+  id            BIGINT IDENTITY PK,
   gsis_id       VARCHAR(16) UNIQUE,  -- nflverse canonical, '00-0036322'
   external_ids  JSONB,               -- {"sleeper":"6794","espn":"4262921","pfr":"..."}
   full_name     VARCHAR(96) NOT NULL,
@@ -166,7 +169,7 @@ players (
 );
 
 games (
-  id            BIGSERIAL PK,
+  id            BIGINT IDENTITY PK,
   season        SMALLINT NOT NULL,
   week          SMALLINT NOT NULL,
   season_type   VARCHAR(8),          -- REG / POST
@@ -206,18 +209,35 @@ player_game_stats (
   fum_lost       SMALLINT DEFAULT 0,
   ret_td         SMALLINT DEFAULT 0,
 
+  -- returns
+  punt_ret, punt_ret_yd, kick_ret, kick_ret_yd            SMALLINT DEFAULT 0,
+
+  -- kicking (distance buckets stored raw; a 50-yarder scores differently
+  -- from a 20-yarder and the bucket cannot be derived after the fact)
+  fg_att, fg_made, fg_missed, fg_blocked, fg_long         SMALLINT DEFAULT 0,
+  fg_made_0_19 .. fg_made_60_plus                         SMALLINT DEFAULT 0,
+  pat_att, pat_made, pat_missed                           SMALLINT DEFAULT 0,
+
+  -- individual defence (aggregates to a team DST line for every category
+  -- except points/yards allowed -- see §6)
+  def_sacks                                               NUMERIC(4,1) DEFAULT 0,  -- shared sacks are 0.5
+  def_int, def_td, def_safety, def_fumbles_forced,
+  def_fumble_rec, def_pass_defended, def_tackles_solo,
+  def_tackle_assists, def_tackles_for_loss, def_qb_hits,
+  def_blocked_kicks                                       SMALLINT DEFAULT 0,
+
   PRIMARY KEY (player_id, game_id)
 );
 
 users (
-  id             BIGSERIAL PK,
+  id             BIGINT IDENTITY PK,
   email          CITEXT UNIQUE NOT NULL,
   password_hash  TEXT NOT NULL,        -- Argon2id
   created_at     TIMESTAMPTZ DEFAULT now()
 );
 
 scoring_profiles (
-  id             BIGSERIAL PK,
+  id             BIGINT IDENTITY PK,
   user_id        BIGINT REFERENCES users(id) ON DELETE CASCADE,  -- NULL = system preset
   name           VARCHAR(64) NOT NULL,
   rules          JSONB NOT NULL,
@@ -226,7 +246,7 @@ scoring_profiles (
 );
 
 ingest_runs (                          -- observability + your "10K records" evidence
-  id             BIGSERIAL PK,
+  id             BIGINT IDENTITY PK,
   source         VARCHAR(32),          -- 'nflverse.player_stats'
   started_at     TIMESTAMPTZ,
   finished_at    TIMESTAMPTZ,
@@ -236,6 +256,8 @@ ingest_runs (                          -- observability + your "10K records" evi
   error          TEXT
 );
 ```
+
+`backend/src/main/resources/db/migration/V1__initial_schema.sql` is the source of truth; the block above is a summary.
 
 **`ingest_runs` is not optional.** It is the table that lets you say "10K+ records daily" and then *show the row*. Build it in Phase 0.
 
@@ -284,6 +306,16 @@ effectiveRate(stat, pos, rules) =
 - Represent a ruleset as a resolved `Map<Position, double[]>` at load time so scoring a row is one array dot-product, not a hash lookup per stat.
 - Round to 2 decimals **once, at the API boundary.** Never mid-calculation.
 - **Validate rulesets on write.** Unknown keys rejected, rates bounded to a sane range (e.g. −10..10), bonuses capped in count. An unvalidated JSONB column is an injection surface and a data-quality bomb.
+
+### K and DST need rule shapes this ruleset doesn't have yet
+
+The schema now carries kicking and defensive columns, so the data is there — but the ruleset format above cannot express how they are actually scored, and that is a Phase 2 design decision, not an oversight to paper over:
+
+- **Kickers** score by distance bucket, not a flat per-FG rate. That needs either per-bucket keys (`fg_made_40_49: 4`) or a distance→points band list.
+- **Team DST** scores on points allowed and yards allowed in *tiers* (0 allowed = 10 pts, 1–6 = 7, …). Neither is a per-stat multiplier, so both need a rule form the current `base` map has no room for.
+- **Points and yards allowed are not player stats and are not in `stats_player_week`.** A team DST line has to be assembled from a team-level source (`schedules` gives the final scores). The per-player defensive columns give you sacks, INTs, fumble recoveries and defensive TDs by summing over a team-game; they do not give you the two tiered categories.
+
+Decide the shape before writing the evaluator. Scoring QB/RB/WR/TE well and saying "K/DST is v2" is a perfectly good v1; half-scoring a kicker is not.
 
 ### Test strategy (do this, it's your credibility)
 
@@ -339,32 +371,49 @@ Conventions: cursor or offset pagination everywhere (never unbounded lists), RFC
 
 ---
 
-## 9. Performance — how to actually earn the 40% bullet
+## 9. Performance — how to actually earn the bullet
 
-**You cannot claim a 40% improvement you didn't measure.** Here is how you legitimately get the number.
+**You cannot claim an improvement you didn't measure.** Here is how you legitimately get the number.
+
+### Get the framing right first: the bottleneck is recomputation, not I/O
+
+Six seasons of `stats_player_week` is ~114K rows, and filtered to fantasy-relevant positions it is a good deal less. Postgres seq-scans that in tens of milliseconds. If your headline is *"I added a composite index and went from 60ms to 10ms"*, an interviewer can reasonably shrug — that is a small absolute win on a small table, and they will know it.
+
+The real cost in `/rankings` is that **every request recomputes fantasy points in Java for every player under the caller's ruleset, and then sorts.** That work is CPU-bound, a faster scan does not touch it, and unlike the scan it **scales with concurrency** — at 20 virtual users you are doing the same computation twenty times over. The fix is not to read the rows faster. It is to stop recomputing them.
+
+So the headline is **the ruleset-hashed cache.** The index and matview work is real and it stays in, but it is supporting evidence rather than the story.
+
+> *"I profiled it, found the bottleneck was recomputation rather than I/O, and cached on a hash of the ruleset so that two users with identical league settings share an entry"* is a far better answer than *"I added a composite index."* The first is a diagnosis. The second is a reflex.
 
 ### Step 1 — Build it slow and naive, on purpose
-No indexes past the primary keys. No cache. Scoring computed per request. Ingest 2020–2026 (~150K+ stat rows).
+No indexes past the primary keys. No cache. Scoring computed per request. Backfill 2020–2025.
 
 ### Step 2 — Establish the baseline
 ```bash
 # k6, 20 virtual users, 60s, against GET /api/v1/rankings
 k6 run --vus 20 --duration 60s rankings.js
 ```
-Record **p50, p95, p99** and throughput. Run `EXPLAIN (ANALYZE, BUFFERS)` on the rankings query and save the plan. **Commit these numbers to `docs/perf/baseline.md`.** This file is the difference between a real bullet and a made-up one.
+Record **p50, p95, p99** and throughput. Run `EXPLAIN (ANALYZE, BUFFERS)` on the rankings query and save the plan.
 
-### Step 3 — Optimize, one change at a time, re-measuring after each
+**Also record CPU utilisation during the run, and the p95 at 1 VU versus at 20.** That pair of numbers is the evidence that the endpoint is compute-bound rather than I/O-bound — a scan-bound endpoint degrades far less as you add concurrency. It is what justifies going to the cache first instead of reaching for an index, and it is the measurement that makes the diagnosis credible instead of asserted.
+
+**Commit all of it to `docs/perf/baseline.md`.** This file is the difference between a real bullet and a made-up one.
+
+### Step 3 — Cache first, because that is where the time is
+
+```
+Key:  rankings:v1:{sha256(rules)}:{season}:{position}:{scope}
+TTL:  until next scheduled ingest (invalidate explicitly on ingest completion)
+```
+
+Hashing the *ruleset* rather than the profile ID means two users with identical custom settings share a cache entry — and the four presets collapse to four entries no matter how many users you have. Mention that in the interview.
+
+Re-measure. This is where the large delta should appear, and it should widen as you add virtual users.
+
+### Step 4 — Then cut the work a cache miss has to do
 
 ```sql
--- 1. Composite index matching the hot access pattern
-CREATE INDEX idx_pgs_season_week_player
-  ON player_game_stats (season, week, player_id) INCLUDE (rec, rec_yd, rec_td, rush_yd, rush_td, pass_yd, pass_td);
-
--- 2. Partial index for the common "current season only" case
-CREATE INDEX idx_pgs_current
-  ON player_game_stats (player_id, week) WHERE season = 2026;
-
--- 3. Pre-aggregate season totals; refresh after each ingest
+-- Pre-aggregate season totals; refresh after each ingest
 CREATE MATERIALIZED VIEW player_season_agg AS
 SELECT player_id, season,
        COUNT(*) AS games_played,
@@ -378,15 +427,24 @@ CREATE UNIQUE INDEX ON player_season_agg (player_id, season);
 -- REFRESH MATERIALIZED VIEW CONCURRENTLY player_season_agg;  -- needs the unique index
 ```
 
-Then the Redis layer:
-```
-Key:  rankings:v1:{sha256(rules)}:{season}:{position}:{scope}
-TTL:  until next scheduled ingest (invalidate explicitly on ingest completion)
-```
-Hashing the *ruleset* rather than the profile ID means two users with identical custom settings share a cache entry. Mention that in the interview.
+Note what this actually buys, because it is easy to mis-explain: it collapses ~19K player-game rows per season into ~600 player-season rows. **That is a ~30× reduction in the number of stat lines the Java scorer has to touch on a miss** — it is mostly a compute win, not an I/O win. That is precisely why it belongs in this story rather than in a generic "I added a matview" bullet.
 
-### Step 4 — Write it up
-`docs/perf/results.md`: baseline → each change → delta → final. Whatever the real number is, **that** is your resume bullet. If it's 60%, say 60%. If it's 25%, say 25%. A defensible 25% beats an indefensible 40% every single time.
+### Step 5 — Indexes last, and only where the plan says so
+
+```sql
+-- Composite index matching the hot access pattern
+CREATE INDEX idx_pgs_season_week_player
+  ON player_game_stats (season, week, player_id) INCLUDE (rec, rec_yd, rec_td, rush_yd, rush_td, pass_yd, pass_td);
+
+-- Partial index for the common "current season only" case
+CREATE INDEX idx_pgs_current
+  ON player_game_stats (player_id, week) WHERE season = 2026;
+```
+
+Re-measure after each. Be honest in the write-up if the delta here is small — at this row count it may well be, and *"the index barely moved it, which is itself the evidence that the bottleneck was elsewhere"* is a stronger thing to be able to say than a number you inflated. Be ready to defend the column order from the EXPLAIN plans, before and after.
+
+### Step 6 — Write it up
+`docs/perf/results.md`: baseline → each change → delta → final, with the concurrency curve. Whatever the real number is, **that** is your resume bullet. If it's 60%, say 60%. If it's 25%, say 25%. A defensible 25% beats an indefensible 40% every single time.
 
 ---
 
@@ -418,6 +476,7 @@ Nothing user-facing. Resist the urge to start on UI.
 
 ### Phase 1 — Ingestion (week 1–2)
 nflverse CSV pull → parse → upsert. Backfill 2020–2025. Wire the weekly `@Scheduled` job (Tuesday 6am ET). Sleeper player-ID crosswalk.
+Add the GIN/expression index on `players.external_ids` here, not in Phase 6 — it serves the ingestion crosswalk (`external_ids->>'sleeper'`), not the rankings query, so it does not contaminate the §9 baseline. Say so in the commit message.
 **Season kicks off September 10 — get this running before week 1 so you have live data flowing all season.**
 → *Earns: "700+ NFL players" and "automated data pipelines processing 10K+ records daily."* Verify both against `ingest_runs` and a `COUNT(*)`. If the real numbers are different, change the resume.
 
@@ -436,8 +495,8 @@ Rankings table (virtualized — 900 rows), position filter tabs, profile switche
 Everything in §8. Custom ruleset builder UI.
 
 ### Phase 6 — Performance pass (week 6)
-Everything in §9. Indexes → matview → Redis, measuring after each.
-→ *Earns: "Architected the relational schema and optimized indexed queries, reducing dashboard load times by X%."*
+Everything in §9, **in that order: cache → matview → indexes**, measuring after each. The ordering is the point — it follows the bottleneck instead of reaching for the reflex fix.
+→ *Earns: "Profiled a compute-bound rankings endpoint and cut p95 latency by X% under 20 concurrent users by caching on a hash of the scoring ruleset."* Note what that bullet leads with: the diagnosis, then the number. Fill in X from `docs/perf/results.md` and nowhere else.
 
 ### Phase 7 — Polish
 README with architecture diagram and the perf numbers, seeded demo account, deployed URL on the resume.
@@ -449,10 +508,12 @@ README with architecture diagram and the perf numbers, seeded demo account, depl
 1. Why store raw stats instead of precomputed fantasy points? *(Answer: N scoring systems × M players is unbounded; recomputation is cheap, storage of every permutation isn't. And a rule change would require a full backfill.)*
 2. Walk me through what happens when a user changes their PPR setting. *(Cache key changes → miss → recompute from matview → cache under the new ruleset hash.)*
 3. What was slow, what did you change, how did you measure it? *(Point at `docs/perf/`. Numbers, not adjectives.)*
-4. Why the composite index in that column order? *(Selectivity and the access pattern of the rankings query. Show the EXPLAIN plans, before and after.)*
-5. How do you keep user A from reading user B's scoring profiles? *(Repository-level `user_id` filter from the JWT subject, not a service-layer check.)*
-6. What breaks if nflverse goes down mid-season? *(Last ingest persists; app serves stale data with a visible "last updated" timestamp; `ingest_runs` records the failure. Degraded, not down.)*
-7. What would you do differently? *(Have a real answer ready. "Ingestion in Python for the projections work" is a good one.)*
+4. How did you know the bottleneck was recomputation and not the query? *(The p95 curve from 1 VU to 20 VUs, plus CPU utilisation during the run. A scan-bound endpoint degrades far less under concurrency. This is the single best question in this list — it is the one that separates a diagnosis from a reflex.)*
+5. Why the composite index in that column order? *(Selectivity and the access pattern of the rankings query. Show the EXPLAIN plans, before and after — and be willing to say the index moved p95 less than the cache did.)*
+6. How do you keep user A from reading user B's scoring profiles? *(Repository-level `user_id` filter from the JWT subject, not a service-layer check.)*
+7. What breaks if nflverse goes down mid-season? *(Last ingest persists; app serves stale data with a visible "last updated" timestamp; `ingest_runs` records the failure. Degraded, not down.)*
+8. Why don't you store the `fantasy_points` column the source hands you? *(Because a stored point value is only correct for one ruleset. The source's is full-PPR; every other league would need its own copy, and a rule change would need a full backfill. See §5.)*
+9. What would you do differently? *(Have a real answer ready. "Ingestion in Python for the projections work" is a good one.)*
 
 ---
 

@@ -12,7 +12,7 @@ CREATE EXTENSION IF NOT EXISTS citext;
 
 
 CREATE TABLE teams (
-    id         SERIAL      PRIMARY KEY,
+    id         INT         GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     abbr       VARCHAR(4)  NOT NULL,   -- 'DET'
     name       VARCHAR(64) NOT NULL,
     conference VARCHAR(4),
@@ -22,7 +22,7 @@ CREATE TABLE teams (
 
 
 CREATE TABLE players (
-    id           BIGSERIAL   PRIMARY KEY,
+    id           BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     gsis_id      VARCHAR(16),           -- nflverse canonical, '00-0036322'
     external_ids JSONB       NOT NULL DEFAULT '{}'::jsonb,  -- {"sleeper":"6794","espn":"4262921"}
     full_name    VARCHAR(96) NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE players (
 
 
 CREATE TABLE games (
-    id           BIGSERIAL PRIMARY KEY,
+    id           BIGINT    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     season       SMALLINT  NOT NULL,
     week         SMALLINT  NOT NULL,
     season_type  VARCHAR(8),            -- REG / POST
@@ -80,7 +80,48 @@ CREATE TABLE player_game_stats (
     rec_2pt   SMALLINT     NOT NULL DEFAULT 0,
 
     fum_lost  SMALLINT     NOT NULL DEFAULT 0,
-    ret_td    SMALLINT     NOT NULL DEFAULT 0,
+    ret_td    SMALLINT     NOT NULL DEFAULT 0,   -- special_teams_tds
+
+    punt_ret     SMALLINT  NOT NULL DEFAULT 0,
+    punt_ret_yd  SMALLINT  NOT NULL DEFAULT 0,
+    kick_ret     SMALLINT  NOT NULL DEFAULT 0,
+    kick_ret_yd  SMALLINT  NOT NULL DEFAULT 0,
+
+    -- Kicking. Distance buckets are stored raw because most rulesets score a
+    -- 50-yarder differently from a 20-yarder; deriving them later is impossible.
+    fg_att          SMALLINT NOT NULL DEFAULT 0,
+    fg_made         SMALLINT NOT NULL DEFAULT 0,
+    fg_missed       SMALLINT NOT NULL DEFAULT 0,
+    fg_blocked      SMALLINT NOT NULL DEFAULT 0,
+    fg_long         SMALLINT NOT NULL DEFAULT 0,
+    fg_made_0_19    SMALLINT NOT NULL DEFAULT 0,
+    fg_made_20_29   SMALLINT NOT NULL DEFAULT 0,
+    fg_made_30_39   SMALLINT NOT NULL DEFAULT 0,
+    fg_made_40_49   SMALLINT NOT NULL DEFAULT 0,
+    fg_made_50_59   SMALLINT NOT NULL DEFAULT 0,
+    fg_made_60_plus SMALLINT NOT NULL DEFAULT 0,
+    pat_att         SMALLINT NOT NULL DEFAULT 0,
+    pat_made        SMALLINT NOT NULL DEFAULT 0,
+    pat_missed      SMALLINT NOT NULL DEFAULT 0,
+
+    -- Individual defensive stats. These aggregate to a team DST line for every
+    -- category EXCEPT points and yards allowed, which are not player stats and
+    -- must come from a team-level source. See section 6.
+    --
+    -- def_sacks is NUMERIC, not SMALLINT: a shared sack is credited as 0.5.
+    -- 272 rows in the 2024 season alone are fractional.
+    def_sacks           NUMERIC(4,1) NOT NULL DEFAULT 0,
+    def_int             SMALLINT NOT NULL DEFAULT 0,
+    def_td              SMALLINT NOT NULL DEFAULT 0,
+    def_safety          SMALLINT NOT NULL DEFAULT 0,
+    def_fumbles_forced  SMALLINT NOT NULL DEFAULT 0,
+    def_fumble_rec      SMALLINT NOT NULL DEFAULT 0,
+    def_pass_defended   SMALLINT NOT NULL DEFAULT 0,
+    def_tackles_solo    SMALLINT NOT NULL DEFAULT 0,
+    def_tackle_assists  SMALLINT NOT NULL DEFAULT 0,
+    def_tackles_for_loss SMALLINT NOT NULL DEFAULT 0,
+    def_qb_hits         SMALLINT NOT NULL DEFAULT 0,
+    def_blocked_kicks   SMALLINT NOT NULL DEFAULT 0,
 
     CONSTRAINT pk_player_game_stats PRIMARY KEY (player_id, game_id),
     CONSTRAINT fk_pgs_player FOREIGN KEY (player_id) REFERENCES players (id),
@@ -90,7 +131,7 @@ CREATE TABLE player_game_stats (
 
 
 CREATE TABLE users (
-    id            BIGSERIAL   PRIMARY KEY,
+    id            BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     email         CITEXT      NOT NULL,
     password_hash TEXT        NOT NULL,   -- Argon2id
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -99,7 +140,7 @@ CREATE TABLE users (
 
 
 CREATE TABLE scoring_profiles (
-    id         BIGSERIAL   PRIMARY KEY,
+    id         BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id    BIGINT,                    -- NULL = system preset
     name       VARCHAR(64) NOT NULL,
     rules      JSONB       NOT NULL,
@@ -112,7 +153,7 @@ CREATE TABLE scoring_profiles (
 
 -- Observability, and the evidence behind the "10K+ records daily" claim.
 CREATE TABLE ingest_runs (
-    id            BIGSERIAL   PRIMARY KEY,
+    id            BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     source        VARCHAR(32) NOT NULL,   -- 'nflverse.player_stats'
     started_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     status        VARCHAR(16) NOT NULL,   -- RUNNING / SUCCESS / FAILED
