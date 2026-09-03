@@ -315,7 +315,11 @@ The schema now carries kicking and defensive columns, so the data is there — b
 - **Team DST** scores on points allowed and yards allowed in *tiers* (0 allowed = 10 pts, 1–6 = 7, …). Neither is a per-stat multiplier, so both need a rule form the current `base` map has no room for.
 - **Points and yards allowed are not player stats and are not in `stats_player_week`.** A team DST line has to be assembled from a team-level source (`schedules` gives the final scores). The per-player defensive columns give you sacks, INTs, fumble recoveries and defensive TDs by summing over a team-game; they do not give you the two tiered categories.
 
-Decide the shape before writing the evaluator. Scoring QB/RB/WR/TE well and saying "K/DST is v2" is a perfectly good v1; half-scoring a kicker is not.
+**Decision: v1 ships QB/RB/WR/TE only. K and DST are deferred to v2.**
+
+The dot-product evaluator is the one clean architectural idea in this project. Neither a distance bucket nor a points-allowed tier is a per-stat multiplier, so bolting them into `base` means either a second scoring path or a rule shape general enough to be mush — trading the defensible idea for two positions nobody makes real roster decisions with. The columns are stored now (§5) so v2 needs no backfill; only the ruleset format has to grow.
+
+**`"version": 1` is the extension point — that is what it is for.** When K/DST lands it becomes `"version": 2` with a `tiers` block alongside `base`, and the evaluator branches on the version field, not on the presence of keys. Profiles stored under version 1 keep evaluating against the v1 path unchanged, so no migration of user data is needed and no stored profile silently changes meaning. Write the version check into the evaluator in Phase 2 even though only one version exists — retrofitting it after users have saved profiles is where this gets expensive.
 
 ### Test strategy (do this, it's your credibility)
 
@@ -478,7 +482,20 @@ Nothing user-facing. Resist the urge to start on UI.
 nflverse CSV pull → parse → upsert. Backfill 2020–2025. Wire the weekly `@Scheduled` job (Tuesday 6am ET). Sleeper player-ID crosswalk.
 Add the GIN/expression index on `players.external_ids` here, not in Phase 6 — it serves the ingestion crosswalk (`external_ids->>'sleeper'`), not the rankings query, so it does not contaminate the §9 baseline. Say so in the commit message.
 **Season kicks off September 10 — get this running before week 1 so you have live data flowing all season.**
-→ *Earns: "700+ NFL players" and "automated data pipelines processing 10K+ records daily."* Verify both against `ingest_runs` and a `COUNT(*)`. If the real numbers are different, change the resume.
+**Ingest every position, filter at query time.** v1 scores QB/RB/WR/TE only (§6), but storing only those rows would shrink `player_game_stats` from ~112K to ~37K and gut the §9 baseline — and K/DST in v2 would then need a backfill after all. The `WHERE` clause belongs in the rankings query, not the ingest.
+
+**Measured from the real `stats_player_week` files, 2020–2025 (not estimated):**
+
+| | per season | 6-season total |
+|---|---|---|
+| Stat rows, all positions | 17,602 – 19,422 | **112,450** |
+| Stat rows, QB/RB/WR/TE | 5,817 – 6,321 | 36,567 |
+| Distinct players, all positions | 1,948 – 2,088 | **4,062** |
+| Distinct players, QB/RB/WR/TE | **578 – 633** | **1,243** |
+
+→ *Earns: "1,200+ NFL skill-position players across six seasons."* Note the framing: **no single season clears 700 skill-position players** — the number that beats 700 is the six-season union, which is exactly what the `players` table holds. Say "across six seasons" or the claim breaks the moment someone asks whether that is one year.
+
+→ ⚠️ *"10K+ records daily" is not supported by a weekly job.* A Tuesday-only schedule processes ~19K rows **per week**, not per day. Either drop the word "daily", or run the scheduled ingest daily in-season — the upsert is idempotent, nflverse revises the current week mid-week, so a daily pull of the current season (~19K rows) is defensible on its own merits and makes the claim literally true. **Decide this in Phase 1, then verify against `ingest_runs` before it goes on the resume.**
 
 ### Phase 2 — Scoring engine (week 2–3)
 Ruleset model, validator, evaluator, four seeded presets, the verified-box-score test suite.
