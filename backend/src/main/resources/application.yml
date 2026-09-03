@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: fantasy-kai-backend
+
+  # Port 5433 matches the published port in docker-compose.yml -- see the note there.
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/fantasykai}
+    username: ${DB_USERNAME:fantasykai}
+    password: ${DB_PASSWORD:fantasykai}
+
+  jpa:
+    # Flyway owns the schema. `validate` fails fast if an entity ever drifts
+    # from a migration; it must never become `update`.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # Local convenience. Tighten to `when-authorized` in Phase 5 once auth exists.
+      show-details: always

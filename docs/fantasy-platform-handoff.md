@@ -3,7 +3,7 @@
 **Owner:** Prabhnoor Bal
 **Date:** September 3, 2026
 **Status:** Design settled → ready to implement
-**Stack:** Spring Boot 3 (Java 21) · PostgreSQL 16 · Redis · Next.js 15 / React / TypeScript
+**Stack:** Spring Boot 3.5 (Java 21) · PostgreSQL 16 · Redis · Next.js 15 / React / TypeScript
 
 ---
 
@@ -108,7 +108,7 @@ Flock's rankings come from paid analysts. Yours will come from data. Three hones
 └───────────────────────┬──────────────────────────────────┘
                         │  HTTPS / JSON  (JWT bearer)
 ┌───────────────────────▼──────────────────────────────────┐
-│  Spring Boot 3.3 (Java 21)                               │
+│  Spring Boot 3.5.16 (Java 21)                            │
 │  ┌────────────┬─────────────┬──────────┬──────────────┐  │
 │  │ Web layer  │  Scoring    │  Auth    │  Ingestion   │  │
 │  │ (REST)     │  Engine     │ Security │  @Scheduled  │  │
@@ -132,13 +132,14 @@ Flock's rankings come from paid analysts. Yours will come from data. Three hones
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Backend language | Java 21 / Spring Boot | Matches your resume claim; you have to be able to defend it. Records, pattern matching, and virtual threads make this pleasant. |
+| Backend language | Java 21 / **Spring Boot 3.5.16** | Matches your resume claim; you have to be able to defend it. Records, pattern matching, and virtual threads make this pleasant. **3.3 is EOL — the line ended at 3.3.13 and Initializr no longer offers it.** 3.5.x is the last 3.x line and still patched; 4.x was available but its renamed starters, Hibernate 7 and Testcontainers 2 put you off the beaten path for the Phase 5 auth work. |
 | Ingestion service | **Same Spring Boot app**, not a separate Python service | Python + pandas is genuinely better for this data, but two runtimes = two deploy targets = a whole extra failure surface for a solo project. nflverse ships plain CSV; parse it with Apache Commons CSV. Revisit if the model work in v2 demands pandas. |
 | ORM | Spring Data JPA for CRUD, **native queries for the hot rankings path** | JPA is a bad fit for wide aggregate reads. Don't fight it — drop to SQL where it matters. |
 | Cache | Redis | The 40% story lives here. |
 | Migrations | Flyway | Versioned schema from commit 1. Non-negotiable. |
 | Frontend | Next.js 15 App Router | You already know it from Aurex. Don't learn two new things at once. |
 | Auth | Spring Security + JWT | Different from Aurex's Clerk on purpose — this project's value is that you built the auth yourself. See §8. |
+| Local Postgres port | **5433**, not 5432 | The dev Mac runs a Homebrew `postgresql@16` launchd service that already owns `localhost:5432` and wins the connection. The compose Postgres publishes on 5433; `POSTGRES_PORT` and `DB_URL` in `.env` override it on a machine where 5432 is free. |
 
 ---
 
@@ -393,7 +394,7 @@ Hashing the *ruleset* rather than the profile ID means two users with identical 
 
 ### Local (works identically on the Win11 PC and the M2 Mac)
 
-`docker-compose.yml` for Postgres 16 + Redis 7 only; run Spring Boot and Next.js on the host for fast reload. Both images have native arm64 builds, so the M2 needs no `platform:` override. Use Testcontainers for integration tests so CI matches local.
+`docker-compose.yml` for Postgres 16 + Redis 7 only; run Spring Boot and Next.js on the host for fast reload. **Postgres publishes on host port 5433** (see §4) — Redis stays on 6379. Both images have native arm64 builds, so the M2 needs no `platform:` override. Use Testcontainers for integration tests so CI matches local.
 
 ### Deployment
 
@@ -457,11 +458,11 @@ README with architecture diagram and the perf numbers, seeded demo account, depl
 
 ## 13. Decide these before Phase 0
 
-- [ ] **Repo layout** — monorepo (`/backend`, `/frontend`) or two repos? *Recommendation: monorepo, easier to show.*
-- [ ] **Project name.** "ESPN project" won't do — it implies an affiliation you don't have and could draw a trademark complaint. Pick something of your own.
-- [ ] **Backfill depth.** 2020–2025 (6 seasons, richer perf story) vs. 2024–2025 (faster). *Recommendation: 6 seasons — you need volume for the performance work to be real.*
+- [x] **Repo layout** — monorepo. `backend/` exists; `frontend/` lands in Phase 4.
+- [x] **Project name** — `fantasy-kai`. Java package `com.fantasykai`.
+- [x] **Backfill depth** — **2020–2025, six seasons (~800K stat rows).** Volume is the point: at ~250K rows Postgres scans fast enough that there is no headroom to demonstrate an improvement, and the §9 story collapses.
 - [ ] **Resume date.** "July 2026 – Present" is not currently true. Either change it to September 2026, or ship Phase 0–2 fast enough that it becomes defensible. Do not leave it as-is.
-- [ ] **Attribution block** for nflverse (CC BY 4.0) and Sleeper (non-commercial) in the README and site footer. Write it in Phase 0, not later.
+- [x] **Attribution block** — written in the README in Phase 0. Site footer still owed in Phase 4.
 
 ---
 

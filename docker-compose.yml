@@ -1,0 +1,45 @@
+# Local infrastructure only -- Postgres 16 + Redis 7.
+# Spring Boot and Next.js run on the host for fast reload (handoff doc section 10).
+# Both images publish native arm64 builds, so no `platform:` override is needed on Apple silicon.
+#
+# Postgres is published on host port 5433, not 5432: this machine runs a Homebrew
+# postgresql@16 launchd service that already owns localhost:5432. Override with
+# POSTGRES_PORT in .env on a machine that has 5432 free.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fantasykai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fantasykai}
+      POSTGRES_USER: ${POSTGRES_USER:-fantasykai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fantasykai}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fantasykai} -d ${POSTGRES_DB:-fantasykai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: fantasykai-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:

@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Build, test, migrate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      # Runners ship Docker, so the Testcontainers suite boots a real
+      # PostgreSQL 16 and applies the Flyway migrations for real.
+      - name: Build and test
+        working-directory: backend
+        run: ./mvnw -B verify
