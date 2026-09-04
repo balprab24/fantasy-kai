@@ -16,6 +16,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param cron              schedule for the in-season pull
  * @param scheduledEnabled  master switch for the scheduled job (off in tests)
  * @param backfillOnStartup runs a full backfill once at boot, for the initial load
+ * @param once              pulls the current season once, then exits; the daily launchd job
  */
 @ConfigurationProperties(prefix = "fantasykai.ingest")
 public record IngestProperties(
@@ -24,7 +25,8 @@ public record IngestProperties(
         int firstSeason,
         String cron,
         boolean scheduledEnabled,
-        boolean backfillOnStartup) {
+        boolean backfillOnStartup,
+        boolean once) {
 
     /** September through February. Outside this the scheduled pull is a no-op. */
     private static final Set<Month> IN_SEASON = EnumSet.of(

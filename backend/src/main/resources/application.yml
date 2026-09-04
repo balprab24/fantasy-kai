@@ -42,4 +42,7 @@ fantasykai:
     # 6am ET daily. In-season only; the job no-ops from March to August.
     cron: "0 0 6 * * *"
     scheduled-enabled: true
+    # Both are one-shot switches, off by default -- see BackfillRunner and
+    # IngestOnceRunner. `once` is what scripts/ingest-once.sh sets.
     backfill-on-startup: false
+    once: false

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Daily current-season ingest.
+
+  Install:
+      cp scripts/com.fantasykai.ingest.plist ~/Library/LaunchAgents/
+      # then edit the two __REPO__ paths below to this checkout's absolute path
+      launchctl load ~/Library/LaunchAgents/com.fantasykai.ingest.plist
+
+  Check:  launchctl list | grep fantasykai
+  Run now: launchctl start com.fantasykai.ingest
+  Remove: launchctl unload ~/Library/LaunchAgents/com.fantasykai.ingest.plist
+
+  StartCalendarInterval uses the machine's local timezone, not ET. See the
+  header of ingest-once.sh.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.fantasykai.ingest</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__REPO__/scripts/ingest-once.sh</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>6</integer>
+        <key>Minute</key><integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>__REPO__/logs/ingest.log</string>
+    <key>StandardErrorPath</key>
+    <string>__REPO__/logs/ingest.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

@@ -30,7 +30,7 @@ Everything Flock does that matters flows from: *store raw stat lines, never fant
 
 | Feature | Description |
 |---|---|
-| Player universe | ~700–900 fantasy-relevant NFL players (QB/RB/WR/TE/K/DST), with team, position, status, bye week |
+| Player universe | **1,243 QB/RB/WR/TE across 2020–2025** (578–633 in any one season), with team, position, status, bye week. K and DST rows are stored but not scored in v1 — see §6. |
 | Historical stat lines | Weekly raw box-score stats, 2020–2026 |
 | Scoring profiles | Preset (Standard / Half PPR / Full PPR / TE Premium) + user-defined custom rulesets |
 | Live rankings | Ranked player list recomputed against the selected profile — season, last-4-weeks, and per-game views |
@@ -125,7 +125,7 @@ Flock's rankings come from paid analysts. Yours will come from data. Three hones
 │  matviews       │              │  rate limits   │
 └─────────────────┘              └────────────────┘
        ▲
-       │  weekly pull (Tue 6am ET, in-season)
+       │  daily pull (6am ET, in-season)
 ┌──────┴──────────────────────────────────────────┐
 │  nflverse releases · Sleeper API                │
 └─────────────────────────────────────────────────┘
@@ -474,28 +474,53 @@ Re-measure after each. Be honest in the write-up if the delta here is small — 
 
 Each phase names the resume bullet it earns. Do not write the bullet before the phase is done.
 
-### Phase 0 — Foundation (week 1)
+### Phase 0 — Foundation (week 1) · ✅ done
 Repo, Docker Compose, Flyway schema, `ingest_runs`, health endpoint, GitHub Actions.
 Nothing user-facing. Resist the urge to start on UI.
+Commits `921e21a`, `8fdad10`, `d06f133`. The §9 baseline invariant is live and verified: `player_game_stats` carries exactly one index, its primary key.
 
-### Phase 1 — Ingestion (week 1–2)
+### Phase 1 — Ingestion (week 1–2) · ✅ done
 nflverse CSV pull → parse → upsert. Backfill 2020–2025. Wire the weekly `@Scheduled` job (Tuesday 6am ET). Sleeper player-ID crosswalk.
 Add the GIN/expression index on `players.external_ids` here, not in Phase 6 — it serves the ingestion crosswalk (`external_ids->>'sleeper'`), not the rankings query, so it does not contaminate the §9 baseline. Say so in the commit message.
 **Season kicks off September 10 — get this running before week 1 so you have live data flowing all season.**
+Commit `6c591e5`. Backfill of six seasons ran in **22.8s**; 12/12 tests green. `snap_pct` resolved on 99.9% of stored rows (112,245 / 112,319), 883 Sleeper ids attached, and the post-ingest integrity check reports **zero** stat rows whose denormalized season/week disagrees with the game they point at. The 2026 schedule is already loaded (272 games, first kickoff Sept 10); 2026 stat lines are not published yet and correctly record `SKIPPED`.
 **Ingest every position, filter at query time.** v1 scores QB/RB/WR/TE only (§6), but storing only those rows would shrink `player_game_stats` from ~112K to ~37K and gut the §9 baseline — and K/DST in v2 would then need a backfill after all. The `WHERE` clause belongs in the rankings query, not the ingest.
 
-**Measured from the real `stats_player_week` files, 2020–2025 (not estimated):**
+**Measured against the loaded database, 2020–2025 (not estimated):**
 
 | | per season | 6-season total |
 |---|---|---|
-| Stat rows, all positions | 17,602 – 19,422 | **112,450** |
+| Stat rows read from source | 17,602 – 19,422 | 112,450 |
+| Stat rows **stored** | 17,581 – 19,400 | **112,319** |
 | Stat rows, QB/RB/WR/TE | 5,817 – 6,321 | 36,567 |
-| Distinct players, all positions | 1,948 – 2,088 | **4,062** |
+| Distinct players, all positions | 1,947 – 2,087 | **4,061** |
 | Distinct players, QB/RB/WR/TE | **578 – 633** | **1,243** |
+
+**Read and stored are different numbers, and the gap is the interesting part.** 131 stat lines across the six seasons carry a blank `player_id` and cannot be resolved to a player, so they are dropped — 21 in 2020, 22 in each season after. Quote **112,319**: it is the number you can run a `COUNT(*)` for in front of someone.
 
 → *Earns: "1,200+ NFL skill-position players across six seasons."* Note the framing: **no single season clears 700 skill-position players** — the number that beats 700 is the six-season union, which is exactly what the `players` table holds. Say "across six seasons" or the claim breaks the moment someone asks whether that is one year.
 
-→ ⚠️ *"10K+ records daily" is not supported by a weekly job.* A Tuesday-only schedule processes ~19K rows **per week**, not per day. Either drop the word "daily", or run the scheduled ingest daily in-season — the upsert is idempotent, nflverse revises the current week mid-week, so a daily pull of the current season (~19K rows) is defensible on its own merits and makes the claim literally true. **Decide this in Phase 1, then verify against `ingest_runs` before it goes on the resume.**
+→ **Decision: the scheduled pull runs daily in-season, not weekly.** A Tuesday-only job moves ~19K rows *per week*, which does not support the word "daily" on a resume. Daily is defensible on its own merits anyway: nflverse revises the current week mid-week as corrections land, and the upsert is idempotent, so re-pulling costs nothing and a day-old number is the difference between a useful waiver view and a stale one. `cron: "0 0 6 * * *"` at `America/New_York`, no-op from March through August.
+
+**What one daily run actually processes — say this, not "10K+":**
+
+Measured from an actual run on 2026-09-04, six `ingest_runs` rows totalling **28,255 records read in 5.6s**:
+
+| source | rows read per daily run |
+|---|---|
+| `nflverse.teams` | 36 |
+| `nflverse.players` | 24,832 |
+| `nflverse.schedules` (current season) | 272 |
+| `nflverse.stats_player_week` | 0 pre-week-1 → ~1,100 after wk 1 → ~19,400 by wk 18 |
+| `nflverse.snap_counts` | 0 pre-week-1 → ~26,500 by wk 18 |
+| `sleeper.players` | 3,115 read, 883 matched |
+| **total** | **28,255 before week 1 → ~74,000 by week 18** |
+
+Be straight about the composition rather than hiding it: the player master is ~25K of that, and before week 1 it is most of it. *"Processes 28K+ records per daily run, rising to ~74K late in the season"* is both truer and stronger than "10K+ records daily", and every number in it is a row in `ingest_runs` you can point at. Before the season's first stat file is published, `stats_player_week` and `snap_counts` record `SKIPPED` rather than failing — also visible in `ingest_runs`, and the honest thing for it to do.
+
+**A detail worth having ready, because it argues the case better than the reasoning does:** `players.csv` read 25,065 rows during the September 3 backfill and 24,832 the next day. The source revises published files. That is the concrete answer to *"why daily and not weekly"* — not "in case something changed", but "it changed overnight, here are the two `ingest_runs` rows."
+
+**Running it.** The in-app `@Scheduled` job needs a long-lived JVM, which on a laptop that sleeps is not a schedule. `scripts/ingest-once.sh` runs one current-season pull and exits with the app's status code; `scripts/com.fantasykai.ingest.plist` is the launchd agent that fires it. Two caveats live in the script header: launchd uses the machine's local timezone rather than ET, and a sleeping Mac runs the job on wake rather than at 06:00. Both show up honestly as gaps in `ingest_runs`.
 
 ### Phase 2 — Scoring engine (week 2–3)
 Ruleset model, validator, evaluator, four seeded presets, the verified-box-score test suite.
@@ -538,8 +563,8 @@ README with architecture diagram and the perf numbers, seeded demo account, depl
 
 - [x] **Repo layout** — monorepo. `backend/` exists; `frontend/` lands in Phase 4.
 - [x] **Project name** — `fantasy-kai`. Java package `com.fantasykai`.
-- [x] **Backfill depth** — **2020–2025, six seasons (~800K stat rows).** Volume is the point: at ~250K rows Postgres scans fast enough that there is no headroom to demonstrate an improvement, and the §9 story collapses.
-- [ ] **Resume date.** "July 2026 – Present" is not currently true. Either change it to September 2026, or ship Phase 0–2 fast enough that it becomes defensible. Do not leave it as-is.
+- [x] **Backfill depth** — **2020–2025, six seasons.** Loaded: **112,319 stat rows** (112,450 read). The original ~800K estimate conflated play-by-play volume with weekly stat lines. The real figure still leaves the §9 story intact, and it is measured rather than assumed.
+- [x] **Resume date** — **September 2026 – Present.** Phase 0 landed September 3, 2026 and the commit history proves it. "July 2026" was not true and there was nothing to gain by defending it.
 - [x] **Attribution block** — written in the README in Phase 0. Site footer still owed in Phase 4.
 
 ---

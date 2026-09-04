@@ -6,7 +6,9 @@ The core design decision: **store raw stat lines, never fantasy points.** Full P
 
 ## Status
 
-Phase 0 — foundation. Infrastructure, Spring Boot skeleton, and the versioned schema. Nothing user-facing yet. See [`docs/fantasy-platform-handoff.md`](docs/fantasy-platform-handoff.md) for the full design and build plan.
+Phases 0–1 done: infrastructure, versioned schema, and the nflverse + Sleeper ingestion pipeline. **112,319 weekly stat lines across the 2020–2025 seasons**, covering 1,243 distinct QB/RB/WR/TE players. Phase 2 — the scoring engine — is in progress. Nothing user-facing yet.
+
+See [`docs/fantasy-platform-handoff.md`](docs/fantasy-platform-handoff.md) for the full design and build plan, and [`CLAUDE.md`](CLAUDE.md) for the operational notes.
 
 ## Stack
 
