@@ -10,6 +10,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import com.fantasykai.ingest.IntegrityChecks;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -59,20 +60,6 @@ class SchemaMigrationTests {
                 "users", "scoring_profiles", "ingest_runs");
     }
 
-    /**
-     * player_game_stats.season/week are denormalized copies of games.season/week
-     * (section 9). Nothing in the schema enforces that they agree: a composite FK
-     * would cost a unique index on games(id, season, week), which the section 9
-     * baseline is deliberately doing without. Ingestion is the only writer, so the
-     * invariant is asserted here instead and re-run against real data after every
-     * ingest in Phase 1.
-     */
-    static final String SEASON_WEEK_DRIFT = """
-            SELECT count(*) FROM player_game_stats s
-            JOIN games g ON g.id = s.game_id
-            WHERE s.season <> g.season OR s.week <> g.week
-            """;
-
     @Test
     @Transactional
     void detectsSeasonWeekDriftFromTheJoinedGame() {
@@ -82,8 +69,8 @@ class SchemaMigrationTests {
                 "INSERT INTO teams (abbr, name) VALUES ('GB', 'Green Bay Packers') RETURNING id", Integer.class);
         Long game = jdbc.queryForObject(
                 """
-                INSERT INTO games (season, week, season_type, home_team_id, away_team_id)
-                VALUES (2025, 1, 'REG', ?, ?) RETURNING id
+                INSERT INTO games (nflverse_game_id, season, week, season_type, home_team_id, away_team_id)
+                VALUES ('2025_01_GB_DET', 2025, 1, 'REG', ?, ?) RETURNING id
                 """, Long.class, det, gb);
         Long player = jdbc.queryForObject(
                 """
@@ -96,12 +83,12 @@ class SchemaMigrationTests {
                 INSERT INTO player_game_stats (player_id, game_id, season, week, team_id)
                 VALUES (?, ?, 2025, 1, ?)
                 """, player, game, det);
-        assertThat(jdbc.queryForObject(SEASON_WEEK_DRIFT, Long.class)).isZero();
+        assertThat(jdbc.queryForObject(IntegrityChecks.SEASON_WEEK_DRIFT, Long.class)).isZero();
 
         // Drift the copy away from the source of truth: the check must catch it.
         jdbc.update("UPDATE player_game_stats SET season = 2024 WHERE player_id = ? AND game_id = ?",
                 player, game);
-        assertThat(jdbc.queryForObject(SEASON_WEEK_DRIFT, Long.class)).isEqualTo(1L);
+        assertThat(jdbc.queryForObject(IntegrityChecks.SEASON_WEEK_DRIFT, Long.class)).isEqualTo(1L);
     }
 
     @Test

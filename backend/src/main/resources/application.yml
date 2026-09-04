@@ -32,3 +32,14 @@ management:
     health:
       # Local convenience. Tighten to `when-authorized` in Phase 5 once auth exists.
       show-details: always
+
+fantasykai:
+  ingest:
+    base-url: https://github.com/nflverse/nflverse-data/releases/download
+    sleeper-base-url: https://api.sleeper.app
+    # Six seasons. Volume is the point -- see the handoff doc section 9.
+    first-season: 2020
+    # 6am ET daily. In-season only; the job no-ops from March to August.
+    cron: "0 0 6 * * *"
+    scheduled-enabled: true
+    backfill-on-startup: false

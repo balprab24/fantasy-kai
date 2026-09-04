@@ -1,0 +1,4 @@
+game_id,pfr_game_id,season,game_type,week,player,pfr_player_id,position,team,opponent,offense_snaps,offense_pct,defense_snaps,defense_pct,st_snaps,st_pct
+2024_02_NYG_WAS,202409150was,2024,REG,2,Austin Seibert,SeibAu00,K,WAS,NYG,0,0,0,0,14,0.67
+2024_02_TB_DET,202409150det,2024,REG,2,Aidan Hutchinson,HutcAi00,DE,DET,TB,0,0,43,0.9,0,0
+2024_10_CIN_BAL,202411070rav,2024,REG,10,Ja'Marr Chase,ChasJa00,WR,CIN,BAL,77,0.94,0,0,0,0
