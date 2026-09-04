@@ -19,6 +19,8 @@ Full PPR, half PPR, standard and TE premium stop being three code paths and beco
 | Flyway owns the schema; `ddl-auto` stays `validate` | Versioned schema from commit 1. `validate` fails fast the moment a JPA entity drifts from a migration. It must never become `update`. | never |
 | `.env` is gitignored, `.env.example` is committed | No secret in `application.yml`. JWT secret comes from env (Phase 5). | never |
 | No string concatenation into SQL — including dynamic sort/filter | Whitelist sortable columns by name. §8. | never |
+| `StatKey` is the only place a scorable stat is named | It is the validation allowlist, the dot-product array index, and the `player_game_stats` column name at once. Adding a stat anywhere else breaks one of the three. | never |
+| Round points once, at the API boundary | `ScoringEngine` never rounds. A season total must be the rounded sum of weeks, not the sum of rounded weeks. | never |
 | Ingest every position, filter at query time | v1 scores QB/RB/WR/TE only, but storing only those rows would cut `player_game_stats` from 112K to 37K and gut the §9 baseline — and K/DST in v2 would then need a backfill after all. | never |
 
 ## Where things are
@@ -40,8 +42,8 @@ scripts/                                   One-shot ingest + launchd plist
 |---|---|
 | 0 — Foundation | ✅ `921e21a`, `8fdad10`, `d06f133` |
 | 1 — Ingestion | ✅ `6c591e5` — six-season backfill in 22.8s |
-| 2 — Scoring engine | ⬅ **in progress** |
-| 3 — Read API + k6 baseline | next |
+| 2 — Scoring engine | ✅ `com.fantasykai.scoring` + V3 presets, 47 tests |
+| 3 — Read API + k6 baseline | ⬅ **next** |
 | 4–7 | frontend · auth · perf pass · polish |
 
 2026 season opens **Sept 10**. The 2026 schedule is loaded (272 games); nflverse has not published 2026 stat lines yet, so those runs correctly record `SKIPPED`.
@@ -76,7 +78,22 @@ From the loaded database, 2020–2025:
 - **nflverse `players.csv` has no Sleeper id at all** — only espn, pfr, nfl, esb. The crosswalk has to come from Sleeper's own API, matching on gsis.
 - **pgjdbc maps `smallint` to `Integer`, not `Short`.** Test assertions must use ints.
 - **`JdbcTemplate` reads a jsonb `?` operator as a bind placeholder.** `external_ids ? 'pfr'` will not work; use `external_ids ->> 'pfr' IS NOT NULL`.
+- **nflverse's `fantasy_points` penalises only *offensive* fumbles.** We score `fumbles_lost_total`, which also counts a muffed punt or kickoff — 39 rows of 19,422 in 2025, each worth exactly 2 points. This is a deliberate disagreement (real leagues penalise any fumble the roster player loses), pinned exactly in `NflverseOracleTests` rather than hidden behind a tolerance. Do not "fix" it toward nflverse.
 - **nflverse release assets 404 until published.** `AssetNotPublishedException` → `ingest_runs.status = 'SKIPPED'`. A future season must not fail the run.
+
+## Scoring — how it fits together
+
+```
+scoring_profiles.rules (JSONB)
+   -> RulesetJson.read      parse; reject unknown keys rather than ignoring them
+   -> RulesetValidator      bound rates to [-10,10], bonuses to 20
+   -> ResolvedRuleset       version dispatch, then position overrides folded into double[]
+   -> ScoringEngine.score   one dot-product + threshold bonuses. no rounding.
+```
+
+`ResolvedRuleset.hash()` is the §9 cache key: logically identical rulesets hash identically, so two users with the same league settings share one entry. Verify a change to `Ruleset.canonicalHash()` against `RulesetHashTests` before trusting it.
+
+Presets are seeded by `V3__seed_scoring_presets.sql`, duplicated in the test helper `Presets.java`, and the two are held together by a canonical-hash assertion in `ScoringProfileTests` — change one and that test names the other.
 
 ## Commands
 

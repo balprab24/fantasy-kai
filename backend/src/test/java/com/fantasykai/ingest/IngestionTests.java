@@ -10,9 +10,17 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import com.fantasykai.scoring.ResolvedRuleset;
+import com.fantasykai.scoring.Ruleset;
+import com.fantasykai.scoring.ScoringEngine;
+import com.fantasykai.scoring.StatKey;
+import com.fantasykai.scoring.StatLine;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -185,6 +193,48 @@ class IngestionTests {
     @Test
     void denormalizedSeasonAndWeekAgreeWithTheJoinedGame() {
         assertThat(jdbc.queryForObject(IntegrityChecks.SEASON_WEEK_DRIFT, Long.class)).isZero();
+    }
+
+    @Test
+    void anIngestedRowScoresCorrectlyStraightOutOfTheDatabase() {
+        // The loop the rest of the suite leaves open: nflverse CSV -> upsert ->
+        // stat columns -> StatKey -> points. StatKey names are the column names,
+        // so the SELECT is generated from the enum rather than written beside it
+        // -- if the two ever drift this fails, instead of scoring a silent zero.
+        String columns = Arrays.stream(StatKey.values()).map(StatKey::json)
+                .collect(Collectors.joining(", "));
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT " + columns + " FROM player_game_stats s"
+                        + " JOIN players p ON p.id = s.player_id WHERE p.gsis_id = ?",
+                CHASE);
+
+        Map<StatKey, Number> stats = new EnumMap<>(StatKey.class);
+        Arrays.stream(StatKey.values())
+                .forEach(stat -> stats.put(stat, (Number) row.get(stat.json())));
+
+        // Ja'Marr Chase, 2024 week 10: 11-264-3. Full PPR = 11 + 26.4 + 18.
+        // nflverse's own fantasy_points_ppr for this line is 55.4. We never store
+        // that column; this is the number computed without it.
+        double points = ScoringEngine.score(
+                StatLine.of("WR", stats), ResolvedRuleset.compile(fullPpr()));
+
+        assertThat(ScoringEngine.roundForDisplay(points)).isEqualTo(55.4);
+    }
+
+    /** Full PPR, built here so this test does not depend on the V3 seed. */
+    private static Ruleset fullPpr() {
+        Map<StatKey, Double> base = new EnumMap<>(StatKey.class);
+        base.put(StatKey.PASS_YD, 0.04);
+        base.put(StatKey.PASS_TD, 4.0);
+        base.put(StatKey.PASS_INT, -2.0);
+        base.put(StatKey.RUSH_YD, 0.1);
+        base.put(StatKey.RUSH_TD, 6.0);
+        base.put(StatKey.REC, 1.0);
+        base.put(StatKey.REC_YD, 0.1);
+        base.put(StatKey.REC_TD, 6.0);
+        base.put(StatKey.FUM_LOST, -2.0);
+        base.put(StatKey.RET_TD, 6.0);
+        return new Ruleset(1, base, Map.of(), List.of());
     }
 
     private Map<String, Object> statLine(String gsisId) {

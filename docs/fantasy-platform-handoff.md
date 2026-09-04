@@ -323,7 +323,15 @@ The dot-product evaluator is the one clean architectural idea in this project. N
 
 ### Test strategy (do this, it's your credibility)
 
-Pull three real 2025 game lines you can verify against a public box score. Assert exact expected points under all four presets. If Ja'Marr Chase's Week 3 line doesn't come out to the right number under full PPR, nothing downstream is trustworthy. These tests are also what you show an interviewer.
+Three real 2025 lines, hand-computed under all four presets: **Josh Allen wk 1** (394 pass yd, 2 pass TD, 30 rush yd, 2 rush TD — no receptions, so all four presets must return the same 38.76), **Juwan Johnson wk 1** (a TE with 8 catches for 76, so the presets separate cleanly at 7.6 / 11.6 / 15.6 / 19.6 and the TE Premium override is visible), and **Derrick Henry wk 1** (169 rush yd, 2 TD, one fumble lost — the penalty and the 100-yard bonus boundary).
+
+**But hand-computed expectations only test your arithmetic against your arithmetic.** The stronger check: nflverse ships `fantasy_points` and `fantasy_points_ppr`, and while §5 says never to *store* them, nothing stops you *checking against* them. 53 real 2025 lines — chosen to cover 2-point conversions of all three kinds, return TDs, multi-interception games, both flavours of lost fumble, 100- and 300-yard games, and scoreless lines — are scored under Standard and Full PPR and compared to the source's own numbers. That is an oracle you did not write, and *"I validated my evaluator against the source's precomputed column, then threw the column away"* is a much better answer to Q8 than the reasoning alone.
+
+**One place we disagree with nflverse, on purpose.** Across all 19,422 rows of the 2025 file, our formula reproduces `fantasy_points` on 19,383 of them. The 39 that differ are all off by exactly +2.00, and every one has `fumbles_lost_total = 1` with all three offensive fumble columns at zero — they are returners who muffed a punt or kickoff. nflverse penalises only fumbles lost on offence; we ingest `fumbles_lost_total`, which includes return fumbles, because a real league penalises the roster player for any fumble they lose. Ours is the behaviour a fantasy platform wants.
+
+The point is not that we found it — it is that the test **pins the difference exactly** rather than widening a tolerance until it passes. A tolerance loose enough to hide a two-point return fumble is loose enough to hide a bug, and the divergent rows have their own test so a future fixture refresh cannot quietly drop them.
+
+Round-trip and drift are covered too: the four presets are built in Java for the pure tests and seeded by `V3__seed_scoring_presets.sql` for the app, and an integration test asserts both compile to the **same canonical hash** — so the migration and the code cannot drift apart silently. A final end-to-end test reads a stat row back out of Postgres by column name generated from `StatKey`, scores it, and asserts Ja'Marr Chase's 2024 week 10 line comes to 55.4 under full PPR.
 
 ---
 
@@ -522,9 +530,13 @@ Be straight about the composition rather than hiding it: the player master is ~2
 
 **Running it.** The in-app `@Scheduled` job needs a long-lived JVM, which on a laptop that sleeps is not a schedule. `scripts/ingest-once.sh` runs one current-season pull and exits with the app's status code; `scripts/com.fantasykai.ingest.plist` is the launchd agent that fires it. Two caveats live in the script header: launchd uses the machine's local timezone rather than ET, and a sleeping Mac runs the job on wake rather than at 06:00. Both show up honestly as gaps in `ingest_runs`.
 
-### Phase 2 — Scoring engine (week 2–3)
+### Phase 2 — Scoring engine (week 2–3) · ✅ done
 Ruleset model, validator, evaluator, four seeded presets, the verified-box-score test suite.
 Pure backend. This is the deepest work in the project; give it the time.
+
+`com.fantasykai.scoring` + `V3__seed_scoring_presets.sql`. 35 scoring tests, 47 in the suite.
+
+`StatKey` is the one idea worth explaining out loud: a single enum that is simultaneously the validation allowlist, the array index for the dot-product, and the `player_game_stats` column name — so a ruleset cannot name a stat that does not exist, scoring never does a hash lookup per stat, and the Phase 3 query is generated from the enum rather than maintained beside it. `ResolvedRuleset.compile` branches on the rule-format version now, with only version 1 in existence, for the reason §6 gives. `Ruleset.canonicalHash()` exists early because it is a property of the model, not of the cache: it is tested here so Phase 6 can rely on it.
 
 ### Phase 3 — Read API (week 3)
 `/players`, `/rankings`, `/gamelog`. Naive and unoptimized — **that's the point.** Capture the k6 baseline here.
@@ -554,7 +566,7 @@ README with architecture diagram and the perf numbers, seeded demo account, depl
 5. Why the composite index in that column order? *(Selectivity and the access pattern of the rankings query. Show the EXPLAIN plans, before and after — and be willing to say the index moved p95 less than the cache did.)*
 6. How do you keep user A from reading user B's scoring profiles? *(Repository-level `user_id` filter from the JWT subject, not a service-layer check.)*
 7. What breaks if nflverse goes down mid-season? *(Last ingest persists; app serves stale data with a visible "last updated" timestamp; `ingest_runs` records the failure. Degraded, not down.)*
-8. Why don't you store the `fantasy_points` column the source hands you? *(Because a stored point value is only correct for one ruleset. The source's is full-PPR; every other league would need its own copy, and a rule change would need a full backfill. See §5.)*
+8. Why don't you store the `fantasy_points` column the source hands you? *(Because a stored point value is only correct for one ruleset. The source's is full-PPR; every other league would need its own copy, and a rule change would need a full backfill. See §5. Then the good part: I don't store it, but I do **test against** it — 53 real lines scored under my presets and compared to nflverse's own arithmetic. It agrees on all of them except a class of return fumbles I penalise deliberately and they don't, and that difference is pinned in a test rather than absorbed into a tolerance.)*
 9. What would you do differently? *(Have a real answer ready. "Ingestion in Python for the projections work" is a good one.)*
 
 ---
