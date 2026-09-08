@@ -1,8 +1,13 @@
 # fantasy-kai — project brain
 
-NFL fantasy analytics platform. Java 21 / Spring Boot 3.5.16 · PostgreSQL 16 · Redis 7 · Next.js 15 (Phase 4).
+NFL fantasy analytics platform. Java 21 / Spring Boot 3.5.16 · PostgreSQL 16 · Redis 7 · Next.js 15 (Phase 5).
 
-**Full spec: [`docs/fantasy-platform-handoff.md`](docs/fantasy-platform-handoff.md).** It is the source of truth for scope, sequencing and rationale; this file is the operational memory that sits alongside it. When the two disagree, the doc wins — and fix this file.
+**Two docs sit above this file, and they own different things.**
+
+- **[`docs/north-star.md`](docs/north-star.md)** — source of truth for **scope, sequencing and product decisions**. What we are building, for whom, in what order, and the list of things we are deliberately not building.
+- **[`docs/fantasy-platform-handoff.md`](docs/fantasy-platform-handoff.md)** — source of truth for **engineering rationale**: §5 schema, §6 scoring, §8 security, §9 performance. Its §1 (product definition) and §11 (build plan) are **superseded** by the north star.
+
+This file is the operational memory that sits alongside both. When it disagrees with either, the doc wins — and fix this file.
 
 ## The one idea
 
@@ -14,14 +19,24 @@ Full PPR, half PPR, standard and TE premium stop being three code paths and beco
 
 | Invariant | Why | Expires |
 |---|---|---|
-| `player_game_stats` carries **no index past its primary key** | §9's whole performance story is a measured before/after. An index added early destroys the baseline and there is no way to recover it without re-measuring from scratch. | Phase 6, as a numbered migration |
+| `player_game_stats` carries **no index past its primary key** | §9's whole performance story is a measured before/after. An index added early destroys the baseline and there is no way to recover it without re-measuring from scratch. | Phase 11, as a numbered migration |
 | Never store `fantasy_points` / `fantasy_points_ppr` | The source ships both. A stored point value is correct for exactly one ruleset. Persisting them reintroduces the thing the architecture exists to avoid. | never |
 | Flyway owns the schema; `ddl-auto` stays `validate` | Versioned schema from commit 1. `validate` fails fast the moment a JPA entity drifts from a migration. It must never become `update`. | never |
 | `.env` is gitignored, `.env.example` is committed | No secret in `application.yml`. JWT secret comes from env (Phase 5). | never |
 | No string concatenation into SQL — including dynamic sort/filter | Whitelist sortable columns by name. §8. | never |
 | `StatKey` is the only place a scorable stat is named | It is the validation allowlist, the dot-product array index, and the `player_game_stats` column name at once. Adding a stat anywhere else breaks one of the three. | never |
 | Round points once, at the API boundary | `ScoringEngine` never rounds. A season total must be the rounded sum of weeks, not the sum of rounded weeks. | never |
+| A ranking scores **each game, then sums** — never one score over summed stats | Threshold bonuses make `ScoringEngine` non-linear, so a 100-yard bonus belongs to a game. It also keeps §9 Step 4's matview meaningful: if Phase 3 pre-aggregated, the perf pass would have nothing left to collapse. | never |
 | Ingest every position, filter at query time | v1 scores QB/RB/WR/TE only, but storing only those rows would cut `player_game_stats` from 112K to 37K and gut the §9 baseline — and K/DST in v2 would then need a backfill after all. | never |
+| **Project the stat line, never the points** | A projection row carries the same 13 `StatKey` columns and is scored by the unmodified `ScoringEngine`. A projected point value is right for exactly one ruleset — the `fantasy_points` mistake, one layer up. north-star §3.1 | never |
+| **Store signal components, never a blended rank** | A rank is a function of (signals × recipe × league). Storing it freezes the recipe and turns a weight change into a backfill. north-star §3.2 | never |
+| `SignalKey` is the only place a blendable signal is named | Same three-jobs trick as `StatKey`, one level up: recipe allowlist, dot-product index, signals-table column name. north-star §3.3 | never |
+| **Every ranked number carries its parts** — `ExplainedScore`, not `double` | "Why is he ranked here" *is* the product. Explanation bolted on afterwards ends up absent or wrong. | never |
+| Every external signal is optional; a ranking computes without it | $0 budget, unlicensed sources, and ESPN will break mid-season. Degrade the explanation, never 500 the endpoint. | never |
+| A trade is valued in **expected wins**, never a per-player number | A context-free player value is exactly what every basic calculator gets wrong. north-star §7 | never |
+| Third-party league data is fetched **as the user, with their own credentials**, never redistributed or aggregated | The line that separates legitimate league import from scraping. It is what makes ESPN import defensible. | never |
+| **No expert rankings ingested, ever** — consensus means *market* consensus | Real drafts (FFC), real roster rates (Sleeper), real lines (nflverse). Handoff §0. | never |
+| No paywall, no ads, no sportsbook links, no affiliate | The product promise — and it keeps Apple guideline 5.3 out of scope entirely. | never |
 
 ## Where things are
 
@@ -29,11 +44,15 @@ Full PPR, half PPR, standard and TE premium stop being three code paths and beco
 backend/src/main/java/com/fantasykai/
   ingest/          Phase 1 — nflverse + Sleeper pipeline (17 classes)
   scoring/         Phase 2 — ruleset model, validator, dot-product evaluator
+  query/           Phase 3 — JdbcTemplate reads, StatKey-generated SQL, the §8 whitelists
+  api/             Phase 3 — controllers, DTOs, RFC 7807 advice
 backend/src/main/resources/db/migration/   Flyway. V1 schema, V2 ingestion support
 backend/src/test/resources/nflverse/       Real 2024 rows as fixtures — not invented
-docs/fantasy-platform-handoff.md           The spec
-docs/perf/                                 Phase 3 baseline, Phase 6 results
-scripts/                                   One-shot ingest + launchd plist
+docs/north-star.md                         Scope, roadmap, product invariants
+docs/fantasy-platform-handoff.md           Engineering rationale (§1/§11 superseded)
+docs/perf/                                 Phase 3 baseline, projection accuracy, perf-pass results
+perf/rankings.js                           k6 load script — pins season=2025 on purpose
+scripts/                                   One-shot ingest, launchd plist, perf-explain.sh
 ```
 
 ## Current state
@@ -43,8 +62,13 @@ scripts/                                   One-shot ingest + launchd plist
 | 0 — Foundation | ✅ `921e21a`, `8fdad10`, `d06f133` |
 | 1 — Ingestion | ✅ `6c591e5` — six-season backfill in 22.8s |
 | 2 — Scoring engine | ✅ `com.fantasykai.scoring` + V3 presets, 47 tests |
-| 3 — Read API + k6 baseline | ⬅ **next** |
-| 4–7 | frontend · auth · perf pass · polish |
+| 3 — Read API + k6 baseline | ✅ `com.fantasykai.api` + `.query`, 25 tests (72 in the suite) — **k6 run still owed**, see `docs/perf/baseline.md` |
+| 3.5 — Close the k6 baseline | ⬅ **next** — 1 VU vs 20 VU, then commit the untracked Phase 3 work. Unrecoverable once later phases add compute. |
+| 4 — Vegas in the schema | `V4` widens `games`; `GameIngestor` already downloads the columns and discards them |
+| 5 — Auth + web shell | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools |
+| 9–11 | consensus board · iOS (Expo) · perf pass |
+
+Full roadmap and the reasoning for the order: [`docs/north-star.md`](docs/north-star.md) §10.
 
 2026 season opens **Sept 10**. The 2026 schedule is loaded (272 games); nflverse has not published 2026 stat lines yet, so those runs correctly record `SKIPPED`.
 
@@ -79,6 +103,9 @@ From the loaded database, 2020–2025:
 - **pgjdbc maps `smallint` to `Integer`, not `Short`.** Test assertions must use ints.
 - **`JdbcTemplate` reads a jsonb `?` operator as a bind placeholder.** `external_ids ? 'pfr'` will not work; use `external_ids ->> 'pfr' IS NOT NULL`.
 - **nflverse's `fantasy_points` penalises only *offensive* fumbles.** We score `fumbles_lost_total`, which also counts a muffed punt or kickoff — 39 rows of 19,422 in 2025, each worth exactly 2 points. This is a deliberate disagreement (real leagues penalise any fumble the roster player loses), pinned exactly in `NflverseOracleTests` rather than hidden behind a tolerance. Do not "fix" it toward nflverse.
+- **`players.full_name` is not unique.** 832 names are shared, 24 of them between players who both have stat lines — `Josh Allen` is a quarterback (id 344) and a center (id 343). Never key a lookup on a name; the API returns `id` everywhere and treats the name as display text.
+- **Weeks run to 22, not 18.** Weeks 19–22 are `season_type = 'POST'`. Rankings join `games` and filter to `REG`, because fantasy leagues do not score the playoffs and `last4` would otherwise mean "the postseason". The game log deliberately does *not* filter — it is a record of what a player did.
+- **`@Validated` on a controller turns a 400 into a 500.** It proxies the class so Bean Validation throws `ConstraintViolationException`, which no Spring MVC handler knows about. Without it, Spring 6.1+ validates constrained parameters itself and raises `HandlerMethodValidationException`, which `ResponseEntityExceptionHandler` renders as `problem+json`. Found by sending `?size=5000`, not by reading the docs.
 - **nflverse release assets 404 until published.** `AssetNotPublishedException` → `ingest_runs.status = 'SKIPPED'`. A future season must not fail the run.
 
 ## Scoring — how it fits together
@@ -94,6 +121,28 @@ scoring_profiles.rules (JSONB)
 `ResolvedRuleset.hash()` is the §9 cache key: logically identical rulesets hash identically, so two users with the same league settings share one entry. Verify a change to `Ruleset.canonicalHash()` against `RulesetHashTests` before trusting it.
 
 Presets are seeded by `V3__seed_scoring_presets.sql`, duplicated in the test helper `Presets.java`, and the two are held together by a canonical-hash assertion in `ScoringProfileTests` — change one and that test names the other.
+
+## Read API — how it fits together
+
+```
+GET /api/v1/rankings?profileId=&season=&position=&scope=&page=&size=
+   -> ScoringProfiles.byId        compiled ruleset, memoized per profile id
+   -> PlayerQueryRepository       one seq scan; 6,037 rows for a 2025 season
+   -> ScoringEngine.score         per row, unrounded
+   -> sum per player, sort, page  in Java — points do not exist in SQL
+   -> roundForDisplay             once, here
+```
+
+`size` does not reduce the work: the sort is by computed points, so every row has
+to be scored before a page can be taken. That is the §9 baseline, not a defect.
+
+Three whitelists stand between a request and the SQL — `PlayerSort`,
+`RankingScope`, `ScoringPosition`. Each resolves a request string to an enum
+constant or throws; `QuerySafetyTests` proves it by sending `DROP TABLE` through
+each one and then checking the table is still there.
+
+`/api/v1/scoring-profiles` serves presets only (`user_id IS NULL`). Phase 5 adds
+`OR user_id = ?` bound to the JWT subject, **in the query, not the service**.
 
 ## Commands
 
