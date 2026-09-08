@@ -62,7 +62,7 @@ scripts/                                   One-shot ingest, launchd plist, perf-
 | 0 — Foundation | ✅ `921e21a`, `8fdad10`, `d06f133` |
 | 1 — Ingestion | ✅ `6c591e5` — six-season backfill in 22.8s |
 | 2 — Scoring engine | ✅ `com.fantasykai.scoring` + V3 presets, 47 tests |
-| 3 — Read API + k6 baseline | ✅ `com.fantasykai.api` + `.query`, 25 tests (72 in the suite) — **k6 run still owed**, see `docs/perf/baseline.md` |
+| 3 — Read API | ✅ `ec5a8e9` — `com.fantasykai.api` + `.query`, 25 tests (72 in the suite) |
 | 3.5 — k6 baseline | ✅ 1/5/10/20 VUs measured — p95 **21.4 ms → 125.0 ms**, throughput saturates at ~256 req/s. **The bottleneck is Postgres, not the Java scorer (88/12).** See below. |
 | 4 — Vegas in the schema | ⬅ **next** — `V4` widens `games`; `GameIngestor` already downloads the columns and discards them |
 | 5 — Auth + web shell | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools |
