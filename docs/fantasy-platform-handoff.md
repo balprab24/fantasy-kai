@@ -590,7 +590,7 @@ Pure backend. This is the deepest work in the project; give it the time.
 
 Rankings join `games` and filter `season_type = 'REG'`. The data runs to week 22; a season total that quietly folded in four playoff weeks would flatter players on deep teams, and `last4` would mean "the postseason". The game log deliberately does not filter — it is a record of what a player did.
 
-**Baseline so far** (`docs/perf/baseline.md`): the 2025 rankings query is **three** sequential scans, not one — `player_game_stats` discards 92,919 of 112,319 rows and `players` discards 16,689 of 25,065, together touching 4,044 shared buffers (~31.6 MB) in **29.5 ms** warm, and handing **6,037 player-weeks** to the Java scorer to produce a ranking of 610. A single warm HTTP request is ~38 ms median. **The k6 1-VU-versus-20-VU pass has not been run yet**; that pair is the actual evidence for compute-bound-versus-scan-bound, so the file marks it `TBD` rather than guessing.
+**Baseline so far** (`docs/perf/baseline.md`): the 2025 rankings query is **three** sequential scans, not one — `player_game_stats` discards 92,919 of 112,319 rows and `players` discards 16,689 of 25,065, together touching 4,044 shared buffers (~31.6 MB) in **29.5 ms** warm, and handing **6,037 player-weeks** to the Java scorer to produce a ranking of 610. A single warm HTTP request is ~38 ms median. **The k6 passes were run on 2026-09-07** at 1/5/10/20 VUs, and they did not say what this section expected: the endpoint is compute-bound rather than disk-bound, but the busy CPU is Postgres at 88%, not the Java scorer. See the correction at the head of §9 and the full numbers in `docs/perf/baseline.md`.
 
 **Two corrections to §9 Step 4, found while measuring.** First, the "~30× reduction" conflates populations: 19,400 rows/season is *all* positions while ~613 is *skill* players, and the rankings query reads 6,037 rows — the real reduction is **~10×**. Second, and more serious: pre-aggregating season totals and scoring them once pays a threshold bonus at most once per season instead of once per qualifying game. Every seeded preset is bonus-free so nothing is wrong today, but Phase 5 ships custom profiles and `RulesetValidator` allows up to 20 bonuses. Phase 6 must gate the matview path on `bonuses().isEmpty()` or materialize per-game bonus counts.
 
@@ -629,7 +629,7 @@ README with architecture diagram and the perf numbers, seeded demo account, depl
 - [x] **Project name** — `fantasy-kai`. Java package `com.fantasykai`.
 - [x] **Backfill depth** — **2020–2025, six seasons.** Loaded: **112,319 stat rows** (112,450 read). The original ~800K estimate conflated play-by-play volume with weekly stat lines. The real figure still leaves the §9 story intact, and it is measured rather than assumed.
 - [x] **Resume date** — **September 2026 – Present.** Phase 0 landed September 3, 2026 and the commit history proves it. "July 2026" was not true and there was nothing to gain by defending it.
-- [x] **Attribution block** — written in the README in Phase 0. Site footer still owed in Phase 4.
+- [x] **Attribution block** — written in the README in Phase 0. Site footer still owed, and it moved to **Phase 5** with the web shell (north-star §10).
 
 ---
 
