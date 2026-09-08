@@ -5,6 +5,25 @@
 **Status:** Design settled → ready to implement
 **Stack:** Spring Boot 3.5 (Java 21) · PostgreSQL 16 · Redis · Next.js 15 / React / TypeScript
 
+> **Scope moved on September 7, 2026.** This document remains the source of truth for the
+> **engineering rationale** — §5 data model, §6 scoring engine, §8 security, §9 performance — and
+> those sections are unchanged and still authoritative. **§1 (product definition) and §11 (build
+> plan) are superseded** by [`north-star.md`](north-star.md), which widens the product to league
+> import, projections, a trade calculator and an iOS app.
+>
+> **§0 is kept in full, but it is not uniformly still true — read it with this split in mind:**
+>
+> - §0 point 3 and the *"one thing you cannot honestly copy"* paragraph — don't pass someone else's
+>   expert rankings off as consensus — are **still binding**, and are promoted to a hard invariant in
+>   north-star §4. Deleting the warning would delete the argument for the invariant.
+> - §0 point 2, *"You are not building Flock Fantasy"*, is the specific judgment the north star
+>   **overturns**, deliberately. The reasoning behind it (that a funded team's surface area makes for
+>   a broad, shallow solo project) has not been refuted — it has been accepted as a risk and answered
+>   with sequencing: one narrow slice at a time, each usable on its own. If the project ends up broad
+>   and shallow anyway, §0 was right and this banner is the receipt.
+> - §0 point 1 (the resume framing) is unchanged and still the reason Phase 3.5 comes before
+>   anything new.
+
 ---
 
 ## 0. The honest read before you write a line of code
@@ -25,6 +44,12 @@ Everything Flock does that matters flows from: *store raw stat lines, never fant
 ---
 
 ## 1. Product definition
+
+> ⚠️ **Superseded by [`north-star.md`](north-star.md) §1, §2 and §9.** The v1 scope below is what
+> Phases 0–3 actually shipped and is accurate as history. It is no longer the target: league sync,
+> trade calculator and ADP moved from "explicitly out of scope" to the roadmap, and the free /
+> logged-out access model below does not appear here at all. Kept for the reasoning, not the scope.
+
 
 ### v1 scope (ship this)
 
@@ -387,6 +412,16 @@ Conventions: cursor or offset pagination everywhere (never unbounded lists), RFC
 
 **You cannot claim an improvement you didn't measure.** Here is how you legitimately get the number.
 
+> ⚠️ **Measured 2026-09-07, and the framing below is half wrong.** The endpoint
+> is CPU-bound, not disk-bound — that part holds (4,044 buffer hits, zero disk
+> reads). But the busy CPU is **Postgres, not the Java scorer**: 5.3 cores vs
+> 0.73 at 20 VUs, **88/12**, 20.7 ms against 2.9 ms per request. Three sequential
+> scans at 256 req/s cost far more than the dot-product over the 6,037 rows that
+> survive them. Step 3's cache-first ordering still stands (a hit skips both), but
+> Steps 4 and 5 attack the *dominant* cost rather than supporting evidence, so
+> expect them to be worth more than this section predicts. Numbers and method:
+> [`docs/perf/baseline.md`](perf/baseline.md).
+
 ### Get the framing right first: the bottleneck is recomputation, not I/O
 
 Six seasons of `stats_player_week` is ~114K rows, and filtered to fantasy-relevant positions it is a good deal less. Postgres seq-scans that in tens of milliseconds. If your headline is *"I added a composite index and went from 60ms to 10ms"*, an interviewer can reasonably shrug — that is a small absolute win on a small table, and they will know it.
@@ -480,6 +515,13 @@ Re-measure after each. Be honest in the write-up if the delta here is small — 
 
 ## 11. Build plan
 
+> ⚠️ **Superseded by [`north-star.md`](north-star.md) §10 from Phase 4 onward.** Phases 0–3 below are
+> accurate and keep their numbers and commits. Phase 4 is now *Vegas in the schema*, the frontend
+> folds into Phase 5 alongside auth, and the performance pass moves to Phase 11 — so every "Phase 6"
+> in §9 means Phase 11. The new roadmap inserts **Phase 3.5: capture the k6 baseline**, which is the
+> one item below that becomes unrecoverable if it slips.
+
+
 Each phase names the resume bullet it earns. Do not write the bullet before the phase is done.
 
 ### Phase 0 — Foundation (week 1) · ✅ done
@@ -538,9 +580,19 @@ Pure backend. This is the deepest work in the project; give it the time.
 
 `StatKey` is the one idea worth explaining out loud: a single enum that is simultaneously the validation allowlist, the array index for the dot-product, and the `player_game_stats` column name — so a ruleset cannot name a stat that does not exist, scoring never does a hash lookup per stat, and the Phase 3 query is generated from the enum rather than maintained beside it. `ResolvedRuleset.compile` branches on the rule-format version now, with only version 1 in existence, for the reason §6 gives. `Ruleset.canonicalHash()` exists early because it is a property of the model, not of the cache: it is tested here so Phase 6 can rely on it.
 
-### Phase 3 — Read API (week 3)
+### Phase 3 — Read API (week 3) · ✅ endpoints done, baseline half-captured
 `/players`, `/rankings`, `/gamelog`. Naive and unoptimized — **that's the point.** Capture the k6 baseline here.
 → *Earns: "Designed RESTful APIs."*
+
+`com.fantasykai.api` + `com.fantasykai.query`. 25 new tests, 72 in the suite. `JdbcTemplate` throughout rather than the JPA/native split §4 imagines: there are no entities in this codebase, all four endpoints are read projections rather than CRUD, and entities land in Phase 5 where the writes are. `GET /scoring-profiles` ships early because `/rankings?profileId=` is undiscoverable without it.
+
+**The load-bearing decision is that a ranking scores each game and then sums, rather than scoring a summed stat line.** Threshold bonuses make `ScoringEngine` non-linear — a 100-yard bonus belongs to a game — and §6 already requires the rounding to happen once at this boundary, so a season total is the rounded sum of weeks. It also protects Step 4 below: if Phase 3 pre-aggregated, the matview would have nothing left to collapse.
+
+Rankings join `games` and filter `season_type = 'REG'`. The data runs to week 22; a season total that quietly folded in four playoff weeks would flatter players on deep teams, and `last4` would mean "the postseason". The game log deliberately does not filter — it is a record of what a player did.
+
+**Baseline so far** (`docs/perf/baseline.md`): the 2025 rankings query is **three** sequential scans, not one — `player_game_stats` discards 92,919 of 112,319 rows and `players` discards 16,689 of 25,065, together touching 4,044 shared buffers (~31.6 MB) in **29.5 ms** warm, and handing **6,037 player-weeks** to the Java scorer to produce a ranking of 610. A single warm HTTP request is ~38 ms median. **The k6 1-VU-versus-20-VU pass has not been run yet**; that pair is the actual evidence for compute-bound-versus-scan-bound, so the file marks it `TBD` rather than guessing.
+
+**Two corrections to §9 Step 4, found while measuring.** First, the "~30× reduction" conflates populations: 19,400 rows/season is *all* positions while ~613 is *skill* players, and the rankings query reads 6,037 rows — the real reduction is **~10×**. Second, and more serious: pre-aggregating season totals and scoring them once pays a threshold bonus at most once per season instead of once per qualifying game. Every seeded preset is bonus-free so nothing is wrong today, but Phase 5 ships custom profiles and `RulesetValidator` allows up to 20 bonuses. Phase 6 must gate the matview path on `bonuses().isEmpty()` or materialize per-game bonus counts.
 
 ### Phase 4 — Frontend (week 4–5)
 Rankings table (virtualized — 900 rows), position filter tabs, profile switcher, player detail with game log. Tailwind, no component library beyond TanStack Table.
@@ -562,7 +614,7 @@ README with architecture diagram and the perf numbers, seeded demo account, depl
 1. Why store raw stats instead of precomputed fantasy points? *(Answer: N scoring systems × M players is unbounded; recomputation is cheap, storage of every permutation isn't. And a rule change would require a full backfill.)*
 2. Walk me through what happens when a user changes their PPR setting. *(Cache key changes → miss → recompute from matview → cache under the new ruleset hash.)*
 3. What was slow, what did you change, how did you measure it? *(Point at `docs/perf/`. Numbers, not adjectives.)*
-4. How did you know the bottleneck was recomputation and not the query? *(The p95 curve from 1 VU to 20 VUs, plus CPU utilisation during the run. A scan-bound endpoint degrades far less under concurrency. This is the single best question in this list — it is the one that separates a diagnosis from a reflex.)*
+4. How did you know the bottleneck was recomputation and not the query? *(**It wasn't recomputation — that hypothesis was wrong and the measurement caught it.** The p95 curve from 1 to 20 VUs shows compute-bound rather than disk-bound: p95 21.4 → 125.0 ms while throughput flatlines at ~256 req/s, and `EXPLAIN` reports 4,044 buffer hits with zero disk reads. But the curve alone cannot say **which** compute, so I sampled both processes: Postgres 5.3 cores against the JVM's 0.73 — an 88/12 split — which puts the cost in three sequential scans, not the scorer. The honest version of this answer is that one measurement narrowed it, a second one located it, and the second contradicted what I expected. That is a better story than the one I planned to tell. See `docs/perf/baseline.md`.)*
 5. Why the composite index in that column order? *(Selectivity and the access pattern of the rankings query. Show the EXPLAIN plans, before and after — and be willing to say the index moved p95 less than the cache did.)*
 6. How do you keep user A from reading user B's scoring profiles? *(Repository-level `user_id` filter from the JWT subject, not a service-layer check.)*
 7. What breaks if nflverse goes down mid-season? *(Last ingest persists; app serves stale data with a visible "last updated" timestamp; `ingest_runs` records the failure. Degraded, not down.)*

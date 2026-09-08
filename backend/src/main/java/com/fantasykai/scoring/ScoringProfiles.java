@@ -43,7 +43,7 @@ public class ScoringProfiles {
             try {
                 return compile(jdbc.queryForObject(BY_ID, String.class, id));
             } catch (EmptyResultDataAccessException e) {
-                throw new InvalidRulesetException("no scoring profile with id " + id);
+                throw new NoSuchProfileException("no scoring profile with id " + id);
             }
         });
     }
@@ -53,7 +53,7 @@ public class ScoringProfiles {
         try {
             return compile(jdbc.queryForObject(PRESET_BY_NAME, String.class, name));
         } catch (EmptyResultDataAccessException e) {
-            throw new InvalidRulesetException("no preset named \"" + name + "\"");
+            throw new NoSuchProfileException("no preset named \"" + name + "\"");
         }
     }
 
