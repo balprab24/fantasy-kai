@@ -275,7 +275,7 @@ a product you can't open is not one you'll use, and this only gets built if it g
 | 0–3 | Foundation · Ingestion · Scoring · Read API | see handoff §11 | ✅ |
 | **3.5** | Close the baseline | Measured at 1/5/10/20 VUs, 2026-09-07. p95 **21.4 → 125.0 ms**, throughput saturates ~256 req/s, and **the bottleneck is Postgres at 88% of CPU, not the Java scorer** — which contradicts handoff §9. | ✅ |
 | **4** | **Vegas in the schema** | `V4` widens `games` with scores + betting + weather columns; ~10 lines in `GameIngestor`'s existing mapper; re-run backfill. No new HTTP source. ~1 day. **Brief below.** | ⬅ **next** |
-| 5 | Auth + web shell | Handoff §8 in full — Argon2id, JWT, rotating refresh, Bucket4j. First write endpoints (`POST/PUT/DELETE /scoring-profiles`). Next.js 15: login, rankings table, player detail, profile switcher, public landing page. Attribution footer. **End of phase = a deployed site you can log into.** | |
+| 5 | Auth + web shell | Handoff §8 in full — Argon2id, JWT, rotating refresh, Bucket4j. First write endpoints (`POST/PUT/DELETE /scoring-profiles`). Next.js 15: login, rankings table, player detail, profile switcher, public landing page. Attribution footer. **End of phase = a deployed site you can log into. Brief below.** | |
 | 6 | Projections | `SignalKey`, `player_week_projection`, `ProjectionEngine`, `ExplainedScore`, backtest + published MAE. The heart of "valid reasons for ranking." | |
 | 7 | League import | `LeagueProvider` interface. ESPN first (cookie paste, encrypted at rest), **Sleeper in the same phase** to prove the seam is real. ESPN `mSettings.scoringItems` → `Ruleset`, auto-creating your profile. Manual ruleset builder as the fallback for when ESPN breaks — because it will. | |
 | 8 | Roster tools | `LineupOptimizer`, `SeasonSimulator`, `TradeEvaluator`, `WaiverBoard`. §7 made real. | |
@@ -325,6 +325,90 @@ spread survives the round trip, and a dome game's blank `temp` reads back `NULL`
 **Acceptance:** `SELECT count(*) FROM games WHERE season = 2026 AND spread_line IS NOT NULL` returns
 **112** of 272, matching the source as probed on 2026-09-07. Lines land roughly a week ahead of
 kickoff, so this number grows all season and a re-run must not regress it.
+
+### Phase 5 — brief
+
+The biggest single chunk left, and fully specifiable now: handoff §8 already settles every security
+decision, and §2 above settles the access model. Nothing here waits on Phase 4.
+
+**Why it comes before projections.** The whole product model is "logged out sees the top 100, an
+account sees everything." That makes the filter chain load-bearing infrastructure rather than
+late-phase polish — every personalized feature after this one assumes it exists.
+
+**What is already in place and unused:** the `users` table (V1, email + Argon2id `password_hash`) has
+**zero code touching it**; `scoring_profiles.user_id` FK is in place; `ScoringProfiles.evict(long)`
+exists and nothing calls it. What is *not* in place: no Spring Security, no JWT library, no Redis
+client, no Bucket4j on the classpath, and **no write endpoint anywhere in the codebase** to model a
+`POST` on.
+
+#### 5a — Auth (backend)
+
+Per handoff §8, no deviations:
+
+| Piece | Decision |
+|---|---|
+| Password | Argon2id via Spring Security's `Argon2PasswordEncoder`. Not BCrypt. |
+| Access token | JWT, HS256, **15-minute** expiry, secret from env — never `application.yml` |
+| Refresh token | opaque 256-bit, **hashed** at rest, `HttpOnly; Secure; SameSite=Strict` cookie, **rotated on every use**; reuse of a consumed token revokes the whole family |
+| Tenant isolation | `user_id` filter **in the repository query**, not a service-layer check |
+| Rate limit | Bucket4j + Redis — tight on `/auth/*` (5/min/IP), loose on reads |
+
+`V5__auth.sql` adds `refresh_tokens (id, user_id, token_hash, family_id, issued_at, expires_at,
+consumed_at, revoked_at)` with its own indexes — `players` and `refresh_tokens` are not the frozen
+table, only `player_game_stats` is.
+
+**A decision to make deliberately, because the handoff assumes the other answer.** Handoff §11 says
+"entities land in Phase 5 where the writes are." **Recommendation: stay on `JdbcTemplate`** — two
+persistence idioms for two small tables is worse than one, and every read path in the codebase is
+already `JdbcTemplate`.
+
+But note the cost, because it is not zero: **`ddl-auto: validate` is currently a no-op.** There are
+zero `@Entity` classes, so it validates nothing, and CLAUDE.md's invariant — *"`validate` fails fast
+the moment a JPA entity drifts from a migration"* — is vacuous today. Choosing `JdbcTemplate` keeps
+it vacuous. If that guard is wanted for real, this is the phase to introduce entities and say so.
+
+#### 5b — The filter chain
+
+**Default-deny, and this is the part to get right.** `permitAll` on an explicit short list —
+`/api/v1/public/**`, `/api/v1/auth/**`, `/actuator/health` — and `authenticated()` on everything
+else, so a new endpoint is private until someone deliberately opens it. Never the inverse.
+
+`ScoringProfileQueryRepository.PRESETS` grows `OR user_id = ?` bound to the JWT subject **in the
+query**. Profile writes must call the existing `ScoringProfiles.evict(long)` or a user will keep
+scoring against their pre-edit ruleset.
+
+Also tighten `actuator` from `show-details: always` to `when-authorized` — the Phase 0 comment
+already says to.
+
+#### 5c — Web shell
+
+Next.js 15 App Router, TypeScript, Tailwind, TanStack Query + TanStack Table. **Mobile-first**, since
+Phase 10 is the same product on a phone.
+
+Screens: public landing (top 100) · register/login · rankings table (virtualized, ~610 rows) ·
+player detail with game log · profile switcher · custom ruleset builder.
+
+Access token in **memory only, never `localStorage`** — the refresh cookie is the persistence
+mechanism and it is `HttpOnly` for exactly this reason. CORS is an explicit allowlist of the Vercel
+origin, not `*`.
+
+**The attribution footer ships here.** nflverse (CC BY 4.0) and FFC both require it and it has been
+owed since Phase 0.
+
+#### Acceptance — each of these is a test, not a checklist item
+
+The Phase 3 precedent is `QuerySafetyTests`, which proves the SQL-injection defence by *attempting
+the attack* and then checking the table survived. Auth gets the same treatment:
+
+1. **User A cannot read user B's scoring profiles** — the single most important test in the phase.
+2. **Replaying a consumed refresh token revokes the family**, and the old access token stops working.
+3. **`GET /api/v1/rankings` is public; `POST /api/v1/scoring-profiles` is 401 without a token** and
+   403 with a valid token for another user's row.
+4. **The 6th `/auth/login` in a minute from one IP is 429**, and the 6th read is not.
+5. **A JWT signed with the wrong secret is rejected**, and an expired one returns 401 not 500.
+
+Prove the constraint by trying to violate it. That is the working agreement, and it is what makes
+these numbers defensible out loud.
 
 ### Why the draft board is Phase 9 and not Phase 1
 
