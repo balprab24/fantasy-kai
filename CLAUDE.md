@@ -63,8 +63,8 @@ scripts/                                   One-shot ingest, launchd plist, perf-
 | 1 — Ingestion | ✅ `6c591e5` — six-season backfill in 22.8s |
 | 2 — Scoring engine | ✅ `com.fantasykai.scoring` + V3 presets, 47 tests |
 | 3 — Read API + k6 baseline | ✅ `com.fantasykai.api` + `.query`, 25 tests (72 in the suite) — **k6 run still owed**, see `docs/perf/baseline.md` |
-| 3.5 — Close the k6 baseline | ⬅ **next** — 1 VU vs 20 VU, then commit the untracked Phase 3 work. Unrecoverable once later phases add compute. |
-| 4 — Vegas in the schema | `V4` widens `games`; `GameIngestor` already downloads the columns and discards them |
+| 3.5 — k6 baseline | ✅ 1/5/10/20 VUs measured — p95 **21.4 ms → 125.0 ms**, throughput saturates at ~256 req/s. **The bottleneck is Postgres, not the Java scorer (88/12).** See below. |
+| 4 — Vegas in the schema | ⬅ **next** — `V4` widens `games`; `GameIngestor` already downloads the columns and discards them |
 | 5 — Auth + web shell | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
 
@@ -88,6 +88,29 @@ From the loaded database, 2020–2025:
 | Backfill wall time | 22.8s |
 
 **"1,243 skill players" is a six-season union.** No single season clears 700. Say "across six seasons" or the claim breaks the moment someone asks whether it is one year.
+
+**k6 baseline, 2026-09-07** (`docs/perf/baseline.md`, four 60s passes, one warm JVM):
+
+| | 1 VU | 5 VUs | 10 VUs | 20 VUs |
+|---|---|---|---|---|
+| p50 | 12.38 ms | 18.11 ms | 34.71 ms | 71.92 ms |
+| p95 | **21.41 ms** | 33.03 ms | 69.18 ms | **124.99 ms** |
+| Throughput | 72.9 req/s | 246.4 req/s | 259.0 req/s | 256.4 req/s |
+| JVM CPU (of 800%) | 16% | 59% | 74% | 73% |
+
+**The measurement contradicts handoff §9 and you need to know this before quoting it.**
+§9 asserts the bottleneck is Java recomputation. Measured at 20 VUs: **Postgres
+486–587% CPU (~5.3 cores, 20.7 ms/req) against the JVM's 73% (0.73 cores,
+2.9 ms/req) — an 88/12 split.** §9 is right that it isn't disk (4,044 buffer
+hits, zero reads) and wrong about which CPU. Throughput saturates at ~256 req/s
+from 10 VUs on while latency doubles 10→20 — queueing at a resource at capacity.
+Phase 11's *order* survives (a cache hit skips both), but the matview and index
+should be worth **more** than §9 predicts, and §12 Q4's stock answer is wrong as
+written. Machine had 1.7 of 8 cores free, so this is the endpoint, not the laptop.
+
+Secondary ceiling: Hikari is at Spring Boot's **default 10 connections** (no
+config in `application.yml`); 10 × ~39 ms occupancy ≈ the 256 req/s observed.
+Raising it without making the query cheaper moves the queue, it does not remove it.
 
 **Daily ingest volume:** ~28,500 records before week 1, rising to ~74,000 by week 18. ~25K of that is the player master. Say the real number and its composition, not "10K+".
 

@@ -412,6 +412,16 @@ Conventions: cursor or offset pagination everywhere (never unbounded lists), RFC
 
 **You cannot claim an improvement you didn't measure.** Here is how you legitimately get the number.
 
+> ⚠️ **Measured 2026-09-07, and the framing below is half wrong.** The endpoint
+> is CPU-bound, not disk-bound — that part holds (4,044 buffer hits, zero disk
+> reads). But the busy CPU is **Postgres, not the Java scorer**: 5.3 cores vs
+> 0.73 at 20 VUs, **88/12**, 20.7 ms against 2.9 ms per request. Three sequential
+> scans at 256 req/s cost far more than the dot-product over the 6,037 rows that
+> survive them. Step 3's cache-first ordering still stands (a hit skips both), but
+> Steps 4 and 5 attack the *dominant* cost rather than supporting evidence, so
+> expect them to be worth more than this section predicts. Numbers and method:
+> [`docs/perf/baseline.md`](perf/baseline.md).
+
 ### Get the framing right first: the bottleneck is recomputation, not I/O
 
 Six seasons of `stats_player_week` is ~114K rows, and filtered to fantasy-relevant positions it is a good deal less. Postgres seq-scans that in tens of milliseconds. If your headline is *"I added a composite index and went from 60ms to 10ms"*, an interviewer can reasonably shrug — that is a small absolute win on a small table, and they will know it.
@@ -604,7 +614,7 @@ README with architecture diagram and the perf numbers, seeded demo account, depl
 1. Why store raw stats instead of precomputed fantasy points? *(Answer: N scoring systems × M players is unbounded; recomputation is cheap, storage of every permutation isn't. And a rule change would require a full backfill.)*
 2. Walk me through what happens when a user changes their PPR setting. *(Cache key changes → miss → recompute from matview → cache under the new ruleset hash.)*
 3. What was slow, what did you change, how did you measure it? *(Point at `docs/perf/`. Numbers, not adjectives.)*
-4. How did you know the bottleneck was recomputation and not the query? *(The p95 curve from 1 VU to 20 VUs, plus CPU utilisation during the run. A scan-bound endpoint degrades far less under concurrency. This is the single best question in this list — it is the one that separates a diagnosis from a reflex.)*
+4. How did you know the bottleneck was recomputation and not the query? *(**It wasn't recomputation — that hypothesis was wrong and the measurement caught it.** The p95 curve from 1 to 20 VUs shows compute-bound rather than disk-bound: p95 21.4 → 125.0 ms while throughput flatlines at ~256 req/s, and `EXPLAIN` reports 4,044 buffer hits with zero disk reads. But the curve alone cannot say **which** compute, so I sampled both processes: Postgres 5.3 cores against the JVM's 0.73 — an 88/12 split — which puts the cost in three sequential scans, not the scorer. The honest version of this answer is that one measurement narrowed it, a second one located it, and the second contradicted what I expected. That is a better story than the one I planned to tell. See `docs/perf/baseline.md`.)*
 5. Why the composite index in that column order? *(Selectivity and the access pattern of the rankings query. Show the EXPLAIN plans, before and after — and be willing to say the index moved p95 less than the cache did.)*
 6. How do you keep user A from reading user B's scoring profiles? *(Repository-level `user_id` filter from the JWT subject, not a service-layer check.)*
 7. What breaks if nflverse goes down mid-season? *(Last ingest persists; app serves stale data with a visible "last updated" timestamp; `ingest_runs` records the failure. Degraded, not down.)*

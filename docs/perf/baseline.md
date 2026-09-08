@@ -1,13 +1,16 @@
 # §9 Step 2 — Baseline
 
-**Status: partially captured.** The database-side measurements below are real and
-reproducible. The k6 load numbers are **not yet taken** — every cell marked `TBD`
-is waiting on a run, and nothing in this file is estimated or inferred. §9 exists
-because "you cannot claim an improvement you didn't measure"; a placeholder that
-looks like a number would defeat the whole point of the file.
+**Status: captured.** Database side measured 2026-09-04; k6 load measured
+2026-09-07. Nothing here is estimated or inferred.
 
-Captured against the loaded development database, 2026-09-04.
-Commit: Phase 3, before any Phase 6 work.
+Commit: Phase 3 (`ec5a8e9`), before any Phase 11 work.
+
+> **The headline is not the one §9 predicted.** The endpoint is CPU-bound, as §9
+> says — but **88% of that CPU is Postgres, not the Java scorer** (20.7 ms vs
+> 2.9 ms per request). §9's framing, *"the bottleneck is recomputation, not
+> I/O"*, is half right: right that it isn't disk (zero disk reads, every block a
+> buffer hit), wrong about which CPU is busy. See *The reading* below — this
+> changes what Phase 11 should expect from each step, though not their order.
 
 ---
 
@@ -138,37 +141,108 @@ cache, the scoring is not.
 
 ---
 
-## k6 load — TBD
+## k6 load — measured
 
-Not yet run. k6 is not installed on the capture machine.
+k6 v2.2.0, 2026-09-07. Four passes at 1 / 5 / 10 / 20 VUs — §9 asks for 1 and
+20, but two points cannot distinguish linear degradation from flattening, which
+is the entire distinction the argument rests on.
+
+### Method
 
 ```bash
-brew install k6
+cd backend && ./mvnw -B package -DskipTests
+java -jar target/backend-0.0.1-SNAPSHOT.jar          # one clean JVM to sample
 
-# terminal 1
-cd backend && ./mvnw spring-boot:run
-
-# terminal 2 — both passes, same script
-k6 run --vus 1  --duration 60s perf/rankings.js
-k6 run --vus 20 --duration 60s perf/rankings.js
+k6 run --vus 5 --duration 30s perf/rankings.js       # WARMUP, discarded
+for v in 1 5 10 20; do k6 run --vus $v --duration 60s perf/rankings.js; done
 ```
 
-| Metric | 1 VU | 20 VUs |
-|---|---|---|
-| p50 | TBD | TBD |
-| p95 | TBD | TBD |
-| p99 | TBD | TBD |
-| Throughput (req/s) | TBD | TBD |
-| Failed checks | TBD | TBD |
-| Peak CPU during run | TBD | TBD |
+Three things make the numbers comparable, and Phase 11's re-runs must repeat
+them:
 
-**The pair is the measurement, not either number.** §9 and §12 Q4 both turn on
-it: a scan-bound endpoint degrades gently from 1 to 20 VUs because the rows are
-already in shared buffers, while a compute-bound one degrades close to linearly
-because every virtual user redoes the same scoring from scratch. Whichever curve
-appears is the honest answer to "how did you know the bottleneck was
-recomputation and not the query?" — and if the p95 barely moves, that finding
-goes in this file too and the Phase 6 ordering gets revisited.
+- **A discarded 30s warmup pass.** Without it the 1-VU p95 carries cold-JIT
+  compilation and the curve starts somewhere that isn't the steady state.
+- **One JVM for all four passes, no restart between them.** Restarting would
+  re-confound warmup with concurrency, and isolating concurrency is the point.
+- **`perf/rankings.js` run unchanged**, so the Phase 11 comparison is valid.
+
+**CPU is measured from cumulative CPU time, not `ps %cpu`.** macOS reports
+`%cpu` as a decayed average since process start, which understates a 60-second
+burst. Δ`cputime` ÷ Δwall-clock is exact. It is an **average over the run** —
+"peak" is a number `ps` cannot honestly give here. Ceiling is 800% (M2, 8 cores).
+
+### Results
+
+| Metric | 1 VU | 5 VUs | 10 VUs | 20 VUs |
+|---|---|---|---|---|
+| p50 | 12.38 ms | 18.11 ms | 34.71 ms | **71.92 ms** |
+| p95 | **21.41 ms** | 33.03 ms | 69.18 ms | **124.99 ms** |
+| p99 | 24.43 ms | 43.78 ms | 86.62 ms | 152.56 ms |
+| max | 52.41 ms | 87.87 ms | 131.31 ms | 225.55 ms |
+| Throughput | 72.9 req/s | 246.4 req/s | **259.0 req/s** | **256.4 req/s** |
+| Failed checks | 0 / 8,754 | 0 / 29,578 | 0 / 31,092 | 0 / 30,798 |
+| JVM CPU (avg, of 800%) | 16% | 59% | 74% | **73%** |
+
+100% of checks passed at every level, including `ranking is not empty` — so no
+part of this measured the latency of an empty result set.
+
+### The reading
+
+**Throughput saturates at ~256 req/s from 10 VUs on, and past that point latency
+grows exactly linearly with concurrency** — 10→20 VUs doubles the median
+(34.71 → 71.92 ms) while throughput moves 259 → 256. That is textbook queueing
+at a resource already at capacity, and it settles the compute-vs-scan question
+in the direction §9 did not expect.
+
+**Which resource, measured directly under 20 VUs:**
+
+| | CPU | per request | share |
+|---|---|---|---|
+| **Postgres** | 486–587% (~5.3 cores) | **20.7 ms** | **88%** |
+| JVM (the scorer) | 73% (0.73 cores) | 2.9 ms | 12% |
+| k6 itself | ~30% (0.3 cores) | — | — |
+| **Machine total** | **~6.3 of 8 cores** | | |
+
+The 1.7 cores of headroom matter: the laptop is *not* saturated, so these are
+the endpoint's numbers rather than the load generator's. The JVM flatlines at
+0.73 cores — **less than one core out of eight** — from 10 VUs onward, and no
+amount of added concurrency moves it.
+
+**So §9's premise is half right.** It is right that this is not I/O: `EXPLAIN`
+shows 4,044 shared buffer *hits* and zero disk reads. It is wrong about which
+CPU is busy. The cost is Postgres executing three sequential scans — discarding
+92,919 of 112,319 `player_game_stats` rows and 16,689 of 25,065 `players` rows —
+**256 times a second**. The Java dot-product over the surviving 6,037 rows is
+about a seventh of that.
+
+**A secondary ceiling, worth naming so Phase 11 doesn't mistake it for a fix.**
+`application.yml` sets no Hikari config, so the pool is Spring Boot's default of
+**10 connections**; `pg_stat_activity` showed 5–9 active backends during the run.
+Ten connections at ~39 ms of occupancy each is ~256 req/s, which is precisely
+where throughput lands. Raising the pool without making the query cheaper would
+buy a little throughput and spend it on latency, because Postgres CPU is the
+real constraint — it would move the queue, not remove it.
+
+### What this changes for Phase 11
+
+The **order stays**: cache → matview → indexes. A cache hit skips the scan *and*
+the scoring, so it remains the largest single win, and the argument for hashing
+the ruleset rather than the profile id is untouched.
+
+The **expected magnitudes flip.** §9 treats the matview and the index as
+supporting evidence for a story about recomputation. On this measurement they
+attack the dominant cost directly, so they should be worth **more** than §9
+predicts, not less — and the `player_season_agg` matview looks like the strongest
+fix for the cache-miss path, because it removes the scan rather than just
+shrinking what Java receives.
+
+**§12 Q4's scripted answer is now wrong and needs rewriting.** *"The p95 curve
+proves the bottleneck was recomputation"* does not follow from these numbers.
+What the curve proves is that the endpoint is compute-bound rather than
+disk-bound; what identifies *which* compute is the 88/12 CPU split, which takes a
+second measurement the question's stock answer never mentions. The better answer
+is that one measurement narrowed it and a second one located it — and that the
+second one contradicted the hypothesis.
 
 `perf/rankings.js` varies profile, position and scope across the four seeded
 presets rather than hammering one URL. Hitting a single ruleset would hand Phase
@@ -182,9 +256,11 @@ identical league settings onto one entry.
 
 ## Next
 
-Fill in the table above from a real run, then Phase 6 in §9's order — cache,
-matview, indexes — re-running this same script unchanged after each step and
-recording the deltas in `docs/perf/results.md`.
+Phase 11 in §9's order — cache, matview, indexes — re-running
+`perf/rankings.js` unchanged after each step, with the same warmup and the same
+CPU method, and recording the deltas in `docs/perf/results.md`. Sample Postgres
+CPU alongside the JVM's at every step: on this baseline it is the number that
+actually moves, and a results file that tracks only the JVM would miss the win.
 
 **One correction to carry into Phase 6.** §9 Step 4 says the `player_season_agg`
 matview collapses "~19K player-game rows per season into ~600 player-season rows

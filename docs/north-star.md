@@ -239,7 +239,10 @@ Per the working agreement: report design gaps you are *not* fixing.
   `NflverseClient` can only reach nflverse release URLs. `StatIngestor`'s `List<Field>` +
   `buildUpsert()` pattern is the template worth copying. Extract the interface when the second new
   source lands, not the first.
-- **The k6 baseline is still owed** — and it is the only thing here that becomes *unrecoverable*.
+- ~~The k6 baseline is still owed~~ — **captured 2026-09-07**, and it contradicted handoff §9's
+  premise. See §10. The open item it leaves behind: `application.yml` sets no Hikari config, so the
+  pool is Spring Boot's default of **10 connections**, which is itself the throughput ceiling at
+  ~256 req/s. Phase 11 must not mistake raising it for a fix.
   See Phase 3.5.
 
 ---
@@ -270,23 +273,58 @@ a product you can't open is not one you'll use, and this only gets built if it g
 | # | Phase | Ships | Status |
 |---|---|---|---|
 | 0–3 | Foundation · Ingestion · Scoring · Read API | see handoff §11 | ✅ |
-| **3.5** | **Close the baseline** ⚡ | Run `perf/rankings.js` at 1 VU and at 20 VU, fill the `TBD` in `docs/perf/baseline.md`, commit the untracked Phase 3 work. ~1 day. | ⬅ **next** |
-| 4 | Vegas in the schema | `V4` widens `games` with scores + betting + weather columns; ~10 lines in `GameIngestor`'s existing mapper; re-run backfill. No new HTTP source. ~1 day. | |
+| **3.5** | Close the baseline | Measured at 1/5/10/20 VUs, 2026-09-07. p95 **21.4 → 125.0 ms**, throughput saturates ~256 req/s, and **the bottleneck is Postgres at 88% of CPU, not the Java scorer** — which contradicts handoff §9. | ✅ |
+| **4** | **Vegas in the schema** | `V4` widens `games` with scores + betting + weather columns; ~10 lines in `GameIngestor`'s existing mapper; re-run backfill. No new HTTP source. ~1 day. **Brief below.** | ⬅ **next** |
 | 5 | Auth + web shell | Handoff §8 in full — Argon2id, JWT, rotating refresh, Bucket4j. First write endpoints (`POST/PUT/DELETE /scoring-profiles`). Next.js 15: login, rankings table, player detail, profile switcher, public landing page. Attribution footer. **End of phase = a deployed site you can log into.** | |
 | 6 | Projections | `SignalKey`, `player_week_projection`, `ProjectionEngine`, `ExplainedScore`, backtest + published MAE. The heart of "valid reasons for ranking." | |
 | 7 | League import | `LeagueProvider` interface. ESPN first (cookie paste, encrypted at rest), **Sleeper in the same phase** to prove the seam is real. ESPN `mSettings.scoringItems` → `Ruleset`, auto-creating your profile. Manual ruleset builder as the fallback for when ESPN breaks — because it will. | |
 | 8 | Roster tools | `LineupOptimizer`, `SeasonSimulator`, `TradeEvaluator`, `WaiverBoard`. §7 made real. | |
 | 9 | Consensus board | FFC ADP ingest + `player_adp` + Sleeper `owned%`/trending → the logged-out top 100. In-season it's rest-of-season; **August 2027 it becomes the draft board** with no rework. | |
 | 10 | iOS (Expo) | ~Nov. Same REST API. Native navigation + push — a webview wrapper fails Apple guideline 4.2 (minimum functionality). | |
-| 11 | Perf pass | Handoff §9 unchanged: cache → matview → indexes, measuring after each. Now with a second compute-bound endpoint (the trade simulator) to generalize the ruleset-hash cache to. | |
+| 11 | Perf pass | Cache → matview → indexes, measuring after each. **Order survives Phase 3.5's finding, expected magnitudes do not** — the matview and index attack the dominant cost (the scan), so they should beat §9's prediction rather than trail it. Sample Postgres CPU, not just the JVM's. Plus the trade simulator as a second endpoint for the ruleset-hash cache. | |
 
-### Why 3.5 is first and not negotiable
+### What Phase 3.5 found — and why it was worth doing first
 
-Phase 3's k6 1-VU-vs-20-VU pass is the evidence that `/rankings` is compute-bound rather than
-scan-bound. That pair of numbers is what justifies going to the cache before the index in Phase 11.
-**Every phase after this one adds compute to the same endpoint.** Once the baseline is contaminated
-there is no way to recover it except re-measuring from scratch against a codebase that no longer
-exists. It is roughly a day of work and it blocks nothing else.
+The baseline was captured before any new phase added compute, which is the only reason it means
+anything. It also **disproved the hypothesis the whole performance story was built on.**
+
+Handoff §9 asserts the bottleneck is Java recomputation. Measured at 20 VUs: **Postgres 5.3 cores
+against the JVM's 0.73 — 88/12, 20.7 ms versus 2.9 ms per request.** §9 is right that this isn't
+disk (4,044 buffer hits, zero reads) and wrong about which CPU is busy. Three sequential scans at
+256 req/s cost about seven times the dot-product over the 6,037 rows that survive them.
+
+Two things follow. Phase 11's *order* is unchanged — a cache hit skips the scan and the scoring
+both, so it stays first. But its *expected magnitudes* invert: the matview and the indexes are
+no longer supporting evidence for a story about recomputation, they are the fix for the actual
+dominant cost. And handoff §12 Q4's stock answer is now wrong as written; the corrected version is
+in the doc, and it is a better answer than the original because it describes a hypothesis that got
+tested and failed rather than one that got confirmed.
+
+### Phase 4 — ready to start
+
+**The first action is a measurement, not a migration.** The working agreement — the habit that caught
+the fractional sacks and the NULL-defeated unique constraint — says pull the real value ranges out of
+`games.csv` *before* choosing column types:
+
+| Column | What the data does | Therefore |
+|---|---|---|
+| `spread_line`, `total_line` | carry halves — `3.5`, `44.5` | `NUMERIC(4,1)`. **`SMALLINT` would round 3.5 → 4 and silently corrupt every line** — the `def_sacks` lesson exactly |
+| `temp`, `wind` | blank for dome games; `temp` goes negative | nullable `SMALLINT`, and blank must land as `NULL`, not `0`. `CsvValues` already treats `""`/`NA` as null |
+| `away_moneyline`, `home_moneyline` | signed, and exceed ±32,767 on heavy favourites | `INT`, not `SMALLINT` |
+| `roof`, `surface` | enumerate the real distinct values before sizing | don't guess the `VARCHAR` width |
+| `home_score`, `away_score`, `result`, `total` | absent for unplayed games | all nullable |
+
+Then `V4__games_betting_and_results.sql` widens `games`, and `GameIngestor`'s mapper and `UPSERT`
+list grow to match — it already downloads `schedules/games.csv` and reads **8 of its 46 columns**,
+so this adds no HTTP source and no new client. `implied_team_total` is **derived on read**
+(`total_line/2 ± spread_line/2`), never a column — §4.
+
+Tests extend the existing 5-row `backend/src/test/resources/nflverse/games.csv` fixture: a fractional
+spread survives the round trip, and a dome game's blank `temp` reads back `NULL` rather than zero.
+
+**Acceptance:** `SELECT count(*) FROM games WHERE season = 2026 AND spread_line IS NOT NULL` returns
+**112** of 272, matching the source as probed on 2026-09-07. Lines land roughly a week ahead of
+kickoff, so this number grows all season and a re-run must not regress it.
 
 ### Why the draft board is Phase 9 and not Phase 1
 
