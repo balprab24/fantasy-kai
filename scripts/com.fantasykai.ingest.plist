@@ -2,10 +2,15 @@
 <!--
   Daily current-season ingest.
 
+  This is a TEMPLATE. The three __REPO__ paths below are placeholders -- a
+  checkout's absolute path is not knowable at commit time.
+
   Install:
-      cp scripts/com.fantasykai.ingest.plist ~/Library/LaunchAgents/
-      # then edit the two __REPO__ paths below to this checkout's absolute path
-      launchctl load ~/Library/LaunchAgents/com.fantasykai.ingest.plist
+      ./scripts/install-ingest.sh
+
+  It substitutes them, writes the result to ~/Library/LaunchAgents/, loads it,
+  and fails loudly if the job did not land. Do not copy this file by hand; the
+  hand-edit instruction that used to live here was followed exactly zero times.
 
   Check:  launchctl list | grep fantasykai
   Run now: launchctl start com.fantasykai.ingest

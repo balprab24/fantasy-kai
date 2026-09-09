@@ -91,11 +91,36 @@ class SchemaMigrationTests {
         assertThat(jdbc.queryForObject(IntegrityChecks.SEASON_WEEK_DRIFT, Long.class)).isEqualTo(1L);
     }
 
+    /**
+     * The Phase 0 acceptance -- the app boots and serves -- now asks the
+     * liveness group rather than the aggregate, and the distinction is
+     * load-bearing rather than cosmetic.
+     *
+     * <p>{@code ingestFreshness} reports DOWN here because this database's
+     * {@code ingest_runs} is empty: the pipeline has genuinely never run. That
+     * is the correct answer and the aggregate is right to carry it. But it is
+     * degraded, not down -- the API serves every seeded row correctly -- so a
+     * platform health check pointed at {@code /actuator/health} would restart a
+     * working machine every time the daily pull was missed. Phase 5's deploy
+     * points at {@code /actuator/health/liveness}, and this test is what keeps
+     * that true.
+     */
     @Test
-    void healthEndpointReportsUp() {
-        ResponseEntity<String> response = rest.getForEntity("/actuator/health", String.class);
+    void theAppIsLiveEvenWhenTheIngestPipelineHasNeverRun() {
+        ResponseEntity<String> liveness =
+                rest.getForEntity("/actuator/health/liveness", String.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).contains("\"status\":\"UP\"");
+        assertThat(liveness.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(liveness.getBody()).contains("\"status\":\"UP\"");
+    }
+
+    @Test
+    void theAggregateHealthStillReportsAPipelineThatHasNeverRun() {
+        ResponseEntity<String> health = rest.getForEntity("/actuator/health", String.class);
+
+        assertThat(health.getBody())
+                .as("a stopped pipeline has to be visible somewhere, or it is invisible everywhere")
+                .contains("ingestFreshness")
+                .contains("never run");
     }
 }

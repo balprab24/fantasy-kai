@@ -5,7 +5,9 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.commons.csv.CSVRecord;
@@ -28,8 +30,15 @@ public class GameIngestor {
     /** nflverse publishes kickoff times in US Eastern. */
     private static final ZoneId LEAGUE_ZONE = ZoneId.of("America/New_York");
 
-    /** A destination column and how to pull it out of a source row. */
-    private record Field(String column, Function<CSVRecord, Object> extractor) {}
+    /**
+     * A destination column, the source column it reads, and how to pull it out.
+     *
+     * <p>The two names happen to match for all ten of these; they are still
+     * written out separately, because the required-header set is generated from
+     * this list and a coincidence is not a contract.
+     */
+    private record Field(String column, String sourceColumn,
+            Function<CSVRecord, Object> extractor) {}
 
     /**
      * The identifying columns, in order, and the value expression each one binds
@@ -58,16 +67,30 @@ public class GameIngestor {
      * recorded", and 0 is a real value for all three.
      */
     private static final List<Field> EXTRAS = List.of(
-            new Field("home_score", record -> CsvValues.shortOrNull(record, "home_score")),
-            new Field("away_score", record -> CsvValues.shortOrNull(record, "away_score")),
-            new Field("spread_line", record -> CsvValues.decimal(record, "spread_line")),
-            new Field("total_line", record -> CsvValues.decimal(record, "total_line")),
-            new Field("home_moneyline", record -> CsvValues.integer(record, "home_moneyline")),
-            new Field("away_moneyline", record -> CsvValues.integer(record, "away_moneyline")),
-            new Field("roof", record -> CsvValues.text(record, "roof", 12)),
-            new Field("surface", record -> CsvValues.text(record, "surface", 16)),
-            new Field("temp", record -> CsvValues.shortOrNull(record, "temp")),
-            new Field("wind", record -> CsvValues.shortOrNull(record, "wind")));
+            new Field("home_score", "home_score", record -> CsvValues.shortOrNull(record, "home_score")),
+            new Field("away_score", "away_score", record -> CsvValues.shortOrNull(record, "away_score")),
+            new Field("spread_line", "spread_line", record -> CsvValues.decimal(record, "spread_line")),
+            new Field("total_line", "total_line", record -> CsvValues.decimal(record, "total_line")),
+            new Field("home_moneyline", "home_moneyline", record -> CsvValues.integer(record, "home_moneyline")),
+            new Field("away_moneyline", "away_moneyline", record -> CsvValues.integer(record, "away_moneyline")),
+            new Field("roof", "roof", record -> CsvValues.text(record, "roof", 12)),
+            new Field("surface", "surface", record -> CsvValues.text(record, "surface", 16)),
+            new Field("temp", "temp", record -> CsvValues.shortOrNull(record, "temp")),
+            new Field("wind", "wind", record -> CsvValues.shortOrNull(record, "wind")));
+
+    /**
+     * Every source column this ingestor reads: the ten above, plus the ones the
+     * row mapper resolves a game against. Generated from {@link #EXTRAS}.
+     */
+    static final Set<String> REQUIRED_COLUMNS = requiredColumns();
+
+    private static Set<String> requiredColumns() {
+        Set<String> required = new LinkedHashSet<>(List.of(
+                "game_id", "season", "week", "game_type", "home_team", "away_team",
+                "gameday", "gametime"));
+        EXTRAS.forEach(field -> required.add(field.sourceColumn()));
+        return Set.copyOf(required);
+    }
 
     private static final String UPSERT = buildUpsert();
 
@@ -105,7 +128,7 @@ public class GameIngestor {
 
     /** @param seasons the seasons to keep; the source file spans 1999-present */
     public IngestResult ingest(List<Integer> seasons) {
-        List<Object[]> rows = client.read("schedules", "games.csv", record -> {
+        List<Object[]> rows = client.read("schedules", "games.csv", REQUIRED_COLUMNS, record -> {
             Integer season = CsvValues.integer(record, "season");
             if (season == null || !seasons.contains(season)) {
                 return null;

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -17,6 +18,10 @@ import org.springframework.stereotype.Component;
 public class SnapCountIngestor {
 
     static final String SOURCE = "nflverse.snap_counts";
+
+    /** Every source column this ingestor reads. */
+    static final Set<String> REQUIRED_COLUMNS =
+            Set.of("pfr_player_id", "game_id", "offense_pct");
 
     private static final String UPDATE = """
             UPDATE player_game_stats SET snap_pct = ?
@@ -48,7 +53,8 @@ public class SnapCountIngestor {
         });
 
         List<Object[]> updates = new ArrayList<>();
-        List<?> rows = client.read("snap_counts", "snap_counts_%d.csv".formatted(season), record -> {
+        List<?> rows = client.read("snap_counts", "snap_counts_%d.csv".formatted(season),
+                REQUIRED_COLUMNS, record -> {
             String pfrId = CsvValues.text(record, "pfr_player_id");
             String gameKey = CsvValues.text(record, "game_id");
             // offense_pct arrives as a 0..1 fraction; the column is a percentage.

@@ -35,6 +35,13 @@ if [[ ! -f "$jar" ]]; then
     exit 2
 fi
 
+# A stale jar is worse than a missing one: the job runs, reports SUCCESS, and
+# silently ingests with last week's code. Refuse rather than lie.
+if [[ -n "$(find "$repo/backend/src" -newer "$jar" -print -quit 2>/dev/null)" ]]; then
+    echo "jar is older than backend/src -- run: cd backend && ./mvnw -B package" >&2
+    exit 2
+fi
+
 mkdir -p "$repo/logs"
 
 exec java -jar "$jar" \

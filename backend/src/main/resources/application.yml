@@ -32,6 +32,14 @@ management:
     health:
       # Local convenience. Tighten to `when-authorized` in Phase 5 once auth exists.
       show-details: always
+      # ingestFreshness reports DOWN when the daily pull has stopped, which is
+      # degraded rather than down -- the API still serves six seasons correctly.
+      # A platform health check pointed at /actuator/health would therefore
+      # restart a perfectly healthy machine every time the laptop slept through
+      # 06:00. Phase 5's deploy points at /actuator/health/liveness instead.
+      group:
+        liveness:
+          include: ping, db
 
 fantasykai:
   ingest:
