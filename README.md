@@ -10,7 +10,7 @@ The core design decision: **store raw stat lines, never fantasy points.** Full P
 pipeline, the scoring engine, a read API, a measured performance baseline, and the Vegas
 columns. **112,319 weekly stat lines across the 2020–2025 seasons** — 1,243 distinct
 QB/RB/WR/TE players across those six seasons, 578–633 in any single one. Five REST
-endpoints serve rankings, players and game logs against any scoring ruleset. 80 tests.
+endpoints serve rankings, players and game logs against any scoring ruleset. 102 tests.
 
 No web UI yet — that ships with authentication in Phase 5.
 
@@ -52,7 +52,7 @@ curl -s localhost:8080/actuator/health
 ```
 
 **Then load the data** — the app starts against an empty database, so every ranking is
-empty until you backfill. Six seasons take about 20 seconds:
+empty until you backfill. Six seasons take 22.8 seconds:
 
 ```bash
 cd backend && ./mvnw spring-boot:run \
@@ -73,13 +73,32 @@ Run the tests — these boot a throwaway PostgreSQL 16 via Testcontainers and ap
 cd backend && ./mvnw verify
 ```
 
+**Keep it current.** nflverse revises the current week mid-week as corrections land, so the pull is
+daily rather than weekly and the upsert is idempotent. One command installs it:
+
+```bash
+./scripts/install-ingest.sh        # substitutes paths, loads the launchd agent, proves it landed
+launchctl start com.fantasykai.ingest   # run it now rather than waiting for 06:00
+```
+
+It needs a current jar (`cd backend && ./mvnw -B package`) and refuses to run a stale one. launchd
+fires on wake rather than at 06:00 on a laptop that sleeps, and on local time rather than ET — so
+gaps happen, and `/actuator/health` names them:
+
+```bash
+curl -s localhost:8080/actuator/health | jq .components.ingestFreshness
+```
+
+That component goes DOWN when the pull has stopped or a source failed. A missed pull is degraded,
+not down, so a platform health check belongs on `/actuator/health/liveness` instead.
+
 ## Layout
 
 ```
 backend/    Spring Boot API — ingestion, scoring engine, REST layer
 docs/       Design docs, the roadmap, and the measured performance baseline
 perf/       k6 load script
-scripts/    One-shot ingest, launchd plist, EXPLAIN harness
+scripts/    Daily ingest — installer, launchd plist, one-shot runner — and the EXPLAIN harness
 ```
 
 `frontend/` arrives in Phase 5 alongside authentication.

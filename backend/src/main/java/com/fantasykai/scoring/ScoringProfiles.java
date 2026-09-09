@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
  *
  * <p>This is not the §9 cache. That one keys on {@link ResolvedRuleset#hash()}
  * and stores computed rankings in Redis; this only avoids re-parsing the rules
- * themselves. Phase 6 adds the other.
+ * themselves. Phase 11 adds the other.
  */
 @Service
 public class ScoringProfiles {

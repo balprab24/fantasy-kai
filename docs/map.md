@@ -4,7 +4,8 @@
 can't own, it links to — so when it disagrees with the doc that owns a fact, the doc wins
 and this file gets fixed.
 
-Last verified against the tree: **2026-09-08**, at the Phase 4 merge.
+Last verified against the tree: **2026-09-09**, after the pre-Phase-5 fixes merged
+(`f478233`, `5d5b8b4`).
 
 ---
 
@@ -14,8 +15,8 @@ Last verified against the tree: **2026-09-08**, at the Phase 4 merge.
 |---|---|
 | Phases shipped | **0 → 4** |
 | Currently next | **Phase 5** — auth + web shell |
-| Backend | 54 files · 3,048 lines · Java 21 / Spring Boot 3.5.16 |
-| Tests | 12 files · 1,849 lines · **80 tests**, all green · `./mvnw -B verify` ≈ 39s |
+| Backend | 55 files · 3,358 lines · Java 21 / Spring Boot 3.5.16 |
+| Tests | 13 files · 2,306 lines · **102 tests**, all green · `./mvnw -B verify` ≈ 45s |
 | HTTP endpoints | **5**, all `GET`, all unauthenticated (Phase 5 fixes that) |
 | Migrations | `V1` … `V4` |
 | Data loaded | 112,319 stat rows · 25,065 players · 1,965 games · 2020–2026 |
@@ -24,7 +25,7 @@ Last verified against the tree: **2026-09-08**, at the Phase 4 merge.
 | # | Phase | State |
 |---|---|---|
 | 0 | Foundation — compose, Boot skeleton, Flyway `V1` | ✅ |
-| 1 | Ingestion — nflverse + Sleeper, six-season backfill in ~19s | ✅ |
+| 1 | Ingestion — nflverse + Sleeper, six-season backfill in 22.8s. Daily pull installed under launchd `f478233` | ✅ |
 | 2 | Scoring engine — ruleset model, validator, dot-product evaluator | ✅ |
 | 3 | Read API — `JdbcTemplate` reads, `StatKey`-generated SQL, query whitelists | ✅ |
 | 3.5 | Close the baseline — k6 at 1/5/10/20 VUs; **the bottleneck is Postgres, not the scorer (88/12)** | ✅ |
@@ -191,20 +192,28 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 | Risk | Detail |
 |---|---|
 | **No auth at all** | Five endpoints world-readable. `/rankings` is a CPU amplifier whose cost is independent of `size`, so `MAX_SIZE` protects nothing. `actuator/health` runs `show-details: always` |
-| **`ScoringProfiles.byId` has no ownership check** — **new** | `profileId` is a required param on `/rankings` and `/gamelog`. Harmless while only presets exist; an IDOR the day the first user profile is written. The check belongs in `byId`, and the Phase 5 brief doesn't name it |
-| **`ScoringProfiles.evict(long)` has zero callers** | The profile cache is unbounded and never invalidated. A "edit my ruleset" endpoint will serve stale rules until restart |
-| **`canonicalHash()` breaks its own invariant** — **new** | It emits only the keys *present* in the ruleset, but `compile` treats an absent key and an explicit `0` identically. So two logically identical rulesets can hash differently — the one thing the hash exists to prevent. Latent today (all four presets spell out all 13 keys), live the moment a user authors one |
-| `roundForDisplay` uses binary float rounding | `Math.round(x*100)/100` disagrees with decimal rounding at e.g. `0.145` and `1.005`, and is asymmetric on negatives. Low reachability while every preset rate is ≤2dp; higher once custom rates land |
+| **`ScoringProfiles.byId` has no ownership check** | `profileId` is a required param on `/rankings` and `/gamelog`. Harmless while only presets exist; an IDOR the day the first user profile is written. north-star §5b now names it, along with the compile-cache bypass that comes with it |
+| **`ScoringProfiles.evict(long)` has zero callers** | The profile cache is unbounded and never invalidated. An "edit my ruleset" endpoint will serve stale rules until restart |
+
+### Closed since the 2026-09-08 audit
+
+| Was | Closed by |
+|---|---|
+| `canonicalHash()` broke its own invariant | `5d5b8b4` — the hash moved to `ResolvedRuleset`, over the compiled arrays. Two rulesets now hash the same exactly when they score the same. Three shapes collapsed, not the one that was found |
+| `roundForDisplay` used binary float rounding | `5d5b8b4` — `BigDecimal` `HALF_UP`. `0.145 → 0.15`, and negatives round the same distance as positives |
+| The daily ingest ran nowhere | `f478233` — `scripts/install-ingest.sh`, verified by running it under launchd |
+| `ingest_runs` was written and never read | `f478233` — `IngestFreshnessHealthIndicator`, with a `liveness` group so a stale pipeline cannot restart a machine |
+| A renamed upstream column zeroed a stat and reported SUCCESS | `f478233` — header verified against the columns each ingestor reads, generated from the same `List<Field>` as the upsert |
+| `NflverseClient` leaked the response body on the 404 path | `f478233` |
 
 ### Operational, and unscheduled
 
 | Risk | Detail |
 |---|---|
-| **The daily ingest runs nowhere** — **new** | The launchd job is documented but not loaded, `logs/` is empty, and `ingest_runs` shows activity on two days only. The in-app `@Scheduled` path needs a continuously running app, and nothing runs one |
-| **`ingest_runs` is written and never read** | No health indicator, no metric, no alert. A stopped pipeline is invisible. A freshness `HealthIndicator` is ~25 lines |
-| **A renamed upstream column zeroes a stat and reports SUCCESS** | `CsvValues` returns null for a missing column and `shortValue` maps null → 0. Row counts still match; `IntegrityChecks` only compares season/week. A header assertion is cheap insurance |
-| `NflverseClient` leaks the response body on the 404 path | Throws before the try-with-resources. That branch runs every off-season day |
 | `StatIngestor` holds a whole season in memory | Identity mapper into a `List<CSVRecord>`, then a second full-size batch, under a JVM with no `-Xmx` |
+| The ingest depends on a laptop being awake | launchd fires on wake, not at 06:00, and on local time rather than ET. Acceptable for a pull with no deadline — and the reason the freshness indicator exists rather than being optional |
+| No shared Testcontainers base class | Six integration classes, six Postgres containers per build. Phase 5 adds more |
+| Hikari is at Spring Boot's default 10 connections | 10 × ~39 ms occupancy ≈ the 256 req/s ceiling. Phase 11 must not mistake raising it for a fix |
 
 ### Housekeeping
 
@@ -212,12 +221,11 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
   CLAUDE.md's invariant is vacuous as written. JPA is on the classpath only as a carrier
   for `JdbcTemplate`, and boots a Hibernate `EntityManagerFactory` every run.
 - **Redis runs in compose and is connected to nothing** — no client, no `@Cacheable`.
-- **Phase numbering is dual-tracked in the older docs** — **new**. `baseline.md` and
-  handoff §11 use "Phase 6" for the perf pass, which is now Phase 11; under the live
-  roadmap Phase 6 is Projections. Read any pre-north-star phase number with care.
-- **handoff §9 still teaches the disproven hypothesis in place**, while §12 Q4 says the
-  opposite. The banner above §9 is the correction; the body wasn't updated.
-- **handoff §5's `games` DDL is stale** — 7 columns, no `nflverse_game_id`. Reality is 18.
+- **Phase numbering was dual-tracked and is now decoded, not rewritten.** handoff §11
+  carries an old→new table; `baseline.md`, the code comments and `perf/rankings.js` were
+  corrected to Phase 11. `V1` and `V2` still say "Phase 6" in a comment and **stay that
+  way** — Flyway checksums an applied migration, so editing one breaks local startup while
+  CI stays green. `V4`'s "Phase 6" is correct; it means Projections.
 - Owed and missing: `perf/results.md` (Phase 11), `perf/projection-accuracy.md` (Phase 6,
   and north-star calls the whole projection model *"a hypothesis until that file exists"*),
   and the site attribution footer, owed since Phase 0.

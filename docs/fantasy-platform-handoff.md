@@ -78,7 +78,7 @@ The community-maintained NFL data project. Published as CSV/Parquet to GitHub Re
 
 Datasets you need:
 - **`stats_player_week`** (from the `stats_player` release) — weekly per-player box score, **150 columns, 18,983 rows for the 2024 season**. This is the backbone table.
-  - Chosen over the older `player_stats` release (53 columns, **5,597 rows for 2024**, offense only) for two reasons: it carries the kicking and defensive columns that K/DST scoring needs, and six seasons of it is ~114K rows versus ~34K — the volume §9 assumes. You can always filter down to fantasy-relevant positions with a `WHERE`; you cannot widen the schema without a re-ingest.
+  - Chosen over the older `player_stats` release (53 columns, **5,597 rows for 2024**, offense only) for two reasons: it carries the kicking and defensive columns that K/DST scoring needs, and six seasons of it is **112,450 rows** read / 112,319 stored versus ~34K — the volume §9 assumes. (Measured; CLAUDE.md pins both numbers and the 131-row gap.) You can always filter down to fantasy-relevant positions with a `WHERE`; you cannot widen the schema without a re-ingest.
   - Every row carries `game_id` (e.g. `2024_01_NYJ_SF`), so stat lines resolve to a game directly instead of joining on team + week.
   - **It also ships `fantasy_points` and `fantasy_points_ppr`. Do not store them.** The entire architecture is that points are computed on demand from raw stats; persisting the source's precomputed values would quietly reintroduce the thing you designed the system to avoid.
 - `players` — player master with cross-platform IDs (gsis, espn, sleeper, pfr)
@@ -162,7 +162,7 @@ Flock's rankings come from paid analysts. Yours will come from data. Three hones
 |---|---|---|
 | Backend language | Java 21 / **Spring Boot 3.5.16** | Matches your resume claim; you have to be able to defend it. Records, pattern matching, and virtual threads make this pleasant. **3.3 is EOL — the line ended at 3.3.13 and Initializr no longer offers it.** 3.5.x is the last 3.x line and still patched; 4.x was available but its renamed starters, Hibernate 7 and Testcontainers 2 put you off the beaten path for the Phase 5 auth work. |
 | Ingestion service | **Same Spring Boot app**, not a separate Python service | Python + pandas is genuinely better for this data, but two runtimes = two deploy targets = a whole extra failure surface for a solo project. nflverse ships plain CSV; parse it with Apache Commons CSV. Revisit if the model work in v2 demands pandas. |
-| ORM | Spring Data JPA for CRUD, **native queries for the hot rankings path** | JPA is a bad fit for wide aggregate reads. Don't fight it — drop to SQL where it matters. |
+| ORM | ~~Spring Data JPA for CRUD, native queries for the hot rankings path~~ → **`JdbcTemplate` throughout, zero `@Entity` classes.** Decided again in Phase 5 and kept: two persistence idioms for two small tables is worse than one | JPA is a bad fit for wide aggregate reads — and once every read is a hand-written query, the CRUD half never earns its second idiom. Cost, named rather than hidden: `ddl-auto: validate` has nothing to validate, so it guards only against becoming `update`. Don't fight it — drop to SQL where it matters. |
 | Cache | Redis | The 40% story lives here. |
 | Migrations | Flyway | Versioned schema from commit 1. Non-negotiable. |
 | Frontend | Next.js 15 App Router | You already know it from Aurex. Don't learn two new things at once. |
@@ -193,22 +193,45 @@ players (
   updated_at    TIMESTAMPTZ
 );
 
-games (
-  id            BIGINT IDENTITY PK,
-  season        SMALLINT NOT NULL,
-  week          SMALLINT NOT NULL,
-  season_type   VARCHAR(8),          -- REG / POST
-  home_team_id  INT REFERENCES teams(id),
-  away_team_id  INT REFERENCES teams(id),
-  kickoff_at    TIMESTAMPTZ,
-  UNIQUE (season, week, home_team_id, away_team_id)
+games (                                 -- V1 + V2 + V4. 18 columns, not the 7 V1 shipped.
+  id               BIGINT IDENTITY PK,
+  season           SMALLINT NOT NULL,
+  week             SMALLINT NOT NULL,
+  season_type      VARCHAR(8),          -- REG / POST. Weeks run to 22; 19-22 are POST
+  -- NOT NULL is load-bearing, and this block said "nullable" until 2026-09-08.
+  -- Postgres treats NULLs as distinct inside a UNIQUE, so nullable team ids let
+  -- uq_games_matchup admit exact duplicate games. Proved by inserting one.
+  home_team_id     INT NOT NULL REFERENCES teams(id),
+  away_team_id     INT NOT NULL REFERENCES teams(id),
+  kickoff_at       TIMESTAMPTZ,
+  nflverse_game_id VARCHAR(20) NOT NULL, -- V2. '2024_01_NYJ_SF'. The natural key the upsert conflicts on
+
+  -- V4, the Vegas layer. Every type below is justified by a probe of the real
+  -- file rather than by reasoning; north-star §10 records what each measured.
+  home_score       SMALLINT,            -- nullable: 272 games unplayed. 0 is a real score
+  away_score       SMALLINT,
+  spread_line      NUMERIC(4,1),        -- 3,321 of 7,388 carry a half point. SMALLINT would corrupt every one
+  total_line       NUMERIC(4,1),
+  home_moneyline   INTEGER,             -- headroom, not overflow: the 27-season extreme is -5,000
+  away_moneyline   INTEGER,
+  roof             VARCHAR(12),
+  surface          VARCHAR(16),
+  temp             SMALLINT,            -- nullable: blank means not recorded, not "dome"
+  wind             SMALLINT,            -- nullable: 0 is a real reading, 29 rows since 2020
+
+  UNIQUE (season, week, home_team_id, away_team_id),
+  UNIQUE (nflverse_game_id)
 );
+-- NOT stored, deliberately: result, total, over/under_odds, *_spread_odds.
+-- total = home + away and result = home - away across all 7,276 played games
+-- with zero exceptions, so both are the implied_team_total mistake one layer
+-- down. The odds are the vig, not the line. See north-star §10.
 
 -- The core table. Raw stats ONLY. Never store fantasy points here.
 player_game_stats (
   player_id      BIGINT REFERENCES players(id),
   game_id        BIGINT REFERENCES games(id),
-  season         SMALLINT NOT NULL,   -- denormalized on purpose, see §9
+  season         SMALLINT NOT NULL,   -- denormalized on purpose; IntegrityChecks holds it true
   week           SMALLINT NOT NULL,
   team_id        INT REFERENCES teams(id),
   snap_pct       NUMERIC(5,2),
@@ -282,7 +305,7 @@ ingest_runs (                          -- observability + your "10K records" evi
 );
 ```
 
-`backend/src/main/resources/db/migration/V1__initial_schema.sql` is the source of truth; the block above is a summary.
+**The migrations are the source of truth; the block above is a summary of all of them.** `V1__initial_schema.sql` alone no longer describes `games` or `players` — `V2` added the natural key and the Sleeper expression index, `V4` widened `games` by ten columns. Read `db/migration/` in order, not `V1` on its own; each column carries the measured range that chose its type.
 
 **`ingest_runs` is not optional.** It is the table that lets you say "10K+ records daily" and then *show the row*. Build it in Phase 0.
 
@@ -412,25 +435,54 @@ Conventions: cursor or offset pagination everywhere (never unbounded lists), RFC
 
 **You cannot claim an improvement you didn't measure.** Here is how you legitimately get the number.
 
-> ⚠️ **Measured 2026-09-07, and the framing below is half wrong.** The endpoint
-> is CPU-bound, not disk-bound — that part holds (4,044 buffer hits, zero disk
-> reads). But the busy CPU is **Postgres, not the Java scorer**: 5.3 cores vs
-> 0.73 at 20 VUs, **88/12**, 20.7 ms against 2.9 ms per request. Three sequential
-> scans at 256 req/s cost far more than the dot-product over the 6,037 rows that
-> survive them. Step 3's cache-first ordering still stands (a hit skips both), but
-> Steps 4 and 5 attack the *dominant* cost rather than supporting evidence, so
-> expect them to be worth more than this section predicts. Numbers and method:
+> ⚠️ **This section was written before the measurement and rewritten after it,
+> on 2026-09-08.** Its original framing — that the bottleneck was Java
+> recomputation — was tested at 1/5/10/20 VUs and did not survive. The framing
+> below is the corrected one; the original is kept as history where it is
+> useful, because a hypothesis that was tested and failed is a better story
+> than one that was assumed and never checked. Numbers and method:
 > [`docs/perf/baseline.md`](perf/baseline.md).
 
-### Get the framing right first: the bottleneck is recomputation, not I/O
+### Get the framing right first — and the original framing here was wrong
 
-Six seasons of `stats_player_week` is ~114K rows, and filtered to fantasy-relevant positions it is a good deal less. Postgres seq-scans that in tens of milliseconds. If your headline is *"I added a composite index and went from 60ms to 10ms"*, an interviewer can reasonably shrug — that is a small absolute win on a small table, and they will know it.
+**What this section used to say:** the endpoint is CPU-bound rather than
+I/O-bound, and the busy CPU is the Java scorer recomputing points for every
+player on every request. Therefore cache, and treat the index and matview work
+as supporting evidence.
 
-The real cost in `/rankings` is that **every request recomputes fantasy points in Java for every player under the caller's ruleset, and then sorts.** That work is CPU-bound, a faster scan does not touch it, and unlike the scan it **scales with concurrency** — at 20 virtual users you are doing the same computation twenty times over. The fix is not to read the rows faster. It is to stop recomputing them.
+**What the measurement said.** Half of that is right and it is the half that
+matters least. The endpoint *is* CPU-bound and not disk-bound — 4,044 buffer
+hits, zero disk reads, p95 climbing 21.4 → 125.0 ms from 1 to 20 VUs while
+throughput flatlines at ~256 req/s. But the busy CPU is **Postgres, not the
+scorer**: 5.3 cores against the JVM's 0.73 at 20 VUs, an **88/12 split**,
+20.7 ms against 2.9 ms per request. Three sequential scans cost about seven
+times the dot-product over the 6,037 rows that survive them.
 
-So the headline is **the ruleset-hashed cache.** The index and matview work is real and it stays in, but it is supporting evidence rather than the story.
+The lesson is specific and worth keeping: **the concurrency curve says the cost
+is compute, it does not say whose.** Answering that took a second measurement —
+sampling both processes — and the second one contradicted the first one's
+interpretation.
 
-> *"I profiled it, found the bottleneck was recomputation rather than I/O, and cached on a hash of the ruleset so that two users with identical league settings share an entry"* is a far better answer than *"I added a composite index."* The first is a diagnosis. The second is a reflex.
+Six seasons of `stats_player_week` is **112,319 rows** (measured, not
+estimated), and filtered to fantasy-relevant positions it is a good deal less.
+The instinct that an index on a table this small is a shrug-worthy win turns out
+to be wrong here, for a reason worth stating: the scan is not slow, it is
+*repeated* — 256 times a second, three times per request. Small × often is the
+whole cost.
+
+So the ordering below survives but its reasoning inverts. **Cache still comes
+first**, because a hit skips the scan and the scoring both, and it is the only
+step that removes work rather than making it cheaper. The matview and the index
+are no longer supporting evidence for a story about recomputation — they attack
+the dominant cost directly, and should therefore be worth **more** than the rest
+of this section predicts, not less.
+
+> *"I expected the bottleneck to be my scoring code, measured it, and found it
+> was 12% — Postgres was 88%. The concurrency curve told me it was compute-bound
+> but not which compute; sampling both processes told me that, and it
+> contradicted what I'd designed around."* That is the answer to give, and it is
+> a better one than the original precisely because it describes a hypothesis
+> that failed. See also §12 Q4.
 
 ### Step 1 — Build it slow and naive, on purpose
 No indexes past the primary keys. No cache. Scoring computed per request. Backfill 2020–2025.
@@ -442,7 +494,9 @@ k6 run --vus 20 --duration 60s rankings.js
 ```
 Record **p50, p95, p99** and throughput. Run `EXPLAIN (ANALYZE, BUFFERS)` on the rankings query and save the plan.
 
-**Also record CPU utilisation during the run, and the p95 at 1 VU versus at 20.** That pair of numbers is the evidence that the endpoint is compute-bound rather than I/O-bound — a scan-bound endpoint degrades far less as you add concurrency. It is what justifies going to the cache first instead of reaching for an index, and it is the measurement that makes the diagnosis credible instead of asserted.
+**Also record CPU utilisation during the run, and the p95 at 1 VU versus at 20.** That pair of numbers is the evidence that the endpoint is compute-bound rather than I/O-bound — a scan-bound endpoint degrades far less as you add concurrency.
+
+**Then sample the database process and the JVM separately, because the curve above cannot tell them apart.** This is the step the original version of this section skipped, and skipping it is how the whole document came to assert the wrong bottleneck. "Compute-bound" is not a diagnosis until you know *whose* compute; the 88/12 split is the number that made it one.
 
 **Commit all of it to `docs/perf/baseline.md`.** This file is the difference between a real bullet and a made-up one.
 
@@ -474,7 +528,7 @@ CREATE UNIQUE INDEX ON player_season_agg (player_id, season);
 -- REFRESH MATERIALIZED VIEW CONCURRENTLY player_season_agg;  -- needs the unique index
 ```
 
-Note what this actually buys, because it is easy to mis-explain: it collapses ~19K player-game rows per season into ~600 player-season rows. **That is a ~30× reduction in the number of stat lines the Java scorer has to touch on a miss** — it is mostly a compute win, not an I/O win. That is precisely why it belongs in this story rather than in a generic "I added a matview" bullet.
+Note what this actually buys, because it is easy to mis-explain: it collapses ~19K player-game rows per season into ~600 player-season rows. **That is a ~10× reduction in the number of stat lines the Java scorer has to touch on a miss** — it is mostly a compute win, not an I/O win. That is precisely why it belongs in this story rather than in a generic "I added a matview" bullet.
 
 ### Step 5 — Indexes last, and only where the plan says so
 
@@ -483,9 +537,13 @@ Note what this actually buys, because it is easy to mis-explain: it collapses ~1
 CREATE INDEX idx_pgs_season_week_player
   ON player_game_stats (season, week, player_id) INCLUDE (rec, rec_yd, rec_td, rush_yd, rush_td, pass_yd, pass_td);
 
--- Partial index for the common "current season only" case
+-- Partial index for the common "current season only" case.
+-- The season here MUST match the season perf/rankings.js pins, or the
+-- benchmark cannot move: an index over a season with no stat lines in it
+-- covers zero rows and shows zero delta. This said 2026 until 2026-09-08,
+-- when 2026 had a loaded schedule and not one stat row.
 CREATE INDEX idx_pgs_current
-  ON player_game_stats (player_id, week) WHERE season = 2026;
+  ON player_game_stats (player_id, week) WHERE season = 2025;
 ```
 
 Re-measure after each. Be honest in the write-up if the delta here is small — at this row count it may well be, and *"the index barely moved it, which is itself the evidence that the bottleneck was elsewhere"* is a stronger thing to be able to say than a number you inflated. Be ready to defend the column order from the EXPLAIN plans, before and after.
@@ -515,11 +573,27 @@ Re-measure after each. Be honest in the write-up if the delta here is small — 
 
 ## 11. Build plan
 
-> ⚠️ **Superseded by [`north-star.md`](north-star.md) §10 from Phase 4 onward.** Phases 0–3 below are
-> accurate and keep their numbers and commits. Phase 4 is now *Vegas in the schema*, the frontend
-> folds into Phase 5 alongside auth, and the performance pass moves to Phase 11 — so every "Phase 6"
-> in §9 means Phase 11. The new roadmap inserts **Phase 3.5: capture the k6 baseline**, which is the
-> one item below that becomes unrecoverable if it slips.
+> ⚠️ **Superseded by [`north-star.md`](north-star.md) §10 from Phase 4 onward.** Phases 0–3 keep
+> their numbers and their commits. The new roadmap inserts **Phase 3.5: capture the k6 baseline**,
+> which is the one item below that became unrecoverable if it slipped — it did not, it was captured
+> 2026-09-07 and it disproved §9's premise.
+>
+> **This section's numbering is history, and it is kept as history rather than rewritten.** Use the
+> table to decode it. The mistake to avoid is reading a bare "Phase 6" here or in an applied
+> migration as the live Phase 6, which is Projections and has nothing to do with performance.
+>
+> | This document says | Live roadmap |
+> |---|---|
+> | Phase 4 — Frontend | folded into **Phase 5**, which ships its own UI slice |
+> | Phase 5 — Auth + custom profiles | **Phase 5**, unchanged in substance |
+> | Phase 6 — Performance pass | **Phase 11** |
+> | Phase 7 — Polish | dissolved; each phase polishes its own slice |
+>
+> Two applied migrations carry the old number in a comment — `V1__initial_schema.sql` and
+> `V2__ingestion_support.sql`, both saying "Phase 6" for the performance pass. **They stay wrong on
+> purpose.** Flyway checksums an applied migration, so editing even a comment fails local startup
+> with `Validate failed` while CI stays green, because Testcontainers always starts from an empty
+> database. That was hit for real on V4. `V4`'s own "Phase 6" is *correct* — it means Projections.
 
 
 Each phase names the resume bullet it earns. Do not write the bullet before the phase is done.
@@ -531,7 +605,7 @@ Commits `921e21a`, `8fdad10`, `d06f133`. The §9 baseline invariant is live and 
 
 ### Phase 1 — Ingestion (week 1–2) · ✅ done
 nflverse CSV pull → parse → upsert. Backfill 2020–2025. Wire the weekly `@Scheduled` job (Tuesday 6am ET). Sleeper player-ID crosswalk.
-Add the GIN/expression index on `players.external_ids` here, not in Phase 6 — it serves the ingestion crosswalk (`external_ids->>'sleeper'`), not the rankings query, so it does not contaminate the §9 baseline. Say so in the commit message.
+Add the GIN/expression index on `players.external_ids` here, not in the performance pass — it serves the ingestion crosswalk (`external_ids->>'sleeper'`), not the rankings query, so it does not contaminate the §9 baseline. Say so in the commit message.
 **Season kicks off September 10 — get this running before week 1 so you have live data flowing all season.**
 Commit `6c591e5`. Backfill of six seasons ran in **22.8s**; 12/12 tests green. `snap_pct` resolved on 99.9% of stored rows (112,245 / 112,319), 883 Sleeper ids attached, and the post-ingest integrity check reports **zero** stat rows whose denormalized season/week disagrees with the game they point at. The 2026 schedule is already loaded (272 games, first kickoff Sept 10); 2026 stat lines are not published yet and correctly record `SKIPPED`.
 **Ingest every position, filter at query time.** v1 scores QB/RB/WR/TE only (§6), but storing only those rows would shrink `player_game_stats` from ~112K to ~37K and gut the §9 baseline — and K/DST in v2 would then need a backfill after all. The `WHERE` clause belongs in the rankings query, not the ingest.
@@ -578,9 +652,9 @@ Pure backend. This is the deepest work in the project; give it the time.
 
 `com.fantasykai.scoring` + `V3__seed_scoring_presets.sql`. 35 scoring tests, 47 in the suite.
 
-`StatKey` is the one idea worth explaining out loud: a single enum that is simultaneously the validation allowlist, the array index for the dot-product, and the `player_game_stats` column name — so a ruleset cannot name a stat that does not exist, scoring never does a hash lookup per stat, and the Phase 3 query is generated from the enum rather than maintained beside it. `ResolvedRuleset.compile` branches on the rule-format version now, with only version 1 in existence, for the reason §6 gives. `Ruleset.canonicalHash()` exists early because it is a property of the model, not of the cache: it is tested here so Phase 6 can rely on it.
+`StatKey` is the one idea worth explaining out loud: a single enum that is simultaneously the validation allowlist, the array index for the dot-product, and the `player_game_stats` column name — so a ruleset cannot name a stat that does not exist, scoring never does a hash lookup per stat, and the Phase 3 query is generated from the enum rather than maintained beside it. `ResolvedRuleset.compile` branches on the rule-format version now, with only version 1 in existence, for the reason §6 gives. `Ruleset.canonicalHash()` exists early because it is a property of the model, not of the cache: it is tested here so the performance pass can rely on it.
 
-### Phase 3 — Read API (week 3) · ✅ endpoints done, baseline half-captured
+### Phase 3 — Read API (week 3) · ✅ done, and the baseline captured 2026-09-07
 `/players`, `/rankings`, `/gamelog`. Naive and unoptimized — **that's the point.** Capture the k6 baseline here.
 → *Earns: "Designed RESTful APIs."*
 
@@ -592,19 +666,19 @@ Rankings join `games` and filter `season_type = 'REG'`. The data runs to week 22
 
 **Baseline so far** (`docs/perf/baseline.md`): the 2025 rankings query is **three** sequential scans, not one — `player_game_stats` discards 92,919 of 112,319 rows and `players` discards 16,689 of 25,065, together touching 4,044 shared buffers (~31.6 MB) in **29.5 ms** warm, and handing **6,037 player-weeks** to the Java scorer to produce a ranking of 610. A single warm HTTP request is ~38 ms median. **The k6 passes were run on 2026-09-07** at 1/5/10/20 VUs, and they did not say what this section expected: the endpoint is compute-bound rather than disk-bound, but the busy CPU is Postgres at 88%, not the Java scorer. See the correction at the head of §9 and the full numbers in `docs/perf/baseline.md`.
 
-**Two corrections to §9 Step 4, found while measuring.** First, the "~30× reduction" conflates populations: 19,400 rows/season is *all* positions while ~613 is *skill* players, and the rankings query reads 6,037 rows — the real reduction is **~10×**. Second, and more serious: pre-aggregating season totals and scoring them once pays a threshold bonus at most once per season instead of once per qualifying game. Every seeded preset is bonus-free so nothing is wrong today, but Phase 5 ships custom profiles and `RulesetValidator` allows up to 20 bonuses. Phase 6 must gate the matview path on `bonuses().isEmpty()` or materialize per-game bonus counts.
+**Two corrections to §9 Step 4, found while measuring.** First, the "~30× reduction" conflates populations: 19,400 rows/season is *all* positions while ~613 is *skill* players, and the rankings query reads 6,037 rows — the real reduction is **~10×**. Second, and more serious: pre-aggregating season totals and scoring them once pays a threshold bonus at most once per season instead of once per qualifying game. Every seeded preset is bonus-free so nothing is wrong today, but Phase 5 ships custom profiles and `RulesetValidator` allows up to 20 bonuses. **Phase 11** must gate the matview path on `bonuses().isEmpty()` or materialize per-game bonus counts.
 
-### Phase 4 — Frontend (week 4–5)
-Rankings table (virtualized — 900 rows), position filter tabs, profile switcher, player detail with game log. Tailwind, no component library beyond TanStack Table.
+### Phase 4 — Frontend (week 4–5) · superseded — this is now Phase 5's UI slice
+Rankings table (virtualized — ~610 rows, the measured count), position filter tabs, profile switcher, player detail with game log. Tailwind, no component library beyond TanStack Table.
 
 ### Phase 5 — Auth + custom profiles (week 5–6)
 Everything in §8. Custom ruleset builder UI.
 
-### Phase 6 — Performance pass (week 6)
+### Phase 6 — Performance pass (week 6) · superseded — this is now **Phase 11**
 Everything in §9, **in that order: cache → matview → indexes**, measuring after each. The ordering is the point — it follows the bottleneck instead of reaching for the reflex fix.
 → *Earns: "Profiled a compute-bound rankings endpoint and cut p95 latency by X% under 20 concurrent users by caching on a hash of the scoring ruleset."* Note what that bullet leads with: the diagnosis, then the number. Fill in X from `docs/perf/results.md` and nowhere else.
 
-### Phase 7 — Polish
+### Phase 7 — Polish · superseded — dissolved into each phase's own slice
 README with architecture diagram and the perf numbers, seeded demo account, deployed URL on the resume.
 
 ---
@@ -625,7 +699,7 @@ README with architecture diagram and the perf numbers, seeded demo account, depl
 
 ## 13. Decide these before Phase 0
 
-- [x] **Repo layout** — monorepo. `backend/` exists; `frontend/` lands in Phase 4.
+- [x] **Repo layout** — monorepo. `backend/` exists; `frontend/` lands in **Phase 5**, with auth.
 - [x] **Project name** — `fantasy-kai`. Java package `com.fantasykai`.
 - [x] **Backfill depth** — **2020–2025, six seasons.** Loaded: **112,319 stat rows** (112,450 read). The original ~800K estimate conflated play-by-play volume with weekly stat lines. The real figure still leaves the §9 story intact, and it is measured rather than assumed.
 - [x] **Resume date** — **September 2026 – Present.** Phase 0 landed September 3, 2026 and the commit history proves it. "July 2026" was not true and there was nothing to gain by defending it.

@@ -21,7 +21,7 @@ import org.springframework.stereotype.Service;
  * player-week for the season, scores each one in Java, aggregates, sorts and
  * only then takes a page -- so the work is proportional to the season's row
  * count and independent of {@code size}, and it repeats in full for every
- * concurrent caller. That is the compute-bound baseline; Phase 6's cache is what
+ * concurrent caller. That is the compute-bound baseline; Phase 11's cache is what
  * removes it, keyed on {@link ResolvedRuleset#hash()} so two users with
  * identical league settings share one entry.
  *
