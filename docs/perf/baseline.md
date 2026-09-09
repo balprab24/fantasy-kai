@@ -81,10 +81,18 @@ Execution Time: 29.538 ms
 |---|---|
 | Execution time (warm, single connection) | **29.5 ms** |
 | Planning time | 3.6 ms |
-| Shared buffers touched | **4,044** (~31.6 MB) |
+| Shared buffers touched | **4,044** (~31.6 MB) — as captured; see the note below |
 | Rows discarded by the `player_game_stats` scan | 92,919 of 112,319 |
 | Rows discarded by the `players` scan | 16,689 of 25,065 |
 | Rows returned to Java for scoring | **6,037** |
+
+> **Which number Phase 11 compares against.** The 4,044 above is what this database
+> actually did on 2026-09-07, and it is the honest capture. It also carried bloat that had
+> never been reclaimed: a later `VACUUM (FULL, ANALYZE)` took the same plan to **2,640**
+> buffers — `player_game_stats` 2,774 → 2,160 and `players` 1,246 → 449 — without any
+> schema change. **Phase 11 measures against 2,640, on a vacuumed database**, because a
+> comparison that credits the perf pass for reclaiming dead tuples is not a measurement of
+> the perf pass. Vacuum first, then compare. Detail in *Since capture: what V4 cost* below.
 
 **Three sequential scans, not one.** The no-index invariant is written about
 `player_game_stats`, but `players.position` is equally unindexed and accounts for
@@ -109,6 +117,36 @@ shows a large win here, something else changed.
 | `players` | 13 MB |
 | `games` | 464 kB |
 | `teams` | 40 kB |
+
+### Since capture: what V4 cost
+
+`V4__games_betting_and_results.sql` widened `games` by ten columns on 2026-09-08.
+Measured rather than assumed, by materialising the pre-V4 and post-V4 column sets
+from the same 1,965 rows and vacuuming both:
+
+| `games` heap | Pages | Size |
+|---|---|---|
+| pre-V4, 8 columns | 19 | 152 kB |
+| post-V4, 18 columns | 30 | 240 kB |
+
+**+11 pages, 88 kB.** The rankings plan's `games` seq scan reads exactly those 30
+buffers, so the widening costs 11 buffers against a post-vacuum plan total of
+2,640 — 0.4%. The shape is unchanged: still three sequential scans, still zero
+disk reads.
+
+Two things make a naive re-run of `scripts/perf-explain.sh` look alarming, and
+neither is V4:
+
+1. **A backfill leaves dead tuples.** Every row it touches is rewritten. Straight
+   after this one, `player_game_stats` read **4,346** buffers against the 2,774
+   captured above — on a table V4 does not touch.
+2. **The captured baseline was itself carrying bloat.** `VACUUM (FULL, ANALYZE)`
+   took `player_game_stats` to **2,160** buffers and `players` from 1,246 to
+   **449** — below the numbers at the top of this file. That is space this project
+   had never reclaimed, not a Phase 4 effect.
+
+So vacuum before comparing, and compare the `games` scan specifically. Anything
+else moves for reasons that have nothing to do with this migration.
 
 ### Invariant, verified at capture time
 

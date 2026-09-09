@@ -46,7 +46,8 @@ backend/src/main/java/com/fantasykai/
   scoring/         Phase 2 — ruleset model, validator, dot-product evaluator
   query/           Phase 3 — JdbcTemplate reads, StatKey-generated SQL, the §8 whitelists
   api/             Phase 3 — controllers, DTOs, RFC 7807 advice
-backend/src/main/resources/db/migration/   Flyway. V1 schema, V2 ingestion support
+backend/src/main/resources/db/migration/   Flyway. V1 schema, V2 ingestion support,
+                                           V3 presets, V4 Vegas columns
 backend/src/test/resources/nflverse/       Real 2024 rows as fixtures — not invented
 docs/north-star.md                         Scope, roadmap, product invariants
 docs/fantasy-platform-handoff.md           Engineering rationale (§1/§11 superseded)
@@ -64,8 +65,8 @@ scripts/                                   One-shot ingest, launchd plist, perf-
 | 2 — Scoring engine | ✅ `com.fantasykai.scoring` + V3 presets, 47 tests |
 | 3 — Read API | ✅ `ec5a8e9` — `com.fantasykai.api` + `.query`, 25 tests (72 in the suite) |
 | 3.5 — k6 baseline | ✅ 1/5/10/20 VUs measured — p95 **21.4 ms → 125.0 ms**, throughput saturates at ~256 req/s. **The bottleneck is Postgres, not the Java scorer (88/12).** See below. |
-| 4 — Vegas in the schema | ⬅ **next** — `V4` widens `games`; `GameIngestor` already downloads the columns and discards them |
-| 5 — Auth + web shell | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools |
+| 4 — Vegas in the schema | ✅ `V4` widens `games` by 10 columns; `GameIngestor` reads 18 of the source's 46 and generates its upsert from one ordered list. 8 new tests (80 in the suite) |
+| 5 — Auth + web shell | ⬅ **next** · 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
 
 Full roadmap and the reasoning for the order: [`docs/north-star.md`](docs/north-star.md) §10.
@@ -86,6 +87,19 @@ From the loaded database, 2020–2025:
 | Sleeper ids attached | 883 of 25,065 players |
 | Rows with fractional `def_sacks` | 1,660 |
 | Backfill wall time | 22.8s |
+
+**nflverse `games.csv`, probed 2026-09-08** (7,548 rows, seasons 1999–2026). These are what V4's
+column types are justified by — do not re-derive them either:
+
+| | |
+|---|---|
+| Spreads / totals carrying a **half point** | **3,321** of 7,388 · 3,681 of 7,388 — never more than 1 dp |
+| Most extreme moneyline in 27 seasons | **−5,000** — `SMALLINT` would hold it 6.5× over |
+| `temp` range · rows with no reading | −6 … 109 · 2,342 |
+| `wind` = 0 (calm, *not* missing), 2020–2026 | **29** |
+| Distinct `roof` / `surface` values (longest) | 4 (`outdoors`, 8) / 8 (`matrixturf`, 10) |
+| 2026 games with a line | **112 of 272** — they land ~a week ahead of kickoff |
+| Cost of V4 to `games` | 19 → 30 heap pages, +88 kB; +11 buffers of ~2,640 in the rankings plan |
 
 **"1,243 skill players" is a six-season union.** No single season clears 700. Say "across six seasons" or the claim breaks the moment someone asks whether it is one year.
 
@@ -129,6 +143,16 @@ Raising it without making the query cheaper moves the queue, it does not remove 
 - **`players.full_name` is not unique.** 832 names are shared, 24 of them between players who both have stat lines — `Josh Allen` is a quarterback (id 344) and a center (id 343). Never key a lookup on a name; the API returns `id` everywhere and treats the name as display text.
 - **Weeks run to 22, not 18.** Weeks 19–22 are `season_type = 'POST'`. Rankings join `games` and filter to `REG`, because fantasy leagues do not score the playoffs and `last4` would otherwise mean "the postseason". The game log deliberately does *not* filter — it is a record of what a player did.
 - **`@Validated` on a controller turns a 400 into a 500.** It proxies the class so Bean Validation throws `ConstraintViolationException`, which no Spring MVC handler knows about. Without it, Spring 6.1+ validates constrained parameters itself and raises `HandlerMethodValidationException`, which `ResponseEntityExceptionHandler` renders as `problem+json`. Found by sending `?size=5000`, not by reading the docs.
+- **A blank `temp` does not mean "dome".** 297 *outdoor* games in 2020–2026 have no temperature
+  either, and one `closed`-roof game does have one. Blank means not recorded. `wind = 0` is likewise a
+  real reading (29 rows), which is why both columns take `CsvValues.shortOrNull` and not `shortValue`
+  — the latter defaults a missing value to 0, correct for a box score and wrong for a fact.
+- **`games.result` and `games.total` are not stored, and that is deliberate.** Across all 7,276 played
+  games, with zero exceptions, `total` = `home_score + away_score` and `result` = `home_score −
+  away_score`. They are the `implied_team_total` mistake one layer down. Derive on read.
+- **A backfill leaves dead tuples, and they wreck a perf comparison.** Straight after one,
+  `player_game_stats` reads 4,346 buffers instead of 2,774 — on a table nothing changed. `VACUUM
+  (FULL, ANALYZE)` before comparing against `docs/perf/baseline.md`.
 - **nflverse release assets 404 until published.** `AssetNotPublishedException` → `ingest_runs.status = 'SKIPPED'`. A future season must not fail the run.
 
 ## Scoring — how it fits together

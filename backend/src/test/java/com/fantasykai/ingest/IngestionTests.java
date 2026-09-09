@@ -36,6 +36,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -48,6 +49,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * against the shapes the source actually ships -- including a stat line with no
  * player id, which must be skipped rather than break the load. No network: the
  * client is replaced with one reading the same CSVs off the classpath.
+ *
+ * <p>Phase 4 added the schedule half: the betting, result and weather columns
+ * that GameIngestor used to download and discard. Those shapes are real too --
+ * a dome with no temperature reading, an away favourite, a 2026 game that has a
+ * line but no score, and one that has neither.
  */
 @Testcontainers
 @SpringBootTest
@@ -114,6 +120,9 @@ class IngestionTests {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private GameIngestor games; // reached directly for the seasons backfill() does not cover
 
     @BeforeEach
     void runTheIngest() {
@@ -221,6 +230,116 @@ class IngestionTests {
         assertThat(ScoringEngine.roundForDisplay(points)).isEqualTo(55.4);
     }
 
+    @Test
+    void mapsTheScoreLineAndConditionsIntoTheRightColumns() {
+        // The canary for a positional mistake: every Phase 4 column on one row,
+        // against the values the source actually ships. BAL 20 at KC 27, Kansas
+        // City favoured by 3. A spread that landed in total_line would still
+        // type-check, which is why the upsert is generated from one ordered list.
+        Map<String, Object> row = game("2024_01_BAL_KC");
+
+        assertThat(row).containsEntry("home_score", 27)
+                .containsEntry("away_score", 20)
+                .containsEntry("home_moneyline", -148)
+                .containsEntry("away_moneyline", 124)
+                .containsEntry("roof", "outdoors")
+                .containsEntry("surface", "grass")
+                .containsEntry("temp", 67)
+                .containsEntry("wind", 8);
+        assertThat((BigDecimal) row.get("spread_line")).isEqualByComparingTo("3");
+        assertThat((BigDecimal) row.get("total_line")).isEqualByComparingTo("46");
+    }
+
+    @Test
+    void preservesAFractionalSpread() {
+        // The whole reason spread_line and total_line are NUMERIC and not SMALLINT:
+        // 3,321 of 7,388 spreads in the source carry a half point.
+        Map<String, Object> row = game("2024_02_TB_DET");
+
+        assertThat((BigDecimal) row.get("spread_line")).isEqualByComparingTo("7.5");
+        assertThat((BigDecimal) row.get("total_line")).isEqualByComparingTo("51.5");
+    }
+
+    @Test
+    void keepsTheSignOfAnAwayFavourite() {
+        // A positive spread_line means the home team is favoured, so an away
+        // favourite has to survive as a negative rather than as its magnitude.
+        assertThat((BigDecimal) game("2024_05_BAL_CIN").get("spread_line"))
+                .isEqualByComparingTo("-2.5");
+    }
+
+    @Test
+    void aDomeGamesBlankTemperatureReadsBackNullNotZero() {
+        // 0 degrees and 0 mph are both real readings -- wind is 0 in 29 rows since
+        // 2020 -- so a blank field cannot collapse to zero the way a box score
+        // does. This is the one thing CsvValues.shortValue would have got wrong.
+        Map<String, Object> row = game("2024_02_TB_DET");
+
+        assertThat(row).containsEntry("roof", "dome");
+        assertThat(row.get("temp")).isNull();
+        assertThat(row.get("wind")).isNull();
+    }
+
+    @Test
+    @Transactional
+    void anUnplayedGameCarriesItsLineButNoScore() {
+        // 2026 is outside the window backfill() resolves to under the fixed clock,
+        // so ask for it directly. Transactional so those rows do not outlive the
+        // test that wanted them.
+        games.ingest(List.of(2026));
+        Map<String, Object> row = game("2026_01_TB_CIN");
+
+        assertThat((BigDecimal) row.get("spread_line")).isEqualByComparingTo("3.5");
+        assertThat((BigDecimal) row.get("total_line")).isEqualByComparingTo("50.5");
+        assertThat(row.get("home_score")).isNull();
+        assertThat(row.get("away_score")).isNull();
+    }
+
+    @Test
+    @Transactional
+    void aGameWithNoLineYetHasNullBettingColumns() {
+        // Lines land roughly a week ahead of kickoff, so a week 11 game in
+        // September has none. The row still exists; the betting columns are empty.
+        games.ingest(List.of(2026));
+        Map<String, Object> row = game("2026_11_TB_DET");
+
+        assertThat(row).containsEntry("roof", "dome");
+        assertThat(row.get("spread_line")).isNull();
+        assertThat(row.get("total_line")).isNull();
+        assertThat(row.get("home_moneyline")).isNull();
+        assertThat(row.get("away_moneyline")).isNull();
+    }
+
+    @Test
+    @Transactional
+    void theUpsertRefreshesBettingColumnsOnARerun() {
+        // Prove it by breaking it. Because the line arrives after the schedule
+        // does, a column present in the INSERT list but missing from DO UPDATE SET
+        // would stay empty forever and nothing would report it.
+        jdbc.update("UPDATE games SET spread_line = NULL WHERE nflverse_game_id = ?",
+                "2024_02_TB_DET");
+        assertThat(game("2024_02_TB_DET").get("spread_line")).isNull();
+
+        games.ingest(List.of(2024));
+
+        assertThat((BigDecimal) game("2024_02_TB_DET").get("spread_line"))
+                .isEqualByComparingTo("7.5");
+    }
+
+    @Test
+    void neverStoresAResultItCanDerive() {
+        // Checked against all 7,276 played games with zero exceptions:
+        // total = home_score + away_score and result = home_score - away_score.
+        // Storing either is the implied_team_total mistake -- a computed value a
+        // corrected score would leave stale.
+        List<String> columns = jdbc.queryForList("""
+                SELECT column_name FROM information_schema.columns
+                 WHERE table_name = 'games'
+                """, String.class);
+
+        assertThat(columns).doesNotContain("result", "total", "implied_team_total");
+    }
+
     /** Full PPR, built here so this test does not depend on the V3 seed. */
     private static Ruleset fullPpr() {
         Map<StatKey, Double> base = new EnumMap<>(StatKey.class);
@@ -243,5 +362,10 @@ class IngestionTests {
                 JOIN players p ON p.id = s.player_id
                 WHERE p.gsis_id = ?
                 """, gsisId);
+    }
+
+    private Map<String, Object> game(String nflverseGameId) {
+        return jdbc.queryForMap(
+                "SELECT * FROM games WHERE nflverse_game_id = ?", nflverseGameId);
     }
 }

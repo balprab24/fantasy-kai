@@ -274,8 +274,8 @@ a product you can't open is not one you'll use, and this only gets built if it g
 |---|---|---|---|
 | 0–3 | Foundation · Ingestion · Scoring · Read API | see handoff §11 | ✅ |
 | **3.5** | Close the baseline | Measured at 1/5/10/20 VUs, 2026-09-07. p95 **21.4 → 125.0 ms**, throughput saturates ~256 req/s, and **the bottleneck is Postgres at 88% of CPU, not the Java scorer** — which contradicts handoff §9. | ✅ |
-| **4** | **Vegas in the schema** | `V4` widens `games` with scores + betting + weather columns; ~10 lines in `GameIngestor`'s existing mapper; re-run backfill. No new HTTP source. ~1 day. **Brief below.** | ⬅ **next** |
-| 5 | Auth + web shell | Handoff §8 in full — Argon2id, JWT, rotating refresh, Bucket4j. First write endpoints (`POST/PUT/DELETE /scoring-profiles`). Next.js 15: login, rankings table, player detail, profile switcher, public landing page. Attribution footer. **End of phase = a deployed site you can log into. Brief below.** | |
+| **4** | **Vegas in the schema** | `V4` widened `games` with the score, betting and weather columns; `GameIngestor` now reads 18 of the source's 46. No new HTTP source. Measurement corrected the brief three times — moneylines never overflow `SMALLINT`, and `result`/`total` are derived, not stored. **Brief below.** | ✅ |
+| **5** | **Auth + web shell** | Handoff §8 in full — Argon2id, JWT, rotating refresh, Bucket4j. First write endpoints (`POST/PUT/DELETE /scoring-profiles`). Next.js 15: login, rankings table, player detail, profile switcher, public landing page. Attribution footer. **End of phase = a deployed site you can log into. Brief below.** | ⬅ **next** |
 | 6 | Projections | `SignalKey`, `player_week_projection`, `ProjectionEngine`, `ExplainedScore`, backtest + published MAE. The heart of "valid reasons for ranking." | |
 | 7 | League import | `LeagueProvider` interface. ESPN first (cookie paste, encrypted at rest), **Sleeper in the same phase** to prove the seam is real. ESPN `mSettings.scoringItems` → `Ruleset`, auto-creating your profile. Manual ruleset builder as the fallback for when ESPN breaks — because it will. | |
 | 8 | Roster tools | `LineupOptimizer`, `SeasonSimulator`, `TradeEvaluator`, `WaiverBoard`. §7 made real. | |
@@ -300,31 +300,40 @@ dominant cost. And handoff §12 Q4's stock answer is now wrong as written; the c
 in the doc, and it is a better answer than the original because it describes a hypothesis that got
 tested and failed rather than one that got confirmed.
 
-### Phase 4 — ready to start
+### Phase 4 — shipped
 
-**The first action is a measurement, not a migration.** The working agreement — the habit that caught
-the fractional sacks and the NULL-defeated unique constraint — says pull the real value ranges out of
-`games.csv` *before* choosing column types:
+**The first action was a measurement, not a migration** — and the measurement corrected this brief in
+three places. Probed the live `games.csv` on 2026-09-08: 7,548 rows, seasons 1999–2026. What the
+column types are actually justified by:
 
 | Column | What the data does | Therefore |
 |---|---|---|
-| `spread_line`, `total_line` | carry halves — `3.5`, `44.5` | `NUMERIC(4,1)`. **`SMALLINT` would round 3.5 → 4 and silently corrupt every line** — the `def_sacks` lesson exactly |
-| `temp`, `wind` | blank for dome games; `temp` goes negative | nullable `SMALLINT`, and blank must land as `NULL`, not `0`. `CsvValues` already treats `""`/`NA` as null |
-| `away_moneyline`, `home_moneyline` | signed, and exceed ±32,767 on heavy favourites | `INT`, not `SMALLINT` |
-| `roof`, `surface` | enumerate the real distinct values before sizing | don't guess the `VARCHAR` width |
-| `home_score`, `away_score`, `result`, `total` | absent for unplayed games | all nullable |
+| `spread_line`, `total_line` | **3,321 of 7,388 spreads and 3,681 total lines carry a half point**, and nothing carries more than one decimal place. Ranges −19…27 and 28.5…63.5 | `NUMERIC(4,1)`. **`SMALLINT` would round 3.5 → 4 and silently corrupt every line** — the `def_sacks` lesson exactly |
+| `temp`, `wind` | `temp` runs −6…109, `wind` 0…71, both blank on 2,342 rows. **`wind` is legitimately 0 in 29 rows since 2020**, and blank ≠ dome — 297 *outdoor* games have no temperature either | nullable `SMALLINT`, and blank must land as `NULL`, not `0`. `CsvValues.shortValue` defaults to 0 and is the wrong helper; `shortOrNull` was added beside it |
+| `away_moneyline`, `home_moneyline` | ~~exceed ±32,767 on heavy favourites~~ — **they do not.** The most extreme value in 27 seasons is −5,000, which `SMALLINT` holds with 6.5× to spare | `INT` anyway, but for headroom against a feed we don't control, not because `SMALLINT` overflows. The original reason here was wrong |
+| `roof`, `surface` | four roofs, longest `outdoors` at 8 chars; eight surfaces, longest `matrixturf` at 10. Both sometimes blank — 43 of the 272 2026 rows have no roof yet | `VARCHAR(12)` / `VARCHAR(16)`. Headroom on purpose: `CsvValues.text` truncates rather than failing, so an undersized column stores a wrong value quietly |
+| `home_score`, `away_score` | absent for the 272 unplayed games; **0 is a real score** (32 shutouts since 2020) | nullable `SMALLINT` |
+| ~~`result`, `total`~~ | **not stored.** Verified across all 7,276 played games with zero exceptions: `total` = home + away, `result` = home − away | derived on read, for the same reason `implied_team_total` is. A stored one goes stale the moment a score is corrected |
+| ~~`over/under_odds`, `*_spread_odds`~~ | **not stored**, though §5 lists them under the Vegas layer. They are the *vig* — the price of taking a side, not the line | `implied_team_total` reads the line and never the price. Add them the day something consumes them |
 
-Then `V4__games_betting_and_results.sql` widens `games`, and `GameIngestor`'s mapper and `UPSERT`
-list grow to match — it already downloads `schedules/games.csv` and reads **8 of its 46 columns**,
-so this adds no HTTP source and no new client. `implied_team_total` is **derived on read**
-(`total_line/2 ± spread_line/2`), never a column — §4.
+`V4__games_betting_and_results.sql` widened `games`; `GameIngestor` went from reading 8 of the
+source's 46 columns to 18, with no new HTTP source and no new client. Its `UPSERT` now generates the
+`INSERT` list, the `DO UPDATE SET` list and the argument array from one ordered `List<Field>`, the
+way `StatIngestor` already did — at seventeen bind positions a spread landing in `total_line` still
+type-checks. `implied_team_total` remains **derived on read** (`total_line/2 ± spread_line/2`), never
+a column — §4.
 
-Tests extend the existing 5-row `backend/src/test/resources/nflverse/games.csv` fixture: a fractional
-spread survives the round trip, and a dome game's blank `temp` reads back `NULL` rather than zero.
+The fixture already held both cases the brief named — `2024_02_TB_DET` is a dome game with a blank
+`temp` *and* a fractional 7.5 spread — so those needed assertions rather than new rows. Three real
+rows were appended for the shapes it lacked: an away favourite (`2024_05_BAL_CIN`, −2.5), a 2026 game
+with a line but no score, and a 2026 game with neither. `IngestionTests` went 9 → 17 tests, including
+one that nulls a spread and re-runs the ingest to prove `DO UPDATE SET` refreshes it — the failure
+mode that would otherwise be invisible, since a line lands a week after the schedule row does.
 
-**Acceptance:** `SELECT count(*) FROM games WHERE season = 2026 AND spread_line IS NOT NULL` returns
-**112** of 272, matching the source as probed on 2026-09-07. Lines land roughly a week ahead of
-kickoff, so this number grows all season and a re-run must not regress it.
+**Acceptance: met.** `SELECT count(*) FROM games WHERE season = 2026 AND spread_line IS NOT NULL`
+returns **112** of 272, re-probed 2026-09-08 and matching the source exactly. Lines land roughly a
+week ahead of kickoff, so this number grows all season and a re-run must not regress it. Cost to the
+rankings plan, measured: **+11 buffers of ~2,640**, 0.4% — see `docs/perf/baseline.md`.
 
 ### Phase 5 — brief
 
