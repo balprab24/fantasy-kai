@@ -9,6 +9,8 @@ NFL fantasy analytics platform. Java 21 / Spring Boot 3.5.16 · PostgreSQL 16 ·
 
 This file is the operational memory that sits alongside both. When it disagrees with either, the doc wins — and fix this file.
 
+**[`docs/map.md`](docs/map.md) is the front door** — the status board, every package's classes, the two pipelines, and where to look for anything. It owns no facts; it links to whichever of these three does.
+
 ## The one idea
 
 **Store raw stat lines, never fantasy points. Compute points on demand against a ruleset.**
@@ -42,16 +44,18 @@ Full PPR, half PPR, standard and TE premium stop being three code paths and beco
 
 ```
 backend/src/main/java/com/fantasykai/
-  ingest/          Phase 1 — nflverse + Sleeper pipeline (17 classes)
+  ingest/          Phase 1 — nflverse + Sleeper pipeline (18 classes)
   scoring/         Phase 2 — ruleset model, validator, dot-product evaluator
   query/           Phase 3 — JdbcTemplate reads, StatKey-generated SQL, the §8 whitelists
   api/             Phase 3 — controllers, DTOs, RFC 7807 advice
 backend/src/main/resources/db/migration/   Flyway. V1 schema, V2 ingestion support,
                                            V3 presets, V4 Vegas columns
 backend/src/test/resources/nflverse/       Real 2024 rows as fixtures — not invented
+docs/map.md                                Front door — status board, class map, pipelines
 docs/north-star.md                         Scope, roadmap, product invariants
 docs/fantasy-platform-handoff.md           Engineering rationale (§1/§11 superseded)
-docs/perf/                                 Phase 3 baseline, projection accuracy, perf-pass results
+docs/perf/                                 baseline.md only so far; projection-accuracy.md (Phase 6)
+                                           and results.md (Phase 11) are owed
 perf/rankings.js                           k6 load script — pins season=2025 on purpose
 scripts/                                   One-shot ingest, launchd plist, perf-explain.sh
 ```
@@ -153,6 +157,13 @@ Raising it without making the query cheaper moves the queue, it does not remove 
 - **A backfill leaves dead tuples, and they wreck a perf comparison.** Straight after one,
   `player_game_stats` reads 4,346 buffers instead of 2,774 — on a table nothing changed. `VACUUM
   (FULL, ANALYZE)` before comparing against `docs/perf/baseline.md`.
+- **Editing an applied migration breaks your local database while CI stays green.** Flyway
+  checksums every applied file; changing one — even only its comments — fails startup with
+  `Validate failed: Migrations have failed validation`. CI never catches it, because
+  Testcontainers always starts from an empty database. Hit for real on V4. The fix is
+  `flyway repair`, or recompute the CRC32 (over each line, terminators excluded) and
+  `UPDATE flyway_schema_history SET checksum = ? WHERE version = ?` — verify the algorithm
+  against an untouched migration first.
 - **nflverse release assets 404 until published.** `AssetNotPublishedException` → `ingest_runs.status = 'SKIPPED'`. A future season must not fail the run.
 
 ## Scoring — how it fits together

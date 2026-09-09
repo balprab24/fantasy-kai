@@ -6,13 +6,27 @@ The core design decision: **store raw stat lines, never fantasy points.** Full P
 
 ## Status
 
-Phases 0–1 done: infrastructure, versioned schema, and the nflverse + Sleeper ingestion pipeline. **112,319 weekly stat lines across the 2020–2025 seasons**, covering 1,243 distinct QB/RB/WR/TE players. Phase 2 — the scoring engine — is in progress. Nothing user-facing yet.
+**Phases 0–4 shipped.** Infrastructure, versioned schema, the nflverse + Sleeper ingestion
+pipeline, the scoring engine, a read API, a measured performance baseline, and the Vegas
+columns. **112,319 weekly stat lines across the 2020–2025 seasons** — 1,243 distinct
+QB/RB/WR/TE players across those six seasons, 578–633 in any single one. Five REST
+endpoints serve rankings, players and game logs against any scoring ruleset. 80 tests.
 
-See [`docs/fantasy-platform-handoff.md`](docs/fantasy-platform-handoff.md) for the full design and build plan, and [`CLAUDE.md`](CLAUDE.md) for the operational notes.
+No web UI yet — that ships with authentication in Phase 5.
+
+The measured headline so far: the rankings endpoint is CPU-bound, and **88% of that CPU is
+Postgres, not the Java scorer** — which disproved the hypothesis the design doc was built
+on. See [`docs/perf/baseline.md`](docs/perf/baseline.md).
+
+**Start here:** [`docs/map.md`](docs/map.md) — where everything is and what state it's in.
+Then [`docs/north-star.md`](docs/north-star.md) for scope and the roadmap,
+[`docs/fantasy-platform-handoff.md`](docs/fantasy-platform-handoff.md) for engineering
+rationale (its §1 and §11 are superseded by the north star), and [`CLAUDE.md`](CLAUDE.md)
+for operational notes.
 
 ## Stack
 
-Spring Boot 3.5 (Java 21) · PostgreSQL 16 · Redis 7 · Flyway · Next.js 15 (Phase 4)
+Spring Boot 3.5 (Java 21) · PostgreSQL 16 · Flyway · Redis 7 (provisioned, first used in Phase 5) · Next.js 15 (Phase 5)
 
 ## Local setup
 
@@ -37,6 +51,22 @@ curl -s localhost:8080/actuator/health
 # {"status":"UP", ...}
 ```
 
+**Then load the data** — the app starts against an empty database, so every ranking is
+empty until you backfill. Six seasons take about 20 seconds:
+
+```bash
+cd backend && ./mvnw spring-boot:run \
+  -Dspring-boot.run.arguments=--fantasykai.ingest.backfill-on-startup=true
+```
+
+Now ask it something. `profileId=3` is full PPR; the presets are seeded by `V3`:
+
+```bash
+curl -s 'localhost:8080/api/v1/rankings?profileId=3&season=2025&position=WR&size=5'
+```
+
+Change `profileId` and every number changes, because none of them were stored.
+
 Run the tests — these boot a throwaway PostgreSQL 16 via Testcontainers and apply the migrations for real, so Docker must be running:
 
 ```bash
@@ -46,10 +76,13 @@ cd backend && ./mvnw verify
 ## Layout
 
 ```
-backend/    Spring Boot API — scoring engine, ingestion, REST layer
-docs/       Design docs and (from Phase 6) performance measurements
-frontend/   Next.js app — Phase 4
+backend/    Spring Boot API — ingestion, scoring engine, REST layer
+docs/       Design docs, the roadmap, and the measured performance baseline
+perf/       k6 load script
+scripts/    One-shot ingest, launchd plist, EXPLAIN harness
 ```
+
+`frontend/` arrives in Phase 5 alongside authentication.
 
 Schema lives in `backend/src/main/resources/db/migration/`. Flyway owns it; nothing is created by Hibernate.
 
