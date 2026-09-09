@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Weekly, so the vulnerability scan keeps running between commits.
+    - cron: '0 6 * * 1'
 
 jobs:
   backend:
@@ -26,3 +29,36 @@ jobs:
       - name: Build and test
         working-directory: backend
         run: ./mvnw -B verify
+
+  # Handoff section 8: "mvn dependency-check in CI." Separate job so a CVE in a
+  # transitive dependency reports without blocking a green test run, and
+  # scheduled so it keeps finding things after the last commit lands -- a
+  # vulnerability is disclosed on its own timetable, not on ours.
+  dependencies:
+    name: Vulnerability scan
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: OWASP dependency-check
+        working-directory: backend
+        run: >-
+          ./mvnw -B org.owasp:dependency-check-maven:check
+          -DfailBuildOnCVSS=7
+          -DnvdApiKey=${{ secrets.NVD_API_KEY }}
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: backend/target/dependency-check-report.html

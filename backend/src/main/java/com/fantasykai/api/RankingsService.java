@@ -43,11 +43,18 @@ public class RankingsService {
         this.profiles = profiles;
     }
 
-    public PageResponse<RankingRow> rank(long profileId, String position, int season,
+    /**
+     * @param userId the authenticated caller, or {@code null} when logged out.
+     *     Carried down to the profile lookup rather than checked here, so the
+     *     tenant filter stays in the query (§8). An anonymous caller resolves
+     *     system presets and nothing else.
+     */
+    public PageResponse<RankingRow> rank(long profileId, Long userId, String position, int season,
             RankingScope scope, int page, int size) {
 
-        // Resolved before any query: an unknown profile is a 404, not an empty ranking.
-        ResolvedRuleset rules = profiles.byId(profileId);
+        // Resolved before any query: an unknown profile is a 404, not an empty
+        // ranking -- and so is one belonging to somebody else.
+        ResolvedRuleset rules = profiles.byId(profileId, userId);
         List<String> positions = ScoringPosition.resolve(position);
 
         Integer weekFloor = null;

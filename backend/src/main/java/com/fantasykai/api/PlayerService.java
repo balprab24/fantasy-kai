@@ -57,10 +57,11 @@ public class PlayerService {
      * numbers that drift apart by a cent per week and would make the game log
      * disagree with the ranking.
      */
-    public GamelogResponse gamelog(long playerId, Integer season, long profileId) {
+    /** @param userId the authenticated caller, or {@code null}. See {@code RankingsService.rank}. */
+    public GamelogResponse gamelog(long playerId, Integer season, long profileId, Long userId) {
         PlayerRow player = players.findById(playerId)
                 .orElseThrow(() -> new PlayerNotFoundException(playerId));
-        ResolvedRuleset rules = profiles.byId(profileId);
+        ResolvedRuleset rules = profiles.byId(profileId, userId);
 
         List<GamelogRow> rows = players.findGamelog(playerId, season);
         List<GamelogWeek> weeks = new ArrayList<>(rows.size());

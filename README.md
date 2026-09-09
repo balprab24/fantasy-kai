@@ -10,9 +10,10 @@ The core design decision: **store raw stat lines, never fantasy points.** Full P
 pipeline, the scoring engine, a read API, a measured performance baseline, and the Vegas
 columns. **112,319 weekly stat lines across the 2020–2025 seasons** — 1,243 distinct
 QB/RB/WR/TE players across those six seasons, 578–633 in any single one. Five REST
-endpoints serve rankings, players and game logs against any scoring ruleset. 102 tests.
+endpoints serve rankings, players and game logs against any scoring ruleset, and an
+account gets you scoring profiles of your own. 130 tests.
 
-No web UI yet — that ships with authentication in Phase 5.
+No web UI yet — the Next.js shell is the next slice of Phase 5.
 
 The measured headline so far: the rankings endpoint is CPU-bound, and **88% of that CPU is
 Postgres, not the Java scorer** — which disproved the hypothesis the design doc was built
@@ -66,6 +67,22 @@ curl -s 'localhost:8080/api/v1/rankings?profileId=3&season=2025&position=WR&size
 ```
 
 Change `profileId` and every number changes, because none of them were stored.
+
+**Make it yours.** Reads are public; a profile of your own needs an account:
+
+```bash
+TOKEN=$(curl -s -X POST localhost:8080/api/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"a-long-enough-password"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["accessToken"])')
+
+curl -s -X POST localhost:8080/api/v1/scoring-profiles \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"My League","rules":"{\"version\":1,\"base\":{\"rec\":1.5,\"rec_td\":6}}"}'
+```
+
+Your profile is yours: the `user_id` filter is in the query rather than in a service check, so
+another account asking for its id gets a 404 — not a 403, which would confirm it exists.
 
 Run the tests — these boot a throwaway PostgreSQL 16 via Testcontainers and apply the migrations for real, so Docker must be running:
 

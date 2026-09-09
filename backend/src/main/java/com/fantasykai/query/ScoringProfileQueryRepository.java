@@ -13,16 +13,18 @@ import org.springframework.stereotype.Repository;
  * metadata -- it never touches the {@code rules} column, so an unparseable row
  * cannot take the list down.
  *
- * <p>Phase 3 serves presets only. Phase 5 adds {@code OR user_id = ?} bound to
- * the JWT subject, in this query rather than in a service-layer check (§8).
+ * <p>The tenant filter is {@code OR user_id = ?} bound to the JWT subject, in
+ * this query rather than in a service-layer check (§8). A {@code null} binds to
+ * a clause that is never true, so a logged-out caller sees the four presets and
+ * nothing else -- the same shape as {@code ScoringProfiles.byId}.
  */
 @Repository
 public class ScoringProfileQueryRepository {
 
-    private static final String PRESETS = """
+    private static final String VISIBLE_TO = """
             SELECT id, name, is_preset FROM scoring_profiles
-            WHERE user_id IS NULL
-            ORDER BY id
+             WHERE user_id IS NULL OR user_id = ?
+             ORDER BY is_preset DESC, name
             """;
 
     private static final RowMapper<ProfileRow> ROW = (rs, n) ->
@@ -34,8 +36,18 @@ public class ScoringProfileQueryRepository {
         this.jdbc = jdbc;
     }
 
-    public List<ProfileRow> findPresets() {
-        return jdbc.query(PRESETS, ROW);
+    /**
+     * The presets, plus the caller's own.
+     *
+     * <p>Ordered presets first then by name, rather than by id: the four presets
+     * are the stable part of a profile switcher and a user's own list grows
+     * unpredictably, so id order would shuffle the familiar entries down the
+     * list as they add profiles.
+     *
+     * @param userId the authenticated caller, or {@code null} for presets only
+     */
+    public List<ProfileRow> findVisibleTo(Long userId) {
+        return jdbc.query(VISIBLE_TO, ROW, userId);
     }
 
     public record ProfileRow(long id, String name, boolean preset) {}

@@ -13,14 +13,14 @@ Last verified against the tree: **2026-09-09**, after the pre-Phase-5 fixes merg
 
 | | |
 |---|---|
-| Phases shipped | **0 → 4** |
-| Currently next | **Phase 5** — auth + web shell |
-| Backend | 55 files · 3,358 lines · Java 21 / Spring Boot 3.5.16 |
-| Tests | 13 files · 2,306 lines · **102 tests**, all green · `./mvnw -B verify` ≈ 45s |
-| HTTP endpoints | **5**, all `GET`, all unauthenticated (Phase 5 fixes that) |
-| Migrations | `V1` … `V4` |
+| Phases shipped | **0 → 5b** |
+| Currently next | **Phase 5c/5d** — Next.js web shell, then deploy |
+| Backend | 73 files · 4,693 lines · Java 21 / Spring Boot 3.5.16 |
+| Tests | 16 files · 3,049 lines · **130 tests**, all green · `./mvnw -B verify` ≈ 60s |
+| HTTP endpoints | **12** — 5 public `GET`, 4 `/auth`, 3 authenticated mutations |
+| Migrations | `V1` … `V5` |
 | Data loaded | 112,319 stat rows · 25,065 players · 1,965 games · 2020–2026 |
-| Frontend | none yet — Phase 5c |
+| Frontend | none yet — **Phase 5c, next** |
 
 | # | Phase | State |
 |---|---|---|
@@ -30,7 +30,7 @@ Last verified against the tree: **2026-09-09**, after the pre-Phase-5 fixes merg
 | 3 | Read API — `JdbcTemplate` reads, `StatKey`-generated SQL, query whitelists | ✅ |
 | 3.5 | Close the baseline — k6 at 1/5/10/20 VUs; **the bottleneck is Postgres, not the scorer (88/12)** | ✅ |
 | 4 | Vegas in the schema — `V4` widens `games` by 10 columns | ✅ |
-| **5** | **Auth + web shell** — Argon2id, JWT, rotating refresh, Bucket4j, Next.js shell | ⬅ **next** |
+| **5** | **Auth + web shell** — Argon2id, JWT, rotating refresh, Bucket4j · Next.js shell | 🔶 5a/5b ✅ · 5c/5d ⬅ **next** |
 | 6 | Projections — `SignalKey`, `ProjectionEngine`, `ExplainedScore`, published MAE | |
 | 7 | League import — `LeagueProvider`, ESPN + Sleeper | |
 | 8 | Roster tools — optimizer, simulator, trade evaluator, waivers | |
@@ -187,13 +187,12 @@ scored before a page can be taken. That is the [§9 baseline](perf/baseline.md),
 Audited 2026-09-08. Each verified against the source, and tagged with the phase that
 closes it. Nothing here is a surprise to the docs unless marked **new**.
 
-### Closes with Phase 5
+### Closes with Phase 5c/5d
 
 | Risk | Detail |
 |---|---|
-| **No auth at all** | Five endpoints world-readable. `/rankings` is a CPU amplifier whose cost is independent of `size`, so `MAX_SIZE` protects nothing. `actuator/health` runs `show-details: always` |
-| **`ScoringProfiles.byId` has no ownership check** | `profileId` is a required param on `/rankings` and `/gamelog`. Harmless while only presets exist; an IDOR the day the first user profile is written. north-star §5b now names it, along with the compile-cache bypass that comes with it |
-| **`ScoringProfiles.evict(long)` has zero callers** | The profile cache is unbounded and never invalidated. An "edit my ruleset" endpoint will serve stale rules until restart |
+| **Nothing is deployed** | The end of Phase 5 is "a site you can log into", and HTTPS/HSTS cannot be satisfied locally. Fly + Neon + Vercel, north-star §5d |
+| **The attribution footer is still owed** | nflverse (CC BY 4.0) and FFC both require it; outstanding since Phase 0. It ships with the web shell |
 
 ### Closed since the 2026-09-08 audit
 
@@ -205,6 +204,9 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 | `ingest_runs` was written and never read | `f478233` — `IngestFreshnessHealthIndicator`, with a `liveness` group so a stale pipeline cannot restart a machine |
 | A renamed upstream column zeroed a stat and reported SUCCESS | `f478233` — header verified against the columns each ingestor reads, generated from the same `List<Field>` as the upsert |
 | `NflverseClient` leaked the response body on the 404 path | `f478233` |
+| No auth at all; five endpoints world-readable | Phase 5a/5b — default-deny chain, `show-details: when-authorized` |
+| `ScoringProfiles.byId` had no ownership check | Phase 5a/5b — filtered in the query, and the compile cache carries its owner so a warm entry is not a bypass |
+| `ScoringProfiles.evict(long)` had zero callers | Phase 5a/5b — every profile write calls it |
 
 ### Operational, and unscheduled
 
@@ -217,10 +219,12 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 
 ### Housekeeping
 
-- **`ddl-auto: validate` validates nothing** — there are zero `@Entity` classes, so
-  CLAUDE.md's invariant is vacuous as written. JPA is on the classpath only as a carrier
-  for `JdbcTemplate`, and boots a Hibernate `EntityManagerFactory` every run.
-- **Redis runs in compose and is connected to nothing** — no client, no `@Cacheable`.
+- **`ddl-auto: validate` validates nothing** — there are zero `@Entity` classes, and
+  Phase 5 decided deliberately to keep it that way (north-star §5a). The setting's real
+  guarantee is that it can never become `update`; CLAUDE.md now says that rather than
+  claiming a drift check. JPA remains on the classpath as a carrier for `JdbcTemplate`.
+- **Redis is claimed at last** — Bucket4j's bucket store, resolved lazily so an outage
+  costs logins and not the site. Phase 11's ruleset cache is the second consumer.
 - **Phase numbering was dual-tracked and is now decoded, not rewritten.** handoff §11
   carries an old→new table; `baseline.md`, the code comments and `perf/rankings.js` were
   corrected to Phase 11. `V1` and `V2` still say "Phase 6" in a comment and **stay that

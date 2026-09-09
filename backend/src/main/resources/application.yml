@@ -23,6 +23,11 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
 management:
   endpoints:
     web:
@@ -30,8 +35,10 @@ management:
         include: health,info
   endpoint:
     health:
-      # Local convenience. Tighten to `when-authorized` in Phase 5 once auth exists.
-      show-details: always
+      # Phase 5: details only for an authenticated caller. The freshness
+      # component names every source and its last error, which is operational
+      # detail rather than public information.
+      show-details: when-authorized
       # ingestFreshness reports DOWN when the daily pull has stopped, which is
       # degraded rather than down -- the API still serves six seasons correctly.
       # A platform health check pointed at /actuator/health would therefore
@@ -42,6 +49,21 @@ management:
           include: ping, db
 
 fantasykai:
+  auth:
+    # No default, on purpose. A committed fallback secret is a secret that ships
+    # to production the first time someone forgets the env var, and AuthProperties
+    # refuses to start without at least 32 bytes.
+    jwt-secret: ${JWT_SECRET}
+    # Short because an access token cannot be revoked. The refresh token is the
+    # revocable half and carries the session.
+    access-token-ttl: 15m
+    refresh-token-ttl: 30d
+    # Per IP, across /api/v1/auth/**. Handoff section 8.
+    login-attempts-per-minute: 5
+    # Explicit allowlist, never `*`. The Vercel origin is added at deploy.
+    allowed-origins:
+      - http://localhost:3000
+
   ingest:
     base-url: https://github.com/nflverse/nflverse-data/releases/download
     sleeper-base-url: https://api.sleeper.app
