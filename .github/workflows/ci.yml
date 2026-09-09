@@ -49,15 +49,36 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      # The NVD API refuses a zero-length key outright, so passing an unset
+      # secret through is worse than omitting it: the job fails on
+      # configuration rather than on a CVE, every run, and stops being read.
+      # Skip loudly instead, and start working the moment the secret exists.
+      - name: Check for an NVD API key
+        id: nvd
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          if [ -n "$NVD_API_KEY" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping the vulnerability scan: no NVD_API_KEY secret." \
+              "Get a free key at https://nvd.nist.gov/developers/request-an-api-key" \
+              "and add it under Settings > Secrets and variables > Actions."
+          fi
+
       - name: OWASP dependency-check
+        if: steps.nvd.outputs.present == 'true'
         working-directory: backend
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: >-
           ./mvnw -B org.owasp:dependency-check-maven:check
           -DfailBuildOnCVSS=7
-          -DnvdApiKey=${{ secrets.NVD_API_KEY }}
+          -DnvdApiKey="$NVD_API_KEY"
 
       - name: Upload report
-        if: always()
+        if: always() && steps.nvd.outputs.present == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: dependency-check-report
