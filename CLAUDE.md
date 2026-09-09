@@ -23,7 +23,7 @@ Full PPR, half PPR, standard and TE premium stop being three code paths and beco
 |---|---|---|
 | `player_game_stats` carries **no index past its primary key** | §9's whole performance story is a measured before/after. An index added early destroys the baseline and there is no way to recover it without re-measuring from scratch. | Phase 11, as a numbered migration |
 | Never store `fantasy_points` / `fantasy_points_ppr` | The source ships both. A stored point value is correct for exactly one ruleset. Persisting them reintroduces the thing the architecture exists to avoid. | never |
-| Flyway owns the schema; `ddl-auto` stays `validate` | Versioned schema from commit 1. `validate` fails fast the moment a JPA entity drifts from a migration. It must never become `update`. | never |
+| Flyway owns the schema; `ddl-auto` stays `validate` | Versioned schema from commit 1. **It must never become `update`** — that is the whole guarantee today. The drift check this setting is famous for is *vacuous here*: there are zero `@Entity` classes, so it validates nothing, and Phase 5's decision to stay on `JdbcTemplate` keeps it that way. Say the real guarantee, not the advertised one. | never |
 | `.env` is gitignored, `.env.example` is committed | No secret in `application.yml`. JWT secret comes from env (Phase 5). | never |
 | No string concatenation into SQL — including dynamic sort/filter | Whitelist sortable columns by name. §8. | never |
 | `StatKey` is the only place a scorable stat is named | It is the validation allowlist, the dot-product array index, and the `player_game_stats` column name at once. Adding a stat anywhere else breaks one of the three. | never |
@@ -57,7 +57,7 @@ docs/fantasy-platform-handoff.md           Engineering rationale (§1/§11 super
 docs/perf/                                 baseline.md only so far; projection-accuracy.md (Phase 6)
                                            and results.md (Phase 11) are owed
 perf/rankings.js                           k6 load script — pins season=2025 on purpose
-scripts/                                   One-shot ingest, launchd plist, perf-explain.sh
+scripts/                                   install-ingest.sh, launchd plist, ingest-once.sh, perf-explain.sh
 ```
 
 ## Current state
@@ -69,13 +69,16 @@ scripts/                                   One-shot ingest, launchd plist, perf-
 | 2 — Scoring engine | ✅ `com.fantasykai.scoring` + V3 presets, 47 tests |
 | 3 — Read API | ✅ `ec5a8e9` — `com.fantasykai.api` + `.query`, 25 tests (72 in the suite) |
 | 3.5 — k6 baseline | ✅ 1/5/10/20 VUs measured — p95 **21.4 ms → 125.0 ms**, throughput saturates at ~256 req/s. **The bottleneck is Postgres, not the Java scorer (88/12).** See below. |
-| 4 — Vegas in the schema | ✅ `V4` widens `games` by 10 columns; `GameIngestor` reads 18 of the source's 46 and generates its upsert from one ordered list. 8 new tests (80 in the suite) |
+| 4 — Vegas in the schema | ✅ `73a0842` — `V4` widens `games` by 10 columns; `GameIngestor` reads 18 of the source's 46 and generates its upsert from one ordered list. 8 new tests (80 in the suite) |
+| 4.5 — pre-Phase-5 fixes | ✅ `f478233` daily ingest installed + freshness health + CSV header assertion · `5d5b8b4` canonical hash over the resolved form + decimal rounding. **102 in the suite** |
 | 5 — Auth + web shell | ⬅ **next** · 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
 
 Full roadmap and the reasoning for the order: [`docs/north-star.md`](docs/north-star.md) §10.
 
 2026 season opens **Sept 10**. The 2026 schedule is loaded (272 games); nflverse has not published 2026 stat lines yet, so those runs correctly record `SKIPPED`.
+
+**The daily pull is installed** (`./scripts/install-ingest.sh`, verified running under launchd 2026-09-09). It fires on wake rather than at 06:00 on a sleeping laptop, and on local time rather than ET — so gaps are expected, and `/actuator/health`'s `ingestFreshness` component is what makes them visible instead of silent.
 
 ## Measured numbers — do not re-derive or estimate these
 
@@ -116,15 +119,21 @@ column types are justified by — do not re-derive them either:
 | Throughput | 72.9 req/s | 246.4 req/s | 259.0 req/s | 256.4 req/s |
 | JVM CPU (of 800%) | 16% | 59% | 74% | 73% |
 
-**The measurement contradicts handoff §9 and you need to know this before quoting it.**
-§9 asserts the bottleneck is Java recomputation. Measured at 20 VUs: **Postgres
-486–587% CPU (~5.3 cores, 20.7 ms/req) against the JVM's 73% (0.73 cores,
-2.9 ms/req) — an 88/12 split.** §9 is right that it isn't disk (4,044 buffer
-hits, zero reads) and wrong about which CPU. Throughput saturates at ~256 req/s
-from 10 VUs on while latency doubles 10→20 — queueing at a resource at capacity.
-Phase 11's *order* survives (a cache hit skips both), but the matview and index
-should be worth **more** than §9 predicts, and §12 Q4's stock answer is wrong as
-written. Machine had 1.7 of 8 cores free, so this is the endpoint, not the laptop.
+**The bottleneck is Postgres, not the Java scorer.** Measured at 20 VUs:
+**Postgres 486–587% CPU (~5.3 cores, 20.7 ms/req) against the JVM's 73%
+(0.73 cores, 2.9 ms/req) — an 88/12 split.** It isn't disk (4,044 buffer hits,
+zero reads). Throughput saturates at ~256 req/s from 10 VUs on while latency
+doubles 10→20 — queueing at a resource at capacity. Phase 11's *order* survives
+(a cache hit skips both), but the matview and index attack the dominant cost, so
+they should be worth **more** than the original plan predicted. Machine had 1.7
+of 8 cores free, so this is the endpoint, not the laptop.
+
+**The thing to say out loud:** the concurrency curve proves the endpoint is
+compute-bound but *cannot say whose compute*. That took a second measurement —
+sampling both processes — and it contradicted the design. handoff §9 and §12 Q4
+both now teach the corrected version; §9's original framing is kept visible as a
+hypothesis that was tested and failed, which is a better story than one that was
+assumed.
 
 Secondary ceiling: Hikari is at Spring Boot's **default 10 connections** (no
 config in `application.yml`); 10 × ~39 ms occupancy ≈ the 256 req/s observed.
@@ -165,6 +174,35 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   `UPDATE flyway_schema_history SET checksum = ? WHERE version = ?` — verify the algorithm
   against an untouched migration first.
 - **nflverse release assets 404 until published.** `AssetNotPublishedException` → `ingest_runs.status = 'SKIPPED'`. A future season must not fail the run.
+- **An absent CSV column and a zero are the same thing to `CsvValues`, and that is a
+  silent-failure machine.** `shortValue` maps a missing column to 0 — correct for "did not record
+  this" in a box score, catastrophic for "upstream renamed it": every row parses, the counts match,
+  `IntegrityChecks` only compares season and week, and the run reports `SUCCESS` with a stat zeroed
+  for a whole season. `NflverseClient` now verifies the header against the columns each ingestor
+  reads, generated from the same `List<Field>` that builds the upsert. Safe as a hard failure
+  because it was measured: `stats_player_week` (150 columns) and `snap_counts` (16) have identical
+  headers across all six loaded seasons.
+- **A health indicator that reports DOWN for something degraded will restart your machine.**
+  `ingestFreshness` goes DOWN when the daily pull has stopped — correct, and a platform probe on
+  `/actuator/health` would then kill a server that is serving six seasons perfectly. The `liveness`
+  group in `application.yml` exists for that; point deploys at `/actuator/health/liveness`. Found by
+  the Phase 0 acceptance test going 503, not by reasoning.
+- **Hash what a ruleset *does*, never the JSON someone wrote.** `canonicalHash` serialized the
+  authored maps while `compile` zero-fills a `double[13]`, so `{"rec_td":6}` and
+  `{"rec_td":6,"rec":0}` scored identically and hashed differently — the one collision the cache
+  key exists to prevent. It has three shapes (absent vs explicit zero; an override repeating the
+  base rate; an empty override block), so enumerating them is the wrong fix. The hash now runs over
+  the compiled arrays in `ResolvedRuleset`, where two rulesets hash the same exactly when they
+  score the same. An override *to* zero stays correctly distinct — zero is not the base rate.
+- **`Math.round(x * 100) / 100.0` is not decimal rounding.** `0.145 * 100` is
+  `14.499999999999998`, and `Math.round` breaks ties toward positive infinity, so `-0.125` and
+  `+0.125` rounded different distances — and `pass_int`/`fum_lost` carry negative rates.
+  `roundForDisplay` uses `BigDecimal` `HALF_UP`.
+- **A launchd plist with a placeholder path is not an installed job.** The plist shipped three
+  `__REPO__` placeholders and an instruction to "edit the two by hand"; it was never loaded, `logs/`
+  stayed empty, and `ingest_runs` recorded three of the seven days before kickoff. `install-ingest.sh`
+  does the substitution and fails loudly if the agent did not land. Check with
+  `launchctl list | grep fantasykai`.
 
 ## Scoring — how it fits together
 
@@ -176,7 +214,7 @@ scoring_profiles.rules (JSONB)
    -> ScoringEngine.score   one dot-product + threshold bonuses. no rounding.
 ```
 
-`ResolvedRuleset.hash()` is the §9 cache key: logically identical rulesets hash identically, so two users with the same league settings share one entry. Verify a change to `Ruleset.canonicalHash()` against `RulesetHashTests` before trusting it.
+`ResolvedRuleset.hash()` is the §9 cache key: logically identical rulesets hash identically, so two users with the same league settings share one entry. **It is computed over the compiled `double[]` arrays, not over the authored JSON** — that placement is the invariant, not an implementation detail. Verify any change against `RulesetHashTests`, whose pairs assert twice: that the two rulesets score the same *and* that they hash the same.
 
 Presets are seeded by `V3__seed_scoring_presets.sql`, duplicated in the test helper `Presets.java`, and the two are held together by a canonical-hash assertion in `ScoringProfileTests` — change one and that test names the other.
 
@@ -217,6 +255,15 @@ cd backend && ./mvnw spring-boot:run \
 
 # one-shot current-season pull (what launchd runs daily)
 ./scripts/ingest-once.sh
+
+# install the daily job (idempotent; needs a current jar)
+./scripts/install-ingest.sh
+launchctl list | grep fantasykai        # loaded?
+launchctl start com.fantasykai.ingest   # run it now
+tail -f logs/ingest.log
+
+# is the pipeline fresh?
+curl -s localhost:8080/actuator/health | jq .components.ingestFreshness
 ```
 
 **Postgres is on 5433** because a Homebrew `postgresql@16` launchd service owns 5432 on the dev Mac and wins the connection. Symptom when this bites: `role "fantasykai" does not exist`.

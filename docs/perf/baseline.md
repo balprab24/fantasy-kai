@@ -1,6 +1,7 @@
 # §9 Step 2 — Baseline
 
-**Status: captured.** Database side measured 2026-09-04; k6 load measured
+**Status: captured.** Database side first measured 2026-09-04 and re-captured on the
+vacuumed database 2026-09-07 — the 4,044-buffer plan below is the 09-07 one; k6 load measured
 2026-09-07. Nothing here is estimated or inferred.
 
 Commit: Phase 3 (`ec5a8e9`), before any Phase 11 work.
@@ -96,7 +97,7 @@ Execution Time: 29.538 ms
 
 **Three sequential scans, not one.** The no-index invariant is written about
 `player_game_stats`, but `players.position` is equally unindexed and accounts for
-1,246 of the 4,044 buffers — nearly a third. Worth remembering in Phase 6 Step 5,
+1,246 of the 4,044 buffers — nearly a third. Worth remembering in Phase 11 Step 5,
 where the temptation is to index only the big table.
 
 Other query shapes, same conditions:
@@ -108,7 +109,7 @@ Other query shapes, same conditions:
 | Player game log by id | 0.7 ms | 245 | Bitmap Index Scan on the PK — already fast |
 
 The game log is the control: it hits the primary key's leading column, so it is
-already fast and Phase 6 should not move it. If a "performance improvement" later
+already fast and Phase 11 should not move it. If a "performance improvement" later
 shows a large win here, something else changed.
 
 | Table | Size |
@@ -284,7 +285,7 @@ second one contradicted the hypothesis.
 
 `perf/rankings.js` varies profile, position and scope across the four seeded
 presets rather than hammering one URL. Hitting a single ruleset would hand Phase
-6's cache a 100% hit rate on one key and flatter the delta; four presets over
+11's cache a 100% hit rate on one key and flatter the delta; four presets over
 five position filters and three scopes is 60 distinct cache keys, which is both a
 more realistic load and still small enough to demonstrate §9's actual claim —
 that hashing the ruleset rather than the profile id collapses every user with
@@ -300,7 +301,7 @@ CPU method, and recording the deltas in `docs/perf/results.md`. Sample Postgres
 CPU alongside the JVM's at every step: on this baseline it is the number that
 actually moves, and a results file that tracks only the JVM would miss the win.
 
-**One correction to carry into Phase 6.** §9 Step 4 says the `player_season_agg`
+**One correction to carry into Phase 11.** §9 Step 4 says the `player_season_agg`
 matview collapses "~19K player-game rows per season into ~600 player-season rows
 … a ~30× reduction". Those two numbers come from different populations: 19,400 is
 *all* positions, while 613 is *skill* players. The rankings query filters to
@@ -312,7 +313,7 @@ that survives someone running the count.
 would score them once, which pays a threshold bonus at most once per season
 instead of once per qualifying game. All four seeded presets are bonus-free so
 nothing is wrong today, but `Bonus` is part of the ruleset model and Phase 5 ships
-custom profiles. Phase 6 must either restrict the matview path to rulesets where
+custom profiles. Phase 11 must either restrict the matview path to rulesets where
 `bonuses().isEmpty()` or materialize per-game bonus counts alongside the sums.
 `RankingsTests.paysAThresholdBonusOncePerQualifyingGameNotOncePerSeason` pins the
 behaviour the matview would have to preserve.

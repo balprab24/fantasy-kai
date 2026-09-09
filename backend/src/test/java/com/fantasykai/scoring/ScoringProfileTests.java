@@ -125,7 +125,7 @@ class ScoringProfileTests {
     @Test
     void theRankingsTableStillCarriesNothingButItsPrimaryKey() {
         // V3 seeds data only. The section 9 baseline has to survive every
-        // migration until the Phase 6 performance pass deliberately breaks it.
+        // migration until the Phase 11 performance pass deliberately breaks it.
         assertThat(jdbc.queryForList(
                         "SELECT indexname FROM pg_indexes WHERE tablename = 'player_game_stats'",
                         String.class))

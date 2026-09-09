@@ -17,7 +17,7 @@ import org.springframework.stereotype.Repository;
  * <p>Deliberately unoptimized -- §9 Step 1. There is no cache, no
  * pre-aggregation, and no index past the primary keys, so a rankings request
  * sequentially scans all 112,319 stat rows and scores the survivors in Java.
- * That is the baseline Phase 6 has to beat, and it is only measurable while it
+ * That is the baseline Phase 11 has to beat, and it is only measurable while it
  * is still true.
  *
  * <p>§8 compliance is structural rather than incidental: every filter

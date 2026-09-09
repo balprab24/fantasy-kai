@@ -275,7 +275,7 @@ a product you can't open is not one you'll use, and this only gets built if it g
 | 0–3 | Foundation · Ingestion · Scoring · Read API | see handoff §11 | ✅ |
 | **3.5** | Close the baseline | Measured at 1/5/10/20 VUs, 2026-09-07. p95 **21.4 → 125.0 ms**, throughput saturates ~256 req/s, and **the bottleneck is Postgres at 88% of CPU, not the Java scorer** — which contradicts handoff §9. | ✅ |
 | **4** | **Vegas in the schema** | `V4` widened `games` with the score, betting and weather columns; `GameIngestor` now reads 18 of the source's 46. No new HTTP source. Measurement corrected the brief three times — moneylines never overflow `SMALLINT`, and `result`/`total` are derived, not stored. **Brief below.** | ✅ |
-| **5** | **Auth + web shell** | Handoff §8 in full — Argon2id, JWT, rotating refresh, Bucket4j. First write endpoints (`POST/PUT/DELETE /scoring-profiles`). Next.js 15: login, rankings table, player detail, profile switcher, public landing page. Attribution footer. **End of phase = a deployed site you can log into. Brief below.** | ⬅ **next** |
+| **5** | **Auth + web shell** | Handoff §8 in full, all twelve rows — Argon2id, JWT, rotating refresh, Bucket4j, `@PreAuthorize`, `@Valid`, HSTS, Dependabot. First write endpoints (`POST/PUT/DELETE /scoring-profiles`). Next.js 15: login, rankings table, player detail, profile switcher, public landing page. Attribution footer. **End of phase = a deployed site you can log into. Brief below.** | ⬅ **next** |
 | 6 | Projections | `SignalKey`, `player_week_projection`, `ProjectionEngine`, `ExplainedScore`, backtest + published MAE. The heart of "valid reasons for ranking." | |
 | 7 | League import | `LeagueProvider` interface. ESPN first (cookie paste, encrypted at rest), **Sleeper in the same phase** to prove the seam is real. ESPN `mSettings.scoringItems` → `Ruleset`, auto-creating your profile. Manual ruleset builder as the fallback for when ESPN breaks — because it will. | |
 | 8 | Roster tools | `LineupOptimizer`, `SeasonSimulator`, `TradeEvaluator`, `WaiverBoard`. §7 made real. | |
@@ -352,22 +352,31 @@ client, no Bucket4j on the classpath, and **no write endpoint anywhere in the co
 
 #### 5a — Auth (backend)
 
-Per handoff §8, no deviations:
+Handoff §8 has twelve rows. **This table is all twelve**, because the first draft of
+this brief listed five, said "no deviations", and silently dropped four — caught by
+diffing it against §8 row by row rather than by reading it.
 
-| Piece | Decision |
+| §8 row | Decision |
 |---|---|
-| Password | Argon2id via Spring Security's `Argon2PasswordEncoder`. Not BCrypt. |
+| Password | Argon2id via Spring Security's `Argon2PasswordEncoder`. Not BCrypt. **Needs BouncyCastle on the classpath** — it fails at first use rather than at startup, so a missing dependency looks like a login bug |
 | Access token | JWT, HS256, **15-minute** expiry, secret from env — never `application.yml` |
 | Refresh token | opaque 256-bit, **hashed** at rest, `HttpOnly; Secure; SameSite=Strict` cookie, **rotated on every use**; reuse of a consumed token revokes the whole family |
-| Tenant isolation | `user_id` filter **in the repository query**, not a service-layer check |
+| Tenant isolation | `user_id` filter **in the repository query**, not a service-layer check. And the compile cache must carry the owner — see 5b |
+| Authorization | **`@PreAuthorize` on every mutation.** Never trust a client-supplied `userId` in a body or path. *Was missing from this table* |
+| Input validation | **`@Valid` on every request DTO.** Phase 5 ships the codebase's first request bodies, so today's `@Min`/`@Max` on query params covers none of it — this is the row that bites hardest. Ruleset JSON keeps going through `RulesetValidator`'s `StatKey` allowlist. *Was missing* |
 | Rate limit | Bucket4j + Redis — tight on `/auth/*` (5/min/IP), loose on reads |
+| CORS | explicit allowlist of the Vercel origin. Not `*` |
+| Transport | **HTTPS only, HSTS on.** Terminated at Fly and Vercel; HSTS through Spring Security's headers DSL. *Was missing* |
+| Dependencies | **Dependabot on, `mvn dependency-check` in CI.** `.github/` holds nothing but `workflows/ci.yml` today. *Was missing* |
+| SQL injection | already satisfied — `PlayerSort`/`RankingScope`/`ScoringPosition` whitelists, proved by `QuerySafetyTests` attempting the attack |
+| Secrets | already satisfied in shape — but `.env` is byte-identical to `.env.example` and neither carries `JWT_SECRET` yet |
 
 `V5__auth.sql` adds `refresh_tokens (id, user_id, token_hash, family_id, issued_at, expires_at,
 consumed_at, revoked_at)` with its own indexes — `players` and `refresh_tokens` are not the frozen
 table, only `player_game_stats` is.
 
-**A decision to make deliberately, because the handoff assumes the other answer.** Handoff §11 says
-"entities land in Phase 5 where the writes are." **Recommendation: stay on `JdbcTemplate`** — two
+**Decided: stay on `JdbcTemplate`.** Handoff §11 says "entities land in Phase 5 where the writes
+are", and §4's ORM row assumed Spring Data JPA for CRUD; both are now marked superseded there. Two
 persistence idioms for two small tables is worse than one, and every read path in the codebase is
 already `JdbcTemplate`.
 
@@ -378,13 +387,39 @@ it vacuous. If that guard is wanted for real, this is the phase to introduce ent
 
 #### 5b — The filter chain
 
-**Default-deny, and this is the part to get right.** `permitAll` on an explicit short list —
-`/api/v1/public/**`, `/api/v1/auth/**`, `/actuator/health` — and `authenticated()` on everything
-else, so a new endpoint is private until someone deliberately opens it. Never the inverse.
+**Default-deny, and this is the part to get right.** `permitAll` on an explicit short list and
+`authenticated()` on everything else, so a new endpoint is private until someone deliberately opens
+it. Never the inverse.
+
+**The list, settled — because the first draft of this brief contradicted itself.** §2 says *your
+rankings* need an account; the `permitAll` list named only `/api/v1/public/**`, `/api/v1/auth/**`
+and `/actuator/health`; and acceptance test 3 below says `GET /api/v1/rankings` is public. All three
+cannot hold.
+
+The resolution is that **the filter chain gates endpoints and the query gates rows.** The read
+endpoints are public; *which profile* you may score against is decided by the ownership-filtered
+query, not by the chain. A logged-out caller carries `userId = null`, so
+`WHERE id = ? AND (user_id IS NULL OR user_id = ?)` resolves presets and nothing else — public data
+under public rules, and no way to name a profile you do not own. Default-deny is intact: a *new*
+endpoint is still private until it is listed.
+
+```
+permitAll:     GET /api/v1/players/**, GET /api/v1/rankings, GET /api/v1/scoring-profiles,
+               /api/v1/auth/**, /api/v1/public/**, /actuator/health
+authenticated: everything else, every mutation included
+```
 
 `ScoringProfileQueryRepository.PRESETS` grows `OR user_id = ?` bound to the JWT subject **in the
 query**. Profile writes must call the existing `ScoringProfiles.evict(long)` or a user will keep
 scoring against their pre-edit ruleset.
+
+**The compile cache is an authorization bypass unless it is fixed in the same change.**
+`ScoringProfiles.compiled` is a `ConcurrentHashMap<Long, ResolvedRuleset>` filled by
+`computeIfAbsent(profileId, …)`. Once user B has warmed profile 5, `byId(5)` hands it to anyone —
+the filtered query is never reached. Cache the `(ResolvedRuleset, ownerId)` pair and re-check the
+owner on a hit; the filtered query stays authoritative on a miss, and a non-owner gets **404, not
+403**, so existence does not leak. **The test has to warm the cache as B before reading as A**, or
+it passes without touching the bug.
 
 Also tighten `actuator` from `show-details: always` to `when-authorized` — the Phase 0 comment
 already says to.
@@ -404,6 +439,29 @@ origin, not `*`.
 **The attribution footer ships here.** nflverse (CC BY 4.0) and FFC both require it and it has been
 owed since Phase 0.
 
+#### 5d — Deployment
+
+**Fly.io (backend) + Neon (Postgres) + Vercel (frontend).** All three have free tiers that do not
+spin down mid-session, and HTTPS/HSTS come from the platforms, which is what closes §8's transport
+row. `JWT_SECRET`, `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` are Fly secrets — never `application.yml`.
+
+Three things to **verify rather than assume**, because a free tier is a claim until it is measured:
+
+1. **Neon needs the data.** Flyway applies `V1`–`V5` on boot; the 112,319 stat rows do not
+   materialize. Either run the backfill once against Neon or `pg_dump`/restore — and check the
+   storage ceiling against the real database size before either.
+2. **Redis.** Bucket4j is specified against Redis and Redis already runs unused in
+   `docker-compose.yml`, so local is free. Fly bundles none; Upstash's free tier is the candidate.
+   If it is card-gated, in-memory Bucket4j on a single machine is the honest fallback — *correct*
+   for one instance, and the limitation gets written down rather than papered over.
+3. **Cold start.** A Spring Boot JVM on an auto-stopping machine makes a login feel broken. Measure
+   it; keep one machine warm if it is bad, and say so either way.
+
+**The health check points at `/actuator/health/liveness`, not `/actuator/health`.** The group exists
+for exactly this: `ingestFreshness` reports DOWN when the daily pull has stopped, which is degraded
+rather than down, and a platform probe on the aggregate would restart a working machine every time
+the laptop slept through 06:00.
+
 #### Acceptance — each of these is a test, not a checklist item
 
 The Phase 3 precedent is `QuerySafetyTests`, which proves the SQL-injection defence by *attempting
@@ -415,6 +473,9 @@ the attack* and then checking the table survived. Auth gets the same treatment:
    403 with a valid token for another user's row.
 4. **The 6th `/auth/login` in a minute from one IP is 429**, and the 6th read is not.
 5. **A JWT signed with the wrong secret is rejected**, and an expired one returns 401 not 500.
+6. **A cache hit is not an authorization bypass** — B reads their own profile, warming the compile
+   cache; A then asks for the same id and gets 404. Without the ordering this test passes for the
+   wrong reason, which is why it is written down as an ordering rather than an assertion.
 
 Prove the constraint by trying to violate it. That is the working agreement, and it is what makes
 these numbers defensible out loud.

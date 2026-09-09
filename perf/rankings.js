@@ -11,7 +11,7 @@
 // contrast is what justifies reaching for the cache before the index, and it is
 // the answer to "how did you know the bottleneck was recomputation?".
 //
-// Re-run this same script unchanged after each Phase 6 step so the numbers
+// Re-run this same script unchanged after each Phase 11 step so the numbers
 // compare.
 import http from 'k6/http';
 import { check } from 'k6';
@@ -23,7 +23,7 @@ const BASE = __ENV.BASE_URL || 'http://localhost:8080';
 const SEASON = __ENV.SEASON || '2025';
 
 // All four presets, because §9's cache keys on the ruleset hash rather than the
-// profile id: hitting a single profile would give Phase 6 a 100% hit rate on one
+// profile id: hitting a single profile would give Phase 11 a 100% hit rate on one
 // key and flatter the delta. Four presets collapse to four entries no matter how
 // many users exist, which is the actual claim being made.
 const PROFILES = [1, 2, 3, 4];
