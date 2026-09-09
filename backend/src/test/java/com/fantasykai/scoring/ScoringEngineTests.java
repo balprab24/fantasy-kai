@@ -126,4 +126,41 @@ class ScoringEngineTests {
 
         assertThat(roundForDisplay(ScoringEngine.score(punter, TE_PREMIUM))).isEqualTo(4.0);
     }
+
+    /**
+     * {@code Math.round(x * 100) / 100.0} disagrees with a league scoreboard,
+     * because {@code 0.145 * 100} is {@code 14.499999999999998} in binary and
+     * rounds down. Reachable the moment a user authors a rate that is not two
+     * decimal places -- RulesetValidator allows any finite value up to 10.
+     */
+    @Test
+    void roundsHalvesUpInDecimalRatherThanInBinary() {
+        assertThat(ScoringEngine.roundForDisplay(0.145)).isEqualTo(0.15);
+        assertThat(ScoringEngine.roundForDisplay(1.005)).isEqualTo(1.01);
+        assertThat(ScoringEngine.roundForDisplay(2.675)).isEqualTo(2.68);
+    }
+
+    /**
+     * {@code Math.round} breaks ties toward positive infinity, so it rounded
+     * {@code -0.125} to {@code -0.12} while rounding {@code +0.125} to
+     * {@code +0.13}. Not academic: pass_int and fum_lost carry negative rates,
+     * so half the penalties in every league rounded the lenient way.
+     */
+    @Test
+    void roundsNegativeHalvesTheSameDistanceAsPositiveOnes() {
+        assertThat(ScoringEngine.roundForDisplay(-0.125)).isEqualTo(-0.13);
+        assertThat(ScoringEngine.roundForDisplay(0.125)).isEqualTo(0.13);
+        assertThat(ScoringEngine.roundForDisplay(-0.125))
+                .as("a penalty and a reward of the same size round the same distance")
+                .isEqualTo(-ScoringEngine.roundForDisplay(0.125));
+    }
+
+    /** §6: rounding is a display step, so it must not move a value already at 2dp. */
+    @Test
+    void leavesATwoDecimalValueAlone() {
+        for (double points : new double[] {0, 12.5, -2.0, 288.94, -0.01}) {
+            assertThat(ScoringEngine.roundForDisplay(points))
+                    .as("%s", points).isEqualTo(points);
+        }
+    }
 }

@@ -1,14 +1,7 @@
 package com.fantasykai.scoring;
 
-import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 /**
  * A league's scoring rules, as stored in {@code scoring_profiles.rules}.
@@ -37,59 +30,22 @@ public record Ruleset(
     }
 
     /**
-     * SHA-256 over a canonical form, and the reason §9's cache key works.
+     * The §9 cache key for these rules.
      *
-     * <p>The cache is keyed on a hash of the <em>rules</em> rather than the
-     * profile id, so two users whose leagues happen to score identically share
-     * one entry and the four presets collapse to four entries no matter how many
-     * users exist. That only holds if logically identical rulesets hash the
-     * same, which means the serialization has to be canonical: keys sorted,
-     * numbers in one normalized form, nothing carried over from how the JSON
-     * happened to be written.
+     * <p>Delegates rather than serializing this record, and that is deliberate.
+     * The hash has to be a property of what the ruleset <em>does</em>, not of
+     * the JSON someone wrote: {@code {"rec_td": 6}} and
+     * {@code {"rec_td": 6, "rec": 0}} score every stat line identically, and a
+     * hash computed here -- over the authored maps -- gave them different keys,
+     * which is exactly the collision the cache exists to avoid. Compiling first
+     * makes the two indistinguishable because the compiled arrays are the same
+     * arrays. See {@code ResolvedRuleset.canonicalHash} for the full reasoning
+     * and the other two shapes it collapses.
+     *
+     * <p>If you are here to make this cheaper by hashing the fields directly,
+     * that is the change that broke it.
      */
     public String canonicalHash() {
-        StringBuilder canonical = new StringBuilder("v").append(version);
-
-        canonical.append("|base:");
-        appendRates(canonical, base);
-
-        canonical.append("|pos:");
-        new TreeMap<>(positionOverrides).forEach((position, rates) -> {
-            canonical.append(position).append('{');
-            appendRates(canonical, rates);
-            canonical.append('}');
-        });
-
-        canonical.append("|bonus:");
-        bonuses.stream()
-                .sorted(Comparator.comparing((Bonus b) -> b.stat().json())
-                        .thenComparingInt(Bonus::gte)
-                        .thenComparingDouble(Bonus::points))
-                .forEach(b -> canonical.append(b.stat().json()).append(">=").append(b.gte())
-                        .append(':').append(number(b.points())).append(','));
-
-        return sha256(canonical.toString());
-    }
-
-    private static void appendRates(StringBuilder out, Map<StatKey, Double> rates) {
-        rates.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(e -> out.append(e.getKey().json()).append('=')
-                        .append(number(e.getValue())).append(','));
-    }
-
-    /** One spelling per value, so 4, 4.0 and 4.00 cannot hash differently. */
-    private static String number(double value) {
-        return BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
-    }
-
-    private static String sha256(String input) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(input.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is required by the JDK", e);
-        }
+        return ResolvedRuleset.compile(this).hash();
     }
 }
