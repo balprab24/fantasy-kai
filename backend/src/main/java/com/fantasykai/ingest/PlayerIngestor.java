@@ -4,6 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import org.apache.commons.csv.CSVRecord;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,6 +32,20 @@ public class PlayerIngestor {
             "nfl_id", "nfl",
             "esb_id", "esb");
 
+    /**
+     * Every source column this ingestor reads -- the four identity columns plus
+     * whatever {@link #EXTERNAL_IDS} maps, so adding a crosswalk id adds itself
+     * to the header check.
+     */
+    static final Set<String> REQUIRED_COLUMNS = requiredColumns();
+
+    private static Set<String> requiredColumns() {
+        Set<String> required = new LinkedHashSet<>(List.of(
+                "gsis_id", "display_name", "position", "latest_team", "status"));
+        required.addAll(EXTERNAL_IDS.keySet());
+        return Set.copyOf(required);
+    }
+
     private static final String UPSERT = """
             INSERT INTO players (gsis_id, external_ids, full_name, position, team_id, status, updated_at)
             VALUES (?, ?::jsonb, ?, ?, (SELECT id FROM teams WHERE abbr = ?), ?, now())
@@ -52,7 +69,7 @@ public class PlayerIngestor {
     }
 
     public IngestResult ingest() {
-        List<Object[]> rows = client.read("players", "players.csv", record -> {
+        List<Object[]> rows = client.read("players", "players.csv", REQUIRED_COLUMNS, record -> {
             String gsisId = CsvValues.text(record, "gsis_id", 16);
             if (gsisId == null) {
                 return null; // no canonical id, nothing downstream can reference it

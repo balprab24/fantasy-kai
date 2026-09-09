@@ -1,10 +1,12 @@
 package com.fantasykai.ingest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
-import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.math.BigDecimal;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
@@ -14,6 +16,7 @@ import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import com.fantasykai.scoring.ResolvedRuleset;
@@ -74,21 +77,37 @@ class IngestionTests {
     /** Austin Seibert, 2024 week 2 vs the Giants: 7 field goals. */
     private static final String SEIBERT = "00-0035145";
 
+    /**
+     * Set to rename one header cell in every fixture served, then cleared. The
+     * only mutable state in this class, and it exists because the failure it
+     * proves -- upstream renames a column -- cannot be simulated any other way.
+     */
+    private static Map.Entry<String, String> renameInHeader;
+
     @TestConfiguration
     static class Fixtures {
 
-        /** Serves release assets from src/test/resources/nflverse instead of GitHub. */
+        /**
+         * Serves release assets from src/test/resources/nflverse instead of
+         * GitHub -- and runs the same header check the real client does, so the
+         * required-column contract is exercised here rather than only in
+         * production.
+         *
+         * <p>{@link #renameInHeader} rewrites one header cell on the way past.
+         * That is how a renamed upstream column is tested: by doing it.
+         */
         @Bean
         @Primary
         NflverseClient fixtureClient(IngestProperties props) {
             return new NflverseClient(props) {
                 @Override
-                public <T> List<T> read(String release, String asset, Function<CSVRecord, T> mapper) {
-                    try (var reader = new InputStreamReader(
-                                    new ClassPathResource("nflverse/" + asset).getInputStream(),
-                                    StandardCharsets.UTF_8);
+                public <T> List<T> read(String release, String asset, Set<String> required,
+                        Function<CSVRecord, T> mapper) {
+                    try (var reader = new StringReader(fixtureText(asset));
                             CSVParser parser = CSVFormat.DEFAULT.builder()
                                     .setHeader().setSkipHeaderRecord(true).get().parse(reader)) {
+                        NflverseClient.verifyHeader(
+                                URI.create("fixture:" + asset), parser.getHeaderMap().keySet(), required);
                         List<T> mapped = new ArrayList<>();
                         for (CSVRecord record : parser) {
                             T value = mapper.apply(record);
@@ -97,11 +116,27 @@ class IngestionTests {
                             }
                         }
                         return mapped;
+                    } catch (IngestException e) {
+                        throw e;
                     } catch (Exception e) {
                         throw new IngestException("fixture " + asset, e);
                     }
                 }
             };
+        }
+
+        /** The fixture CSV, with {@link #renameInHeader} applied to the header row. */
+        private static String fixtureText(String asset) throws java.io.IOException {
+            String text = new String(new ClassPathResource("nflverse/" + asset)
+                    .getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            Map.Entry<String, String> rename = renameInHeader;
+            if (rename == null) {
+                return text;
+            }
+            int end = text.indexOf('\n');
+            String header = text.substring(0, end).replaceAll(
+                    "(^|,)" + rename.getKey() + "(,|\r?$)", "$1" + rename.getValue() + "$2");
+            return header + text.substring(end);
         }
 
         /** Mid-2024, so backfill() resolves to exactly the fixture season. */
@@ -126,6 +161,7 @@ class IngestionTests {
 
     @BeforeEach
     void runTheIngest() {
+        renameInHeader = null;
         when(sleeper.ingest()).thenReturn(new IngestResult(SleeperCrosswalk.SOURCE, 0, 0, 0));
         jdbc.update("TRUNCATE ingest_runs");
         ingestService.backfill();
@@ -175,6 +211,87 @@ class IngestionTests {
         // Four fixture rows; one has an empty player_id and cannot be referenced.
         assertThat(jdbc.queryForObject("SELECT count(*) FROM player_game_stats", Long.class))
                 .isEqualTo(3L);
+    }
+
+    /**
+     * The silent-failure mode, proved by causing it.
+     *
+     * <p>{@code CsvValues.shortValue} maps an absent column to 0 on purpose --
+     * that is what "did not record this" means in a box score. The cost is that
+     * a rename upstream is indistinguishable from a zero: every row parses, the
+     * row counts match, {@code IntegrityChecks} only compares season and week,
+     * and the run reports SUCCESS with every quarterback on zero passing yards.
+     * Without the header check this test would pass while the data was wrong.
+     */
+    @Test
+    void aRenamedUpstreamColumnFailsTheRunInsteadOfZeroingTheStat() {
+        renameInHeader = Map.entry("receiving_yards", "rec_yards");
+
+        assertThatThrownBy(() -> ingestService.backfill())
+                .isInstanceOf(IngestException.class)
+                .hasMessageContaining("receiving_yards");
+
+        Map<String, Object> failed = jdbc.queryForMap("""
+                SELECT status, error FROM ingest_runs
+                 WHERE source = ? AND status = 'FAILED' ORDER BY id DESC LIMIT 1
+                """, StatIngestor.SOURCE);
+
+        assertThat(failed).containsEntry("status", "FAILED");
+        assertThat((String) failed.get("error"))
+                .as("the run says which column went missing, not just that it failed")
+                .contains("receiving_yards");
+    }
+
+    /**
+     * What the previous test would have cost. Chase's 264 receiving yards are
+     * the number that goes silently to 0 if {@code receiving_yards} is renamed
+     * upstream and nothing checks the header -- so the column being renamed
+     * there has to be one that actually carries data, or the test proves
+     * nothing.
+     */
+    @Test
+    void theRenamedColumnIsOneThatCarriesRealData() {
+        Integer recYards = jdbc.queryForObject("""
+                SELECT max(rec_yd) FROM player_game_stats
+                """, Integer.class);
+
+        assertThat(recYards).isEqualTo(264);
+    }
+
+    @Test
+    void namesEveryMissingColumnRatherThanTheFirst() {
+        assertThatThrownBy(() -> NflverseClient.verifyHeader(
+                        URI.create("fixture:test.csv"),
+                        Set.of("season", "week"),
+                        Set.of("season", "week", "spread_line", "total_line")))
+                .isInstanceOf(IngestException.class)
+                .hasMessageContaining("spread_line")
+                .hasMessageContaining("total_line")
+                .hasMessageContaining("2 column(s)");
+    }
+
+    @Test
+    void aHeaderCarryingEveryRequiredColumnPasses() {
+        // Extra columns are fine -- stats_player_week ships 150 and we read 52.
+        NflverseClient.verifyHeader(URI.create("fixture:test.csv"),
+                Set.of("season", "week", "unused_extra"), Set.of("season", "week"));
+    }
+
+    /**
+     * The required set is generated from the field list, not maintained beside
+     * it -- including the three columns def_blocked_kicks sums and the ones the
+     * row mapper resolves a stat line against.
+     */
+    @Test
+    void theRequiredColumnSetIsDerivedFromTheFieldsThatReadThem() {
+        assertThat(StatIngestor.REQUIRED_COLUMNS)
+                .contains("passing_yards", "receiving_yards", "fumbles_lost_total")
+                .contains("def_punt_blocks", "def_pat_blocks", "def_fg_blocks")
+                .contains("player_id", "game_id", "team", "season", "week");
+
+        assertThat(GameIngestor.REQUIRED_COLUMNS)
+                .contains("spread_line", "total_line", "temp", "wind", "roof", "surface")
+                .contains("game_id", "home_team", "away_team", "gameday");
     }
 
     @Test

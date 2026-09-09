@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,11 +33,21 @@ public class StatIngestor {
 
     private static final Logger log = LoggerFactory.getLogger(StatIngestor.class);
 
-    /** A destination column and how to pull it out of a source row. */
-    private record Field(String column, Function<CSVRecord, Object> extractor) {}
+    /**
+     * A destination column, the source columns it reads, and how to pull it out.
+     *
+     * <p>{@code sourceColumns} exists so the required-header set is generated
+     * from this same list rather than maintained beside it. A second,
+     * hand-kept list of column names is a list that drifts -- and the drift
+     * would be invisible, because an unread column is exactly the failure this
+     * is here to catch.
+     */
+    private record Field(String column, List<String> sourceColumns,
+            Function<CSVRecord, Object> extractor) {}
 
     private static Field count(String column, String sourceColumn) {
-        return new Field(column, record -> CsvValues.shortValue(record, sourceColumn));
+        return new Field(column, List.of(sourceColumn),
+                record -> CsvValues.shortValue(record, sourceColumn));
     }
 
     /**
@@ -87,7 +98,7 @@ public class StatIngestor {
             count("pat_missed", "pat_missed"),
 
             // Shared sacks are credited as 0.5, so this one is not an integer.
-            new Field("def_sacks", record -> {
+            new Field("def_sacks", List.of("def_sacks"), record -> {
                 BigDecimal sacks = CsvValues.decimal(record, "def_sacks");
                 return sacks != null ? sacks : BigDecimal.ZERO;
             }),
@@ -101,13 +112,30 @@ public class StatIngestor {
             count("def_tackle_assists", "def_tackle_assists"),
             count("def_tackles_for_loss", "def_tackles_for_loss"),
             count("def_qb_hits", "def_qb_hits"),
-            new Field("def_blocked_kicks", record -> (short) (
-                    CsvValues.shortValue(record, "def_punt_blocks")
-                            + CsvValues.shortValue(record, "def_pat_blocks")
-                            + CsvValues.shortValue(record, "def_fg_blocks"))));
+            new Field("def_blocked_kicks",
+                    List.of("def_punt_blocks", "def_pat_blocks", "def_fg_blocks"),
+                    record -> (short) (
+                            CsvValues.shortValue(record, "def_punt_blocks")
+                                    + CsvValues.shortValue(record, "def_pat_blocks")
+                                    + CsvValues.shortValue(record, "def_fg_blocks"))));
 
     private static final List<String> KEY_COLUMNS =
             List.of("player_id", "game_id", "season", "week", "team_id");
+
+    /**
+     * Every source column this ingestor reads: the stat fields above, plus the
+     * ones {@code toRow} and {@code ensurePlayersExist} resolve a row against.
+     * Generated from {@link #FIELDS}, never maintained beside it.
+     */
+    static final Set<String> REQUIRED_COLUMNS = requiredColumns();
+
+    private static Set<String> requiredColumns() {
+        Set<String> required = new LinkedHashSet<>(List.of(
+                "player_id", "game_id", "team", "season", "week",
+                "player_display_name", "position"));
+        FIELDS.forEach(field -> required.addAll(field.sourceColumns()));
+        return Set.copyOf(required);
+    }
 
     private static final String UPSERT = buildUpsert();
 
@@ -148,7 +176,8 @@ public class StatIngestor {
 
     public IngestResult ingest(int season) {
         List<CSVRecord> records =
-                client.read("stats_player", "stats_player_week_%d.csv".formatted(season), record -> record);
+                client.read("stats_player", "stats_player_week_%d.csv".formatted(season),
+                        REQUIRED_COLUMNS, record -> record);
 
         ensurePlayersExist(records);
 
