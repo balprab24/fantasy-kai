@@ -42,6 +42,18 @@ final class CsvValues {
         return value == null ? 0 : value.setScale(0, RoundingMode.HALF_UP).shortValueExact();
     }
 
+    /**
+     * A count that is absent rather than zero. {@link #shortValue} defaults a
+     * missing value to 0, which is what "did not record this" means for a box
+     * score and the wrong answer for a fact the source has not got yet -- an
+     * unplayed game's score, a stadium with no temperature reading. Zero is a
+     * real value for both, so a blank field has to stay null.
+     */
+    static Short shortOrNull(CSVRecord record, String column) {
+        BigDecimal value = decimal(record, column);
+        return value == null ? null : value.setScale(0, RoundingMode.HALF_UP).shortValueExact();
+    }
+
     static Integer integer(CSVRecord record, String column) {
         BigDecimal value = decimal(record, column);
         return value == null ? null : value.intValue();
