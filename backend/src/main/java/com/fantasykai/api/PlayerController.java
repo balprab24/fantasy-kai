@@ -4,6 +4,7 @@ import com.fantasykai.ingest.IngestProperties;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.time.Clock;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -59,8 +60,10 @@ class PlayerController {
     GamelogResponse gamelog(
             @PathVariable long id,
             @RequestParam(required = false) Integer season,
-            @RequestParam long profileId) {
+            @RequestParam long profileId,
+            @AuthenticationPrincipal Long userId) {
 
-        return players.gamelog(id, season == null ? ingest.currentSeason(clock) : season, profileId);
+        return players.gamelog(id, season == null ? ingest.currentSeason(clock) : season,
+                profileId, userId);
     }
 }

@@ -89,8 +89,10 @@ class ScoringProfileTests {
                 """, Long.class,
                 "{\"version\":1,\"base\":{\"pass_yd\":0.04,\"pass_td\":6,\"rec\":1}}");
 
-        ResolvedRuleset first = profiles.byId(id);
-        assertThat(profiles.byId(id)).isSameAs(first);
+        // user_id NULL, so the anonymous caller sees it; ScoringProfileIsolationTests
+        // covers the case where it belongs to someone.
+        ResolvedRuleset first = profiles.byId(id, null);
+        assertThat(profiles.byId(id, null)).isSameAs(first);
 
         StatLine allen = StatLine.of("QB", Map.of(StatKey.PASS_YD, 394, StatKey.PASS_TD, 2));
         assertThat(roundForDisplay(ScoringEngine.score(allen, first))).isEqualTo(27.76);
@@ -107,14 +109,14 @@ class ScoringProfileTests {
                 RETURNING id
                 """, Long.class, "{\"version\":1,\"base\":{\"rec\":9999}}");
 
-        assertThatThrownBy(() -> profiles.byId(id))
+        assertThatThrownBy(() -> profiles.byId(id, null))
                 .isInstanceOf(InvalidRulesetException.class)
                 .hasMessageContaining("base.rec");
     }
 
     @Test
     void reportsAMissingProfileClearly() {
-        assertThatThrownBy(() -> profiles.byId(-1))
+        assertThatThrownBy(() -> profiles.byId(-1, null))
                 .isInstanceOf(InvalidRulesetException.class)
                 .hasMessageContaining("no scoring profile with id -1");
         assertThatThrownBy(() -> profiles.preset("Quarter PPR"))

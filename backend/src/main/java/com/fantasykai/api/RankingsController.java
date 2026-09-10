@@ -5,6 +5,7 @@ import com.fantasykai.query.RankingScope;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.time.Clock;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -46,9 +47,13 @@ class RankingsController {
             @RequestParam(required = false) String scope,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "" + PageResponse.DEFAULT_SIZE)
-            @Min(1) @Max(PageResponse.MAX_SIZE) int size) {
+            @Min(1) @Max(PageResponse.MAX_SIZE) int size,
+            // null when logged out. JwtAuthFilter puts the user id in as the
+            // principal; the anonymous token's principal is a String, which this
+            // resolver maps to null rather than failing.
+            @AuthenticationPrincipal Long userId) {
 
-        return rankings.rank(profileId, position,
+        return rankings.rank(profileId, userId, position,
                 season == null ? ingest.currentSeason(clock) : season,
                 RankingScope.from(scope), page, size);
     }

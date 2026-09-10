@@ -1,5 +1,8 @@
 package com.fantasykai.api;
 
+import com.fantasykai.auth.EmailAlreadyRegisteredException;
+import com.fantasykai.auth.InvalidTokenException;
+import com.fantasykai.query.DuplicateProfileNameException;
 import com.fantasykai.query.InvalidQueryParameterException;
 import com.fantasykai.scoring.InvalidRulesetException;
 import com.fantasykai.scoring.NoSuchProfileException;
@@ -41,6 +44,32 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(InvalidRulesetException.class)
     ProblemDetail invalidRuleset(InvalidRulesetException e) {
         return problem(HttpStatus.UNPROCESSABLE_ENTITY, "Invalid ruleset", e.getMessage());
+    }
+
+    /**
+     * Bad credentials, and every flavour of unusable token, as one 401.
+     *
+     * <p>Reached only from a controller -- a token rejected inside the filter
+     * chain never gets here, which is why {@code ProblemAuthenticationEntryPoint}
+     * exists and writes the identical shape.
+     */
+    @ExceptionHandler(InvalidTokenException.class)
+    ProblemDetail invalidToken(InvalidTokenException e) {
+        return problem(HttpStatus.UNAUTHORIZED, "Unauthorized", e.getMessage());
+    }
+
+    /**
+     * 409 rather than 422: the body is well-formed and the rules are fine, the
+     * conflict is with a row that already exists.
+     */
+    @ExceptionHandler(EmailAlreadyRegisteredException.class)
+    ProblemDetail emailTaken(EmailAlreadyRegisteredException e) {
+        return problem(HttpStatus.CONFLICT, "Email already registered", e.getMessage());
+    }
+
+    @ExceptionHandler(DuplicateProfileNameException.class)
+    ProblemDetail duplicateProfileName(DuplicateProfileNameException e) {
+        return problem(HttpStatus.CONFLICT, "Duplicate profile name", e.getMessage());
     }
 
     /** A sort, scope or position that is not on the whitelist. §8. */

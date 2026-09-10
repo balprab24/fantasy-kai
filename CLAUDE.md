@@ -1,6 +1,6 @@
 # fantasy-kai — project brain
 
-NFL fantasy analytics platform. Java 21 / Spring Boot 3.5.16 · PostgreSQL 16 · Redis 7 · Next.js 15 (Phase 5).
+NFL fantasy analytics platform. Java 25 / Spring Boot 3.5.16 · PostgreSQL 16 · Redis 7 · Next.js 15 (Phase 5).
 
 **Two docs sit above this file, and they own different things.**
 
@@ -44,12 +44,13 @@ Full PPR, half PPR, standard and TE premium stop being three code paths and beco
 
 ```
 backend/src/main/java/com/fantasykai/
-  ingest/          Phase 1 — nflverse + Sleeper pipeline (18 classes)
+  ingest/          Phase 1 — nflverse + Sleeper pipeline (19 classes)
   scoring/         Phase 2 — ruleset model, validator, dot-product evaluator
   query/           Phase 3 — JdbcTemplate reads, StatKey-generated SQL, the §8 whitelists
-  api/             Phase 3 — controllers, DTOs, RFC 7807 advice
+  api/             Phase 3 — controllers, DTOs, RFC 7807 advice; Phase 5 write endpoints
+  auth/            Phase 5 — filter chain, JWT, rotating refresh, Argon2id, rate limit
 backend/src/main/resources/db/migration/   Flyway. V1 schema, V2 ingestion support,
-                                           V3 presets, V4 Vegas columns
+                                           V3 presets, V4 Vegas columns, V5 refresh_tokens
 backend/src/test/resources/nflverse/       Real 2024 rows as fixtures — not invented
 docs/map.md                                Front door — status board, class map, pipelines
 docs/north-star.md                         Scope, roadmap, product invariants
@@ -71,10 +72,20 @@ scripts/                                   install-ingest.sh, launchd plist, ing
 | 3.5 — k6 baseline | ✅ 1/5/10/20 VUs measured — p95 **21.4 ms → 125.0 ms**, throughput saturates at ~256 req/s. **The bottleneck is Postgres, not the Java scorer (88/12).** See below. |
 | 4 — Vegas in the schema | ✅ `73a0842` — `V4` widens `games` by 10 columns; `GameIngestor` reads 18 of the source's 46 and generates its upsert from one ordered list. 8 new tests (80 in the suite) |
 | 4.5 — pre-Phase-5 fixes | ✅ `f478233` daily ingest installed + freshness health + CSV header assertion · `5d5b8b4` canonical hash over the resolved form + decimal rounding. **102 in the suite** |
-| 5 — Auth + web shell | ⬅ **next** · 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools |
+| 5a/5b — Auth + tenant isolation | ✅ `com.fantasykai.auth` (16 classes) + `V5`. Default-deny chain, Argon2id, HS256 JWT, rotating refresh with family revocation, Bucket4j on Redis. **130 in the suite** |
+| 5c/5d — Web shell + deploy | ⬅ **next** — Next.js 15, attribution footer, Fly + Neon + Vercel |
+| 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
 
 Full roadmap and the reasoning for the order: [`docs/north-star.md`](docs/north-star.md) §10.
+
+**Java 21 → 25 on 2026-09-10.** One property in `pom.xml` plus CI; no source file changed and
+the suite passed on 25 unmodified. Spring Boot 3.5.16 documents Java **17 up to and including
+25**, so this is the top of the supported range rather than past it. The reason is dates, not
+features — 25 is the current LTS and September 2026 closes the window on permissively licensed
+JDK 21 updates from Oracle; handoff §4 carries the argument. **`docs/perf/baseline.md` stays on
+Temurin 21.0.11**: it records what a measurement ran on, not what the stack is today, and Phase
+11 re-captures on 25 before it compares anything.
 
 2026 season opens **Sept 10**. The 2026 schedule is loaded (272 games); nflverse has not published 2026 stat lines yet, so those runs correctly record `SKIPPED`.
 
@@ -198,6 +209,46 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   `14.499999999999998`, and `Math.round` breaks ties toward positive infinity, so `-0.125` and
   `+0.125` rounded different distances — and `pass_int`/`fum_lost` carry negative rates.
   `roundForDisplay` uses `BigDecimal` `HALF_UP`.
+- **`ResultSet.wasNull()` reports on the last column *read*, and Java evaluates arguments left to
+  right.** `new Cached(compile(rs.getString("rules")), rs.wasNull() ? null : owner)` asks whether
+  `rules` was null, not `user_id` — so every preset's NULL owner became user 0, and all four
+  presets 404'd for everyone including anonymous callers. Read the flag into a local immediately
+  after the column it describes.
+- **`@Transactional` rolls back the thing you did *before* throwing.** `RefreshTokenService.rotate`
+  revokes the token family and then throws on a replay; under a plain `@Transactional` the throw
+  undid the revocation, so theft detection ran and left no trace. `noRollbackFor =
+  InvalidTokenException.class` is load-bearing. Found by a test, not by reading the code.
+- **`Keys.hmacShaKeyFor` picks the JWT algorithm from the key's length** — 32 bytes gives HS256,
+  48 gives HS384, 64 HS512. So the algorithm in production depends on how long a string somebody
+  pasted into an env var, and a doc saying "HS256" quietly stops being true. `JwtService` pins
+  `Jwts.SIG.HS256`.
+- **`Argon2PasswordEncoder` needs BouncyCastle and Spring Security does not pull it in.** It fails
+  on the first register or login rather than at startup, so it presents as an auth bug. `pom.xml`
+  declares `bcprov-jdk18on` explicitly.
+- **A test with no Redis container silently uses the dev one.** `spring.data.redis.host` defaults to
+  `localhost:6379`, which on this machine is the running compose container — so rate-limit buckets
+  leaked between test classes and across runs, and unrelated tests failed on the sixth login.
+  `src/test/resources/application.properties` points it at `redis.invalid`; a class that needs Redis
+  declares a container and overrides it.
+- **Maven's incremental compiler hides signature changes.** Widening `ScoringProfiles.byId` to two
+  arguments left every caller uncompiled and `./mvnw compile` reported BUILD SUCCESS. Use
+  `./mvnw clean compile` when a public signature moves, or the first honest error arrives in CI.
+- **`/usr/libexec/java_home -v 25` does not fail when 25 is missing.** It returns the newest JDK
+  it can find and exits 0, so `JAVA_HOME=$(/usr/libexec/java_home -v 25) ./mvnw verify` silently
+  runs on 21 and dies at `error: release version 25 not supported` — an error about the compiler,
+  from a line that looked like it selected a compiler. Verify with `java -version`, not with the
+  exit code. Hit for real when the Java 25 bump landed against a machine that had no Temurin 25.
+- **Half of `./mvnw verify` is teardown, not tests — and a green build hid it for five phases.**
+  The 130 tests execute in **23.2s**; the build takes **56s**. Spring Boot 3.5 defaults
+  `server.shutdown` to `graceful` (it is not in `application.yml` — check the metadata, not the
+  yaml), and the suite leaves **ten cached Spring contexts, seven with an embedded Tomcat**, which
+  close *serially* at JVM exit: ~2.0s of Tomcat graceful shutdown each, plus up to 4.5s of Hikari
+  closing a pool whose Testcontainer Ryuk has already killed. That is **28.5s**, so Surefire's 30s
+  post-`System.exit(0)` deadline fires, kills the fork and writes a `.dump` — while still reporting
+  BUILD SUCCESS. **Not the Java 25 bump**: measured 2026-09-10 at 56.072s on Temurin 21.0.11 and
+  56.044s on Microsoft OpenJDK 25.0.2, **28 ms apart**, same dump and same kill message on both. The fix is the shared Testcontainers base class `docs/map.md` §5 already
+  owes. One deployed instance has one context, so Fly pays the 2s once — this is a build-time
+  cost, not a deploy risk.
 - **A launchd plist with a placeholder path is not an installed job.** The plist shipped three
   `__REPO__` placeholders and an instruction to "edit the two by hand"; it was never loaded, `logs/`
   stayed empty, and `ingest_runs` recorded three of the seven days before kickoff. `install-ingest.sh`
@@ -237,13 +288,28 @@ Three whitelists stand between a request and the SQL — `PlayerSort`,
 constant or throws; `QuerySafetyTests` proves it by sending `DROP TABLE` through
 each one and then checking the table is still there.
 
-`/api/v1/scoring-profiles` serves presets only (`user_id IS NULL`). Phase 5 adds
-`OR user_id = ?` bound to the JWT subject, **in the query, not the service**.
+`/api/v1/scoring-profiles` serves `user_id IS NULL OR user_id = ?` bound to the JWT
+subject — **in the query, not the service**. A logged-out caller binds `null`, which
+matches nothing, so they see the four presets and no more.
+
+**The chain gates endpoints; the query gates rows.** Reads are `permitAll` and every
+mutation is `authenticated()` plus `@PreAuthorize`. Which *profile* you may score
+against is decided by the ownership filter, never by the URL — and
+`ScoringProfiles`' compile cache carries its entry's owner, because the filter only
+runs on a miss and a warm cache would otherwise hand one user's ruleset to the next.
+A profile you do not own is **404, not 403**: 403 confirms the id exists.
 
 ## Commands
 
 ```bash
 docker compose up -d                      # Postgres on :5433 (not 5432), Redis on :6379
+
+# Java 25 or nothing compiles. `java_home -v 25` does NOT fail when 25 is absent --
+# it silently returns the newest JDK it has, so check the version it prints.
+export JAVA_HOME=$(/usr/libexec/java_home -v 25)
+
+# The app needs JWT_SECRET or it refuses to start. `source .env` first, or:
+JWT_SECRET=$(openssl rand -base64 48) ./mvnw spring-boot:run
 cd backend && ./mvnw -B verify            # needs Docker — Testcontainers boots a real PG 16
 
 # psql

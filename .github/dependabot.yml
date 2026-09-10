@@ -1,0 +1,22 @@
+# Handoff §8: "Dependabot on."
+#
+# Weekly rather than daily: this is a solo project and a PR queue nobody reads
+# is the same as no Dependabot at all. Grouped for the same reason -- one PR a
+# week that CI has already run is actionable; fifteen are noise.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      spring:
+        patterns: ["org.springframework*", "io.spring*"]
+      test:
+        patterns: ["org.testcontainers*", "com.redis*", "org.junit*", "org.assertj*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

@@ -275,7 +275,7 @@ a product you can't open is not one you'll use, and this only gets built if it g
 | 0–3 | Foundation · Ingestion · Scoring · Read API | see handoff §11 | ✅ |
 | **3.5** | Close the baseline | Measured at 1/5/10/20 VUs, 2026-09-07. p95 **21.4 → 125.0 ms**, throughput saturates ~256 req/s, and **the bottleneck is Postgres at 88% of CPU, not the Java scorer** — which contradicts handoff §9. | ✅ |
 | **4** | **Vegas in the schema** | `V4` widened `games` with the score, betting and weather columns; `GameIngestor` now reads 18 of the source's 46. No new HTTP source. Measurement corrected the brief three times — moneylines never overflow `SMALLINT`, and `result`/`total` are derived, not stored. **Brief below.** | ✅ |
-| **5** | **Auth + web shell** | Handoff §8 in full, all twelve rows — Argon2id, JWT, rotating refresh, Bucket4j, `@PreAuthorize`, `@Valid`, HSTS, Dependabot. First write endpoints (`POST/PUT/DELETE /scoring-profiles`). Next.js 15: login, rankings table, player detail, profile switcher, public landing page. Attribution footer. **End of phase = a deployed site you can log into. Brief below.** | ⬅ **next** |
+| **5** | **Auth + web shell** | **5a/5b shipped.** Handoff §8 in full, all twelve rows — Argon2id, JWT, rotating refresh, Bucket4j, `@PreAuthorize`, `@Valid`, HSTS, Dependabot. First write endpoints (`POST/PUT/DELETE /scoring-profiles`). Next.js 15: login, rankings table, player detail, profile switcher, public landing page. Attribution footer. **End of phase = a deployed site you can log into. Brief below.** | 🔶 **5a/5b done · 5c/5d next** |
 | 6 | Projections | `SignalKey`, `player_week_projection`, `ProjectionEngine`, `ExplainedScore`, backtest + published MAE. The heart of "valid reasons for ranking." | |
 | 7 | League import | `LeagueProvider` interface. ESPN first (cookie paste, encrypted at rest), **Sleeper in the same phase** to prove the seam is real. ESPN `mSettings.scoringItems` → `Ruleset`, auto-creating your profile. Manual ruleset builder as the fallback for when ESPN breaks — because it will. | |
 | 8 | Roster tools | `LineupOptimizer`, `SeasonSimulator`, `TradeEvaluator`, `WaiverBoard`. §7 made real. | |
@@ -461,6 +461,28 @@ Three things to **verify rather than assume**, because a free tier is a claim un
 for exactly this: `ingestFreshness` reports DOWN when the daily pull has stopped, which is degraded
 rather than down, and a platform probe on the aggregate would restart a working machine every time
 the laptop slept through 06:00.
+
+#### 5a/5b — shipped
+
+`com.fantasykai.auth`, 16 classes, `V5__auth.sql`, 28 new tests (130 in the suite). Three things
+the brief did not anticipate, each found by a test rather than by review:
+
+| Found | Why it mattered |
+|---|---|
+| **`@Transactional` rolled back the family revocation.** `rotate` revokes the family and *then*
+throws on a replay; the throw undid the revoke, so theft detection ran and left no trace | The
+replay test failed on the *second* assertion — the replayed token was refused, and its siblings
+stayed live. `noRollbackFor = InvalidTokenException.class` |
+| **`ResultSet.wasNull()` reports on the last column read**, and Java evaluates arguments left to
+right — so a preset's NULL owner was read as user 0 | Every preset 404'd for everybody. Caught by
+the whole existing suite going red, which is what a good suite is for |
+| **A test with no Redis container uses the developer's.** `spring.data.redis.host` defaults to
+`localhost:6379` | Rate-limit buckets leaked across test classes; unrelated tests failed on the
+sixth login. Test config now points at `redis.invalid` so the dependency has to be declared |
+
+The rate limit is per IP across the whole `/auth` surface rather than per endpoint or per account,
+so register and login share one bucket — an attacker guessing passwords varies the password and one
+enumerating accounts varies the email, and neither resets the count.
 
 #### Acceptance — each of these is a test, not a checklist item
 
