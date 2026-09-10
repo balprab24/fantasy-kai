@@ -19,7 +19,7 @@
 
     <properties>
         <java.version>25</java.version>
-        <jjwt.version>0.12.6</jjwt.version>
+        <jjwt.version>0.13.0</jjwt.version>
         <bucket4j.version>8.14.0</bucket4j.version>
     </properties>
 
