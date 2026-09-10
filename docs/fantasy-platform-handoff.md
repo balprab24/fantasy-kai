@@ -3,7 +3,7 @@
 **Owner:** Prabhnoor Bal
 **Date:** September 3, 2026
 **Status:** Design settled → ready to implement
-**Stack:** Spring Boot 3.5 (Java 21) · PostgreSQL 16 · Redis · Next.js 15 / React / TypeScript
+**Stack:** Spring Boot 3.5 (Java 25) · PostgreSQL 16 · Redis · Next.js 15 / React / TypeScript
 
 > **Scope moved on September 7, 2026.** This document remains the source of truth for the
 > **engineering rationale** — §5 data model, §6 scoring engine, §8 security, §9 performance — and
@@ -136,7 +136,7 @@ Flock's rankings come from paid analysts. Yours will come from data. Three hones
 └───────────────────────┬──────────────────────────────────┘
                         │  HTTPS / JSON  (JWT bearer)
 ┌───────────────────────▼──────────────────────────────────┐
-│  Spring Boot 3.5.16 (Java 21)                            │
+│  Spring Boot 3.5.16 (Java 25)                            │
 │  ┌────────────┬─────────────┬──────────┬──────────────┐  │
 │  │ Web layer  │  Scoring    │  Auth    │  Ingestion   │  │
 │  │ (REST)     │  Engine     │ Security │  @Scheduled  │  │
@@ -160,7 +160,7 @@ Flock's rankings come from paid analysts. Yours will come from data. Three hones
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Backend language | Java 21 / **Spring Boot 3.5.16** | Matches your resume claim; you have to be able to defend it. Records, pattern matching, and virtual threads make this pleasant. **3.3 is EOL — the line ended at 3.3.13 and Initializr no longer offers it.** 3.5.x is the last 3.x line and still patched; 4.x was available but its renamed starters, Hibernate 7 and Testcontainers 2 put you off the beaten path for the Phase 5 auth work. |
+| Backend language | Java 25 / **Spring Boot 3.5.16** | Matches your resume claim; you have to be able to defend it. Records, pattern matching, and virtual threads make this pleasant. **Moved 21 → 25 on 2026-09-10, and the reason is dates rather than features.** 25 is the current LTS (GA 2025-09-16, premier support to 2030); September 2026 closes the one-year overlap in which Oracle shipped JDK 21 updates under a permissive licence. Temurin's 21 builds stay GPL+CE, so this was a choice and not a forcing function — but a runtime bump is cheapest taken on a green suite rather than under pressure. Spring Boot 3.5.16 documents Java **17 up to and including 25**, so this sits at the top of the supported range rather than past it, and the upgrade cost exactly one property: no source file changed and all 130 tests passed on 25 unmodified. **3.3 is EOL — the line ended at 3.3.13 and Initializr no longer offers it.** 3.5.x is the last 3.x line and still patched; 4.x was available but its renamed starters, Hibernate 7 and Testcontainers 2 put you off the beaten path for the Phase 5 auth work. |
 | Ingestion service | **Same Spring Boot app**, not a separate Python service | Python + pandas is genuinely better for this data, but two runtimes = two deploy targets = a whole extra failure surface for a solo project. nflverse ships plain CSV; parse it with Apache Commons CSV. Revisit if the model work in v2 demands pandas. |
 | ORM | ~~Spring Data JPA for CRUD, native queries for the hot rankings path~~ → **`JdbcTemplate` throughout, zero `@Entity` classes.** Decided again in Phase 5 and kept: two persistence idioms for two small tables is worse than one | JPA is a bad fit for wide aggregate reads — and once every read is a hand-written query, the CRUD half never earns its second idiom. Cost, named rather than hidden: `ddl-auto: validate` has nothing to validate, so it guards only against becoming `update`. Don't fight it — drop to SQL where it matters. |
 | Cache | Redis | The 40% story lives here. |

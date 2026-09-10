@@ -1,6 +1,6 @@
 # fantasy-kai — project brain
 
-NFL fantasy analytics platform. Java 21 / Spring Boot 3.5.16 · PostgreSQL 16 · Redis 7 · Next.js 15 (Phase 5).
+NFL fantasy analytics platform. Java 25 / Spring Boot 3.5.16 · PostgreSQL 16 · Redis 7 · Next.js 15 (Phase 5).
 
 **Two docs sit above this file, and they own different things.**
 
@@ -44,7 +44,7 @@ Full PPR, half PPR, standard and TE premium stop being three code paths and beco
 
 ```
 backend/src/main/java/com/fantasykai/
-  ingest/          Phase 1 — nflverse + Sleeper pipeline (18 classes)
+  ingest/          Phase 1 — nflverse + Sleeper pipeline (19 classes)
   scoring/         Phase 2 — ruleset model, validator, dot-product evaluator
   query/           Phase 3 — JdbcTemplate reads, StatKey-generated SQL, the §8 whitelists
   api/             Phase 3 — controllers, DTOs, RFC 7807 advice; Phase 5 write endpoints
@@ -78,6 +78,14 @@ scripts/                                   install-ingest.sh, launchd plist, ing
 | 9–11 | consensus board · iOS (Expo) · perf pass |
 
 Full roadmap and the reasoning for the order: [`docs/north-star.md`](docs/north-star.md) §10.
+
+**Java 21 → 25 on 2026-09-10.** One property in `pom.xml` plus CI; no source file changed and
+the suite passed on 25 unmodified. Spring Boot 3.5.16 documents Java **17 up to and including
+25**, so this is the top of the supported range rather than past it. The reason is dates, not
+features — 25 is the current LTS and September 2026 closes the window on permissively licensed
+JDK 21 updates from Oracle; handoff §4 carries the argument. **`docs/perf/baseline.md` stays on
+Temurin 21.0.11**: it records what a measurement ran on, not what the stack is today, and Phase
+11 re-captures on 25 before it compares anything.
 
 2026 season opens **Sept 10**. The 2026 schedule is loaded (272 games); nflverse has not published 2026 stat lines yet, so those runs correctly record `SKIPPED`.
 
@@ -225,6 +233,22 @@ Raising it without making the query cheaper moves the queue, it does not remove 
 - **Maven's incremental compiler hides signature changes.** Widening `ScoringProfiles.byId` to two
   arguments left every caller uncompiled and `./mvnw compile` reported BUILD SUCCESS. Use
   `./mvnw clean compile` when a public signature moves, or the first honest error arrives in CI.
+- **`/usr/libexec/java_home -v 25` does not fail when 25 is missing.** It returns the newest JDK
+  it can find and exits 0, so `JAVA_HOME=$(/usr/libexec/java_home -v 25) ./mvnw verify` silently
+  runs on 21 and dies at `error: release version 25 not supported` — an error about the compiler,
+  from a line that looked like it selected a compiler. Verify with `java -version`, not with the
+  exit code. Hit for real when the Java 25 bump landed against a machine that had no Temurin 25.
+- **Half of `./mvnw verify` is teardown, not tests — and a green build hid it for five phases.**
+  The 130 tests execute in **23.2s**; the build takes **56s**. Spring Boot 3.5 defaults
+  `server.shutdown` to `graceful` (it is not in `application.yml` — check the metadata, not the
+  yaml), and the suite leaves **ten cached Spring contexts, seven with an embedded Tomcat**, which
+  close *serially* at JVM exit: ~2.0s of Tomcat graceful shutdown each, plus up to 4.5s of Hikari
+  closing a pool whose Testcontainer Ryuk has already killed. That is **28.5s**, so Surefire's 30s
+  post-`System.exit(0)` deadline fires, kills the fork and writes a `.dump` — while still reporting
+  BUILD SUCCESS. **Not the Java 25 bump**: measured 2026-09-10 at 56.072s on Temurin 21.0.11 and
+  56.044s on Microsoft OpenJDK 25.0.2, **28 ms apart**, same dump and same kill message on both. The fix is the shared Testcontainers base class `docs/map.md` §5 already
+  owes. One deployed instance has one context, so Fly pays the 2s once — this is a build-time
+  cost, not a deploy risk.
 - **A launchd plist with a placeholder path is not an installed job.** The plist shipped three
   `__REPO__` placeholders and an instruction to "edit the two by hand"; it was never loaded, `logs/`
   stayed empty, and `ingest_runs` recorded three of the seven days before kickoff. `install-ingest.sh`
@@ -279,6 +303,10 @@ A profile you do not own is **404, not 403**: 403 confirms the id exists.
 
 ```bash
 docker compose up -d                      # Postgres on :5433 (not 5432), Redis on :6379
+
+# Java 25 or nothing compiles. `java_home -v 25` does NOT fail when 25 is absent --
+# it silently returns the newest JDK it has, so check the version it prints.
+export JAVA_HOME=$(/usr/libexec/java_home -v 25)
 
 # The app needs JWT_SECRET or it refuses to start. `source .env` first, or:
 JWT_SECRET=$(openssl rand -base64 48) ./mvnw spring-boot:run

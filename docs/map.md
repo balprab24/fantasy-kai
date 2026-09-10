@@ -4,8 +4,8 @@
 can't own, it links to — so when it disagrees with the doc that owns a fact, the doc wins
 and this file gets fixed.
 
-Last verified against the tree: **2026-09-09**, after the pre-Phase-5 fixes merged
-(`f478233`, `5d5b8b4`).
+Last verified against the tree: **2026-09-10**, after Phase 5a/5b merged and the
+runtime moved to Java 25.
 
 ---
 
@@ -15,7 +15,7 @@ Last verified against the tree: **2026-09-09**, after the pre-Phase-5 fixes merg
 |---|---|
 | Phases shipped | **0 → 5b** |
 | Currently next | **Phase 5c/5d** — Next.js web shell, then deploy |
-| Backend | 73 files · 4,693 lines · Java 21 / Spring Boot 3.5.16 |
+| Backend | 73 files · 4,693 lines · Java 25 / Spring Boot 3.5.16 |
 | Tests | 16 files · 3,049 lines · **130 tests**, all green · `./mvnw -B verify` ≈ 60s |
 | HTTP endpoints | **12** — 5 public `GET`, 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V5` |
@@ -47,10 +47,11 @@ Phase status is also in [`../CLAUDE.md`](../CLAUDE.md) — if the two disagree, 
 
 ### `backend/src/main/java/com/fantasykai/`
 
-`FantasyKaiApplication` — entry point. The only `@Bean` source outside `ingest`: supplies
-the single `Clock`. No security config, no CORS config, no cache config yet.
+`FantasyKaiApplication` — entry point. Supplies the single `Clock`. Since Phase 5a it is no
+longer the only `@Bean` source outside `ingest`: `SecurityConfig` owns the chain and the CORS
+allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — that is Phase 11.
 
-#### `ingest/` — Phase 1 · 18 files
+#### `ingest/` — Phase 1 · 19 files
 
 | Class | Does |
 |---|---|
@@ -65,6 +66,7 @@ the single `Clock`. No security config, no CORS config, no cache config yet.
 | `CsvValues` | Null-safe typed accessors over a `CSVRecord`. **`shortValue` defaults to 0, `shortOrNull` doesn't** — the distinction matters |
 | `IntegrityChecks` | Post-ingest invariant: `player_game_stats.season/week` vs the joined game |
 | `IngestRunRecorder` | `start` / `succeed` / `skip` / `fail` writes to `ingest_runs` |
+| `IngestFreshnessHealthIndicator` | Reads `ingest_runs` back out as an actuator component. **DOWN means degraded, not dead** — which is why `application.yml` carries a `liveness` group for deploy probes |
 | `IngestProperties` | `@ConfigurationProperties` + the season-boundary maths |
 | `IngestScheduler` | `@Scheduled` daily in-season pull |
 | `BackfillRunner` | One-shot historical load, `backfill-on-startup=true` |
@@ -85,14 +87,16 @@ the single `Clock`. No security config, no CORS config, no cache config yet.
 | `StatLine` · `Bonus` | Records: one player-week, one threshold bonus |
 | `InvalidRulesetException` · `NoSuchProfileException` | Drive the 422-vs-404 split |
 
-#### `query/` — Phase 3 · 10 files
+#### `query/` — Phase 3 · 12 files
 
 | Class | Does |
 |---|---|
 | `PlayerQueryRepository` | Every read the API makes, as parameterized JDBC |
 | `StatColumns` | Generates the `SELECT` list from `StatKey`; reads a `ResultSet` into `double[]` by name |
 | `PlayerSort` · `RankingScope` · `ScoringPosition` | **The three whitelists.** Each resolves a request string to an enum constant or throws |
-| `ScoringProfileQueryRepository` | Preset metadata only — never the `rules` column |
+| `ScoringProfileQueryRepository` | Preset metadata only — never the `rules` column. **Phase 5 grew it `OR user_id = ?`, bound in the query** — a logged-out caller binds `null` and matches only the presets |
+| `ScoringProfileWriteRepository` | Insert / update / delete a user's own profile. Phase 5 |
+| `DuplicateProfileNameException` | Two profiles with one name, for one owner |
 | `ScorableRow` · `PlayerRow` · `GamelogRow` | Row records |
 | `InvalidQueryParameterException` | A name that isn't on a whitelist |
 
@@ -100,7 +104,7 @@ the single `Clock`. No security config, no CORS config, no cache config yet.
 
 | Class | Does |
 |---|---|
-| `RankingsController` · `PlayerController` · `ScoringProfileController` | The five endpoints |
+| `RankingsController` · `PlayerController` · `ScoringProfileController` | **Eight endpoints** — 5 public `GET` plus, since Phase 5, three profile mutations behind `@PreAuthorize` |
 | `RankingsService` | Scores every player-week in Java, aggregates per player, sorts, pages |
 | `PlayerService` | Player list, detail, and the scored game log |
 | `ApiExceptionHandler` | RFC 7807 `problem+json` over `ResponseEntityExceptionHandler` |
@@ -108,14 +112,35 @@ the single `Clock`. No security config, no CORS config, no cache config yet.
 | `RankingRow` · `PlayerSummary` · `PlayerDetail` · `GamelogWeek` · `GamelogResponse` · `ScoringProfileSummary` | Response records |
 | `PlayerNotFoundException` | 404 |
 
+#### `auth/` — Phase 5a/5b · 16 files
+
+| Class | Does |
+|---|---|
+| `SecurityConfig` | **The filter chain, and it is default-deny.** `permitAll` on an explicit short list, `authenticated()` on everything else, so a new endpoint is private until someone lists it. Also the CORS allowlist and HSTS |
+| `AuthController` | Register · login · refresh · logout. Access token in the body, refresh token in an `HttpOnly` cookie — the asymmetry is the design, not an inconsistency |
+| `AuthDtos` | The codebase's **first request bodies**, which is why §8's `@Valid` row starts mattering here and not in Phase 3 |
+| `JwtService` | Issues and verifies the 15-minute HS256 access token. **Pins `Jwts.SIG.HS256`** — `hmacShaKeyFor` otherwise picks the algorithm from the key's length, so the env var would decide it |
+| `JwtAuthFilter` | `Authorization: Bearer` → security context. No token passes straight through unauthenticated; the chain decides what that may reach |
+| `RefreshTokenService` | Rotation with reuse detection. **`noRollbackFor = InvalidTokenException`** is load-bearing — a plain `@Transactional` undid the family revocation on the way out |
+| `RefreshTokenRepository` | The `refresh_tokens` table from `V5`. Hashed at rest, never the token itself |
+| `UserRepository` | The `users` table `V1` created and nothing touched until now. `JdbcTemplate`, deliberately — north-star §5a |
+| `AuthRateLimitFilter` | 5/min/IP across the **whole** `/api/v1/auth/**` surface. One bucket, so guessing passwords and enumerating emails share a count instead of resetting each other |
+| `RateLimitConfig` | Bucket4j's Redis store, on Lettuce directly — `RedisTemplate` lacks the compare-and-swap Bucket4j needs. Resolved lazily, so a Redis outage costs logins and not the site |
+| `AuthProperties` | `@ConfigurationProperties`. **Refuses to start** without a ≥32-byte `JWT_SECRET`; no committed default |
+| `Problems` · `ProblemAuthenticationEntryPoint` · `ProblemAccessDeniedHandler` | RFC 7807 for the filter-chain paths, which run before `DispatcherServlet` and so never reach `ApiExceptionHandler` |
+| `InvalidTokenException` · `EmailAlreadyRegisteredException` | Absent, expired, forged or replayed token · a duplicate registration |
+
 ### Everything else
 
 ```
 backend/src/main/resources/
   application.yml                  datasource, flyway, ingest config
-  db/migration/                    V1 schema · V2 ingestion support · V3 presets · V4 Vegas columns
+  db/migration/                    V1 schema · V2 ingestion support · V3 presets · V4 Vegas
+                                   columns · V5 auth
 backend/src/test/
-  java/com/fantasykai/             10 test classes + ApiFixture, Presets
+  java/com/fantasykai/             14 test classes + ApiFixture, Presets
+  resources/application.properties test JWT secret, and Redis pointed at redis.invalid
+                                   so a test that needs it has to declare a container
   resources/nflverse/              6 fixture files — real rows, never invented
 docs/
   north-star.md                    scope, sequencing, product decisions
@@ -207,6 +232,7 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 | No auth at all; five endpoints world-readable | Phase 5a/5b — default-deny chain, `show-details: when-authorized` |
 | `ScoringProfiles.byId` had no ownership check | Phase 5a/5b — filtered in the query, and the compile cache carries its owner so a warm entry is not a bypass |
 | `ScoringProfiles.evict(long)` had zero callers | Phase 5a/5b — every profile write calls it |
+| §8's dependency row: "Dependabot on, `dependency-check` in CI" | `4f30bb6` — `.github/dependabot.yml`, weekly and grouped because a PR queue nobody reads is the same as no Dependabot. The scan is its own job in `ci.yml`, `continue-on-error`, and `da28c9b` made it **skip loudly** rather than fail every run when `NVD_API_KEY` is unset |
 
 ### Operational, and unscheduled
 
@@ -214,7 +240,7 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 |---|---|
 | `StatIngestor` holds a whole season in memory | Identity mapper into a `List<CSVRecord>`, then a second full-size batch, under a JVM with no `-Xmx` |
 | The ingest depends on a laptop being awake | launchd fires on wake, not at 06:00, and on local time rather than ET. Acceptable for a pull with no deadline — and the reason the freshness indicator exists rather than being optional |
-| No shared Testcontainers base class | Six integration classes, six Postgres containers per build. Phase 5 adds more |
+| No shared Testcontainers base class | **Measured 2026-09-10: this is now half the build.** Ten cached Spring contexts, seven of them with an embedded Tomcat. The 130 tests execute in **23.2s**; tearing those ten contexts down takes **28.5s**, and Surefire kills the fork on its 30s deadline. The build still reports SUCCESS, which is exactly why it went unnoticed for five phases. Identical on 21 and 25 (56.072s vs 56.044s), so the Java 25 bump did not cause it — see [`../CLAUDE.md`](../CLAUDE.md) |
 | Hikari is at Spring Boot's default 10 connections | 10 × ~39 ms occupancy ≈ the 256 req/s ceiling. Phase 11 must not mistake raising it for a fix |
 
 ### Housekeeping

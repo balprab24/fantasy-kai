@@ -45,6 +45,13 @@ be taken until after the scoring and the sort.
 | Dataset | 112,319 stat rows, 25,065 players, 1,965 games (2020–2025 + 2026 schedule) |
 | Season under test | **2025** — pinned, see below |
 
+**The JDK row is the one this file has already outlived.** These numbers were
+captured on Temurin 21.0.11; the backend moved to Java 25 on 2026-09-10, three
+days later. The row stays at 21.0.11 because that is the runtime that produced
+the numbers — a measurement file that quietly adopts whatever the stack is today
+stops being evidence. Phase 11 re-captures on 25 before it compares anything; see
+**Next**.
+
 **2025 is pinned deliberately.** The API defaults `season` to the current NFL
 season, and 2026 has its schedule loaded but no stat lines published yet. A load
 test against the default would score zero rows and report an excellent,
@@ -295,7 +302,14 @@ identical league settings onto one entry.
 
 ## Next
 
-Phase 11 in §9's order — cache, matview, indexes — re-running
+**Re-capture the baseline on Java 25 first.** Everything above is Temurin 21.0.11
+(see Environment) and the backend is on 25 now. A before/after that straddles two
+runtimes is not a before/after, and Phase 11's whole value is that its delta
+survives someone asking how it was measured. The re-run is cheap and the expected
+move is small — the JVM is only 12% of the cost here — but "small" is a
+prediction, and predictions about this endpoint have already been wrong once.
+
+Then Phase 11 in §9's order — cache, matview, indexes — re-running
 `perf/rankings.js` unchanged after each step, with the same warmup and the same
 CPU method, and recording the deltas in `docs/perf/results.md`. Sample Postgres
 CPU alongside the JVM's at every step: on this baseline it is the number that

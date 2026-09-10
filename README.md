@@ -27,13 +27,16 @@ for operational notes.
 
 ## Stack
 
-Spring Boot 3.5 (Java 21) · PostgreSQL 16 · Flyway · Redis 7 (provisioned, first used in Phase 5) · Next.js 15 (Phase 5)
+Spring Boot 3.5 (Java 25) · PostgreSQL 16 · Flyway · Redis 7 (provisioned, first used in Phase 5) · Next.js 15 (Phase 5)
 
 ## Local setup
 
-Requires JDK 21 and Docker.
+Requires JDK 25 and Docker.
 
 ```bash
+brew install --cask temurin@25   # matches CI's distribution
+export JAVA_HOME=$(/usr/libexec/java_home -v 25)
+
 cp .env.example .env
 docker compose up -d            # Postgres 16 on :5433, Redis 7 on :6379
 
