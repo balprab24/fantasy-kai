@@ -443,15 +443,21 @@ amended rather than left to drift — the intent was always *the current App Rou
 | Tailwind | 4.3.3 | CSS-first config; there is no `tailwind.config.js` by default any more |
 | TanStack Query / Table / Virtual | 5.102.8 / 9.2.4 / 3.14.12 | |
 
-**TypeScript 7 was tried and backed out, and the reason is worth keeping.** 7.0.2 is `latest` and
-it builds: the native compiler typechecks this project in **173 ms against 1,212 ms** on the 5.x
-line, which is the whole point of the rewrite. But `npm run lint` then dies outright —
+**TypeScript 7 and ESLint 10 are both held back, and it is the same blocker.**
+`eslint-config-next` bundles its *own* `typescript-eslint` and `eslint-plugin-react`, and neither
+supports the next major of the thing it wraps. Measured against Dependabot's PR #17, not assumed:
 
-> `typescript-eslint does not support TS 7.0.` … *see issue #10940 for tracking support for TS >=7.1*
+| Proposed | `npm run build` | `npm run lint` |
+|---|---|---|
+| typescript 6.0.3 → **7.0.2** | passes (typechecks in **173 ms** against 1,212 ms — the native rewrite is real) | `typescript-eslint does not support TS 7.0` — their issue #10940 tracks TS ≥ 7.1 |
+| eslint 9 → **10.10.0** | passes | `eslint-plugin-react` calls `context.getFilename()`, removed in ESLint 10. `TypeError`, exit 2 |
+| @types/node ^20 → **^22** | passes | passes — taken |
 
-— so adopting 7.0 means no linting at all, and the React 19 hook rules are what caught three real
-`setState`-in-effect bugs while this shell was being built. 6.0.3 is stable, newer than 5.9.3, and
-typescript-eslint supports it. Revisit at TS 7.1. **"Latest" and "current" are not the same word.**
+Both failures land on lint and not on build, which is exactly why the frontend CI job runs lint
+first and is not `continue-on-error`: it caught PR #17 in 20 seconds. The React 19 hook rules are
+not decoration either — they found three real `setState`-in-effect bugs while this shell was being
+written. `dependabot.yml` ignores those two majors with the reason written down; drop the ignores
+when `eslint-config-next` ships support. **"Latest" and "current" are not the same word.**
 
 Screens: public landing (top 100) · register/login · rankings table (virtualized, ~610 rows) ·
 player detail with game log · profile switcher · custom ruleset builder.

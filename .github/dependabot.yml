@@ -33,6 +33,22 @@ updates:
         patterns: ["@tanstack/*"]
       tooling:
         patterns: ["typescript", "eslint*", "tailwindcss", "@tailwindcss/*", "@types/node"]
+    # Both of these are gated on the same thing: eslint-config-next bundles its
+    # own typescript-eslint and eslint-plugin-react, and neither supports the
+    # next major. Measured on PR #17 rather than assumed --
+    #   typescript 7.0.2  -> "typescript-eslint does not support TS 7.0"
+    #                        (their issue #10940 tracks TS >= 7.1)
+    #   eslint 10.10.0    -> eslint-plugin-react calls context.getFilename(),
+    #                        which eslint 10 removed. TypeError, exit 2.
+    # In both cases `npm run build` passes and `npm run lint` dies, so the
+    # frontend CI job catches it -- but an ungated weekly PR that always fails
+    # is the "queue nobody reads" this file's header is about. Drop these two
+    # ignores when eslint-config-next ships support; nothing else is held back.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
