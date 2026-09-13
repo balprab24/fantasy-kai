@@ -1,6 +1,7 @@
 package com.fantasykai.auth;
 
 import java.util.List;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -44,7 +45,27 @@ public class SecurityConfig {
         this.props = props;
     }
 
+    /**
+     * Servlet-only, and the annotation is load-bearing rather than defensive.
+     *
+     * <p>{@code HttpSecurity} exists only in a servlet context, but this
+     * application has a second entrypoint that has no servlet context at all:
+     * scripts/ingest-once.sh runs the daily pull with
+     * {@code --spring.main.web-application-type=none}. Without this condition
+     * the bean is still demanded there, and the one-shot job dies at startup
+     * with "Parameter 0 of method filterChain required a bean of type
+     * HttpSecurity" -- which is what happened for three days after Phase 5a,
+     * invisibly, because every test in the suite boots a web application.
+     *
+     * <p>{@code @EnableMethodSecurity} deliberately stays on the class: method
+     * security needs no servlet environment, and gating it would quietly turn
+     * off every {@code @PreAuthorize} in the headless run.
+     *
+     * <p>{@link com.fantasykai.ingest.OneShotContextTests} is the test that
+     * would have caught it.
+     */
     @Bean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtFilter,
             AuthRateLimitFilter rateLimitFilter) throws Exception {
         return http

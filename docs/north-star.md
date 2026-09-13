@@ -275,12 +275,14 @@ a product you can't open is not one you'll use, and this only gets built if it g
 | 0–3 | Foundation · Ingestion · Scoring · Read API | see handoff §11 | ✅ |
 | **3.5** | Close the baseline | Measured at 1/5/10/20 VUs, 2026-09-07. p95 **21.4 → 125.0 ms**, throughput saturates ~256 req/s, and **the bottleneck is Postgres at 88% of CPU, not the Java scorer** — which contradicts handoff §9. | ✅ |
 | **4** | **Vegas in the schema** | `V4` widened `games` with the score, betting and weather columns; `GameIngestor` now reads 18 of the source's 46. No new HTTP source. Measurement corrected the brief three times — moneylines never overflow `SMALLINT`, and `result`/`total` are derived, not stored. **Brief below.** | ✅ |
-| **5** | **Auth + web shell** | **5a/5b shipped.** Handoff §8 in full, all twelve rows — Argon2id, JWT, rotating refresh, Bucket4j, `@PreAuthorize`, `@Valid`, HSTS, Dependabot. First write endpoints (`POST/PUT/DELETE /scoring-profiles`). Next.js 15: login, rankings table, player detail, profile switcher, public landing page. Attribution footer. **End of phase = a deployed site you can log into. Brief below.** | 🔶 **5a/5b done · 5c/5d next** |
+| **4.75** | **Toolchain recovery** | Unplanned. The Java 25 bump's JDK lived in `~/.jdk`, which `java_home` does not scan, so the build stopped working and took the daily ingest with it. Enforcer rule added; jjwt, bucket4j and bcprov brought current; **a headless-context bug 130 green tests could not see** fixed. Corrected two measured claims in the docs. | ✅ |
+| **5** | **Auth + web shell** | **5a/5b shipped.** Handoff §8 in full, all twelve rows — Argon2id, JWT, rotating refresh, Bucket4j, `@PreAuthorize`, `@Valid`, HSTS, Dependabot. First write endpoints (`POST/PUT/DELETE /scoring-profiles`). Next.js 16 (see 5c): login, rankings table, player detail, profile switcher, public landing page. Attribution footer. **End of phase = a deployed site you can log into. Brief below.** | 🔶 **5a/5b done · 5d artefacts verified locally · 5c/5d next** |
 | 6 | Projections | `SignalKey`, `player_week_projection`, `ProjectionEngine`, `ExplainedScore`, backtest + published MAE. The heart of "valid reasons for ranking." | |
 | 7 | League import | `LeagueProvider` interface. ESPN first (cookie paste, encrypted at rest), **Sleeper in the same phase** to prove the seam is real. ESPN `mSettings.scoringItems` → `Ruleset`, auto-creating your profile. Manual ruleset builder as the fallback for when ESPN breaks — because it will. | |
 | 8 | Roster tools | `LineupOptimizer`, `SeasonSimulator`, `TradeEvaluator`, `WaiverBoard`. §7 made real. | |
 | 9 | Consensus board | FFC ADP ingest + `player_adp` + Sleeper `owned%`/trending → the logged-out top 100. In-season it's rest-of-season; **August 2027 it becomes the draft board** with no rework. | |
 | 10 | iOS (Expo) | ~Nov. Same REST API. Native navigation + push — a webview wrapper fails Apple guideline 4.2 (minimum functionality). | |
+| 11.5 | **Spring Boot 3.5 → 4** | Deliberately *not* folded into 5d. 3.5.16 is the head of its line and current; 4.1.1 is the stable major, and it carries Spring Framework 7 and Jakarta EE 11. Doing a framework major alongside a first-ever deploy is two unknowns at once, and the one that breaks is ambiguous. Own phase, own brief, after the perf pass has a stable baseline to compare against. | |
 | 11 | Perf pass | Cache → matview → indexes, measuring after each. **Order survives Phase 3.5's finding, expected magnitudes do not** — the matview and index attack the dominant cost (the scan), so they should beat §9's prediction rather than trail it. Sample Postgres CPU, not just the JVM's. Plus the trade simulator as a second endpoint for the ruleset-hash cache. | |
 
 ### What Phase 3.5 found — and why it was worth doing first
@@ -426,8 +428,20 @@ already says to.
 
 #### 5c — Web shell
 
-Next.js 15 App Router, TypeScript, Tailwind, TanStack Query + TanStack Table. **Mobile-first**, since
-Phase 10 is the same product on a phone.
+**Next.js 16 App Router**, TypeScript, Tailwind, TanStack Query + TanStack Table. **Mobile-first**,
+since Phase 10 is the same product on a phone.
+
+This brief said "Next.js 15" when 15 was current. Checked against the registry on 2026-09-12 and
+amended rather than left to drift — the intent was always *the current App Router*, not the number:
+
+| | Version | Note |
+|---|---|---|
+| Node | **24.21.0** | Krypton LTS. **Node 20 went EOL 2026-04-30** and was what this machine had |
+| Next.js | **16.3.5** | engines `node >= 20.9.0` |
+| React / React DOM | 19.3.0 | |
+| TypeScript | 7.0.2 | the native compiler port |
+| Tailwind | 4.3.3 | CSS-first config; there is no `tailwind.config.js` by default any more |
+| TanStack Query / Table / Virtual | 5.102.8 / 9.2.4 / 3.14.12 | |
 
 Screens: public landing (top 100) · register/login · rankings table (virtualized, ~610 rows) ·
 player detail with game log · profile switcher · custom ruleset builder.
@@ -445,17 +459,31 @@ owed since Phase 0.
 spin down mid-session, and HTTPS/HSTS come from the platforms, which is what closes §8's transport
 row. `JWT_SECRET`, `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` are Fly secrets — never `application.yml`.
 
-Three things to **verify rather than assume**, because a free tier is a claim until it is measured:
+Three things to **verify rather than assume**, because a free tier is a claim until it is measured.
+Two are now measured; the third turned into an invariant.
 
-1. **Neon needs the data.** Flyway applies `V1`–`V5` on boot; the 112,319 stat rows do not
-   materialize. Either run the backfill once against Neon or `pg_dump`/restore — and check the
-   storage ceiling against the real database size before either.
+1. **Neon needs the data — settled, and the method changed.** `scripts/neon-restore.sh` does a
+   **full** `pg_dump`, not `--data-only`: a data-only restore checks foreign keys as it loads, so it
+   depends on table ordering and wants `--disable-triggers`, which needs a superuser Neon does not
+   grant. A full dump creates constraints after the data and carries `flyway_schema_history`, so the
+   app boots, validates, finds v5 and does nothing. **Proved against a throwaway Postgres 16, not
+   reasoned about:** 16.4 MB dump, 112,453 / 25,065 / 1,965 rows compared before and after, and the
+   app booted against the restored database logging *"Schema is up to date. No migration
+   necessary."* The script refuses a non-empty target. Database is **33 MB** after `VACUUM FULL`.
 2. **Redis.** Bucket4j is specified against Redis and Redis already runs unused in
    `docker-compose.yml`, so local is free. Fly bundles none; Upstash's free tier is the candidate.
    If it is card-gated, in-memory Bucket4j on a single machine is the honest fallback — *correct*
    for one instance, and the limitation gets written down rather than papered over.
-3. **Cold start.** A Spring Boot JVM on an auto-stopping machine makes a login feel broken. Measure
-   it; keep one machine warm if it is bad, and say so either way.
+3. **Cold start — measured, and auto-stop is now forbidden for a different reason.** The image
+   reaches its first `200` in **4.4s** (Temurin 25 JRE on Alpine, 455 MB — 220 MB smaller than the
+   Ubuntu-based tag, verified to run Argon2id, HS256 and the Redis limiter identically). 4.4s is
+   survivable for a login. **It is not survivable for the ingest, and that is the binding
+   constraint:** `IngestScheduler` fires inside a running JVM, and 06:00 ET is not an HTTP request,
+   so an auto-stopped machine silently recreates the exact three-day outage this deploy exists to
+   end. `fly.toml` sets `auto_stop_machines = false` and `min_machines_running = 1`, and the VM is
+   **1 GB** rather than the 256 MB default because `StatIngestor` materialises a whole season of CSV
+   records and then a second full-size batch — the daily pull sets the memory ceiling, not a
+   request.
 
 **The health check points at `/actuator/health/liveness`, not `/actuator/health`.** The group exists
 for exactly this: `ingestFreshness` reports DOWN when the daily pull has stopped, which is degraded

@@ -73,23 +73,42 @@ scripts/                                   install-ingest.sh, launchd plist, ing
 | 4 — Vegas in the schema | ✅ `73a0842` — `V4` widens `games` by 10 columns; `GameIngestor` reads 18 of the source's 46 and generates its upsert from one ordered list. 8 new tests (80 in the suite) |
 | 4.5 — pre-Phase-5 fixes | ✅ `f478233` daily ingest installed + freshness health + CSV header assertion · `5d5b8b4` canonical hash over the resolved form + decimal rounding. **102 in the suite** |
 | 5a/5b — Auth + tenant isolation | ✅ `com.fantasykai.auth` (16 classes) + `V5`. Default-deny chain, Argon2id, HS256 JWT, rotating refresh with family revocation, Bucket4j on Redis. **130 in the suite** |
-| 5c/5d — Web shell + deploy | ⬅ **next** — Next.js 15, attribution footer, Fly + Neon + Vercel |
+| 4.75 — toolchain recovery | ✅ 2026-09-12 — JDK 25 found, enforcer rule, jjwt/bucket4j/bcprov bumped, **the headless-context bug the suite could not see** fixed. **132 in the suite** |
+| 5c/5d — Web shell + deploy | ⬅ **next** — 5d's `Dockerfile`/`fly.toml`/`neon-restore.sh` are written and verified locally; accounts are the only thing left. Then Next.js 16, attribution footer |
 | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
 
 Full roadmap and the reasoning for the order: [`docs/north-star.md`](docs/north-star.md) §10.
 
 **Java 21 → 25 on 2026-09-10.** One property in `pom.xml` plus CI; no source file changed and
-the suite passed on 25 unmodified. Spring Boot 3.5.16 documents Java **17 up to and including
+the suite passed on 25 unmodified. **It was done by VS Code's App Modernization extension, which
+installed its JDK 25 into `~/.jdk` — a directory `java_home` does not scan — and left.** The
+property stayed, the JDK became invisible, and the build stopped working on this machine for three
+days. Temurin 25.0.4.1 now lives in `~/Library/Java/JavaVirtualMachines`, where `java_home` finds
+it, and the enforcer rule in `pom.xml` makes the next occurrence say so. The tool's leftovers under
+`.github/modernize/` are untracked (it wrote its own `.gitignore` of `**/*`) and safe to delete. Spring Boot 3.5.16 documents Java **17 up to and including
 25**, so this is the top of the supported range rather than past it. The reason is dates, not
 features — 25 is the current LTS and September 2026 closes the window on permissively licensed
 JDK 21 updates from Oracle; handoff §4 carries the argument. **`docs/perf/baseline.md` stays on
 Temurin 21.0.11**: it records what a measurement ran on, not what the stack is today, and Phase
 11 re-captures on 25 before it compares anything.
 
-2026 season opens **Sept 10**. The 2026 schedule is loaded (272 games); nflverse has not published 2026 stat lines yet, so those runs correctly record `SKIPPED`.
+2026 season opens **Sept 10**. The 2026 schedule is loaded (272 games), and **week 1 stat lines
+landed 2026-09-12**: 134 rows stored of 135 read. Before week 1 published, those runs correctly
+recorded `SKIPPED`.
 
-**The daily pull is installed** (`./scripts/install-ingest.sh`, verified running under launchd 2026-09-09). It fires on wake rather than at 06:00 on a sleeping laptop, and on local time rather than ET — so gaps are expected, and `/actuator/health`'s `ingestFreshness` component is what makes them visible instead of silent.
+**The daily pull is installed** (`./scripts/install-ingest.sh`; launchd exit 0 verified
+2026-09-12). It fires on wake rather than at 06:00 on a sleeping laptop, and on local time rather
+than ET — so gaps are expected, and `/actuator/health`'s `ingestFreshness` component is what makes
+them visible instead of silent.
+
+**It stopped for three days (2026-09-09 → 2026-09-12) and nothing said so.** Three failures
+stacked: Phase 5a's `filterChain` broke the headless entrypoint, the stale-jar guard then refused
+to run the old jar, and the JDK-25-in-`~/.jdk` problem meant the rebuild the guard asked for could
+not run either. `ingestFreshness` was correct the whole time and DOWN the whole time — **with no
+process alive to be asked**, because there is no deployed instance yet. That is the argument for
+Phase 5d, and it is why the Fly machine sets `auto_stop_machines = false`: `IngestScheduler` only
+fires inside a running JVM, and 06:00 ET is not an HTTP request.
 
 ## Measured numbers — do not re-derive or estimate these
 
@@ -98,6 +117,7 @@ From the loaded database, 2020–2025:
 | | |
 |---|---|
 | `player_game_stats` rows stored | **112,319** (112,450 read; 131 dropped for blank `player_id`) |
+| …plus 2026 week 1, added 2026-09-12 | **134** (135 read; 1 dropped, same blank-`player_id` cause) → **112,453** total |
 | Stat rows, QB/RB/WR/TE | 36,567 |
 | Distinct players, all positions | 4,061 |
 | Distinct players, QB/RB/WR/TE | **1,243** across six seasons — **578–633 in any one season** |
@@ -233,22 +253,51 @@ Raising it without making the query cheaper moves the queue, it does not remove 
 - **Maven's incremental compiler hides signature changes.** Widening `ScoringProfiles.byId` to two
   arguments left every caller uncompiled and `./mvnw compile` reported BUILD SUCCESS. Use
   `./mvnw clean compile` when a public signature moves, or the first honest error arrives in CI.
-- **`/usr/libexec/java_home -v 25` does not fail when 25 is missing.** It returns the newest JDK
-  it can find and exits 0, so `JAVA_HOME=$(/usr/libexec/java_home -v 25) ./mvnw verify` silently
-  runs on 21 and dies at `error: release version 25 not supported` — an error about the compiler,
-  from a line that looked like it selected a compiler. Verify with `java -version`, not with the
-  exit code. Hit for real when the Java 25 bump landed against a machine that had no Temurin 25.
-- **Half of `./mvnw verify` is teardown, not tests — and a green build hid it for five phases.**
-  The 130 tests execute in **23.2s**; the build takes **56s**. Spring Boot 3.5 defaults
-  `server.shutdown` to `graceful` (it is not in `application.yml` — check the metadata, not the
-  yaml), and the suite leaves **ten cached Spring contexts, seven with an embedded Tomcat**, which
-  close *serially* at JVM exit: ~2.0s of Tomcat graceful shutdown each, plus up to 4.5s of Hikari
-  closing a pool whose Testcontainer Ryuk has already killed. That is **28.5s**, so Surefire's 30s
-  post-`System.exit(0)` deadline fires, kills the fork and writes a `.dump` — while still reporting
-  BUILD SUCCESS. **Not the Java 25 bump**: measured 2026-09-10 at 56.072s on Temurin 21.0.11 and
-  56.044s on Microsoft OpenJDK 25.0.2, **28 ms apart**, same dump and same kill message on both. The fix is the shared Testcontainers base class `docs/map.md` §5 already
-  owes. One deployed instance has one context, so Fly pays the 2s once — this is a build-time
-  cost, not a deploy risk.
+- **`/usr/libexec/java_home` only scans two directories, and a JDK outside them does not exist
+  as far as it is concerned.** It reads `/Library/Java/JavaVirtualMachines` and
+  `~/Library/Java/JavaVirtualMachines` — *not* `~/.jdk`, which is where VS Code's App Modernization
+  extension put the JDK 25 it installed to perform the Java 21 → 25 bump. So `java_home -v 25`
+  returned **21** and exited **0**, and `JAVA_HOME=$(...) ./mvnw verify` died at `error: release
+  version 25 not supported`: an error about the compiler, raised by the line that was supposed to
+  choose one. **The JDK was never missing — it was invisible to the project's own documented
+  command.** Verify with `java -version`, never with the exit code. `pom.xml` now carries a
+  `maven-enforcer-plugin` `requireJavaVersion` rule so the failure names the JDK and the fix;
+  proved by building with `JAVA_HOME` on 21 and reading the message. This cost three days of daily
+  ingest — see the two entries below, which are the same outage.
+- **"Half of `./mvnw verify` is teardown" was a cold-Docker artefact, and it does not reproduce.**
+  The structure the claim described is real and unchanged — the suite still leaves **ten cached
+  Spring contexts, seven with an embedded Tomcat**, closing *serially* at JVM exit under Spring
+  Boot 3.5's `graceful` default. What is **not** real is the cost attributed to it. Re-measured
+  2026-09-12 against a Docker daemon that had been up two days:
+
+  | JDK | Dependencies | `clean verify` | Surefire `.dump` |
+  |---|---|---|---|
+  | Temurin 25.0.4.1 | bumped | **30.7s** | none |
+  | Temurin 25.0.4.1 | pre-bump | **31.1s** | none |
+  | Temurin 21.0.11 | bumped | **33.0s** | none |
+  | Microsoft OpenJDK 25.0.2 | bumped | **32.1s** | none |
+
+  Tests execute in 21.6s, so teardown is **~9s of a 31s build**, not 28.5s of 56s. No fork kill and
+  no `.dump` on any of the four. The original 56.072s / 56.044s pair was taken on 2026-09-10 **while
+  Docker Desktop was being started** — the modernize session's own log shows it checking "whether
+  Docker Desktop started successfully" between those runs. Cold Testcontainers, not serial context
+  teardown. The shared Testcontainers base class `docs/map.md` §5 owes is **still worth doing** (ten
+  contexts is ten contexts), but it is not half the build, and it was never the Java 25 bump either.
+  **The lesson is about the measurement, not the number: a one-shot timing taken against a cold
+  daemon was written down as a structural property.**
+- **A `@Bean` that takes `HttpSecurity` breaks every entrypoint that is not a web application.**
+  `scripts/ingest-once.sh` runs the daily pull with `--spring.main.web-application-type=none`, and
+  `HttpSecurity` exists only in a servlet context — so Phase 5a's `SecurityConfig.filterChain` made
+  the one-shot ingest die at startup with *"Parameter 0 of method filterChain required a bean of
+  type HttpSecurity"*. **All 130 tests stayed green**, because every one of them boots a web
+  application; the suite could not see the one shape that mattered. It then hid for three days
+  behind two louder failures — the stale-jar guard refused to run, and the rebuild that would have
+  satisfied it could not run either — so the ingest was already broken *before* the JDK was.
+  The fix is `@ConditionalOnWebApplication(type = SERVLET)` on the bean, not on the class:
+  `@EnableMethodSecurity` needs no servlet and gating it would silently disable every
+  `@PreAuthorize` in the headless run. `OneShotContextTests` boots with
+  `webEnvironment = NONE` and asserts the context is *not* a `WebApplicationContext`, so it fails
+  for the right reason.
 - **A launchd plist with a placeholder path is not an installed job.** The plist shipped three
   `__REPO__` placeholders and an instruction to "edit the two by hand"; it was never loaded, `logs/`
   stayed empty, and `ingest_runs` recorded three of the seven days before kickoff. `install-ingest.sh`
@@ -305,8 +354,11 @@ A profile you do not own is **404, not 403**: 403 confirms the id exists.
 docker compose up -d                      # Postgres on :5433 (not 5432), Redis on :6379
 
 # Java 25 or nothing compiles. `java_home -v 25` does NOT fail when 25 is absent --
-# it silently returns the newest JDK it has, so check the version it prints.
-export JAVA_HOME=$(/usr/libexec/java_home -v 25)
+# it silently returns the newest JDK it has, so check the version it PRINTS, not the
+# exit code. It also only scans /Library/Java/JavaVirtualMachines and
+# ~/Library/Java/JavaVirtualMachines: a JDK anywhere else (~/.jdk, sdkman) is invisible
+# to it. pom.xml's enforcer rule now names the JDK when this goes wrong.
+export JAVA_HOME=$(/usr/libexec/java_home -v 25) && java -version
 
 # The app needs JWT_SECRET or it refuses to start. `source .env` first, or:
 JWT_SECRET=$(openssl rand -base64 48) ./mvnw spring-boot:run

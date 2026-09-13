@@ -4,8 +4,9 @@
 can't own, it links to — so when it disagrees with the doc that owns a fact, the doc wins
 and this file gets fixed.
 
-Last verified against the tree: **2026-09-10**, after Phase 5a/5b merged and the
-runtime moved to Java 25.
+Last verified against the tree: **2026-09-12**, after the toolchain recovery — the JDK 25 the
+Java 25 bump depended on was invisible to `java_home`, which had taken the daily ingest down with
+it for three days.
 
 ---
 
@@ -16,10 +17,10 @@ runtime moved to Java 25.
 | Phases shipped | **0 → 5b** |
 | Currently next | **Phase 5c/5d** — Next.js web shell, then deploy |
 | Backend | 73 files · 4,693 lines · Java 25 / Spring Boot 3.5.16 |
-| Tests | 16 files · 3,049 lines · **130 tests**, all green · `./mvnw -B verify` ≈ 60s |
+| Tests | 17 files · **132 tests**, all green · `./mvnw -B clean verify` **≈ 31s** (the old "≈ 60s" was measured against a cold Docker daemon — see [`../CLAUDE.md`](../CLAUDE.md)) |
 | HTTP endpoints | **12** — 5 public `GET`, 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V5` |
-| Data loaded | 112,319 stat rows · 25,065 players · 1,965 games · 2020–2026 |
+| Data loaded | **112,453** stat rows (2026 week 1 landed 2026-09-12) · 25,065 players · 1,965 games · 2020–2026 · 33 MB after `VACUUM FULL` |
 | Frontend | none yet — **Phase 5c, next** |
 
 | # | Phase | State |
@@ -30,7 +31,8 @@ runtime moved to Java 25.
 | 3 | Read API — `JdbcTemplate` reads, `StatKey`-generated SQL, query whitelists | ✅ |
 | 3.5 | Close the baseline — k6 at 1/5/10/20 VUs; **the bottleneck is Postgres, not the scorer (88/12)** | ✅ |
 | 4 | Vegas in the schema — `V4` widens `games` by 10 columns | ✅ |
-| **5** | **Auth + web shell** — Argon2id, JWT, rotating refresh, Bucket4j · Next.js shell | 🔶 5a/5b ✅ · 5c/5d ⬅ **next** |
+| 4.75 | Toolchain recovery — JDK 25 located, enforcer rule, deps current, headless-context bug fixed | ✅ |
+| **5** | **Auth + web shell** — Argon2id, JWT, rotating refresh, Bucket4j · Next.js shell | 🔶 5a/5b ✅ · 5d artefacts written + locally verified · 5c/5d ⬅ **next** |
 | 6 | Projections — `SignalKey`, `ProjectionEngine`, `ExplainedScore`, published MAE | |
 | 7 | League import — `LeagueProvider`, ESPN + Sleeper | |
 | 8 | Roster tools — optimizer, simulator, trade evaluator, waivers | |
@@ -116,7 +118,7 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 
 | Class | Does |
 |---|---|
-| `SecurityConfig` | **The filter chain, and it is default-deny.** `permitAll` on an explicit short list, `authenticated()` on everything else, so a new endpoint is private until someone lists it. Also the CORS allowlist and HSTS |
+| `SecurityConfig` | **The filter chain, and it is default-deny.** `permitAll` on an explicit short list, `authenticated()` on everything else, so a new endpoint is private until someone lists it. Also the CORS allowlist and HSTS. The chain bean is `@ConditionalOnWebApplication(SERVLET)` — the headless ingest entrypoint has no `HttpSecurity` and died on it for three days; `@EnableMethodSecurity` stays unconditional on purpose |
 | `AuthController` | Register · login · refresh · logout. Access token in the body, refresh token in an `HttpOnly` cookie — the asymmetry is the design, not an inconsistency |
 | `AuthDtos` | The codebase's **first request bodies**, which is why §8's `@Valid` row starts mattering here and not in Phase 3 |
 | `JwtService` | Issues and verifies the 15-minute HS256 access token. **Pins `Jwts.SIG.HS256`** — `hmacShaKeyFor` otherwise picks the algorithm from the key's length, so the env var would decide it |
@@ -137,8 +139,12 @@ backend/src/main/resources/
   application.yml                  datasource, flyway, ingest config
   db/migration/                    V1 schema · V2 ingestion support · V3 presets · V4 Vegas
                                    columns · V5 auth
+backend/
+  Dockerfile                       multi-stage, Temurin 25, Alpine runtime. 455 MB, ~4s to first 200
+  fly.toml                         auto_stop_machines = false -- @Scheduled needs a live JVM
+  .dockerignore
 backend/src/test/
-  java/com/fantasykai/             14 test classes + ApiFixture, Presets
+  java/com/fantasykai/             15 test classes + ApiFixture, Presets
   resources/application.properties test JWT secret, and Redis pointed at redis.invalid
                                    so a test that needs it has to declare a container
   resources/nflverse/              6 fixture files — real rows, never invented
@@ -148,7 +154,9 @@ docs/
   perf/baseline.md                 the Phase 3.5 measurement
   map.md                           this file
 perf/rankings.js                   k6 script — pins season=2025 on purpose
-scripts/                           ingest-once.sh · launchd plist · perf-explain.sh
+scripts/                           ingest-once.sh · launchd plist · perf-explain.sh ·
+                                   neon-restore.sh (full dump; refuses a non-empty target and
+                                   compares row counts after)
 ```
 
 ---
@@ -204,6 +212,8 @@ scored before a page can be taken. That is the [§9 baseline](perf/baseline.md),
 | Understand a perf number | [`perf/baseline.md`](perf/baseline.md) · reproduce with `scripts/perf-explain.sh` and `perf/rankings.js` |
 | Know why a type was chosen | the migration's own comment — every column carries its measured range |
 | Run it | [`../README.md`](../README.md) for setup · [`../CLAUDE.md`](../CLAUDE.md) for the full command list |
+| Deploy it | `backend/Dockerfile` + `backend/fly.toml`; move the data with `scripts/neon-restore.sh`. north-star §5d |
+| Understand why a build died on the JDK | `pom.xml`'s enforcer rule says it in the error. Background in [`../CLAUDE.md`](../CLAUDE.md) |
 
 ---
 
@@ -216,8 +226,9 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 
 | Risk | Detail |
 |---|---|
-| **Nothing is deployed** | The end of Phase 5 is "a site you can log into", and HTTPS/HSTS cannot be satisfied locally. Fly + Neon + Vercel, north-star §5d |
+| **Nothing is deployed** | The end of Phase 5 is "a site you can log into", and HTTPS/HSTS cannot be satisfied locally. Fly + Neon + Vercel, north-star §5d. **`backend/Dockerfile`, `backend/fly.toml` and `scripts/neon-restore.sh` now exist and are verified offline** — image builds at 455 MB, boots in ~4s, restore proved against a throwaway Postgres with row counts compared. Only the accounts are missing |
 | **The attribution footer is still owed** | nflverse (CC BY 4.0) and FFC both require it; outstanding since Phase 0. It ships with the web shell |
+| **Nothing watches the pipeline** | `ingestFreshness` was DOWN and correct for three days in September 2026 with no process alive to be asked. The indicator is not the gap; **a host for it is**. Closed by the Fly deploy, whose `auto_stop_machines = false` is load-bearing for the same reason |
 
 ### Closed since the 2026-09-08 audit
 
@@ -240,7 +251,7 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 |---|---|
 | `StatIngestor` holds a whole season in memory | Identity mapper into a `List<CSVRecord>`, then a second full-size batch, under a JVM with no `-Xmx` |
 | The ingest depends on a laptop being awake | launchd fires on wake, not at 06:00, and on local time rather than ET. Acceptable for a pull with no deadline — and the reason the freshness indicator exists rather than being optional |
-| No shared Testcontainers base class | **Measured 2026-09-10: this is now half the build.** Ten cached Spring contexts, seven of them with an embedded Tomcat. The 130 tests execute in **23.2s**; tearing those ten contexts down takes **28.5s**, and Surefire kills the fork on its 30s deadline. The build still reports SUCCESS, which is exactly why it went unnoticed for five phases. Identical on 21 and 25 (56.072s vs 56.044s), so the Java 25 bump did not cause it — see [`../CLAUDE.md`](../CLAUDE.md) |
+| No shared Testcontainers base class | Ten cached Spring contexts, seven with an embedded Tomcat — the structure is real. **The "half the build" cost was not: re-measured 2026-09-12 across four JDK/dependency combinations at 30.7–33.0s with no Surefire dump.** The original 56s was taken while Docker Desktop was starting. Teardown is ~9s of a 31s build. Still worth doing, no longer urgent — see [`../CLAUDE.md`](../CLAUDE.md) |
 | Hikari is at Spring Boot's default 10 connections | 10 × ~39 ms occupancy ≈ the 256 req/s ceiling. Phase 11 must not mistake raising it for a fix |
 
 ### Housekeeping

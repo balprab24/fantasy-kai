@@ -1,0 +1,44 @@
+# fantasy-kai backend on Fly.io. Phase 5d.
+#
+# `app` is a placeholder until `fly launch --no-deploy` claims a real name.
+app = "fantasy-kai-backend"
+primary_region = "ord"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+
+  # THIS IS LOAD-BEARING, NOT A COST PREFERENCE.
+  #
+  # IngestScheduler is @Scheduled(cron = "0 0 6 * * *", zone = "America/New_York")
+  # and it only fires inside a running JVM. An auto-stopped machine wakes on an
+  # HTTP request, and 06:00 ET is not one -- so auto_stop would silently restore
+  # exactly the failure this deploy exists to fix: a daily pull that nobody runs
+  # and nobody notices. Keep one machine up.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    # /actuator/health/liveness, never the aggregate. ingestFreshness reports
+    # DOWN when the daily pull has stopped, which is degraded rather than dead:
+    # a probe on the aggregate would restart a machine that is serving six
+    # seasons perfectly, every time the pipeline hiccuped. The liveness group
+    # in application.yml exists for exactly this.
+    method = "GET"
+    path = "/actuator/health/liveness"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "60s"
+
+[[vm]]
+  # 1 GB rather than the 256 MB default. StatIngestor materialises a whole
+  # season of CSV records and then a second full-size batch, so the daily
+  # ingest -- not a request -- sets the memory ceiling. Revisit after the
+  # first in-season pull is measured on the machine rather than guessed.
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
