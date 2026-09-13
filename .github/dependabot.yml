@@ -15,6 +15,24 @@ updates:
         patterns: ["org.springframework*", "io.spring*"]
       test:
         patterns: ["org.testcontainers*", "com.redis*", "org.junit*", "org.assertj*"]
+      # jjwt, bucket4j and bouncycastle matched no group, so they arrived as
+      # loose PRs -- and bouncycastle is the Argon2id provider, which is the
+      # last dependency that should be waiting behind noise.
+      auth:
+        patterns: ["io.jsonwebtoken*", "com.bucket4j*", "org.bouncycastle*"]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      next:
+        patterns: ["next", "eslint-config-next", "react", "react-dom", "@types/react*"]
+      tanstack:
+        patterns: ["@tanstack/*"]
+      tooling:
+        patterns: ["typescript", "eslint*", "tailwindcss", "@tailwindcss/*", "@types/node"]
 
   - package-ecosystem: github-actions
     directory: /

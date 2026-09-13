@@ -38,3 +38,4 @@ build/
 *.iws
 .vscode/
 logs/
+.tmp/

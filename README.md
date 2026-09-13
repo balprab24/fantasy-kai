@@ -11,9 +11,9 @@ pipeline, the scoring engine, a read API, a measured performance baseline, and t
 columns. **112,319 weekly stat lines across the 2020–2025 seasons** — 1,243 distinct
 QB/RB/WR/TE players across those six seasons, 578–633 in any single one. Five REST
 endpoints serve rankings, players and game logs against any scoring ruleset, and an
-account gets you scoring profiles of your own. 130 tests.
+account gets you scoring profiles of your own. 132 tests.
 
-No web UI yet — the Next.js shell is the next slice of Phase 5.
+The web shell ships in Phase 5c: a landing board you can rescore by switching ruleset, rankings with filters, a player game log, and a builder for your own league's rules.
 
 The measured headline so far: the rankings endpoint is CPU-bound, and **88% of that CPU is
 Postgres, not the Java scorer** — which disproved the hypothesis the design doc was built
@@ -27,11 +27,13 @@ for operational notes.
 
 ## Stack
 
-Spring Boot 3.5 (Java 25) · PostgreSQL 16 · Flyway · Redis 7 (provisioned, first used in Phase 5) · Next.js 15 (Phase 5)
+Spring Boot 3.5 (Java 25) · PostgreSQL 16 · Flyway · Redis 7 · Next.js 16 / React 19 / TypeScript 6 / Tailwind 4 (Node 24)
 
 ## Local setup
 
-Requires JDK 25 and Docker.
+Requires JDK 25 and Docker. `java_home -v 25` returns the newest JDK it has and exits 0 when 25
+is absent, and it only scans `/Library/Java/JavaVirtualMachines` and the same path under `~`
+— so check `java -version`. The build's enforcer rule names the JDK if you get this wrong.
 
 ```bash
 brew install --cask temurin@25   # matches CI's distribution
