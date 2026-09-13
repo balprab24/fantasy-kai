@@ -439,9 +439,19 @@ amended rather than left to drift — the intent was always *the current App Rou
 | Node | **24.21.0** | Krypton LTS. **Node 20 went EOL 2026-04-30** and was what this machine had |
 | Next.js | **16.3.5** | engines `node >= 20.9.0` |
 | React / React DOM | 19.3.0 | |
-| TypeScript | 7.0.2 | the native compiler port |
+| TypeScript | **6.0.3, not 7.0.2** | see below |
 | Tailwind | 4.3.3 | CSS-first config; there is no `tailwind.config.js` by default any more |
 | TanStack Query / Table / Virtual | 5.102.8 / 9.2.4 / 3.14.12 | |
+
+**TypeScript 7 was tried and backed out, and the reason is worth keeping.** 7.0.2 is `latest` and
+it builds: the native compiler typechecks this project in **173 ms against 1,212 ms** on the 5.x
+line, which is the whole point of the rewrite. But `npm run lint` then dies outright —
+
+> `typescript-eslint does not support TS 7.0.` … *see issue #10940 for tracking support for TS >=7.1*
+
+— so adopting 7.0 means no linting at all, and the React 19 hook rules are what caught three real
+`setState`-in-effect bugs while this shell was being built. 6.0.3 is stable, newer than 5.9.3, and
+typescript-eslint supports it. Revisit at TS 7.1. **"Latest" and "current" are not the same word.**
 
 Screens: public landing (top 100) · register/login · rankings table (virtualized, ~610 rows) ·
 player detail with game log · profile switcher · custom ruleset builder.

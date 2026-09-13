@@ -15,13 +15,13 @@ it for three days.
 | | |
 |---|---|
 | Phases shipped | **0 → 5b** |
-| Currently next | **Phase 5c/5d** — Next.js web shell, then deploy |
+| Currently next | **Phase 5d** — the deploy. Every artefact is written and verified locally; only the accounts are missing |
 | Backend | 73 files · 4,693 lines · Java 25 / Spring Boot 3.5.16 |
 | Tests | 17 files · **132 tests**, all green · `./mvnw -B clean verify` **≈ 31s** (the old "≈ 60s" was measured against a cold Docker daemon — see [`../CLAUDE.md`](../CLAUDE.md)) |
 | HTTP endpoints | **12** — 5 public `GET`, 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V5` |
 | Data loaded | **112,453** stat rows (2026 week 1 landed 2026-09-12) · 25,065 players · 1,965 games · 2020–2026 · 33 MB after `VACUUM FULL` |
-| Frontend | none yet — **Phase 5c, next** |
+| Frontend | **Next.js 16 · 14 files** — landing, rankings, player detail, auth, ruleset builder, attribution footer. `npm run build` + `npm run lint` green |
 
 | # | Phase | State |
 |---|---|---|
@@ -32,7 +32,7 @@ it for three days.
 | 3.5 | Close the baseline — k6 at 1/5/10/20 VUs; **the bottleneck is Postgres, not the scorer (88/12)** | ✅ |
 | 4 | Vegas in the schema — `V4` widens `games` by 10 columns | ✅ |
 | 4.75 | Toolchain recovery — JDK 25 located, enforcer rule, deps current, headless-context bug fixed | ✅ |
-| **5** | **Auth + web shell** — Argon2id, JWT, rotating refresh, Bucket4j · Next.js shell | 🔶 5a/5b ✅ · 5d artefacts written + locally verified · 5c/5d ⬅ **next** |
+| **5** | **Auth + web shell** — Argon2id, JWT, rotating refresh, Bucket4j · Next.js shell | 🔶 5a/5b ✅ · **5c ✅** · 5d artefacts written and locally verified, ⬅ **awaiting accounts** |
 | 6 | Projections — `SignalKey`, `ProjectionEngine`, `ExplainedScore`, published MAE | |
 | 7 | League import — `LeagueProvider`, ESPN + Sleeper | |
 | 8 | Roster tools — optimizer, simulator, trade evaluator, waivers | |
@@ -143,6 +143,14 @@ backend/
   Dockerfile                       multi-stage, Temurin 25, Alpine runtime. 455 MB, ~4s to first 200
   fly.toml                         auto_stop_machines = false -- @Scheduled needs a live JVM
   .dockerignore
+frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6, Tailwind 4
+  src/lib/api.ts                   the only place the access token lives, and it is memory-only
+  src/lib/auth.tsx                 trades the HttpOnly refresh cookie for a token on load
+  src/lib/queries.ts               TanStack Query hooks; useProfiles waits for the session
+  src/lib/ruleset.ts               the ruleset document + a mirror of RulesetValidator's bounds
+  src/components/                  RulesetSwitch (the hero), RankingsBoard, RulesetBuilder,
+                                   RateInput, Movement, Attribution, SiteHeader, AuthForm
+  src/app/                         / rankings /players/[id] /profiles /login /register
 backend/src/test/
   java/com/fantasykai/             15 test classes + ApiFixture, Presets
   resources/application.properties test JWT secret, and Redis pointed at redis.invalid
@@ -213,6 +221,8 @@ scored before a page can be taken. That is the [§9 baseline](perf/baseline.md),
 | Know why a type was chosen | the migration's own comment — every column carries its measured range |
 | Run it | [`../README.md`](../README.md) for setup · [`../CLAUDE.md`](../CLAUDE.md) for the full command list |
 | Deploy it | `backend/Dockerfile` + `backend/fly.toml`; move the data with `scripts/neon-restore.sh`. north-star §5d |
+| Add a screen | a route under `frontend/src/app/`, a hook in `src/lib/queries.ts`, a type in `src/lib/types.ts` |
+| Change how a request is authenticated | `frontend/src/lib/api.ts` — one fetch wrapper, and the only thing that holds the access token |
 | Understand why a build died on the JDK | `pom.xml`'s enforcer rule says it in the error. Background in [`../CLAUDE.md`](../CLAUDE.md) |
 
 ---
@@ -227,7 +237,7 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 | Risk | Detail |
 |---|---|
 | **Nothing is deployed** | The end of Phase 5 is "a site you can log into", and HTTPS/HSTS cannot be satisfied locally. Fly + Neon + Vercel, north-star §5d. **`backend/Dockerfile`, `backend/fly.toml` and `scripts/neon-restore.sh` now exist and are verified offline** — image builds at 455 MB, boots in ~4s, restore proved against a throwaway Postgres with row counts compared. Only the accounts are missing |
-| **The attribution footer is still owed** | nflverse (CC BY 4.0) and FFC both require it; outstanding since Phase 0. It ships with the web shell |
+| ~~**The attribution footer is still owed**~~ | **Closed.** `frontend/src/components/Attribution.tsx`, in the root layout so it is on every page — nflverse (CC BY 4.0), Sleeper and FFC. Owed since Phase 0 |
 | **Nothing watches the pipeline** | `ingestFreshness` was DOWN and correct for three days in September 2026 with no process alive to be asked. The indicator is not the gap; **a host for it is**. Closed by the Fly deploy, whose `auto_stop_machines = false` is load-bearing for the same reason |
 
 ### Closed since the 2026-09-08 audit

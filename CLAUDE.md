@@ -1,6 +1,6 @@
 # fantasy-kai — project brain
 
-NFL fantasy analytics platform. Java 25 / Spring Boot 3.5.16 · PostgreSQL 16 · Redis 7 · Next.js 15 (Phase 5).
+NFL fantasy analytics platform. Java 25 / Spring Boot 3.5.16 · PostgreSQL 16 · Redis 7 · Next.js 16 / React 19 / TypeScript 6 (Phase 5c).
 
 **Two docs sit above this file, and they own different things.**
 
@@ -51,6 +51,8 @@ backend/src/main/java/com/fantasykai/
   auth/            Phase 5 — filter chain, JWT, rotating refresh, Argon2id, rate limit
 backend/src/main/resources/db/migration/   Flyway. V1 schema, V2 ingestion support,
                                            V3 presets, V4 Vegas columns, V5 refresh_tokens
+backend/Dockerfile · fly.toml              Phase 5d. Alpine runtime; auto_stop is off on purpose
+frontend/        Phase 5c — Next.js 16 App Router. api.ts holds the only access token, in memory
 backend/src/test/resources/nflverse/       Real 2024 rows as fixtures — not invented
 docs/map.md                                Front door — status board, class map, pipelines
 docs/north-star.md                         Scope, roadmap, product invariants
@@ -74,7 +76,8 @@ scripts/                                   install-ingest.sh, launchd plist, ing
 | 4.5 — pre-Phase-5 fixes | ✅ `f478233` daily ingest installed + freshness health + CSV header assertion · `5d5b8b4` canonical hash over the resolved form + decimal rounding. **102 in the suite** |
 | 5a/5b — Auth + tenant isolation | ✅ `com.fantasykai.auth` (16 classes) + `V5`. Default-deny chain, Argon2id, HS256 JWT, rotating refresh with family revocation, Bucket4j on Redis. **130 in the suite** |
 | 4.75 — toolchain recovery | ✅ 2026-09-12 — JDK 25 found, enforcer rule, jjwt/bucket4j/bcprov bumped, **the headless-context bug the suite could not see** fixed. **132 in the suite** |
-| 5c/5d — Web shell + deploy | ⬅ **next** — 5d's `Dockerfile`/`fly.toml`/`neon-restore.sh` are written and verified locally; accounts are the only thing left. Then Next.js 16, attribution footer |
+| 5c — Web shell | ✅ Next.js 16 App Router, 14 files. Landing, rankings, player detail, auth, ruleset builder. **Attribution footer shipped — owed since Phase 0.** Proved end to end in a browser: a user-built 6-point-passing-TD ruleset put Stafford at #1 with 442.4 where Half PPR had him 4th at 350.4 |
+| 5d — Deploy | ⬅ **next** — `Dockerfile`, `fly.toml` and `neon-restore.sh` written and verified locally. Only the Fly/Neon/Upstash/Vercel accounts are missing |
 | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
 
@@ -285,6 +288,22 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   contexts is ten contexts), but it is not half the build, and it was never the Java 25 bump either.
   **The lesson is about the measurement, not the number: a one-shot timing taken against a cold
   daemon was written down as a structural property.**
+- **A focused `<input type="number">` treats the mouse wheel as increment.** The ruleset builder is
+  taller than a screen, so the ordinary gesture — set a rate, scroll down to Save — silently moved
+  the rate that still had focus. No error, no highlight, and the ruleset saves wrong: a scoring
+  bug introduced by scrolling. `RateInput` blurs on wheel rather than calling `preventDefault`,
+  because the user is trying to scroll the page and should be allowed to. Found by scrolling the
+  form in a browser, not by reading it.
+- **`POST /api/v1/scoring-profiles` takes `rules` as a JSON *string*, not a nested object.** The
+  column is `jsonb` and the server hands the raw text to `RulesetValidator`, which is what lets it
+  reject an unknown key *by name* instead of silently dropping whatever Jackson could not bind.
+  Sending an object is `400 Failed to read request`.
+- **A user-scoped query that fires before the session is restored caches the logged-out answer.**
+  `/api/v1/scoring-profiles` is filtered by the JWT subject, and on a fresh load there is no access
+  token yet — it is still being traded for from the refresh cookie. The request went out
+  unauthenticated, returned the four presets, and TanStack Query cached that for five minutes: a
+  signed-in user could not see their own ruleset until a hard reload. `useProfiles` is gated on
+  `status !== "restoring"`; every other query is public and deliberately is not.
 - **A `@Bean` that takes `HttpSecurity` breaks every entrypoint that is not a web application.**
   `scripts/ingest-once.sh` runs the daily pull with `--spring.main.web-application-type=none`, and
   `HttpSecurity` exists only in a servlet context — so Phase 5a's `SecurityConfig.filterChain` made
@@ -380,8 +399,16 @@ launchctl list | grep fantasykai        # loaded?
 launchctl start com.fantasykai.ingest   # run it now
 tail -f logs/ingest.log
 
-# is the pipeline fresh?
+# is the pipeline fresh?  (anonymous sees status only -- show-details is when-authorized)
 curl -s localhost:8080/actuator/health | jq .components.ingestFreshness
+
+# web shell (Phase 5c). Node 24 -- .nvmrc pins it; Node 20 went EOL 2026-04-30.
+cd frontend && nvm use && npm ci
+npm run dev                               # :3000, expects the API on :8080
+npm run lint && npm run build             # what CI runs
+
+# the deploy image, built and run against the compose Postgres
+cd backend && docker build -t fantasykai-backend:local .
 ```
 
 **Postgres is on 5433** because a Homebrew `postgresql@16` launchd service owns 5432 on the dev Mac and wins the connection. Symptom when this bites: `role "fantasykai" does not exist`.

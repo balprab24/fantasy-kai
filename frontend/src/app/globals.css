@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+/*
+ * The product's claim is that one season has several correct answers, and the
+ * ruleset decides which. So the palette is deliberately instrument-like rather
+ * than sporty: chalk-cool paper, one field green that means "active", and a
+ * categorical ramp that is spent only where colour carries data (which stat a
+ * point came from). Nothing is coloured for decoration.
+ */
+@theme {
+  --color-paper: #f2f4f1;
+  --color-raised: #ffffff;
+  --color-ink: #16211c;
+  --color-mute: #5f7268;
+  --color-faint: #8fa199;
+  --color-line: #dde3dd;
+  --color-line-strong: #c3cec7;
+  --color-field: #1d6b4a;
+  --color-field-soft: #e4efe8;
+
+  /* Stat composition. Six hues, distinguishable at 6px tall and in greyscale
+     order, because these bars are read as data and not as flair. */
+  --color-stat-pass: #2f6f9f;
+  --color-stat-rush: #1d6b4a;
+  --color-stat-rec: #7a5aa8;
+  --color-stat-td: #c8792c;
+  --color-stat-ret: #4a8f8a;
+  --color-stat-loss: #9d3b3b;
+
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* Figures in a ranking must line up vertically or the column stops being
+   scannable, which is the only reason the table exists.
+   Scoped to the class and never set on `body`: `tnum` also substitutes
+   tabular-width punctuation, and Schibsted Grotesk's tabular comma and period
+   carry enough extra sidebearing to read as a space before every one of them
+   in running prose. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-field);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* The one piece of non-user-triggered motion in the product, and it fires only
+   in response to changing the ruleset: a row that moved says so, briefly. */
+@keyframes settle {
+  from {
+    background-color: var(--color-field-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.settled {
+  animation: settle 900ms ease-out;
+}
