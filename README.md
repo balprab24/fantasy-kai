@@ -15,7 +15,8 @@ scoring ruleset, and an account gets you scoring profiles of your own. 132 tests
 
 The web shell is a landing board you can rescore by switching ruleset, rankings with filters, a
 player game log, and a builder for your own league's rules. **Nothing is deployed yet** — Phase
-5d is the deploy, and every artefact for it is written and verified locally.
+5d is the deploy; its artefacts live in [`deploy/`](deploy/) and the whole stack has been run and
+probed locally, but it is waiting on a domain and the hosting accounts.
 
 The measured headline so far: the rankings endpoint is CPU-bound, and **88% of that CPU is
 Postgres, not the Java scorer** — which disproved the hypothesis the design doc was built

@@ -79,7 +79,9 @@ backend/src/main/java/com/fantasykai/
   auth/            Phase 5 — filter chain, JWT, rotating refresh, Argon2id, rate limit
 backend/src/main/resources/db/migration/   Flyway. V1 schema, V2 ingestion support,
                                            V3 presets, V4 Vegas columns, V5 refresh_tokens
-backend/Dockerfile · fly.toml              Phase 5d. Alpine runtime; auto_stop is off on purpose
+backend/Dockerfile                         Phase 5d. Temurin 25 JRE on Alpine, arm64 and amd64
+deploy/                                    Phase 5d. compose.prod.yml + Caddyfile + README.md
+                                           (the runbook, the firewall trap, 9 acceptance checks)
 frontend/        Phase 5c — Next.js 16 App Router. api.ts holds the only access token, in memory
 backend/src/test/resources/nflverse/       Real 2024 rows as fixtures — not invented
 docs/map.md                                Front door — status board, class map, pipelines
@@ -91,7 +93,8 @@ docs/perf/                                 baseline.md only so far; projection-a
 perf/rankings.js                           k6 load script — pins season=2025 on purpose
 scripts/                                   session-check.sh (runs at every session start),
                                            package.sh + lib/jar-state.sh, install-ingest.sh,
-                                           launchd plist, ingest-once.sh, perf-explain.sh
+                                           launchd plist, ingest-once.sh, perf-explain.sh,
+                                           db-restore.sh (was neon-restore.sh)
 .claude/                                   SessionStart hook + the /review-pass command
 ```
 
@@ -109,7 +112,7 @@ scripts/                                   session-check.sh (runs at every sessi
 | 5a/5b — Auth + tenant isolation | ✅ `com.fantasykai.auth` (16 classes) + `V5`. Default-deny chain, Argon2id, HS256 JWT, rotating refresh with family revocation, Bucket4j on Redis. **130 in the suite** |
 | 4.75 — toolchain recovery | ✅ 2026-09-12 — JDK 25 found, enforcer rule, jjwt/bucket4j/bcprov bumped, **the headless-context bug the suite could not see** fixed. **132 in the suite** |
 | 5c — Web shell | ✅ Next.js 16 App Router, 21 `.ts`/`.tsx` files (23 under `frontend/src`). Landing, rankings, player detail, auth, ruleset builder. **Attribution footer shipped — owed since Phase 0.** Proved end to end in a browser: a user-built 6-point-passing-TD ruleset put Stafford at #1 with 442.4 where Half PPR had him 4th at 350.4 |
-| 5d — Deploy | ⬅ **next** — `Dockerfile`, `fly.toml` and `neon-restore.sh` written and verified locally. Only the Fly/Neon/Upstash/Vercel accounts are missing |
+| 5d — Deploy | ⬅ **in progress** — host changed: **Oracle Cloud Always Free VM + Caddy + Vercel**, not Fly/Neon/Upstash, because those free tiers stopped existing (north-star §5d has the survey with sources). `deploy/compose.prod.yml` + `Caddyfile` + `README.md` written and **proved on this Mac**: whole stack healthy, 6 of the 10 acceptance checks green. Two real bugs found by running it — HSTS configured but never sent, and a CORS allowlist with no mechanism to reach production. **134 in the suite.** Waiting on a domain and the accounts |
 | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
 
@@ -392,6 +395,35 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   `backend/src/test` never enters the jar and a test file was half of what tripped it. The mtime
   rule survives only as a fallback for a jar with no recorded hash, and it **says so** when it
   fires. Proved by `touch`ing a source file: the old rule flips to STALE, the hash does not move.
+- **A security header that is configured is not a security header that is sent.** Spring Security's
+  `httpStrictTransportSecurity()` block has been in `SecurityConfig` since Phase 5a and emitted
+  **nothing** in production, because its writer only fires when `request.isSecure()` — and behind a
+  proxy that terminates TLS, Tomcat sees plain HTTP and says false unless
+  `server.forward-headers-strategy` is set. It was not. handoff §8's "HTTPS only, HSTS on" row would
+  have shipped unsatisfied with config that reads correctly. **What made it invisible is what was
+  next to it:** `x-frame-options` and `x-content-type-options` were both present on the same
+  response, because those two do not check `isSecure()`. Two out of three headers arriving is a far
+  better disguise than none. Found by curling the running stack and grepping, not by reading the
+  config. `framework`, not `native`: the Tomcat valve needs an `internal-proxies` regex matching
+  whatever address the proxy has on the container network, which breaks quietly when the network
+  changes. `framework` trusts the headers unconditionally, which is sound **only** because the
+  backend has `expose` and no published port and Caddy replaces `X-Forwarded-*` — publish that port
+  and a forged `X-Forwarded-Proto` is enough to fake a secure request.
+- **`SameSite` is decided by registrable domain, and `localhost` hides it completely.** The refresh
+  cookie is `SameSite=Strict`. `fantasykai.vercel.app` → `fantasykai.fly.dev` is **cross-site** (two
+  registrable domains), so the browser sends no cookie to `/api/v1/auth/refresh` and every reload
+  logs the user out. `localhost:3000` → `localhost:8080` is **same-site**, because SameSite ignores
+  ports — so every local test passes and production is broken. `allowCredentials(true)` does not
+  save it: that is the CORS layer, this is the cookie layer, and both have to permit it
+  independently. `SecurityConfig` documented the CORS half and was silent on the other, which is
+  exactly what kept it hidden. The fix is one registrable domain (apex on Vercel, `api.` on the VM),
+  not a weaker cookie.
+- **A config value with no way to change it is a value that will be wrong.**
+  `fantasykai.auth.allowed-origins` was a hardcoded yml list carrying the comment "the Vercel origin
+  is added at deploy" — and nothing added it, because no mechanism existed. It is now one
+  comma-separated env var, and `CorsBindingTests` asserts the **split**, not the plumbing: a
+  `List<String>` bound from one string either becomes the origins you meant or collapses into a
+  single comma-joined blob that matches nothing, and both of those start the application.
 - **A launchd plist with a placeholder path is not an installed job.** The plist shipped three
   `__REPO__` placeholders and an instruction to "edit the two by hand"; it was never loaded, `logs/`
   stayed empty, and `ingest_runs` recorded three of the seven days before kickoff. `install-ingest.sh`

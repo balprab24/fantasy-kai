@@ -45,12 +45,18 @@ cd "$repo" || exit 70
 EXPECT_STAT_ROWS=113359     # CLAUDE.md "Measured numbers" · docs/map.md §1
 EXPECT_PLAYERS=25065        # CLAUDE.md "Measured numbers" · docs/map.md §1
 EXPECT_GAMES=1965           # docs/map.md §1
-EXPECT_TESTS=132            # CLAUDE.md "Current state" · docs/map.md §1 · README
+EXPECT_TESTS=134            # CLAUDE.md "Current state" · docs/map.md §1 · README
 EXPECT_ENDPOINTS=12         # docs/map.md §1 (5 public GET + 4 auth + 3 mutations)
 EXPECT_MIGRATIONS=5         # docs/map.md §1 ("V1 … V5")
 EXPECT_BACKEND_FILES=73     # docs/map.md §1
 EXPECT_FRONTEND_FILES=21    # docs/map.md §1 (.ts/.tsx under frontend/src)
 EXPECT_JDK=25               # CLAUDE.md "Commands" · README · pom.xml enforcer
+
+# The deployed API's hostname, and it is deliberately empty until Phase 5d has
+# actually landed one. Empty means the DEPLOY rows print "?" with that reason --
+# never "ok", because "nothing is deployed" and "the deploy is fine" must not
+# look the same. Override for a staging host with FK_DEPLOY_HOST=... .
+DEPLOY_HOST="${FK_DEPLOY_HOST:-}"   # docs/north-star.md §5d · deploy/README.md
 
 # Mirrors IngestFreshnessHealthIndicator.STALE_AFTER exactly. One missed 06:00
 # is a laptop that slept; two is a stopped pipeline. If that constant moves,
@@ -431,6 +437,63 @@ check_data() {
     esac
 }
 
+check_deploy() {
+    group "DEPLOY"
+
+    if [[ -z "$DEPLOY_HOST" ]]; then
+        unknown "liveness" "no deploy host configured -- set DEPLOY_HOST in this script once Phase 5d lands, or FK_DEPLOY_HOST to point at one"
+        return
+    fi
+    if (( no_network )); then
+        unknown "liveness" "--no-network"
+        return
+    fi
+    if ! command -v curl >/dev/null 2>&1; then
+        unknown "liveness" "curl not found"
+        return
+    fi
+
+    local base="https://$DEPLOY_HOST"
+
+    # --max-time 4, not 10, and twice at most. This script's own header promises
+    # "about three seconds" and it runs at every session start; two ten-second
+    # network calls would quietly make that false the first time DNS was slow.
+    # A slow deploy is reported as unreachable, which is honest: from here,
+    # "took longer than the check is allowed to wait" and "cannot be reached"
+    # are the same observation.
+    local timeout=4
+
+    # Liveness is ping + db only. It is the row that says "the JVM is alive and
+    # can reach its database", which is also the row that says IngestScheduler
+    # has a process to fire inside -- the whole reason this deploy exists.
+    local code
+    code="$(curl -sS --max-time "$timeout" -o /dev/null -w '%{http_code}' "$base/actuator/health/liveness" 2>/dev/null)"
+    case "$code" in
+        200) ok   "liveness" "$base is up" ;;
+        000|"") unknown "liveness" "$base unreachable (DNS, TLS or timeout) -- not the same as down" ;;
+        *)   fail "liveness" "$base/actuator/health/liveness returned $code" ;;
+    esac
+
+    # The aggregate. Anonymous callers get a status and no components
+    # (show-details: when-authorized), so a DOWN here names no cause and this
+    # must not pretend otherwise. It is still worth printing: DOWN with liveness
+    # UP means something beyond ping/db is unhappy, and ingestFreshness is the
+    # component that usually is.
+    # Non-greedy by construction: take the FIRST status, which is the aggregate.
+    # `.*status:` would be greedy and, the day show-details is ever widened or a
+    # component list appears in the body, would silently report the LAST
+    # component's status as though it were the overall one.
+    local agg
+    agg="$(curl -sS --max-time "$timeout" "$base/actuator/health" 2>/dev/null \
+           | tr -d ' "' | sed -n 's/^[^s]*status:\([A-Z_]*\).*/\1/p' | head -1)"
+    case "$agg" in
+        UP)   ok   "health" "aggregate UP" ;;
+        DOWN) warn "health" "aggregate DOWN with liveness up -- a component is degraded, but components are when-authorized so the cause is not visible from here" ;;
+        "")   unknown "health" "no status in the response body" ;;
+        *)    warn "health" "aggregate $agg" ;;
+    esac
+}
+
 check_claims() {
     group "CLAIMS  (a number here disagreeing with the docs means one of them is wrong)"
     claim "tests"      "$(count_tests)"     "$EXPECT_TESTS"          "CLAUDE.md"
@@ -446,9 +509,10 @@ run_all() {
     check_repo
     check_schema
     check_data
+    check_deploy
     check_claims
     printf '\n'
-    printf 'not checked here: does the suite pass · does the frontend build · is anything deployed\n'
+    printf 'not checked here: does the suite pass · does the frontend build\n'
     printf '  the gates for those are in CLAUDE.md under "Definition of done".\n'
     printf '\n'
     printf '%d FAIL · %d drift · %d warn · %d unknown\n' "$n_fail" "$n_drift" "$n_warn" "$n_unknown"

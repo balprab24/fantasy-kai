@@ -561,12 +561,25 @@ Re-measure after each. Be honest in the write-up if the delta here is small — 
 
 ### Deployment
 
+> **Superseded 2026-09-14 — see north-star §5d.** Every free tier this table
+> depends on is gone or sleeps: Fly has no free tier ($5.70/mo for the 1 GB
+> machine this needs) and Render sleeps after 15 minutes idle. (Railway was not
+> re-checked — it was already the second choice here, and Fly failing settled
+> the question before it mattered.) The binding constraint turned out not to be cost but `IngestScheduler`,
+> which only fires inside a live JVM — so anything that stops an idle process
+> recreates the outage the deploy exists to end. The shipped answer is one
+> Oracle Cloud Always Free VM running Postgres, Redis and the backend behind
+> Caddy, with Vercel for the frontend. Kept here as written because the
+> reasoning that picked these — free tier, a region near Chicago, managed
+> Postgres — was sound at the time and the survey that replaced it is worth
+> comparing against.
+
 | Component | Target | Notes |
 |---|---|---|
-| Spring Boot | Railway or Fly.io | Both have usable free/hobby tiers; Fly gives you a region near Chicago |
-| PostgreSQL | Neon | Generous free tier, branching is great for testing migrations |
-| Redis | Upstash | Free tier, HTTP-friendly |
-| Next.js | Vercel | You already know the flow |
+| Spring Boot | ~~Railway or Fly.io~~ | Both have usable free/hobby tiers; Fly gives you a region near Chicago |
+| PostgreSQL | ~~Neon~~ | Generous free tier, branching is great for testing migrations |
+| Redis | ~~Upstash~~ | Free tier, HTTP-friendly |
+| Next.js | Vercel | You already know the flow — this one survived |
 | CI | GitHub Actions | Build + test + Flyway validate on every PR |
 
 ---

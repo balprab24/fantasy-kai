@@ -60,9 +60,14 @@ fantasykai:
     refresh-token-ttl: 30d
     # Per IP, across /api/v1/auth/**. Handoff section 8.
     login-attempts-per-minute: 5
-    # Explicit allowlist, never `*`. The Vercel origin is added at deploy.
-    allowed-origins:
-      - http://localhost:3000
+    # Explicit allowlist, never `*`. One comma-separated env var rather than a
+    # yml list, because the production origins are not knowable at build time and
+    # the previous shape had no mechanism to add them at all -- the comment said
+    # "the Vercel origin is added at deploy" and nothing did it. Spring splits a
+    # comma-separated string into the List<String> AuthProperties declares;
+    # CorsBindingTests proves that, because binding a List from an environment
+    # variable is exactly the thing that silently yields one element or none.
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:3000}
 
   ingest:
     base-url: https://github.com/nflverse/nflverse-data/releases/download
@@ -76,3 +81,30 @@ fantasykai:
     # IngestOnceRunner. `once` is what scripts/ingest-once.sh sets.
     backfill-on-startup: false
     once: false
+
+# Honour X-Forwarded-* from the reverse proxy in front of this application.
+#
+# Without it Tomcat does not know TLS was terminated ahead of it,
+# request.isSecure() is false, and Spring Security's HSTS writer -- which only
+# emits on a secure request -- silently writes nothing. The
+# httpStrictTransportSecurity() block in SecurityConfig then looks correct,
+# compiles, and does nothing, so handoff section 8's "HTTPS only, HSTS on" row
+# would have shipped unsatisfied.
+#
+# Found by curling the running stack and grepping the response headers, not by
+# reading the config: x-frame-options and x-content-type-options were both
+# present, and it is their presence that made the missing third one look like it
+# was there.
+#
+# `framework` (Spring's ForwardedHeaderFilter) rather than `native` (Tomcat's
+# RemoteIpValve): native needs an internal-proxies regex matching whatever
+# address the proxy has on the container network, which is configuration that
+# breaks quietly when the network changes. framework trusts the headers
+# unconditionally -- safe here only because nothing can reach this application
+# except through Caddy (compose.prod.yml gives the backend `expose` and no
+# published port) and Caddy replaces X-Forwarded-* rather than passing a
+# client's through. Both halves of that are load-bearing: publishing the
+# backend's port would make a forged X-Forwarded-Proto enough to fake a secure
+# request.
+server:
+  forward-headers-strategy: framework

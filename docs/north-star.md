@@ -471,40 +471,110 @@ owed since Phase 0.
 
 #### 5d — Deployment
 
-**Fly.io (backend) + Neon (Postgres) + Vercel (frontend).** All three have free tiers that do not
-spin down mid-session, and HTTPS/HSTS come from the platforms, which is what closes §8's transport
-row. `JWT_SECRET`, `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` are Fly secrets — never `application.yml`.
+**One Oracle Cloud Always Free VM (backend + Postgres + Redis, behind Caddy) + Vercel (frontend),
+joined by one purchased domain.**
 
-Three things to **verify rather than assume**, because a free tier is a claim until it is measured.
-Two are now measured; the third turned into an invariant.
+This is not what this section said until 2026-09-14. It said *Fly.io + Neon + Vercel*, on the premise
+that "all three have free tiers that do not spin down mid-session." **That premise expired.** Checked
+against each vendor's own pricing page rather than against a blog, on 2026-09-14:
 
-1. **Neon needs the data — settled, and the method changed.** `scripts/neon-restore.sh` does a
-   **full** `pg_dump`, not `--data-only`: a data-only restore checks foreign keys as it loads, so it
-   depends on table ordering and wants `--disable-triggers`, which needs a superuser Neon does not
-   grant. A full dump creates constraints after the data and carries `flyway_schema_history`, so the
-   app boots, validates, finds v5 and does nothing. **Proved against a throwaway Postgres 16, not
-   reasoned about:** 16.4 MB dump, 112,453 / 25,065 / 1,965 rows compared before and after, and the
-   app booted against the restored database logging *"Schema is up to date. No migration
-   necessary."* The script refuses a non-empty target. Database is **33 MB** after `VACUUM FULL`.
-2. **Redis.** Bucket4j is specified against Redis and Redis already runs unused in
-   `docker-compose.yml`, so local is free. Fly bundles none; Upstash's free tier is the candidate.
-   If it is card-gated, in-memory Bucket4j on a single machine is the honest fallback — *correct*
-   for one instance, and the limitation gets written down rather than papered over.
-3. **Cold start — measured, and auto-stop is now forbidden for a different reason.** The image
-   reaches its first `200` in **4.4s** (Temurin 25 JRE on Alpine, 455 MB — 220 MB smaller than the
-   Ubuntu-based tag, verified to run Argon2id, HS256 and the Redis limiter identically). 4.4s is
-   survivable for a login. **It is not survivable for the ingest, and that is the binding
-   constraint:** `IngestScheduler` fires inside a running JVM, and 06:00 ET is not an HTTP request,
-   so an auto-stopped machine silently recreates the exact three-day outage this deploy exists to
-   end. `fly.toml` sets `auto_stop_machines = false` and `min_machines_running = 1`, and the VM is
-   **1 GB** rather than the 256 MB default because `StatIngestor` materialises a whole season of CSV
-   records and then a second full-size batch — the daily pull sets the memory ceiling, not a
-   request.
+| Host | Free and always-on? | What the vendor's page says |
+|---|---|---|
+| Fly.io | ✗ no free tier | shared-cpu-1x / 1 GB = **$5.70/mo** |
+| Koyeb | ✗ free tier removed | Pro from $29/mo; only a "Free 5h" serverless Postgres |
+| Render | ✗ sleeps | spins down after **15 min** idle, ~1 min wake, 750 instance-hours/mo |
+| Google Cloud | ✓ 1× `e2-micro` | always-free in three US regions, 30 GB disk, but **1 GB egress/month** |
+| **Oracle Cloud** | ✓ 2 OCPU / 12 GB Ampere A1 | 1,500 OCPU-hours + 9,000 GB-hours/mo, **10 TB/mo egress**, 200 GB block storage, 1 free load balancer |
 
-**The health check points at `/actuator/health/liveness`, not `/actuator/health`.** The group exists
-for exactly this: `ingestFreshness` reports DOWN when the daily pull has stopped, which is degraded
-rather than down, and a platform probe on the aggregate would restart a working machine every time
-the laptop slept through 06:00.
+A search result ranked Koyeb first for "always-on, no credit card required". Its own pricing page says
+the free tier is gone. That is the difference between a search result and a primary source, and it is
+why this table records who said each number.
+
+**The constraint that eliminates the sleeping tiers is the scheduler, not cost.** `IngestScheduler` is
+`@Scheduled(cron = "0 0 6 * * *", zone = "America/New_York")` and only fires inside a live JVM. 06:00
+ET is not an HTTP request, so any host that stops an idle process silently recreates the three-day
+outage this deploy exists to end. That rules out Render and Cloud Run, and it is the same argument
+that made `auto_stop_machines = false` load-bearing on Fly. With no free always-on PaaS left, the
+honest answer is an always-free IaaS VM — and Oracle's is the only credible one, Google's 1 GB of
+monthly egress being too tight for a public site.
+
+Going to a VM **removes two dependencies rather than adding them**: Postgres and Redis have been in
+`docker-compose.yml` since Phase 0, so they simply run there. Neon and Upstash both disappear. That
+also retired a latent bug nobody had hit yet — `RateLimitConfig` builds its Lettuce client from a
+hardcoded `redis://host:port` with no password and no TLS, and could never have connected to Upstash
+at all.
+
+**The domain is a design constraint, not packaging.** The refresh token is a `SameSite=Strict`
+cookie (§5a, handoff §8), and Strict is decided by *registrable domain*, not by origin. A
+`*.vercel.app` frontend calling a `*.fly.dev` API is cross-site, so the browser would never have sent
+that cookie to `POST /api/v1/auth/refresh` — every page reload silently logging the user out.
+`allowCredentials(true)` does not help; that is the CORS layer and this is the cookie layer, and both
+must permit it. **Local development hides this entirely**, because `localhost:3000` and
+`localhost:8080` are same-site — SameSite ignores ports. One domain, apex on Vercel and `api.` on the
+VM, keeps `SameSite=Strict` exactly as specified instead of weakening it to `None` to suit the
+hosting. ~$12/yr, and the only money in the plan.
+
+**Consequence, written down rather than discovered:** Vercel preview deploys are served from
+`*.vercel.app` and are therefore cross-site from `api.<domain>`. **Auth does not work on previews** —
+reads do, sign-in does not.
+
+Three things verified rather than assumed, because a free tier is a claim until it is measured, and
+so is a header:
+
+1. **The data move — settled, and the method survived the host change.** `scripts/db-restore.sh`
+   (was `neon-restore.sh`) does a **full** `pg_dump`, not `--data-only`: a data-only restore checks
+   foreign keys as it loads, so it depends on table ordering and wants `--disable-triggers`, which
+   needs a superuser a managed database does not grant. A full dump creates constraints after the
+   data and carries `flyway_schema_history`, so the app boots, validates, finds v5 and does nothing.
+   Proved against a throwaway Postgres 16: row counts compared before and after, and the app logged
+   *"Schema is up to date. No migration necessary."* It refuses a non-empty target. The database was
+   **37 MB** on 2026-09-14, re-measured — the 33 MB previously recorded here predates 2026 week 1
+   completing. It now travels over an **ssh tunnel**, because `compose.prod.yml` binds Postgres to
+   `127.0.0.1` and nothing should change that.
+2. **HSTS was configured and was not being sent.** `SecurityConfig` has had an
+   `httpStrictTransportSecurity()` block since 5a, and Spring Security only emits that header when
+   `request.isSecure()` — which is false behind a proxy that terminates TLS, unless forwarded headers
+   are honoured. `application.yml` set no `server.forward-headers-strategy`, so handoff §8's
+   "HTTPS only, HSTS on" row would have shipped **unsatisfied, with correct-looking config**. Found
+   by curling the running stack and grepping the response headers: `x-frame-options` and
+   `x-content-type-options` were both present, and it is their presence that made the missing third
+   one look like it was there. Fixed with `forward-headers-strategy: framework`, and re-verified —
+   `strict-transport-security: max-age=31536000 ; includeSubDomains`.
+3. **The rate limiter's trusted-header assumption is a claim about the host.**
+   `AuthRateLimitFilter.clientIp()` reads the **first** entry of `X-Forwarded-For`, justified by a
+   comment saying the proxy overwrites it. Fly *appends* to a client-supplied header, so that comment
+   would have been false there and the 5/min limit bypassable by varying a forged IP. Caddy, with
+   `trusted_proxies` unset, discards an incoming value and writes the real peer — so the code is
+   correct here. **Proved in both directions, because one direction was not enough:** six logins
+   each carrying a *different forged* `X-Forwarded-For` still produced `401 401 401 401 401 429`, so
+   a forged header buys nothing. That alone would also have been the result if the limiter had
+   collapsed to a single global bucket — which, with `forward-headers-strategy` newly added, was a
+   live possibility and a far worse bug than the one being tested for. So: with the host's bucket
+   exhausted at `429`, a request from a *different source IP* at the same instant returned `401`.
+   Buckets are per client, and a forged header does not create one. The Caddyfile carries a warning
+   against adding `trusted_proxies` without re-running both halves.
+
+**Cold start is no longer a design input.** It mattered on Fly because auto-stop was on the table;
+with `restart: unless-stopped` on a machine that never idles down, the number that matters is that
+the process stays alive. Measured anyway on the real image, which builds and runs on `linux/arm64`
+as the Ampere A1 requires: **3.82s** from `docker restart` to a `200` on
+`/actuator/health/liveness`, polled at 100 ms. The first draft of this line said 3.4s, which was
+Spring's own "Started FantasyKaiApplication in 3.422 seconds" — an application-startup log line, not
+a served request. They are different measurements and the review caught the substitution.
+
+**The health check points at `/actuator/health/liveness`, not `/actuator/health`.** `ingestFreshness`
+reports DOWN when the daily pull has stopped, which is degraded rather than dead, and a probe on the
+aggregate would restart a machine serving six seasons perfectly. Demonstrated live during the local
+verification: with an empty database the aggregate was `503 DOWN` while liveness was `200 UP`.
+
+Secrets — `JWT_SECRET`, `POSTGRES_PASSWORD`, `ALLOWED_ORIGINS`, `API_DOMAIN`, `ACME_EMAIL` — live in
+`deploy/.env` on the VM, which is gitignored. Every one is marked required in `compose.prod.yml`, so
+a missing one fails at `docker compose up` naming the variable rather than starting a container that
+dies later.
+
+The runbook, the firewall trap, and the nine acceptance checks are in
+[`../deploy/README.md`](../deploy/README.md).
+
 
 #### 5a/5b — shipped
 

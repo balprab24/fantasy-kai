@@ -1,0 +1,127 @@
+# The production stack: Postgres, Redis, the backend image, and Caddy in front.
+#
+# This replaces backend/fly.toml, which was written for a host with a free tier
+# that no longer exists (checked 2026-09-14: Fly is $5.70/mo for shared-cpu-1x
+# 1GB, Koyeb removed its free tier, Render sleeps after 15 minutes). The three
+# decisions that file carried were never about Fly, so they are carried here.
+#
+# Run it:  docker compose --env-file .env -f deploy/compose.prod.yml up -d --build
+# See deploy/README.md for the VM, the firewall, and the data move.
+
+name: fantasykai
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fantasykai}
+      POSTGRES_USER: ${POSTGRES_USER:-fantasykai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+    # 127.0.0.1 only, and that is the whole point of the line. The dev compose
+    # publishes 5433 on every interface, which is correct for a laptop behind a
+    # router and catastrophic on a machine with a public IP. Bound here so an
+    # ssh tunnel can still reach it for scripts/db-restore.sh without Postgres
+    # ever being listening on the internet.
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fantasykai} -d ${POSTGRES_DB:-fantasykai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    # Same reasoning as Postgres. Note that Redis on a public interface with no
+    # password is a remote-code-execution primitive, not merely a data leak.
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    # THIS IS LOAD-BEARING, NOT A CONVENIENCE. It is the replacement for
+    # fly.toml's auto_stop_machines = false and it exists for the same reason:
+    # IngestScheduler is @Scheduled(cron = "0 0 6 * * *", zone="America/New_York")
+    # and only fires inside a running JVM. 06:00 ET is not an HTTP request, so a
+    # process that stops when idle silently restores the exact three-day outage
+    # this deploy exists to end.
+    restart: unless-stopped
+    # No published port. Caddy reaches it over the compose network; nothing else
+    # should be able to, which is also what keeps /actuator off the internet
+    # except through the paths Caddy forwards.
+    expose:
+      - "8080"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-fantasykai}
+      DB_USERNAME: ${POSTGRES_USER:-fantasykai}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in deploy/.env -- at least 32 bytes}
+      # Comma-separated. The browser origins, not this machine's -- see
+      # CorsBindingTests for why this is one variable and not a yml list.
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?set ALLOWED_ORIGINS in deploy/.env}
+    # 1 GB because StatIngestor materialises a whole season of CSV records and
+    # then a second full-size batch: the daily pull sets the ceiling, not a
+    # request. The Dockerfile's -XX:MaxRAMPercentage=70 reads this limit from the
+    # cgroup, so changing the number here moves the heap with it. The VM has far
+    # more than this -- the limit is here to make the ingest's peak the thing
+    # that is sized, and to make an OOM say which process caused it.
+    mem_limit: 1g
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # /actuator/health/liveness, NEVER the aggregate. ingestFreshness reports
+    # DOWN when the daily pull has stopped, which is degraded rather than dead --
+    # a probe on the aggregate would restart a container that is serving six
+    # seasons perfectly, every time a pull was missed. The liveness group in
+    # application.yml (ping + db) exists for exactly this. Found by the Phase 0
+    # acceptance test going 503, not by reasoning about it.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/actuator/health/liveness"]
+      interval: 30s
+      timeout: 5s
+      # Generous: the image reaches its first 200 in ~4.4s measured, but a
+      # restart that races Postgres should not be counted as a failure.
+      start_period: 90s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in deploy/.env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in deploy/.env -- Caddy will not parse an empty one}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # caddy_data holds the issued certificates and the ACME account key.
+      # Losing it means re-issuing on every restart, which is how you meet Let's
+      # Encrypt's rate limit.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:
