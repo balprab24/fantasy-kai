@@ -153,16 +153,21 @@ psql_q() {
 
 # Exact count, not a match on "@Test" -- that would also catch @Testcontainers,
 # @TestConfiguration and @TestPropertySource, and did, reporting 147 for 132.
-count_tests()     { grep -rhoE '@Test\b' "$repo/backend/src/test/java" 2>/dev/null | wc -l | tr -d ' '; }
-count_endpoints() { grep -rhoE '@(Get|Post|Put|Patch|Delete)Mapping' "$repo/backend/src/main/java" 2>/dev/null | wc -l | tr -d ' '; }
-count_backend()   { find "$repo/backend/src/main/java" -name '*.java' 2>/dev/null | wc -l | tr -d ' '; }
-count_frontend()  { find "$repo/frontend/src" -type f \( -name '*.ts' -o -name '*.tsx' \) 2>/dev/null | wc -l | tr -d ' '; }
-count_migrations(){ find "$repo/backend/src/main/resources/db/migration" -name 'V*.sql' 2>/dev/null | wc -l | tr -d ' '; }
+# Each prints NOTHING when the tree it counts is absent, and a number -- zero
+# included -- when it is present. A count of 0 from a directory that exists is
+# a real answer and must read as drift, not as "could not check": if every test
+# were deleted, "nothing counted, the tree may be incomplete" would be the
+# reassuring version of a five-alarm fire.
+count_tests()     { [[ -d "$repo/backend/src/test/java" ]] || return 0; grep -rhoE '@Test\b' "$repo/backend/src/test/java" 2>/dev/null | wc -l | tr -d ' '; }
+count_endpoints() { [[ -d "$repo/backend/src/main/java" ]] || return 0; grep -rhoE '@(Get|Post|Put|Patch|Delete)Mapping' "$repo/backend/src/main/java" 2>/dev/null | wc -l | tr -d ' '; }
+count_backend()   { [[ -d "$repo/backend/src/main/java" ]] || return 0; find "$repo/backend/src/main/java" -name '*.java' | wc -l | tr -d ' '; }
+count_frontend()  { [[ -d "$repo/frontend/src" ]] || return 0; find "$repo/frontend/src" -type f \( -name '*.ts' -o -name '*.tsx' \) | wc -l | tr -d ' '; }
+count_migrations(){ [[ -d "$repo/backend/src/main/resources/db/migration" ]] || return 0; find "$repo/backend/src/main/resources/db/migration" -name 'V*.sql' | wc -l | tr -d ' '; }
 
 claim() {
     local label="$1" actual="$2" expect="$3" doc="$4"
-    if [[ -z "$actual" || "$actual" == "0" ]]; then
-        unknown "$label" "nothing counted -- the tree may be incomplete"
+    if [[ -z "$actual" ]]; then
+        unknown "$label" "the tree this counts is not present -- not checked"
     elif [[ "$actual" == "$expect" ]]; then
         ok "$label" "$actual"
     else
@@ -293,8 +298,13 @@ check_repo() {
         rm -f "$tmp"
         if [[ -z "$prs" && -z "$conc" ]]; then
             unknown "github" "gh returned nothing -- unauthenticated, offline, or timed out"
-        elif [[ "$conc" == "success" || -z "$conc" ]]; then
-            ok "github" "${prs:-?} open PR(s) · last CI on main: ${conc:-unknown}"
+        elif [[ -z "$conc" ]]; then
+            # Half an answer is not an answer. The PR count came back; the CI
+            # conclusion did not, and printing ok over that is the same sin as
+            # printing ok for a check that never ran.
+            unknown "github" "${prs:-?} open PR(s) · could not read the last CI run on main"
+        elif [[ "$conc" == "success" ]]; then
+            ok "github" "$prs open PR(s) · last CI on main: success"
         else
             fail "github" "${prs:-?} open PR(s) · last CI on main: $conc"
         fi

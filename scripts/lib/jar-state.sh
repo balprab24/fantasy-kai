@@ -53,6 +53,13 @@ fk__sha_files() {
 # as a source change.
 fk_source_hash() {
     local repo="$1"
+    # Without this guard the pipeline below happily hashes an EMPTY file list
+    # and returns a confident digest for source that is not there -- which is
+    # the CsvValues.shortValue trap inside the file whose header complains
+    # about it. An absent reading must not render as a measurement.
+    if [[ ! -d "$repo/backend/src/main" || ! -f "$repo/backend/pom.xml" ]]; then
+        return 1
+    fi
     (
         cd "$repo/backend" 2>/dev/null || return 1
         find src/main pom.xml -type f -print0 \
