@@ -11,6 +11,34 @@ This file is the operational memory that sits alongside both. When it disagrees 
 
 **[`docs/map.md`](docs/map.md) is the front door** — the status board, every package's classes, the two pipelines, and where to look for anything. It owns no facts; it links to whichever of these three does.
 
+**[`docs/orientation.md`](docs/orientation.md) is the plain-English door** — what this is, how a
+request really works, real-vs-planned, and a glossary of every term the other three assume. It
+owns explanation, not facts.
+
+## Every session starts here
+
+```bash
+./scripts/session-check.sh        # ~3s, read-only
+```
+
+It runs automatically at session start (the `SessionStart` hook in `.claude/settings.json`), and
+by hand any time. It re-derives from the tree and the database what these docs only *claim*:
+toolchain, container health, git and PR state, Flyway checksums against the applied migrations,
+row counts, ingest freshness, jar staleness, and the file/test/endpoint counts written in prose.
+
+**Where the check and a doc disagree, the check wins and the doc is what gets fixed** — before
+the session moves on to anything else. A `drift` row is not noise; it is a doc that has started
+lying, which in a project whose whole argument is *measure before asserting* is the most
+expensive kind of bug there is.
+
+**A check that cannot run prints `?`, never `ok`.** Docker down, `gh` unauthenticated, no
+`python3` — each reports unknown with its reason. This is `CsvValues.shortValue` one layer up:
+the moment "could not read it" and "read it, it was fine" print the same thing, the check is
+worse than no check.
+
+It does **not** run the test suite, build the frontend, or check a deployment. Those are the
+definition of done at the other end of the session — see the last section of this file.
+
 ## The one idea
 
 **Store raw stat lines, never fantasy points. Compute points on demand against a ruleset.**
@@ -55,12 +83,16 @@ backend/Dockerfile · fly.toml              Phase 5d. Alpine runtime; auto_stop 
 frontend/        Phase 5c — Next.js 16 App Router. api.ts holds the only access token, in memory
 backend/src/test/resources/nflverse/       Real 2024 rows as fixtures — not invented
 docs/map.md                                Front door — status board, class map, pipelines
+docs/orientation.md                        Plain-English door — glossary, real-vs-planned
 docs/north-star.md                         Scope, roadmap, product invariants
 docs/fantasy-platform-handoff.md           Engineering rationale (§1/§11 superseded)
 docs/perf/                                 baseline.md only so far; projection-accuracy.md (Phase 6)
                                            and results.md (Phase 11) are owed
 perf/rankings.js                           k6 load script — pins season=2025 on purpose
-scripts/                                   install-ingest.sh, launchd plist, ingest-once.sh, perf-explain.sh
+scripts/                                   session-check.sh (runs at every session start),
+                                           package.sh + lib/jar-state.sh, install-ingest.sh,
+                                           launchd plist, ingest-once.sh, perf-explain.sh
+.claude/                                   SessionStart hook + the /review-pass command
 ```
 
 ## Current state
@@ -76,7 +108,7 @@ scripts/                                   install-ingest.sh, launchd plist, ing
 | 4.5 — pre-Phase-5 fixes | ✅ `f478233` daily ingest installed + freshness health + CSV header assertion · `5d5b8b4` canonical hash over the resolved form + decimal rounding. **102 in the suite** |
 | 5a/5b — Auth + tenant isolation | ✅ `com.fantasykai.auth` (16 classes) + `V5`. Default-deny chain, Argon2id, HS256 JWT, rotating refresh with family revocation, Bucket4j on Redis. **130 in the suite** |
 | 4.75 — toolchain recovery | ✅ 2026-09-12 — JDK 25 found, enforcer rule, jjwt/bucket4j/bcprov bumped, **the headless-context bug the suite could not see** fixed. **132 in the suite** |
-| 5c — Web shell | ✅ Next.js 16 App Router, 14 files. Landing, rankings, player detail, auth, ruleset builder. **Attribution footer shipped — owed since Phase 0.** Proved end to end in a browser: a user-built 6-point-passing-TD ruleset put Stafford at #1 with 442.4 where Half PPR had him 4th at 350.4 |
+| 5c — Web shell | ✅ Next.js 16 App Router, 21 `.ts`/`.tsx` files (23 under `frontend/src`). Landing, rankings, player detail, auth, ruleset builder. **Attribution footer shipped — owed since Phase 0.** Proved end to end in a browser: a user-built 6-point-passing-TD ruleset put Stafford at #1 with 442.4 where Half PPR had him 4th at 350.4 |
 | 5d — Deploy | ⬅ **next** — `Dockerfile`, `fly.toml` and `neon-restore.sh` written and verified locally. Only the Fly/Neon/Upstash/Vercel accounts are missing |
 | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
@@ -96,12 +128,14 @@ JDK 21 updates from Oracle; handoff §4 carries the argument. **`docs/perf/basel
 Temurin 21.0.11**: it records what a measurement ran on, not what the stack is today, and Phase
 11 re-captures on 25 before it compares anything.
 
-2026 season opens **Sept 10**. The 2026 schedule is loaded (272 games), and **week 1 stat lines
-landed 2026-09-12**: 134 rows stored of 135 read. Before week 1 published, those runs correctly
-recorded `SKIPPED`.
+2026 season opens **Sept 10**. The 2026 schedule is loaded (272 games). **Week 1 arrived in two
+pieces, and that is the daily pull's entire justification**: on 2026-09-12, with only the opener
+played, the source carried 135 rows and 134 stored. By 2026-09-14 the full slate was published —
+1,041 read, **1,040 stored**. Before week 1 published at all, those runs correctly recorded
+`SKIPPED`. A weekly pull would have held a 13%-complete week 1 for days.
 
-**The daily pull is installed** (`./scripts/install-ingest.sh`; launchd exit 0 verified
-2026-09-12). It fires on wake rather than at 06:00 on a sleeping laptop, and on local time rather
+**The daily pull is installed** (`./scripts/install-ingest.sh`; launchd exit 0 re-verified
+2026-09-14). It fires on wake rather than at 06:00 on a sleeping laptop, and on local time rather
 than ET — so gaps are expected, and `/actuator/health`'s `ingestFreshness` component is what makes
 them visible instead of silent.
 
@@ -113,6 +147,19 @@ process alive to be asked**, because there is no deployed instance yet. That is 
 Phase 5d, and it is why the Fly machine sets `auto_stop_machines = false`: `IngestScheduler` only
 fires inside a running JVM, and 06:00 ET is not an HTTP request.
 
+**Then it stopped again — 2026-09-13 and 2026-09-14 — and again nothing said so.** This time one
+failure, not three: the stale-jar guard compared **mtimes**, and at 23:49:31 on the 12th some git
+operation rewrote **42 files' modification times without changing a byte of any of them**,
+fourteen minutes after the jar was packaged. `backend/src` last *changed* in `8a0072a` at 23:12;
+the jar was built at 23:35. So the guard refused a jar built from exactly the source it was
+comparing against, twice, and the only trace was exit 2 in a log nobody reads. **Which git
+operation did it is not recoverable — and that is the lesson, not a gap in the investigation: an
+mtime is not a fact about content.** The guard now compares a sha256 of `backend/src/main` +
+`pom.xml` recorded beside the jar at package time (`scripts/lib/jar-state.sh`, one definition,
+three callers), and `session-check.sh` reads `launchctl`'s exit status — which is **~36 hours
+louder** than `ingestFreshness`, whose threshold is 36h by design. Cost of the two days: week 1
+sat 87% incomplete in the database.
+
 ## Measured numbers — do not re-derive or estimate these
 
 From the loaded database, 2020–2025:
@@ -120,7 +167,8 @@ From the loaded database, 2020–2025:
 | | |
 |---|---|
 | `player_game_stats` rows stored | **112,319** (112,450 read; 131 dropped for blank `player_id`) |
-| …plus 2026 week 1, added 2026-09-12 | **134** (135 read; 1 dropped, same blank-`player_id` cause) → **112,453** total |
+| …plus 2026 week 1, first partial pull 2026-09-12 | **134** (135 read; 1 dropped, same blank-`player_id` cause) → **112,453** |
+| …week 1 complete, 2026-09-14 | **1,040** (1,041 read; 1 dropped) → **113,359** total |
 | Stat rows, QB/RB/WR/TE | 36,567 |
 | Distinct players, all positions | 4,061 |
 | Distinct players, QB/RB/WR/TE | **1,243** across six seasons — **578–633 in any one season** |
@@ -267,27 +315,44 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   `maven-enforcer-plugin` `requireJavaVersion` rule so the failure names the JDK and the fix;
   proved by building with `JAVA_HOME` on 21 and reading the message. This cost three days of daily
   ingest — see the two entries below, which are the same outage.
-- **"Half of `./mvnw verify` is teardown" was a cold-Docker artefact, and it does not reproduce.**
-  The structure the claim described is real and unchanged — the suite still leaves **ten cached
-  Spring contexts, seven with an embedded Tomcat**, closing *serially* at JVM exit under Spring
-  Boot 3.5's `graceful` default. What is **not** real is the cost attributed to it. Re-measured
-  2026-09-12 against a Docker daemon that had been up two days:
+- **`./mvnw verify` takes either ~32s or ~58s, and the difference is a Surefire timeout — not
+  Docker, and not the thing either previous explanation blamed.** This entry has now been wrong
+  twice, so here is the arithmetic rather than a story.
 
-  | JDK | Dependencies | `clean verify` | Surefire `.dump` |
-  |---|---|---|---|
-  | Temurin 25.0.4.1 | bumped | **30.7s** | none |
-  | Temurin 25.0.4.1 | pre-bump | **31.1s** | none |
-  | Temurin 21.0.11 | bumped | **33.0s** | none |
-  | Microsoft OpenJDK 25.0.2 | bumped | **32.1s** | none |
+  The structure everyone agreed on is real: the suite leaves **ten cached Spring contexts, seven
+  with an embedded Tomcat**, closing *serially* at JVM exit under Spring Boot 3.5's `graceful`
+  default. What was never measured is how long that actually takes. Measured directly on
+  2026-09-14 by varying `surefire.exitTimeout` — Surefire's cap on how long it waits for the
+  forked JVM to die after `System.exit(0)` before killing it:
 
-  Tests execute in 21.6s, so teardown is **~9s of a 31s build**, not 28.5s of 56s. No fork kill and
-  no `.dump` on any of the four. The original 56.072s / 56.044s pair was taken on 2026-09-10 **while
-  Docker Desktop was being started** — the modernize session's own log shows it checking "whether
-  Docker Desktop started successfully" between those runs. Cold Testcontainers, not serial context
-  teardown. The shared Testcontainers base class `docs/map.md` §5 owes is **still worth doing** (ten
-  contexts is ten contexts), but it is not half the build, and it was never the Java 25 bump either.
-  **The lesson is about the measurement, not the number: a one-shot timing taken against a cold
-  daemon was written down as a structural property.**
+  | `surefire.exitTimeout` | `clean verify` | Fork killed? |
+  |---|---|---|
+  | 5s | **32.2s** | yes, at 5s |
+  | 30s (the default) | **57.9s** (57.866 · 57.963 · 57.437) | yes, at 30s |
+  | 600s | **62s** | no — it exited on its own |
+
+  One model fits all three: **work ≈ 27s, teardown ≈ 35s, total = work + min(teardown, timeout)**.
+  32.2 − 5 = 27.2 · 57.9 − 30 = 27.9 · 62 − 27 = 35. Three independent runs, one equation, no
+  spare terms.
+
+  So **teardown is the largest single term in the build** — bigger than compilation and all 132
+  tests combined — and it sits *just* over the 30-second default, which is why the same command
+  on the same commit lands at 31s one day and 58s the next. Both numbers were always real; they
+  are two sides of one threshold.
+
+  Three runs at 57.866 / 57.963 / 57.437 — **a tenth of a second apart** — was the tell. Work
+  does not reproduce that tightly. A constant does.
+
+  What is still unexplained: on 2026-09-12 four `clean verify` runs came in at **30.7 / 31.1 /
+  33.0 / 32.1s with no fork kill at all**, meaning teardown finished inside 30s that day, on
+  identical code and the same 132 tests. Teardown time varies by enough to cross the threshold
+  and nobody knows on what. Do not attribute it without measuring it — that is the mistake this
+  entry has already made twice, once blaming serial teardown and once blaming a cold Docker
+  daemon.
+
+  **The shared Testcontainers base class `docs/map.md` §5 owes is back to urgent.** It was
+  downgraded to "worth doing, not urgent" on the belief that teardown cost ~9s. It costs ~35s,
+  and fewer contexts is the only lever that moves it.
 - **A focused `<input type="number">` treats the mouse wheel as increment.** The ruleset builder is
   taller than a screen, so the ordinary gesture — set a rate, scroll down to Save — silently moved
   the rate that still had focus. No error, no highlight, and the ruleset saves wrong: a scoring
@@ -317,6 +382,16 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   `@PreAuthorize` in the headless run. `OneShotContextTests` boots with
   `webEnvironment = NONE` and asserts the context is *not* a `WebApplicationContext`, so it fails
   for the right reason.
+- **`find -newer` compares mtime, and `git checkout` rewrites mtimes without changing a byte.**
+  The stale-jar guard asked "is any file under `backend/src` newer than the jar", which is a
+  question about clocks pretending to be a question about code. On 2026-09-12 a git operation
+  restamped 42 files at 23:49:31 — content identical to `HEAD`, last *changed* at 23:12, jar
+  packaged at 23:35 — and the daily ingest refused to run for two mornings on a jar that was
+  correct. Two fixes, both narrowing what the question means: compare a **sha256 of the source**
+  recorded beside the jar at package time, and watch only `backend/src/main` + `pom.xml`, since
+  `backend/src/test` never enters the jar and a test file was half of what tripped it. The mtime
+  rule survives only as a fallback for a jar with no recorded hash, and it **says so** when it
+  fires. Proved by `touch`ing a source file: the old rule flips to STALE, the hash does not move.
 - **A launchd plist with a placeholder path is not an installed job.** The plist shipped three
   `__REPO__` placeholders and an instruction to "edit the two by hand"; it was never loaded, `logs/`
   stayed empty, and `ingest_runs` recorded three of the seven days before kickoff. `install-ingest.sh`
@@ -370,6 +445,12 @@ A profile you do not own is **404, not 403**: 403 confirms the id exists.
 ## Commands
 
 ```bash
+# What is actually true right now -- toolchain, containers, git, Flyway checksums,
+# row counts, ingest freshness, jar staleness, and the counts the docs claim.
+# Runs itself at session start; exits 1 on any FAIL or drift.
+./scripts/session-check.sh
+./scripts/session-check.sh --no-network   # skip the two gh calls
+
 docker compose up -d                      # Postgres on :5433 (not 5432), Redis on :6379
 
 # Java 25 or nothing compiles. `java_home -v 25` does NOT fail when 25 is absent --
@@ -392,6 +473,11 @@ cd backend && ./mvnw spring-boot:run \
 
 # one-shot current-season pull (what launchd runs daily)
 ./scripts/ingest-once.sh
+
+# build the ingest jar AND record what it was built from. Use this, not a bare
+# `./mvnw package`: without the .srcsha sidecar the staleness guard falls back to
+# comparing mtimes, which a git checkout is enough to defeat.
+./scripts/package.sh                      # add --with-tests to run the suite too
 
 # install the daily job (idempotent; needs a current jar)
 ./scripts/install-ingest.sh
@@ -420,3 +506,40 @@ cd backend && docker build -t fantasykai-backend:local .
 This project exists to be defended out loud in an interview, so any type, constraint or number that was picked by default becomes something its owner has to justify. Before a migration, pull the real values rather than reasoning about what the type should be — that habit has already caught the fractional sacks and the NULL-defeated unique constraint. Before quoting a number, run the query. Fixing a 200-line schema is free; fixing it under 112K rows is not.
 
 Report design gaps you are *not* fixing explicitly rather than staying quiet about them.
+
+## Definition of done — the review pass
+
+Work is not finished when it works. It is finished when someone has tried to break it and
+written down what they tried. **Every plan ends with this pass, and `/review-pass` runs it on
+demand** — same checklist, defined once in [`.claude/commands/review-pass.md`](.claude/commands/review-pass.md).
+
+**Read the evidence before the intent.** The diff first, in full; the plan, the commit message
+and the docs second. Reading your own reasoning first is how a reviewer confirms it instead of
+testing it — and the reviewer here is usually the author, which is exactly the bias the ordering
+is there to defeat.
+
+Then, in order:
+
+1. **Run the gates and paste what they printed.** `./scripts/session-check.sh` ·
+   `./mvnw -B verify` · `npm run lint && npm run build`. A gate you did not run is reported as
+   **not run** — never as passing, never by omission. "Nothing here touches Java" is a
+   defensible reason to skip one; silence is not.
+2. **Walk the invariant table above as yes/no questions against the diff.** Persisted a computed
+   point value? Indexed `player_game_stats`? Named a stat outside `StatKey`? Rounded before the
+   API boundary? Concatenated SQL? Scored summed stats instead of summing scored games?
+3. **Hunt the failure classes this codebase has already produced** — the traps section, not
+   generic code smells. A default that hides an absence · an exit code trusted over output · an
+   mtime trusted over content · NULL defeating a UNIQUE · a cache consulted before the ownership
+   filter · `@Transactional` undoing the write before the throw · `wasNull()` and argument
+   evaluation order · binary rounding · a bean that only exists in a servlet context.
+4. **Audit every claim the diff makes in prose**, commit message included. Each number names how
+   it was derived or it gets cut. A `drift` row from `session-check.sh` is a finding.
+5. **Report findings ranked by severity**, each with a concrete failure scenario — specific
+   inputs leading to specific wrong behaviour. "Could be fragile" is not a finding.
+6. **Then two sections that are never skipped.** *What I did not fix, and why* — silence there
+   reads as "nothing was left", which is almost never true. And *the argument against this
+   change*: the strongest case that it should not merge as written, plus what would falsify the
+   approach.
+
+**If nothing was found, list what was searched.** "Nothing found" with a search list is a
+finding. "Looks good" is not a review.

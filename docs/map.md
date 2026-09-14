@@ -4,9 +4,11 @@
 can't own, it links to — so when it disagrees with the doc that owns a fact, the doc wins
 and this file gets fixed.
 
-Last verified against the tree: **2026-09-12**, after the toolchain recovery — the JDK 25 the
-Java 25 bump depended on was invisible to `java_home`, which had taken the daily ingest down with
-it for three days.
+Last verified against the tree: **2026-09-14** — and no longer by hand. `./scripts/session-check.sh`
+re-derives every count in the status board below, plus the database's own numbers, in about three
+seconds, and runs at the start of every session. **When it disagrees with this file, it wins.**
+That is what it was built for: the "14 files" in the row below was wrong the day it was written,
+and nothing caught it for two days.
 
 ---
 
@@ -14,14 +16,14 @@ it for three days.
 
 | | |
 |---|---|
-| Phases shipped | **0 → 5b** |
+| Phases shipped | **0 → 5c** |
 | Currently next | **Phase 5d** — the deploy. Every artefact is written and verified locally; only the accounts are missing |
-| Backend | 73 files · 4,693 lines · Java 25 / Spring Boot 3.5.16 |
-| Tests | 17 files · **132 tests**, all green · `./mvnw -B clean verify` **≈ 31s** (the old "≈ 60s" was measured against a cold Docker daemon — see [`../CLAUDE.md`](../CLAUDE.md)) |
+| Backend | **73** files · Java 25 / Spring Boot 3.5.16 |
+| Tests | 17 files · **132 tests**, all green · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 57.9s measured 2026-09-14, 30.7s on 09-12, same commit. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
 | HTTP endpoints | **12** — 5 public `GET`, 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V5` |
-| Data loaded | **112,453** stat rows (2026 week 1 landed 2026-09-12) · 25,065 players · 1,965 games · 2020–2026 · 33 MB after `VACUUM FULL` |
-| Frontend | **Next.js 16 · 14 files** — landing, rankings, player detail, auth, ruleset builder, attribution footer. `npm run build` + `npm run lint` green |
+| Data loaded | **113,359** stat rows (2026 week 1 completed 2026-09-14) · 25,065 players · 1,965 games · 2020–2026 |
+| Frontend | **Next.js 16 · 21 `.ts`/`.tsx` files** (23 under `frontend/src`) — landing, rankings, player detail, auth, ruleset builder, attribution footer. `npm run build` + `npm run lint` green |
 
 | # | Phase | State |
 |---|---|---|
@@ -162,9 +164,12 @@ docs/
   perf/baseline.md                 the Phase 3.5 measurement
   map.md                           this file
 perf/rankings.js                   k6 script — pins season=2025 on purpose
-scripts/                           ingest-once.sh · launchd plist · perf-explain.sh ·
-                                   neon-restore.sh (full dump; refuses a non-empty target and
-                                   compares row counts after)
+scripts/                           session-check.sh (the session-start truth check) ·
+                                   package.sh + lib/jar-state.sh (one definition of "is the
+                                   jar current", shared by three callers) · ingest-once.sh ·
+                                   launchd plist · perf-explain.sh · neon-restore.sh (full
+                                   dump; refuses a non-empty target and compares row counts)
+.claude/                           settings.json's SessionStart hook · commands/review-pass.md
 ```
 
 ---
@@ -219,6 +224,9 @@ scored before a page can be taken. That is the [§9 baseline](perf/baseline.md),
 | Add an ingest source | a new `*Ingestor` + a line in `IngestService.ingest()`. Reuse `NflverseClient` and `CsvValues` |
 | Understand a perf number | [`perf/baseline.md`](perf/baseline.md) · reproduce with `scripts/perf-explain.sh` and `perf/rankings.js` |
 | Know why a type was chosen | the migration's own comment — every column carries its measured range |
+| Know what is true right now | `./scripts/session-check.sh` — it runs itself at session start. A `drift` row means a doc is wrong, including this one |
+| Understand any of this without the jargon | [`orientation.md`](orientation.md) — glossary, real-vs-planned, how a request actually works |
+| Finish a piece of work | [`../CLAUDE.md`](../CLAUDE.md), "Definition of done" · or type `/review-pass` |
 | Run it | [`../README.md`](../README.md) for setup · [`../CLAUDE.md`](../CLAUDE.md) for the full command list |
 | Deploy it | `backend/Dockerfile` + `backend/fly.toml`; move the data with `scripts/neon-restore.sh`. north-star §5d |
 | Add a screen | a route under `frontend/src/app/`, a hook in `src/lib/queries.ts`, a type in `src/lib/types.ts` |
@@ -238,7 +246,7 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 |---|---|
 | **Nothing is deployed** | The end of Phase 5 is "a site you can log into", and HTTPS/HSTS cannot be satisfied locally. Fly + Neon + Vercel, north-star §5d. **`backend/Dockerfile`, `backend/fly.toml` and `scripts/neon-restore.sh` now exist and are verified offline** — image builds at 455 MB, boots in ~4s, restore proved against a throwaway Postgres with row counts compared. Only the accounts are missing |
 | ~~**The attribution footer is still owed**~~ | **Closed.** `frontend/src/components/Attribution.tsx`, in the root layout so it is on every page — nflverse (CC BY 4.0), Sleeper and FFC. Owed since Phase 0 |
-| **Nothing watches the pipeline** | `ingestFreshness` was DOWN and correct for three days in September 2026 with no process alive to be asked. The indicator is not the gap; **a host for it is**. Closed by the Fly deploy, whose `auto_stop_machines = false` is load-bearing for the same reason |
+| **Nothing watches the pipeline** | `ingestFreshness` was DOWN and correct for three days in September 2026 with no process alive to be asked. The indicator is not the gap; **a host for it is**. Closed by the Fly deploy, whose `auto_stop_machines = false` is load-bearing for the same reason. **Partially mitigated 2026-09-14**: `session-check.sh` reads `ingest_runs` and `launchctl` directly, so a stopped pipeline is visible without a running JVM — and the launchd exit code surfaces it ~36h before the freshness threshold does |
 
 ### Closed since the 2026-09-08 audit
 
@@ -261,7 +269,7 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 |---|---|
 | `StatIngestor` holds a whole season in memory | Identity mapper into a `List<CSVRecord>`, then a second full-size batch, under a JVM with no `-Xmx` |
 | The ingest depends on a laptop being awake | launchd fires on wake, not at 06:00, and on local time rather than ET. Acceptable for a pull with no deadline — and the reason the freshness indicator exists rather than being optional |
-| No shared Testcontainers base class | Ten cached Spring contexts, seven with an embedded Tomcat — the structure is real. **The "half the build" cost was not: re-measured 2026-09-12 across four JDK/dependency combinations at 30.7–33.0s with no Surefire dump.** The original 56s was taken while Docker Desktop was starting. Teardown is ~9s of a 31s build. Still worth doing, no longer urgent — see [`../CLAUDE.md`](../CLAUDE.md) |
+| No shared Testcontainers base class | Ten cached Spring contexts, seven with an embedded Tomcat. **Teardown measured at ~35s on 2026-09-14 — the largest single term in the build, more than compilation and all 132 tests together.** It sits just over Surefire's 30s fork-exit timeout, which is why the same commit builds in 31s some days and 58s others. **Back to urgent**: it was downgraded on a ~9s estimate that direct measurement contradicts. See [`../CLAUDE.md`](../CLAUDE.md) |
 | Hikari is at Spring Boot's default 10 connections | 10 × ~39 ms occupancy ≈ the 256 req/s ceiling. Phase 11 must not mistake raising it for a fix |
 
 ### Housekeeping
@@ -294,8 +302,11 @@ win and this file gets fixed.**
 |---|---|
 | [`north-star.md`](north-star.md) | **Scope, sequencing, product decisions.** What we're building, for whom, in what order, and what we're deliberately not building |
 | [`fantasy-platform-handoff.md`](fantasy-platform-handoff.md) | **Engineering rationale** — §5 schema, §6 scoring, §8 security, §9 performance. **§1 and §11 are superseded** by the north star |
-| [`../CLAUDE.md`](../CLAUDE.md) | **Operational memory** — invariants, measured numbers, the traps in the source data, the commands |
+| [`../CLAUDE.md`](../CLAUDE.md) | **Operational memory** — invariants, measured numbers, the traps in the source data, the commands, the definition of done |
+| [`orientation.md`](orientation.md) | **Explanation.** What this is in plain English, real-vs-planned, and a glossary of every term the other four assume. No facts of its own either |
 | **this file** | **Navigation.** Where things are, what state they're in, where to look next. No facts of its own |
 
-The working agreement, which governs all four: **measure before asserting, and prove a
-constraint by trying to violate it.**
+The working agreement, which governs all five: **measure before asserting, and prove a
+constraint by trying to violate it.** `./scripts/session-check.sh` is that agreement made
+executable — it re-derives the claims rather than trusting them, and reports `?` rather than
+`ok` for anything it could not actually check.
