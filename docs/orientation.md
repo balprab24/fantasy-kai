@@ -88,10 +88,12 @@ will be a real before-and-after rather than a claim.
 
 Numbers here come in three kinds and the docs are careful about which is which. You should be too.
 
-- **Measured** — someone ran it and wrote down what came back. The 22.8-second backfill, the
-  21.4 ms p95, the 112,453 rows. These are in
-  [CLAUDE.md's "Measured numbers"](../CLAUDE.md) and [`perf/baseline.md`](perf/baseline.md)
-  and are not to be re-derived from memory or estimated.
+- **Measured** — someone ran it and wrote down what came back: the backfill wall time, the p95,
+  the row counts. They live in [CLAUDE.md's "Measured numbers"](../CLAUDE.md) and
+  [`perf/baseline.md`](perf/baseline.md), and are not to be re-derived from memory or estimated.
+  **They are deliberately not repeated here.** An earlier draft of this line quoted the row count
+  and was stale within the hour, which is the argument for the rule at the top of this file rather
+  than an exception to it.
 - **Claimed** — written in prose and true when written. File counts, test counts, "12
   endpoints". These rot. `./scripts/session-check.sh` re-derives them every session precisely
   because they rot; a `drift` row means a doc is now lying.
