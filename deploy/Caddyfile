@@ -1,0 +1,48 @@
+# TLS termination and the only thing on this machine listening to the internet.
+#
+# Caddy obtains and renews a Let's Encrypt certificate on its own, which is what
+# closes handoff section 8's transport row: HTTPS and HSTS could not be
+# satisfied locally, and that was the last thing standing between Phase 5 and
+# "a site you can log into".
+
+{
+	# Required, not optional. Anonymous ACME works, but a contact address is
+	# what turns a certificate about to expire into an email instead of an
+	# outage. Caddy refuses to parse `email` with an empty value, so
+	# compose.prod.yml marks ACME_EMAIL required and the failure lands at
+	# `docker compose up` naming the variable -- rather than inside a container
+	# that will not start, which is where it landed the first time.
+	email {$ACME_EMAIL}
+}
+
+{$API_DOMAIN} {
+	reverse_proxy backend:8080
+
+	# NOTE ON X-Forwarded-For -- do not add `trusted_proxies` here without
+	# reading AuthRateLimitFilter.clientIp() first.
+	#
+	# That filter takes the FIRST entry of X-Forwarded-For as the client, and
+	# the 5/min limit on /api/v1/auth/** is only worth anything if that entry
+	# cannot be forged. Caddy's default -- no trusted_proxies configured -- is
+	# to *ignore* an incoming X-Forwarded-For and set it to the real peer, so
+	# the first entry is the client and a forged header is discarded.
+	#
+	# Configuring trusted_proxies (for a CDN in front, say) turns that off and
+	# makes the header client-controlled again, which silently converts the
+	# rate limiter into decoration: an attacker varies the fake IP and gets a
+	# fresh bucket every request. The same filter would have been wrong on Fly
+	# for exactly this reason -- Fly appends to a client-supplied header rather
+	# than replacing it.
+	#
+	# Proven by forging the header against the deployed site, not by this
+	# comment. See deploy/README.md, acceptance check 3.
+
+	encode zstd gzip
+
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}

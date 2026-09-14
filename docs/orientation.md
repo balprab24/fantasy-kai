@@ -57,14 +57,14 @@ finished work.
 
 | You can actually do this today | Not built yet |
 |---|---|
-| Load 7 seasons of real NFL stats in ~23 seconds | Deploy it anywhere — it runs on this laptop only ([§5d](north-star.md)) |
+| Load 7 seasons of real NFL stats in ~23 seconds | Reach it from anywhere — it runs on this laptop only. The production stack is written and has been run locally; it needs a domain and the hosting accounts ([§5d](north-star.md)) |
 | Ask for rankings under any of 4 preset rulesets, or your own | Project what a player *will* do (Phase 6) |
 | See a player's week-by-week game log, scored | Import your real league from ESPN or Sleeper (Phase 7) |
 | Create an account and save your own scoring rules | Lineup optimizer, trade calculator (Phase 8) |
 | Use all of it from a web UI | A consensus board, an iOS app, the performance pass (9–11) |
 
-The honest one-line summary: **the engine is real and measured; nothing is deployed, and nothing
-predicts the future yet.**
+The honest one-line summary: **the engine is real and measured; nothing is deployed yet, and nothing
+predicts the future.**
 
 ## 4. How a request actually works
 

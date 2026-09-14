@@ -142,9 +142,14 @@ backend/src/main/resources/
   db/migration/                    V1 schema · V2 ingestion support · V3 presets · V4 Vegas
                                    columns · V5 auth
 backend/
-  Dockerfile                       multi-stage, Temurin 25, Alpine runtime. 455 MB, ~4s to first 200
-  fly.toml                         auto_stop_machines = false -- @Scheduled needs a live JVM
+  Dockerfile                       multi-stage, Temurin 25, Alpine runtime. arm64 + amd64;
+                                   3.82s from docker restart to a 200 on liveness
   .dockerignore
+deploy/                            Phase 5d
+  compose.prod.yml                 Postgres + Redis + backend + Caddy. restart: unless-stopped is
+                                   load-bearing -- @Scheduled needs a live JVM
+  Caddyfile                        TLS, and a warning against adding trusted_proxies
+  README.md                        the runbook, the OCI firewall trap, 9 acceptance checks
 frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6, Tailwind 4
   src/lib/api.ts                   the only place the access token lives, and it is memory-only
   src/lib/auth.tsx                 trades the HttpOnly refresh cookie for a token on load
@@ -167,7 +172,7 @@ perf/rankings.js                   k6 script — pins season=2025 on purpose
 scripts/                           session-check.sh (the session-start truth check) ·
                                    package.sh + lib/jar-state.sh (one definition of "is the
                                    jar current", shared by three callers) · ingest-once.sh ·
-                                   launchd plist · perf-explain.sh · neon-restore.sh (full
+                                   launchd plist · perf-explain.sh · db-restore.sh (full
                                    dump; refuses a non-empty target and compares row counts)
 .claude/                           settings.json's SessionStart hook · commands/review-pass.md
 ```
@@ -228,7 +233,7 @@ scored before a page can be taken. That is the [§9 baseline](perf/baseline.md),
 | Understand any of this without the jargon | [`orientation.md`](orientation.md) — glossary, real-vs-planned, how a request actually works |
 | Finish a piece of work | [`../CLAUDE.md`](../CLAUDE.md), "Definition of done" · or type `/review-pass` |
 | Run it | [`../README.md`](../README.md) for setup · [`../CLAUDE.md`](../CLAUDE.md) for the full command list |
-| Deploy it | `backend/Dockerfile` + `backend/fly.toml`; move the data with `scripts/neon-restore.sh`. north-star §5d |
+| Deploy it | [`../deploy/README.md`](../deploy/README.md) — the runbook, the firewall trap, and nine acceptance checks. `deploy/compose.prod.yml` + `Caddyfile`; move the data with `scripts/db-restore.sh`. north-star §5d |
 | Add a screen | a route under `frontend/src/app/`, a hook in `src/lib/queries.ts`, a type in `src/lib/types.ts` |
 | Change how a request is authenticated | `frontend/src/lib/api.ts` — one fetch wrapper, and the only thing that holds the access token |
 | Understand why a build died on the JDK | `pom.xml`'s enforcer rule says it in the error. Background in [`../CLAUDE.md`](../CLAUDE.md) |
@@ -244,7 +249,7 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 
 | Risk | Detail |
 |---|---|
-| **Nothing is deployed** | The end of Phase 5 is "a site you can log into", and HTTPS/HSTS cannot be satisfied locally. Fly + Neon + Vercel, north-star §5d. **`backend/Dockerfile`, `backend/fly.toml` and `scripts/neon-restore.sh` now exist and are verified offline** — image builds at 455 MB, boots in ~4s, restore proved against a throwaway Postgres with row counts compared. Only the accounts are missing |
+| **Nothing is deployed** | The end of Phase 5 is "a site you can log into", and HTTPS/HSTS cannot be satisfied locally. **Host changed 2026-09-14: Oracle Cloud Always Free VM + Caddy + Vercel**, because the Fly/Neon/Upstash free tiers this was written against stopped existing — north-star §5d carries the survey and its sources. `deploy/compose.prod.yml`, `deploy/Caddyfile` and `deploy/README.md` now exist and the **whole stack was run and probed on the dev Mac**: all four containers healthy, 3.82s from restart to a 200 on liveness, and 6 of the 10 acceptance checks green. Verifying it found two real defects — HSTS configured but never emitted, and a CORS allowlist with no mechanism to reach production. Waiting on a domain and the accounts |
 | ~~**The attribution footer is still owed**~~ | **Closed.** `frontend/src/components/Attribution.tsx`, in the root layout so it is on every page — nflverse (CC BY 4.0), Sleeper and FFC. Owed since Phase 0 |
 | **Nothing watches the pipeline** | `ingestFreshness` was DOWN and correct for three days in September 2026 with no process alive to be asked. The indicator is not the gap; **a host for it is**. Closed by the Fly deploy, whose `auto_stop_machines = false` is load-bearing for the same reason. **Partially mitigated 2026-09-14**: `session-check.sh` reads `ingest_runs` and `launchctl` directly, so a stopped pipeline is visible without a running JVM — and the launchd exit code surfaces it ~36h before the freshness threshold does |
 
