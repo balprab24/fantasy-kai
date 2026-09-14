@@ -6,20 +6,24 @@ The core design decision: **store raw stat lines, never fantasy points.** Full P
 
 ## Status
 
-**Phases 0–4 shipped.** Infrastructure, versioned schema, the nflverse + Sleeper ingestion
-pipeline, the scoring engine, a read API, a measured performance baseline, and the Vegas
-columns. **112,319 weekly stat lines across the 2020–2025 seasons** — 1,243 distinct
-QB/RB/WR/TE players across those six seasons, 578–633 in any single one. Five REST
-endpoints serve rankings, players and game logs against any scoring ruleset, and an
-account gets you scoring profiles of your own. 132 tests.
+**Phases 0 through 5c shipped.** Infrastructure, versioned schema, the nflverse + Sleeper
+ingestion pipeline, the scoring engine, a read API, a measured performance baseline, the
+Vegas columns, authentication, and the web shell. **113,359 weekly stat lines across the
+2020–2026 seasons** — 1,243 distinct QB/RB/WR/TE players across 2020–2025, 578–633 in any
+single season. Twelve REST endpoints serve rankings, players and game logs against any
+scoring ruleset, and an account gets you scoring profiles of your own. 132 tests.
 
-The web shell ships in Phase 5c: a landing board you can rescore by switching ruleset, rankings with filters, a player game log, and a builder for your own league's rules.
+The web shell is a landing board you can rescore by switching ruleset, rankings with filters, a
+player game log, and a builder for your own league's rules. **Nothing is deployed yet** — Phase
+5d is the deploy, and every artefact for it is written and verified locally.
 
 The measured headline so far: the rankings endpoint is CPU-bound, and **88% of that CPU is
 Postgres, not the Java scorer** — which disproved the hypothesis the design doc was built
 on. See [`docs/perf/baseline.md`](docs/perf/baseline.md).
 
-**Start here:** [`docs/map.md`](docs/map.md) — where everything is and what state it's in.
+**Start here:** [`docs/orientation.md`](docs/orientation.md) if the vocabulary is new — plain
+English, a glossary, and what is real versus planned. Otherwise
+[`docs/map.md`](docs/map.md) — where everything is and what state it's in.
 Then [`docs/north-star.md`](docs/north-star.md) for scope and the roadmap,
 [`docs/fantasy-platform-handoff.md`](docs/fantasy-platform-handoff.md) for engineering
 rationale (its §1 and §11 are superseded by the north star), and [`CLAUDE.md`](CLAUDE.md)
@@ -103,9 +107,13 @@ daily rather than weekly and the upsert is idempotent. One command installs it:
 launchctl start com.fantasykai.ingest   # run it now rather than waiting for 06:00
 ```
 
-It needs a current jar (`cd backend && ./mvnw -B package`) and refuses to run a stale one. launchd
-fires on wake rather than at 06:00 on a laptop that sleeps, and on local time rather than ET — so
-gaps happen, and `/actuator/health` names them:
+It needs a current jar — build it with `./scripts/package.sh`, which also records a hash of what
+it built from. The job refuses to run a stale one, comparing source *content*: an earlier version
+compared modification times, and a git checkout that restamped 42 files without changing a byte
+took the ingest down for two days.
+
+launchd fires on wake rather than at 06:00 on a laptop that sleeps, and on local time rather than
+ET — so gaps happen, and `/actuator/health` names them:
 
 ```bash
 curl -s localhost:8080/actuator/health | jq .components.ingestFreshness
@@ -117,13 +125,23 @@ not down, so a platform health check belongs on `/actuator/health/liveness` inst
 ## Layout
 
 ```
-backend/    Spring Boot API — ingestion, scoring engine, REST layer
-docs/       Design docs, the roadmap, and the measured performance baseline
+backend/    Spring Boot API — ingestion, scoring engine, auth, REST layer
+frontend/   Next.js 16 web shell — rankings, player detail, ruleset builder
+docs/       Design docs, the roadmap, the glossary, and the measured performance baseline
 perf/       k6 load script
-scripts/    Daily ingest — installer, launchd plist, one-shot runner — and the EXPLAIN harness
+scripts/    session-check.sh · packaging · daily ingest (installer, plist, one-shot runner)
+            · the EXPLAIN harness
 ```
 
-`frontend/` arrives in Phase 5 alongside authentication.
+**Check the state of a checkout before trusting it:**
+
+```bash
+./scripts/session-check.sh
+```
+
+Toolchain, containers, git and PR state, Flyway checksums against what is actually applied, row
+counts, ingest freshness and the counts the docs claim — in about three seconds, read-only.
+Anything it could not check reports `?` rather than `ok`.
 
 Schema lives in `backend/src/main/resources/db/migration/`. Flyway owns it; nothing is created by Hibernate.
 
