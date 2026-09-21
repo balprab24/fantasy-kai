@@ -18,24 +18,35 @@
 {$API_DOMAIN} {
 	reverse_proxy backend:8080
 
-	# NOTE ON X-Forwarded-For -- do not add `trusted_proxies` here without
-	# reading AuthRateLimitFilter.clientIp() first.
+	# THIS BLOCK IS THE RATE LIMITER. Do not add `trusted_proxies` here.
 	#
-	# That filter takes the FIRST entry of X-Forwarded-For as the client, and
-	# the 5/min limit on /api/v1/auth/** is only worth anything if that entry
-	# cannot be forged. Caddy's default -- no trusted_proxies configured -- is
-	# to *ignore* an incoming X-Forwarded-For and set it to the real peer, so
-	# the first entry is the client and a forged header is discarded.
+	# Not a figure of speech. The 5/min limit on /api/v1/auth/** is not
+	# enforced by the application in any meaningful sense -- measured, not
+	# assumed. AuthRateLimitTests sends six logins carrying a VARYING FORGED
+	# X-Forwarded-For and gets 401, not 429: six forged addresses, six fresh
+	# buckets. deploy/README.md claimed the opposite until 2026-09-21, and the
+	# claim survived because nothing executed it.
 	#
-	# Configuring trusted_proxies (for a CDN in front, say) turns that off and
-	# makes the header client-controlled again, which silently converts the
-	# rate limiter into decoration: an attacker varies the fake IP and gets a
-	# fresh bucket every request. The same filter would have been wrong on Fly
-	# for exactly this reason -- Fly appends to a client-supplied header rather
-	# than replacing it.
+	# AuthRateLimitFilter keys its bucket on X-Forwarded-For and falls back to
+	# getRemoteAddr(). Both paths trust the header: application.yml sets
+	# server.forward-headers-strategy=framework, so Spring's
+	# ForwardedHeaderFilter has ALREADY rewritten getRemoteAddr() from the
+	# forged value before the filter runs. There is no branch in the Java that
+	# resists this.
 	#
-	# Proven by forging the header against the deployed site, not by this
-	# comment. See deploy/README.md, acceptance check 3.
+	# What resists it is Caddy's default -- no trusted_proxies configured --
+	# which DISCARDS an incoming X-Forwarded-For and writes the real peer. Plus
+	# compose.prod.yml giving the backend `expose` and no published port, so
+	# nothing can reach it except through here. Both halves are load-bearing.
+	#
+	# Configuring trusted_proxies (for a CDN, or Cloudflare's orange cloud)
+	# turns the first half off and makes the header client-controlled again --
+	# converting the limiter into decoration with no error and no log line. The
+	# same filter would have been wrong on Fly for exactly this reason: Fly
+	# appends to a client-supplied header rather than replacing it.
+	#
+	# Prove it by forging the header against the DEPLOYED site, through Caddy.
+	# See deploy/README.md, acceptance checks 4a and 4b.
 
 	encode zstd gzip
 

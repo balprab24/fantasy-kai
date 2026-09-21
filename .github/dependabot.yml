@@ -21,8 +21,18 @@ updates:
       auth:
         patterns: ["io.jsonwebtoken*", "com.bucket4j*", "org.bouncycastle*"]
 
-    # Boot 4 is its own phase -- north-star section 10 row 11.5, after the perf
-    # pass -- and not a weekly PR. Measured twice rather than predicted: PR #11
+    # A HOLD, NOT A POSITION. Boot 4 is overdue, not unwanted.
+    #
+    # Spring Boot 3.5's OSS support ended 2026-06-30 and 3.5.16 was the last OSS
+    # release of the line, so staying here means no free security patches --
+    # already visible in the <tomcat.version> pin backend/pom.xml now carries to
+    # get off the parent's CVE-bearing 10.1.55. This ignore exists so the same
+    # unbuildable PR does not arrive every week while phase 11.5 is scheduled
+    # properly; it is not a decision to stay on 3.5.x. Drop it when 11.5 starts,
+    # and do not let it quietly become the reason nobody looks.
+    #
+    # Boot 4 is its own phase -- north-star section 10 row 11.5 -- and not a
+    # weekly PR. Measured twice rather than predicted: PR #11
     # and PR #21 both die before a single test runs, because Boot 4's
     # spring-boot-dependencies no longer manages org.testcontainers:postgresql or
     # :junit-jupiter, both of which pom.xml declares version-less, so the POM

@@ -42,10 +42,10 @@ cd "$repo" || exit 70
 # Row counts are floors, not equalities: the season is running and stat rows
 # grow every week. Fewer rows than recorded is a FAIL; more is fine and the
 # surplus is printed.
-EXPECT_STAT_ROWS=113359     # CLAUDE.md "Measured numbers" · docs/map.md §1
-EXPECT_PLAYERS=25065        # CLAUDE.md "Measured numbers" · docs/map.md §1
+EXPECT_STAT_ROWS=114479     # CLAUDE.md "Measured numbers" · docs/map.md §1 (re-measured 2026-09-21)
+EXPECT_PLAYERS=25066        # CLAUDE.md "Measured numbers" · docs/map.md §1 (re-measured 2026-09-21)
 EXPECT_GAMES=1965           # docs/map.md §1
-EXPECT_TESTS=134            # CLAUDE.md "Current state" · docs/map.md §1 · README
+EXPECT_TESTS=136            # CLAUDE.md "Current state" · docs/map.md §1 · README
 EXPECT_ENDPOINTS=12         # docs/map.md §1 (5 public GET + 4 auth + 3 mutations)
 EXPECT_MIGRATIONS=5         # docs/map.md §1 ("V1 … V5")
 EXPECT_BACKEND_FILES=73     # docs/map.md §1

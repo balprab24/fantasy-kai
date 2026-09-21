@@ -112,11 +112,43 @@ scripts/                                   session-check.sh (runs at every sessi
 | 5a/5b — Auth + tenant isolation | ✅ `com.fantasykai.auth` (16 classes) + `V5`. Default-deny chain, Argon2id, HS256 JWT, rotating refresh with family revocation, Bucket4j on Redis. **130 in the suite** |
 | 4.75 — toolchain recovery | ✅ 2026-09-12 — JDK 25 found, enforcer rule, jjwt/bucket4j/bcprov bumped, **the headless-context bug the suite could not see** fixed. **132 in the suite** |
 | 5c — Web shell | ✅ Next.js 16 App Router, 21 `.ts`/`.tsx` files (23 under `frontend/src`). Landing, rankings, player detail, auth, ruleset builder. **Attribution footer shipped — owed since Phase 0.** Proved end to end in a browser: a user-built 6-point-passing-TD ruleset put Stafford at #1 with 442.4 where Half PPR had him 4th at 350.4 |
-| 5d — Deploy | ⬅ **in progress** — host changed: **Oracle Cloud Always Free VM + Caddy + Vercel**, not Fly/Neon/Upstash, because those free tiers stopped existing (north-star §5d has the survey with sources). `deploy/compose.prod.yml` + `Caddyfile` + `README.md` written and **proved on this Mac**: whole stack healthy, 6 of the 10 acceptance checks green. Two real bugs found by running it — HSTS configured but never sent, and a CORS allowlist with no mechanism to reach production. **134 in the suite.** Waiting on a domain and the accounts |
+| 5d — Deploy | ⬅ **in progress** — host changed: **Oracle Cloud Always Free VM + Caddy + Vercel**, not Fly/Neon/Upstash, because those free tiers stopped existing (north-star §5d has the survey with sources). `deploy/compose.prod.yml` + `Caddyfile` + `README.md` written and **proved on this Mac**: whole stack healthy, 6 of the 10 acceptance checks green. Two real bugs found by running it — HSTS configured but never sent, and a CORS allowlist with no mechanism to reach production. **136 in the suite.** Waiting on a domain and the accounts |
+| 5d.1 — security pass | ✅ 2026-09-21 — **Boot 3.5 went OSS-EOL on 2026-06-30 and nobody had checked.** Tomcat pinned to 10.1.59 over the parent's CVE-bearing 10.1.55; the auth rate limiter proved **forgeable at the application layer**; four-day ingest outage found and refilled. See "The EOL clock" below |
 | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
 
 Full roadmap and the reasoning for the order: [`docs/north-star.md`](docs/north-star.md) §10.
+
+## The EOL clock — read this before quoting a version as "current"
+
+**Spring Boot 3.5's OSS support ended 2026-06-30, and 3.5.16 — released 2026-06-25 — was the last
+OSS release of the line.** Commercial support runs to 2032; free patches do not exist. This file
+and north-star §10 row 11.5 both called 3.5.16 "current" until 2026-09-21. It is the head of its
+line **because the line ended**, which is the opposite of the thing that word implies.
+
+**How it was missed is the lesson.** On 2026-09-18 a Dependabot PR took the backend to Boot 4.1.1
+with its own CI red, and `main` could not parse its own POM for three days. Reverting it on
+2026-09-21 was correct — an unbuildable tree cannot be deployed, and north-star §10 row 11.5 had
+already scoped Boot 4 to its own phase. But the revert was argued entirely from *"does it build"*
+and never from *"is the thing we are reverting to still supported"*. Both questions were live; only
+one got asked.
+
+**What the pin buys, and what it does not.** `pom.xml` now carries
+`<tomcat.version>10.1.59</tomcat.version>`, ahead of the parent, because Boot 3.5.16 manages Tomcat
+**10.1.55** and — reading Apache's own affected ranges — 10.1.55 sits inside **every advisory fixed
+in 10.1.56, 10.1.57 and 10.1.59**: 19 CVEs, four rated Important. Most are very likely unreachable
+here (Spring Security rather than a Tomcat realm; no RewriteValve, DIGEST, FORM auth, WebSocket or
+clustering), but "very likely unreachable" is a judgement about today's code and the pin costs one
+line. **Verify a pin took rather than trusting that it was declared:**
+
+```bash
+unzip -l backend/target/backend-0.0.1-SNAPSHOT.jar | grep tomcat-embed-core   # must say 10.1.59
+```
+
+**The pin is a stopgap and the clock keeps running.** Every month on 3.5.x is a month where the
+next Spring or Tomcat CVE has no free upgrade path — and pinning only works for dependencies whose
+version the parent exposes as a property. Phase 11.5 is now a **security obligation with a date
+attached**, not a nicety after the perf pass.
 
 **Java 21 → 25 on 2026-09-10.** One property in `pom.xml` plus CI; no source file changed and
 the suite passed on 25 unmodified. **It was done by VS Code's App Modernization extension, which
@@ -165,18 +197,23 @@ sat 87% incomplete in the database.
 
 ## Measured numbers — do not re-derive or estimate these
 
-From the loaded database, 2020–2025:
+From the loaded database, 2020–2026. **Re-measured 2026-09-21** after a four-day ingest outage was
+found and the missing week refilled — the 2020–2025 rows below are unchanged and historical, the
+2026 rows move every day the pull runs. **Week 2 is 15 games, not 16: the Monday night game had not
+been played when this was measured.** That is the same "a week arrives in pieces" behaviour the
+daily pull exists for, not a gap.
 
 | | |
 |---|---|
 | `player_game_stats` rows stored | **112,319** (112,450 read; 131 dropped for blank `player_id`) |
 | …plus 2026 week 1, first partial pull 2026-09-12 | **134** (135 read; 1 dropped, same blank-`player_id` cause) → **112,453** |
 | …week 1 complete, 2026-09-14 | **1,040** (1,041 read; 1 dropped) → **113,359** total |
-| Stat rows, QB/RB/WR/TE | 36,567 |
-| Distinct players, all positions | 4,061 |
-| Distinct players, QB/RB/WR/TE | **1,243** across six seasons — **578–633 in any one season** |
-| `snap_pct` coverage | 99.9% (112,245 / 112,319) |
-| Sleeper ids attached | 883 of 25,065 players |
+| …2026 weeks 1–2, re-measured **2026-09-21** | week 1 **1,117** / 16 games · week 2 **1,043** / 15 games → **114,479** total |
+| Stat rows, QB/RB/WR/TE | 37,261 |
+| Distinct players, all positions | 4,232 |
+| Distinct players, QB/RB/WR/TE | **1,298** across seven seasons — **578–633 in any one 2020–2025 season** |
+| `snap_pct` coverage | 99.9% (114,397 / 114,479) |
+| Sleeper ids attached | 883 of 25,066 players |
 | Rows with fractional `def_sacks` | 1,660 |
 | Backfill wall time | 22.8s |
 
@@ -424,6 +461,24 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   comma-separated env var, and `CorsBindingTests` asserts the **split**, not the plumbing: a
   `List<String>` bound from one string either becomes the origins you meant or collapses into a
   single comma-joined blob that matches nothing, and both of those start the application.
+- **The auth rate limiter is forgeable at the application layer, and only Caddy stops it.**
+  `AuthRateLimitFilter` keys its 5/min bucket on `X-Forwarded-For`, falling back to
+  `getRemoteAddr()`. `deploy/README.md` acceptance check 4a claimed six logins with a **varying
+  forged** header still yield `429`, and that it had been "run locally on 2026-09-14" and passed.
+  **It does not pass. A test that asserts it returns 401, not 429** — six forged addresses, six
+  fresh buckets. The claim was false and had survived in the doc because nothing executed it.
+  The mechanism is also not the one the code appears to use: `server.forward-headers-strategy:
+  framework` installs Spring's `ForwardedHeaderFilter` ahead of the security chain, and its wrapper
+  extends `ForwardedHeaderRemovingRequest` — so by the time the filter runs, `getHeader(...)` is
+  already `null` and `getRemoteAddr()` has been **rewritten from the forged value**. The filter's
+  own `X-Forwarded-For` branch is dead code while that property is set, and deleting it would
+  change nothing: the trust lives in the property, not the filter. What makes this safe today is
+  entirely external and both halves are load-bearing — Caddy with `trusted_proxies` unset discards
+  an incoming value and writes the real peer, and `compose.prod.yml` gives the backend `expose`
+  with no published port. Publish that port, add a CDN, proxy through Cloudflare's orange cloud, or
+  set `trusted_proxies`, and the limit becomes decoration. `AuthRateLimitTests` now pins the **true**
+  behaviour rather than the desired one, so it fails the moment the trust model changes — which is
+  exactly when the deploy docs need rereading.
 - **A launchd plist with a placeholder path is not an installed job.** The plist shipped three
   `__REPO__` placeholders and an instruction to "edit the two by hand"; it was never loaded, `logs/`
   stayed empty, and `ingest_runs` recorded three of the seven days before kickoff. `install-ingest.sh`
