@@ -4,7 +4,7 @@
 can't own, it links to — so when it disagrees with the doc that owns a fact, the doc wins
 and this file gets fixed.
 
-Last verified against the tree: **2026-09-14** — and no longer by hand. `./scripts/session-check.sh`
+Last verified against the tree: **2026-09-21** — and no longer by hand. `./scripts/session-check.sh`
 re-derives every count in the status board below, plus the database's own numbers, in about three
 seconds, and runs at the start of every session. **When it disagrees with this file, it wins.**
 That is what it was built for: the "14 files" in the row below was wrong the day it was written,
@@ -18,11 +18,11 @@ and nothing caught it for two days.
 |---|---|
 | Phases shipped | **0 → 5c** |
 | Currently next | **Phase 5d** — the deploy. Every artefact is written and verified locally; only the accounts are missing |
-| Backend | **73** files · Java 25 / Spring Boot 3.5.16 |
-| Tests | 17 files · **132 tests**, all green · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 57.9s measured 2026-09-14, 30.7s on 09-12, same commit. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
+| Backend | **73** files · Java 25 / Spring Boot 3.5.16 — **OSS-EOL since 2026-06-30**, Tomcat pinned to 10.1.59 over the parent's 10.1.55. See [`../CLAUDE.md`](../CLAUDE.md) "The EOL clock" |
+| Tests | 17 files · **136 tests**, all green · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 58.2s measured 2026-09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
 | HTTP endpoints | **12** — 5 public `GET`, 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V5` |
-| Data loaded | **113,359** stat rows (2026 week 1 completed 2026-09-14) · 25,065 players · 1,965 games · 2020–2026 |
+| Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
 | Frontend | **Next.js 16 · 21 `.ts`/`.tsx` files** (23 under `frontend/src`) — landing, rankings, player detail, auth, ruleset builder, attribution footer. `npm run build` + `npm run lint` green |
 
 | # | Phase | State |

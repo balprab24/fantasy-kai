@@ -111,28 +111,76 @@ with an expected result.
 | 1 | `curl https://api.D/actuator/health/liveness` | `200 {"status":"UP"}` |
 | 2 | `curl https://api.D/actuator/health` anonymously | status only — **no component details** |
 | 3 | Register, log in, hard-reload in a **real browser** | session survives — the `SameSite` fix, proven not reasoned |
-| 4a | Six `/api/v1/auth/login` with a **varying forged** `X-Forwarded-For` | the 6th is still `429` |
-| 4b | With that bucket at `429`, one request from a **different client** | `401`, not `429` |
+| 4a | Six `/api/v1/auth/login` **through Caddy** with a varying forged `X-Forwarded-For` | the 6th is `429` — this tests **Caddy**, not the app |
+| 4b | With that bucket at `429`, one request from a **genuinely different client** (phone off wifi) | `401`, not `429` |
 | 5 | `curl -H 'Origin: https://evil.example'` | no `access-control-allow-origin`; the real origin gets one |
 | 6 | `curl -sI http://api.D/...` and a `https` response | `308` to https, and `strict-transport-security` present |
 | 7 | `nc -z <vm-ip> 5432` / `6379` | **refused** — neither is on the internet |
-| 8 | Ingest once on the VM, then wait for 06:00 ET | an `ingest_runs` row appears **that nobody triggered** |
+| 8 | Ingest once on the VM (command below), then wait for 06:00 ET | an `ingest_runs` row appears **that nobody triggered** |
 | 9 | `/api/v1/rankings` vs local, same profile and season | identical top 10 |
 
-Check 4 is the one that is easy to skip, and **4b is why 4a alone is not enough.**
-`AuthRateLimitFilter.clientIp()` takes the *first* entry of `X-Forwarded-For`, which
-is only sound because Caddy — with `trusted_proxies` unset — discards an incoming
-value and writes the real peer. The same code is **bypassable** behind a proxy that
-appends instead of replacing, which is what Fly does.
+**Check 4 said something false until 2026-09-21, and the correction is the point.**
 
-But 4a passing is also exactly what you would see if the limiter had collapsed into
-a **single global bucket** — every user in the world sharing five attempts a minute.
-That is a worse bug than the one 4a tests for, and 4a cannot distinguish them,
-because every request in it comes from one machine. 4b separates them. Both were run
-locally on 2026-09-14 and both passed. Do not add `trusted_proxies` to the Caddyfile,
-or change `server.forward-headers-strategy`, without re-running **both**.
+It used to read: six logins with a varying forged `X-Forwarded-For`, the 6th still
+`429`, "run locally on 2026-09-14 and passed". A test written against the
+application — `AuthRateLimitTests.aForgedForwardedForBuysAFreshBucket_whichIsWhyCaddyMustReplaceIt`
+— returns **401, not 429**. Six forged addresses, six fresh buckets. The claim had
+survived because nothing ever executed it.
 
-Check 8 spans a night by construction. A run that fires with nobody watching is
-the entire point of this phase: `IngestScheduler` only fires inside a live JVM,
-which is why the backend is `restart: unless-stopped` and why nothing here is
-allowed to scale to zero.
+**So the application does not defend this; Caddy does.** `AuthRateLimitFilter` keys
+its bucket on `X-Forwarded-For`, falling back to `getRemoteAddr()` — and
+`server.forward-headers-strategy: framework` means Spring has *already rewritten*
+`getRemoteAddr()` from the forged header before the filter runs, so both paths trust
+it. What makes the deployment safe is external, and **both halves are load-bearing**:
+
+1. Caddy with `trusted_proxies` unset **discards** an incoming `X-Forwarded-For` and
+   writes the real peer.
+2. `compose.prod.yml` gives the backend `expose` and **no published port**, so nothing
+   can reach it except through Caddy.
+
+Publish that port, put a CDN or Cloudflare's orange cloud in front, or set
+`trusted_proxies`, and the 5/min limit becomes decoration. Fly would have broken it
+too — it *appends* to a client-supplied header rather than replacing it.
+
+That is why 4a is now specified **through Caddy**: run against the live host it tests
+the one control that actually exists. Run against the app directly it tests nothing,
+which is how the old wording came to be believed.
+
+**4b is still why 4a alone is not enough,** and it now needs a genuinely different
+client (a phone off wifi) rather than a second forged header. 4a passing is also
+exactly what you would see if the limiter had collapsed into a **single global
+bucket** — every user in the world sharing five attempts a minute, a worse bug than
+the one 4a tests for. Every request in 4a comes from one machine, so it cannot tell
+them apart. 4b can.
+
+Do not add `trusted_proxies` to the Caddyfile, or change
+`server.forward-headers-strategy`, without re-running **both** — and without
+re-reading `AuthRateLimitTests`, which will still be green while the deployment is
+broken, because it pins the application's behaviour and the application is not the
+control.
+
+**Check 8's first half needs a command that works on the VM**, and the obvious one
+does not. `scripts/ingest-once.sh` wants a **packaged jar and a JDK** — the VM has
+neither, only Docker — and it sources `<repo>/.env`, while the production secrets
+live in `deploy/.env`. Run the image instead:
+
+```bash
+docker compose --env-file deploy/.env -f deploy/compose.prod.yml \
+  run --rm --no-deps backend \
+  sh -c 'exec java $JAVA_OPTS -jar app.jar \
+      --spring.main.web-application-type=none \
+      --fantasykai.ingest.once=true'
+```
+
+`--no-deps` because Postgres and Redis are already up; `run --rm` so the one-shot
+does not become a second long-lived backend. `web-application-type=none` is the
+shape `OneShotContextTests` covers and the reason `SecurityConfig.filterChain`
+carries `@ConditionalOnWebApplication`.
+
+Check 8's second half spans a night by construction. A run that fires with nobody
+watching is the entire point of this phase: `IngestScheduler` only fires inside a
+live JVM, which is why the backend is `restart: unless-stopped` and why nothing here
+is allowed to scale to zero. **Measured on 2026-09-21, before any of this deployed:
+the laptop's pull had been dead four days and 2026 week 2 — 1,043 stat rows — was
+simply absent from the database.** Third occurrence. That is the argument for this
+phase, restated with a number.

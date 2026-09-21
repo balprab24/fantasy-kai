@@ -96,6 +96,75 @@ class AuthRateLimitTests {
         }
     }
 
+    /**
+     * <strong>A forged {@code X-Forwarded-For} DOES buy a fresh bucket, and this
+     * test exists to keep that visible.</strong>
+     *
+     * <p>It is written the way it is because the opposite assertion was tried
+     * first and <em>failed</em>: six logins carrying a varying forged header
+     * returned {@code 401}, not {@code 429}. So the limiter is bypassable at the
+     * application layer by anyone who can set one header. That is not a
+     * hypothesis about the code, it is what this class printed.
+     *
+     * <p><strong>Why it is nevertheless not a live vulnerability.</strong> The
+     * protection is entirely external: Caddy, with {@code trusted_proxies}
+     * unset, discards an incoming {@code X-Forwarded-For} and writes the real
+     * peer, and {@code compose.prod.yml} gives the backend {@code expose} with
+     * no published port, so nothing can reach it except through Caddy. Both
+     * halves are load-bearing. Publish that port, put a CDN in front, or
+     * configure {@code trusted_proxies}, and the 5/min limit on
+     * {@code /api/v1/auth/**} becomes decoration — an attacker varies the fake
+     * address and gets a fresh five attempts every request.
+     *
+     * <p><strong>The mechanism is not the one the code appears to use.</strong>
+     * {@code application.yml} sets {@code server.forward-headers-strategy: framework},
+     * which installs Spring's {@code ForwardedHeaderFilter} ahead of the security
+     * chain. Its wrapper extends {@code ForwardedHeaderRemovingRequest}, so by
+     * the time {@link AuthRateLimitFilter} runs {@code getHeader("X-Forwarded-For")}
+     * is already null and {@code getRemoteAddr()} has been rewritten from the
+     * forwarded value. The filter's own {@code X-Forwarded-For} branch is dead
+     * code while that property is set — and the fallback it drops through to
+     * trusts the forged value just the same. Removing the branch would change
+     * nothing; the trust lives in the property, not in the filter.
+     *
+     * <p>Asserting the true behaviour rather than the desired one is deliberate.
+     * A test that asserted {@code 429} here would have to be made to pass by
+     * changing the deployment model, and it would go green while saying nothing
+     * about whether the deployment still held. This one fails the moment the
+     * application stops trusting the header, which is exactly when
+     * {@code deploy/README.md} and {@code deploy/Caddyfile} need rereading.
+     */
+    @Test
+    void aForgedForwardedForBuysAFreshBucket_whichIsWhyCaddyMustReplaceIt() {
+        for (int attempt = 0; attempt < LIMIT; attempt++) {
+            login("nobody@example.com", "203.0.113.%d".formatted(attempt + 1));
+        }
+
+        assertThat(login("nobody@example.com", "203.0.113.99").getStatusCode())
+                .as("the application trusts X-Forwarded-For, so a forged one is a fresh bucket; "
+                        + "if this is no longer 401, the trust model changed and the deploy docs "
+                        + "and Caddyfile both need rereading")
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    /**
+     * The counterpart: with no forwarded header to vary, the limiter does bite.
+     *
+     * <p>Together with the test above this separates the two questions that
+     * {@code deploy/README.md} acceptance check 4a could not tell apart — whether
+     * the limiter counts at all, and whether the key it counts on is forgeable.
+     */
+    @Test
+    void withoutAForwardedHeaderTheBucketIsSharedAcrossAttempts() {
+        for (int attempt = 0; attempt < LIMIT; attempt++) {
+            login("nobody@example.com");
+        }
+
+        assertThat(login("nobody@example.com").getStatusCode())
+                .as("same peer, no forwarded header: one bucket")
+                .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
     /** Registration is on the same surface and the same bucket as login. */
     @Test
     void appliesTheSameLimitToRegistration() {
@@ -114,9 +183,21 @@ class AuthRateLimitTests {
         return post("/api/v1/auth/login", Map.of("email", email, "password", "wrong-password-here"));
     }
 
+    private ResponseEntity<String> login(String email, String forwardedFor) {
+        return post("/api/v1/auth/login",
+                Map.of("email", email, "password", "wrong-password-here"), forwardedFor);
+    }
+
     private ResponseEntity<String> post(String path, Map<String, String> body) {
+        return post(path, body, null);
+    }
+
+    private ResponseEntity<String> post(String path, Map<String, String> body, String forwardedFor) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        if (forwardedFor != null) {
+            headers.set("X-Forwarded-For", forwardedFor);
+        }
         return rest.postForEntity(path, new HttpEntity<>(body, headers), String.class);
     }
 }
