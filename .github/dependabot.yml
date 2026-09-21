@@ -21,6 +21,19 @@ updates:
       auth:
         patterns: ["io.jsonwebtoken*", "com.bucket4j*", "org.bouncycastle*"]
 
+    # Boot 4 is its own phase -- north-star section 10 row 11.5, after the perf
+    # pass -- and not a weekly PR. Measured twice rather than predicted: PR #11
+    # and PR #21 both die before a single test runs, because Boot 4's
+    # spring-boot-dependencies no longer manages org.testcontainers:postgresql or
+    # :junit-jupiter, both of which pom.xml declares version-less, so the POM
+    # does not parse at all. #21 was merged anyway on 2026-09-18 and main could
+    # not build for the three days until 2026-09-21. Same reasoning as the
+    # typescript/eslint holds further down: a PR that always fails is the queue
+    # nobody reads. Drop this when phase 11.5 starts.
+    ignore:
+      - dependency-name: "org.springframework.boot:spring-boot-starter-parent"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: npm
     directory: /frontend
     schedule:
