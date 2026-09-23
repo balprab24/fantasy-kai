@@ -40,10 +40,18 @@ INPUT chain, so traffic the security list permits is still dropped by the host
 with no log and no error. This is the classic first-hour trap:
 
 ```bash
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+pos=$(sudo iptables -L INPUT --line-numbers -n | awk '/REJECT/{print $1; exit}')
+sudo iptables -I INPUT "$pos" -m state --state NEW -p tcp --dport 443 -j ACCEPT
+sudo iptables -I INPUT "$pos" -m state --state NEW -p tcp --dport 80 -j ACCEPT
 sudo netfilter-persistent save
+sudo iptables -L INPUT -n --line-numbers   # 80 and 443 must sit ABOVE the REJECT
 ```
+
+**Insert at the REJECT's position, never at a hardcoded number.** This file used to
+say `-I INPUT 6`, copied from guides written against an image whose chain had six
+rules. Ubuntu 24.04 on A1 (2026-09-22) ships **five**, with the REJECT at 5 — so
+`-I INPUT 6` lands *after* it, the rules are present in the listing, and no packet
+ever reaches them. A firewall rule that is listed is not a rule that is reached.
 
 Then Docker:
 
@@ -64,12 +72,21 @@ and leaves nothing for Postgres.
 git clone https://github.com/balprab24/fantasy-kai.git && cd fantasy-kai
 cp deploy/.env.example deploy/.env
 $EDITOR deploy/.env        # every variable is required; see the file
-docker compose --env-file deploy/.env -f deploy/compose.prod.yml up -d --build
+docker compose --env-file deploy/.env -f deploy/compose.prod.yml up -d --wait postgres redis
 ```
 
-Point an `A` record for `api.<domain>` at the VM's public IP **before** the first
-start — Caddy requests a certificate on first contact, and repeated failures are
-how you meet Let's Encrypt's rate limit.
+**Only Postgres and Redis here — the backend waits until §4.** This file used to
+start the whole stack in §3, and that order cannot work: the backend boots, Flyway
+creates V1–V5 in the empty database, and §4's `db-restore.sh` then refuses the
+target as non-empty. Found by running it on 2026-09-22.
+
+Point an `A` record for `api.<domain>` at the VM's public IP **before** Caddy first
+starts — it requests a certificate on first contact, and repeated failures are how
+you meet Let's Encrypt's rate limit. **Before starting Caddy, prove 80 and 443 reach
+the VM by IP, not by name:** `nc -vz <vm-ip> 80` must say *refused* (packets arrive,
+nothing listening yet), not *timed out* (the OCI security list is dropping them).
+Testing by name while DNS is changing can hit a cached parking page and report open
+ports that are not — which is exactly what happened on 2026-09-22.
 
 ## 4. Move the data
 
@@ -81,11 +98,24 @@ ssh -N -L 15432:localhost:5432 ubuntu@<vm-ip> &
 ./scripts/db-restore.sh 'postgresql://fantasykai:PASSWORD@localhost:15432/fantasykai'
 ```
 
-It refuses a non-empty target and compares row counts before and after. The local
-database was **37 MB** on 2026-09-14 — re-measure the dump rather than quoting an
-older figure. Afterwards the backend log should say *"Schema is up to date. No
-migration necessary."*: the dump carries `flyway_schema_history`, so Flyway finds
-V5 applied and does nothing.
+It refuses a non-empty target and compares row counts before and after. The dump
+was **17 MB** on 2026-09-22, against **37 MB** quoted for the local database on
+09-14 — what that 37 MB measured was never written down, so re-measure rather than
+quoting either. Then start the rest:
+
+```bash
+docker compose --env-file deploy/.env -f deploy/compose.prod.yml up -d --build --wait
+```
+
+The backend log should say *"Schema is up to date. No migration necessary."*: the
+dump carries `flyway_schema_history`, so Flyway finds V5 applied and does nothing.
+
+**A full dump also carries `users`, `refresh_tokens` and user-owned
+`scoring_profiles`** — on 2026-09-22 that was three dev test accounts
+(`*@example.com`) — the addresses the test suite registers with a password constant that is
+public in the repo — able to log into production until deleted. Delete
+them before the site is public; `db-restore.sh` should exclude those rows and does
+not yet.
 
 ## 5. The frontend
 
@@ -96,7 +126,10 @@ Vercel → import the repo, root directory `frontend`,
 
 **Known limitation, and a consequence of the same-site fix:** Vercel preview
 deploys are served from `*.vercel.app`, which is cross-site from `api.<domain>`.
-**Auth does not work on previews** — reads do, sign-in does not. Production only.
+**Nothing data-driven works on previews** — not sign-in, and not reads either. This file used to
+say "reads do"; measured 2026-09-23, the API answers `Origin: https://fantasykai.vercel.app` with
+**403**, because `ALLOWED_ORIGINS` lists only the real domain. The cookie problem is real too, but
+CORS stops the request first. Production only.
 
 ---
 
@@ -166,11 +199,20 @@ live in `deploy/.env`. Run the image instead:
 
 ```bash
 docker compose --env-file deploy/.env -f deploy/compose.prod.yml \
-  run --rm --no-deps backend \
-  sh -c 'exec java $JAVA_OPTS -jar app.jar \
+  run --rm --no-deps --entrypoint sh backend \
+  -c 'exec java $JAVA_OPTS -jar app.jar \
       --spring.main.web-application-type=none \
       --fantasykai.ingest.once=true'
 ```
+
+**`--entrypoint sh` is load-bearing.** The image's `ENTRYPOINT` is
+`["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]`, and without the override
+compose *appends* the command to it — so it lands in `sh -c`'s `$0`/`$1`, which the
+entrypoint string never reads. Both flags vanish silently, Tomcat starts, the
+healthcheck goes green, and the "one-shot" runs forever as **a second backend with
+its own `IngestScheduler`** — two ingests at 06:00. This file carried that command
+until 2026-09-23; running it is how it was found. The fixed form exits 0 in ~5s,
+prints no `Tomcat started`, and leaves no `backend-run` container.
 
 `--no-deps` because Postgres and Redis are already up; `run --rm` so the one-shot
 does not become a second long-lived backend. `web-application-type=none` is the

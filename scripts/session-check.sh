@@ -56,7 +56,7 @@ EXPECT_JDK=25               # CLAUDE.md "Commands" · README · pom.xml enforcer
 # actually landed one. Empty means the DEPLOY rows print "?" with that reason --
 # never "ok", because "nothing is deployed" and "the deploy is fine" must not
 # look the same. Override for a staging host with FK_DEPLOY_HOST=... .
-DEPLOY_HOST="${FK_DEPLOY_HOST:-}"   # docs/north-star.md §5d · deploy/README.md
+DEPLOY_HOST="${FK_DEPLOY_HOST:-api.fantasykai.com}"   # docs/north-star.md §5d · deploy/README.md
 
 # Mirrors IngestFreshnessHealthIndicator.STALE_AFTER exactly. One missed 06:00
 # is a laptop that slept; two is a stopped pipeline. If that constant moves,
