@@ -18,8 +18,8 @@ and nothing caught it for two days.
 |---|---|
 | Phases shipped | **0 → 5c** |
 | Currently next | **Phase 11.5** — Spring Boot 3.5 → 4, overdue security work (north-star §10). Then Phase 6 — Projections. **5d is live** at `https://www.fantasykai.com` since 2026-09-23 |
-| Backend | **73** files · Java 25 / Spring Boot 3.5.16 — **OSS-EOL since 2026-06-30**, Tomcat pinned to 10.1.59 over the parent's 10.1.55. See [`../CLAUDE.md`](../CLAUDE.md) "The EOL clock" |
-| Tests | 17 files · **136 tests**, all green · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 58.2s measured 2026-09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
+| Backend | **74** files · Java 25 / Spring Boot 3.5.16 — **OSS-EOL since 2026-06-30**, Tomcat pinned to 10.1.59 over the parent's 10.1.55. See [`../CLAUDE.md`](../CLAUDE.md) "The EOL clock" |
+| Tests | 17 files · **140 tests**, all green · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 47.5s measured 2026-09-24, 58.2s on 09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
 | HTTP endpoints | **12** — 5 public `GET`, 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V5` |
 | Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |

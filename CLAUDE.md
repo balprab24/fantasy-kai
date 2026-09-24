@@ -1,6 +1,6 @@
 # fantasy-kai — project brain
 
-NFL fantasy analytics platform. Java 25 / Spring Boot 3.5.16 · PostgreSQL 16 · Redis 7 · Next.js 16 / React 19 / TypeScript 6 (Phase 5c).
+NFL fantasy analytics platform. Java 25 / Spring Boot 3.5.16 · PostgreSQL 16 · Redis 7 · Next.js 16 / React 19 / TypeScript 6 (Phase 5d — live).
 
 **Two docs sit above this file, and they own different things.**
 
@@ -479,6 +479,16 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   set `trusted_proxies`, and the limit becomes decoration. `AuthRateLimitTests` now pins the **true**
   behaviour rather than the desired one, so it fails the moment the trust model changes — which is
   exactly when the deploy docs need rereading.
+  **And "only Caddy stops it" was true for one header out of seven.** On 2026-09-24 three bypasses
+  went straight through the deployed proxy, each reproduced against a local copy of the production
+  stack: RFC 7239 `Forwarded` (Spring reads it *before* `X-Forwarded-For`; Caddy passed it
+  untouched), `X-Forwarded-Prefix` (moved the URI outside the limiter's `startsWith` check), and a
+  percent-encoded path `/api/v1/%61uth/login` (raw URI vs decoded routing — no proxy can fix that).
+  Fixed in two layers, each proven alone: Caddy strips the four forwarded headers it does not
+  write, and the application both ignores them (`ForwardedHeaderConfig`) and matches the path the
+  way routing does (`PathPatternRequestMatcher`). **The lesson: a trust boundary is a list of
+  everything that crosses it, not the one thing you thought about.** `X-Forwarded-For` alone
+  remains Caddy's job.
 - **A launchd plist with a placeholder path is not an installed job.** The plist shipped three
   `__REPO__` placeholders and an instruction to "edit the two by hand"; it was never loaded, `logs/`
   stayed empty, and `ingest_runs` recorded three of the seven days before kickoff. `install-ingest.sh`

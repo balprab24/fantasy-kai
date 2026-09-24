@@ -146,6 +146,7 @@ with an expected result.
 | 3 | Register, log in, hard-reload in a **real browser** | session survives — the `SameSite` fix, proven not reasoned |
 | 4a | Six `/api/v1/auth/login` **through Caddy** with a varying forged `X-Forwarded-For` | the 6th is `429` — this tests **Caddy**, not the app |
 | 4b | With that bucket at `429`, one request from a **genuinely different client** (phone off wifi) | `401`, not `429` |
+| 4c | With that bucket at `429`, three more logins: `Forwarded: for=203.0.113.77`; `X-Forwarded-Prefix: /x`; and the path `/api/v1/%61uth/login` | all three `429` — each one was `401` (a bypass) until 2026-09-24 |
 | 5 | `curl -H 'Origin: https://evil.example'` | no `access-control-allow-origin`; the real origin gets one |
 | 6 | `curl -sI http://api.D/...` and a `https` response | `308` to https, and `strict-transport-security` present |
 | 7 | `nc -z <vm-ip> 5432` / `6379` | **refused** — neither is on the internet |
@@ -178,6 +179,24 @@ too — it *appends* to a client-supplied header rather than replacing it.
 That is why 4a is now specified **through Caddy**: run against the live host it tests
 the one control that actually exists. Run against the app directly it tests nothing,
 which is how the old wording came to be believed.
+
+**4c exists because 4a covered one header, and the proxy passed three other ways around the
+limiter.** Found 2026-09-24, and reproduced against a local copy of this exact stack before
+anything was changed:
+
+- `Forwarded: for=<forged>` — RFC 7239's spelling of the client address. Spring reads it
+  *before* `X-Forwarded-For`; Caddy rewrites only the `X-Forwarded-*` trio and passed this
+  through. Seven varying forgeries, seven `401`s.
+- `X-Forwarded-Prefix: /x` — rewrote the request URI to `/x/api/v1/auth/login`, which the
+  limiter's `startsWith` check did not match and routing still sent to login. One constant
+  header, limiter never consulted.
+- `/api/v1/%61uth/login` — no header at all. The limiter compared the raw, still-encoded URI;
+  routing decodes. **No proxy setting can fix this one**, which is why the fix is two layers:
+  Caddy strips the four forwarded headers it does not write (`header_up -…`), and the
+  application ignores them too (`ForwardedHeaderConfig`) and matches the path the way routing
+  does (`AuthRateLimitFilter`). Each layer was proven alone: new Caddyfile over the old
+  backend closed the two header bypasses but not the encoded path; the old Caddyfile over the
+  new backend closed all three. `AuthRateLimitTests` pins the application half.
 
 **4b is still why 4a alone is not enough,** and it now needs a genuinely different
 client (a phone off wifi) rather than a second forged header. 4a passing is also

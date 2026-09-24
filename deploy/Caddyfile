@@ -16,7 +16,21 @@
 }
 
 {$API_DOMAIN} {
-	reverse_proxy backend:8080
+	reverse_proxy backend:8080 {
+		# Caddy overwrites X-Forwarded-For, -Proto and -Host and passes every
+		# other header through untouched -- including four more that Spring's
+		# ForwardedHeaderFilter believes. Two of them bypassed the 5/min auth
+		# limit through this very proxy, reproduced 2026-09-24 against a local
+		# copy of this stack: `Forwarded: for=<forged>` minted a fresh bucket per
+		# request, and `X-Forwarded-Prefix: /x` moved the request outside the
+		# limiter's path entirely. Nothing in front of us writes any of these, so
+		# nothing behind us should see them. The application refuses them too
+		# (ForwardedHeaderConfig): either layer alone closes both, on purpose.
+		header_up -Forwarded
+		header_up -X-Forwarded-Prefix
+		header_up -X-Forwarded-Port
+		header_up -X-Forwarded-Ssl
+	}
 
 	# THIS BLOCK IS THE RATE LIMITER. Do not add `trusted_proxies` here.
 	#
