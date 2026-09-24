@@ -13,5 +13,25 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "deny": [
+      "Read(**/.env)",
+      "Edit(**/.env)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git * push --force *)",
+      "Bash(git * push -f *)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git * push *)",
+      "Bash(gh pr merge *)",
+      "Bash(ssh *)",
+      "Bash(scp *)",
+      "Bash(docker compose down *)",
+      "Bash(docker compose * down *)",
+      "Bash(./scripts/db-restore.sh *)"
+    ]
   }
 }

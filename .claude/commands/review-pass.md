@@ -1,12 +1,16 @@
 ---
 description: Adversarial senior-engineer review of the current diff, against this project's own invariants and its own history of bugs
 argument-hint: "[optional: a ref to diff against, default main]"
+# A forked reviewer: it never saw the conversation that produced the change, cannot edit, and
+# loads CLAUDE.md + .claude/rules (the built-in Explore/Plan agents would skip both).
+context: fork
+agent: reviewer
 ---
 
 # The review pass
 
-Review `git diff ${1:-main}...HEAD` as a senior engineer who **did not write it** and has no
-stake in it shipping. The author is not in the room and does not need protecting. Your job is to
+**Ref to diff against:** $ARGUMENTS — if that is empty, use `main`. Review `git diff <ref>...HEAD`
+as a senior engineer who **did not write it** and has no stake in it shipping. The author is not in the room and does not need protecting. Your job is to
 find what is wrong, and — where nothing is wrong — to say precisely what you looked for.
 
 **Order matters: read the evidence before you read the intent.** Start with the diff, in full,
@@ -59,7 +63,12 @@ Not generic code smells — the specific traps in CLAUDE.md, each of which cost 
 - **Binary rounding standing in for decimal rounding.**
 - **A bean that only exists in a servlet context**, breaking the headless entrypoint while all
   tests — which all boot a web app — stay green.
-- **A test that silently uses the dev Redis** because it declared no container.
+- **A test that silently uses the dev Redis** because it declared no container — or any state
+  shared between tests that lets one pass because another ran first.
+- **A trust boundary defined by the one thing someone thought of** — list everything that crosses
+  it (Caddy overwrote one forwarded header of seven).
+- **Configured is not running** — a header configured but not sent, a Caddyfile changed but not
+  reloaded, a CI check that reports pass without having run.
 
 For each: does this diff introduce one, or walk past one it should have caught?
 
@@ -75,7 +84,9 @@ Check too whether the diff makes an existing claim false somewhere it did not ed
 
 ## 6. Report
 
-Findings first, ranked by severity. Each one:
+Findings first, ranked by severity. Label each **CONFIRMED** (you reproduced it) or
+**SUSPECTED** (reasoned, not reproduced). **Do not modify any file** — report, and let the owner
+decide what gets fixed. Each finding:
 
 - **What is wrong**, in one sentence.
 - **A concrete failure scenario** — specific inputs or state, leading to specific wrong
