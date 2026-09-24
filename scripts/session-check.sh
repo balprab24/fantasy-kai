@@ -42,8 +42,8 @@ cd "$repo" || exit 70
 # Row counts are floors, not equalities: the season is running and stat rows
 # grow every week. Fewer rows than recorded is a FAIL; more is fine and the
 # surplus is printed.
-EXPECT_STAT_ROWS=114479     # CLAUDE.md "Measured numbers" · docs/map.md §1 (re-measured 2026-09-21)
-EXPECT_PLAYERS=25066        # CLAUDE.md "Measured numbers" · docs/map.md §1 (re-measured 2026-09-21)
+EXPECT_STAT_ROWS=114479     # docs/measurements.md · docs/map.md §1 (re-measured 2026-09-21)
+EXPECT_PLAYERS=25066        # docs/measurements.md · docs/map.md §1 (re-measured 2026-09-21)
 EXPECT_GAMES=1965           # docs/map.md §1
 EXPECT_TESTS=142            # docs/map.md §1
 EXPECT_ENDPOINTS=12         # docs/map.md §1 (5 public GET + 4 auth + 3 mutations)
@@ -271,6 +271,25 @@ check_repo() {
             ok "sync" "level with origin/$branch"
         else
             warn "sync" "$ahead ahead, $behind behind origin/$branch"
+        fi
+    fi
+
+    # A handoff is how a fresh session resumes a task (the /handoff skill writes
+    # it). One written on another branch is stale for this one, and saying so is
+    # the whole value: a note that silently describes different work is worse
+    # than no note.
+    local handoff="$repo/.claude/local/handoff.md" hbranch hage
+    if [[ ! -f "$handoff" ]]; then
+        ok "handoff" "none waiting"
+    else
+        hbranch="$(sed -n 's/^# Handoff .* · branch \(.*\)$/\1/p' "$handoff" | head -1)"
+        hage="$(human_age $(( $(date +%s) - $(stat -f %m "$handoff" 2>/dev/null || stat -c %Y "$handoff") )))"
+        if [[ -z "$hbranch" ]]; then
+            warn "handoff" ".claude/local/handoff.md is ${hage} old and names no branch -- read it before trusting it"
+        elif [[ "$hbranch" != "$branch" ]]; then
+            warn "handoff" "${hage} old, written on $hbranch -- not this branch ($branch)"
+        else
+            ok "handoff" "waiting, ${hage} old, this branch -- read .claude/local/handoff.md"
         fi
     fi
 

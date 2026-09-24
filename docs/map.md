@@ -301,18 +301,23 @@ No `TODO` or `FIXME` exists anywhere in the repo.
 
 ## 6. Who owns what
 
-Four documents, and they do not overlap. **When this file disagrees with any of them, they
-win and this file gets fixed.**
+Each fact has exactly one owner. **When this file disagrees with any of them, they win and this
+file gets fixed.** Since 2026-09-24 CLAUDE.md holds only what every session needs; the traps and
+measured numbers it used to carry moved, verbatim, to their own files below.
 
 | Doc | Owns |
 |---|---|
 | [`north-star.md`](north-star.md) | **Scope, sequencing, product decisions.** What we're building, for whom, in what order, and what we're deliberately not building |
 | [`fantasy-platform-handoff.md`](fantasy-platform-handoff.md) | **Engineering rationale** — §5 schema, §6 scoring, §8 security, §9 performance. **§1 and §11 are superseded** by the north star |
-| [`../CLAUDE.md`](../CLAUDE.md) | **Operational memory** — invariants, measured numbers, the traps in the source data, the commands, the definition of done |
-| [`orientation.md`](orientation.md) | **Explanation.** What this is in plain English, real-vs-planned, and a glossary of every term the other four assume. No facts of its own either |
+| [`../CLAUDE.md`](../CLAUDE.md) | **What every session needs** — the invariants, the failure classes, the commands, how we work, the definition of done. Loaded every session, so kept under 200 lines |
+| [`decisions.md`](decisions.md) | **Decisions** — an index of those made before 2026-09-24 (linking to where their reasoning lives), and a full entry for each new one, with *when to revisit* |
+| [`traps.md`](traps.md) | **The traps, in full** — every one this codebase hit, and the incidents behind them. `../.claude/rules/*.md` holds each as a one-line rule that loads by path |
+| [`measurements.md`](measurements.md) | **Measured numbers** and how each was taken, plus the per-phase ledger. Quote, don't re-derive |
+| [`learning-log.md`](learning-log.md) | **What the owner learned** — per feature, the six questions and the quiz results, and a concept-confidence tracker |
+| [`orientation.md`](orientation.md) | **Explanation.** What this is in plain English, real-vs-planned, and a glossary of every term the others assume. No facts of its own either |
 | **this file** | **Navigation.** Where things are, what state they're in, where to look next. No facts of its own |
 
-The working agreement, which governs all five: **measure before asserting, and prove a
+The working agreement, which governs all of them: **measure before asserting, and prove a
 constraint by trying to violate it.** `./scripts/session-check.sh` is that agreement made
 executable — it re-derives the claims rather than trusting them, and reports `?` rather than
 `ok` for anything it could not actually check.

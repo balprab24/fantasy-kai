@@ -39,3 +39,6 @@ build/
 .vscode/
 logs/
 .tmp/
+
+# Claude Code: private per-developer state -- the handoff note and the AI-workflow log
+.claude/local/
