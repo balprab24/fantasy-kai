@@ -4,7 +4,9 @@
 >
 > **Live: https://www.fantasykai.com** (the apex 308s to `www`) · API **https://api.fantasykai.com**
 >
-> **9 of 10 acceptance checks pass.** Owed: **4b** (needs a phone on cellular — see below).
+> **9 of 11 acceptance checks pass.** Owed: **4b** (needs a phone on cellular — see below) and
+> **4c** — three rate-limiter bypasses found 2026-09-24 through Caddy as configured here, **fixed in
+> code, not yet deployed. Production is exposed to them until it is.**
 > The production daily ingest **fired on its own at 06:00:00 ET on 2026-09-23**.
 > Next phase: **11.5 — Spring Boot 3.5 → 4** (overdue security work), then **6 — Projections**.
 
@@ -70,6 +72,7 @@ Each check is an attack or a failure tried against the live site, with the resul
 | 3 | Register → log in → **hard-reload** in a real browser | still signed in; `refresh` → **200** | ✅ |
 | 4a | Six logins, each with a **different forged `X-Forwarded-For`** | `401 ×5`, then **`429`** — Caddy throws the forged header away, so all six share one bucket | ✅ |
 | 4b | With that bucket full, one login from a **different real client** | owed — needs a phone off wifi | ⬜ |
+| 4c | With that bucket full: `Forwarded: for=<forged>`, `X-Forwarded-Prefix: /x`, and the path `/api/v1/%61uth/login` | owed — each was `401` (a bypass) on a local copy of this stack; the fix is not deployed yet | ⬜ |
 | 5 | Call the API from `Origin: evil.example` and from `*.vercel.app` | **403** both; the real origin gets `allow-origin` + `allow-credentials` | ✅ |
 | 6 | Plain `http://` · inspect HTTPS headers | **308** to https · `strict-transport-security` **actually sent** (it was configured but silently missing before 5d) | ✅ |
 | 7 | Port-scan 5432 / 6379 / 8080 from the internet | all **time out** — dropped before they reach the VM | ✅ |

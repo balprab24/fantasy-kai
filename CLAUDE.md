@@ -81,7 +81,7 @@ backend/src/main/resources/db/migration/   Flyway. V1 schema, V2 ingestion suppo
                                            V3 presets, V4 Vegas columns, V5 refresh_tokens
 backend/Dockerfile                         Phase 5d. Temurin 25 JRE on Alpine, arm64 and amd64
 deploy/                                    Phase 5d. compose.prod.yml + Caddyfile + README.md
-                                           (the runbook, the firewall trap, 9 acceptance checks)
+                                           (the runbook, the firewall trap, the acceptance checks)
 frontend/        Phase 5c — Next.js 16 App Router. api.ts holds the only access token, in memory
 backend/src/test/resources/nflverse/       Real 2024 rows as fixtures — not invented
 docs/map.md                                Front door — status board, class map, pipelines
@@ -480,11 +480,12 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   behaviour rather than the desired one, so it fails the moment the trust model changes — which is
   exactly when the deploy docs need rereading.
   **And "only Caddy stops it" was true for one header out of seven.** On 2026-09-24 three bypasses
-  went straight through the deployed proxy, each reproduced against a local copy of the production
-  stack: RFC 7239 `Forwarded` (Spring reads it *before* `X-Forwarded-For`; Caddy passed it
+  went straight through Caddy as configured for production, each reproduced against a local copy of
+  that stack (production itself was not probed): RFC 7239 `Forwarded` (Spring reads it *before* `X-Forwarded-For`; Caddy passed it
   untouched), `X-Forwarded-Prefix` (moved the URI outside the limiter's `startsWith` check), and a
   percent-encoded path `/api/v1/%61uth/login` (raw URI vs decoded routing — no proxy can fix that).
-  Fixed in two layers, each proven alone: Caddy strips the four forwarded headers it does not
+  Fixed in code in two layers, each proven alone — **production stays exposed until both are
+  deployed; `DEPLOY-STEPS.md` check 4c says whether they are.** Caddy strips the four forwarded headers it does not
   write, and the application both ignores them (`ForwardedHeaderConfig`) and matches the path the
   way routing does (`PathPatternRequestMatcher`). **The lesson: a trust boundary is a list of
   everything that crosses it, not the one thing you thought about.** `X-Forwarded-For` alone

@@ -15,6 +15,7 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -134,8 +135,9 @@ class AuthRateLimitTests {
      *
      * <p>That argument covered {@code X-Forwarded-For} and nothing else: on
      * 2026-09-24 {@code Forwarded}, {@code X-Forwarded-Prefix} and a
-     * percent-encoded path all went straight through Caddy. The three tests
-     * after this one are those holes, closed in the application.
+     * percent-encoded path all went straight through Caddy. The {@code Forwarded},
+     * {@code X-Forwarded-Prefix} and encoded-path tests below are those holes,
+     * closed in the application.
      *
      * <p><strong>The mechanism is not the one the code appears to use.</strong>
      * {@code application.yml} sets {@code server.forward-headers-strategy: framework},
@@ -190,9 +192,9 @@ class AuthRateLimitTests {
      * RFC 7239 {@code Forwarded} is a second spelling of the client address, and
      * Spring's {@code ForwardedHeaderUtils} reads it <em>before</em>
      * {@code X-Forwarded-For}. Caddy overwrites only the {@code X-Forwarded-*}
-     * trio and passes this one through untouched, so until 2026-09-24 it bought a
-     * fresh bucket per forged address <em>through the deployed proxy</em> --
-     * reproduced against a local copy of the production stack, seven for seven.
+     * trio and passes this one through untouched, so it bought a fresh bucket per
+     * forged address <em>through Caddy as configured for production</em> --
+     * reproduced 2026-09-24 against a local copy of that stack, seven for seven.
      *
      * <p>Unlike {@code X-Forwarded-For}, nothing upstream ever writes this header
      * for us, so the application refuses it outright rather than leaving the
@@ -217,6 +219,10 @@ class AuthRateLimitTests {
      * as never consulted: {@code /x/api/v1/auth/login} does not start with it, yet
      * still routes to login, because routing strips the (forged) context path.
      * One constant header, no variation needed.
+     *
+     * <p>Either layer alone passes this test: the allowlist drops the header, and
+     * the path matcher strips a believed prefix anyway. The next test is the one
+     * that pins the allowlist on its own.
      */
     @Test
     void aForgedForwardedPrefixCannotSkipTheLimiter() {
@@ -225,6 +231,49 @@ class AuthRateLimitTests {
         assertThat(loginWith(Map.of("X-Forwarded-Prefix", "/x")).getStatusCode())
                 .as("a forged prefix must not take the request outside the limiter")
                 .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    /**
+     * The allowlist itself, observed where the request URI is visible: a problem
+     * response's {@code instance}. If {@code X-Forwarded-Prefix} were believed it
+     * would read {@code /x/api/v1/players/...}.
+     */
+    @Test
+    void aForgedForwardedPrefixIsNotBelieved() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Forwarded-Prefix", "/x");
+
+        ResponseEntity<Map> response = rest.exchange("/api/v1/players/999999999", HttpMethod.GET,
+                new HttpEntity<>(headers), Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).containsEntry("instance", "/api/v1/players/999999999");
+    }
+
+    /**
+     * Both directions of the proto question, because HSTS depends on it. Caddy
+     * writes {@code X-Forwarded-Proto}, so it must still make a request secure --
+     * without it HSTS silently stops being sent (the trap in CLAUDE.md). Nothing
+     * writes {@code X-Forwarded-Ssl}, so it must not.
+     */
+    @Test
+    void onlyTheProxyWrittenProtoHeaderMakesARequestSecure() {
+        HttpHeaders proxied = new HttpHeaders();
+        proxied.set("X-Forwarded-Proto", "https");
+        HttpHeaders forged = new HttpHeaders();
+        forged.set("X-Forwarded-Ssl", "on");
+
+        ResponseEntity<String> viaProto = rest.exchange("/api/v1/scoring-profiles", HttpMethod.GET,
+                new HttpEntity<>(proxied), String.class);
+        ResponseEntity<String> viaSsl = rest.exchange("/api/v1/scoring-profiles", HttpMethod.GET,
+                new HttpEntity<>(forged), String.class);
+
+        assertThat(viaProto.getHeaders().getFirst("Strict-Transport-Security"))
+                .as("X-Forwarded-Proto is written by Caddy and must still be believed")
+                .isNotNull();
+        assertThat(viaSsl.getHeaders().getFirst("Strict-Transport-Security"))
+                .as("X-Forwarded-Ssl is written by nobody and must not make a request secure")
+                .isNull();
     }
 
     /**

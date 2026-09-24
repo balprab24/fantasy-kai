@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.Set;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,8 +29,9 @@ import org.springframework.web.filter.ForwardedHeaderFilter;
  * {@code X-Forwarded-For}, {@code -Proto} and {@code -Host}. The other four --
  * RFC 7239 {@code Forwarded}, {@code X-Forwarded-Prefix}, {@code -Port} and
  * {@code -Ssl} -- arrived from the client untouched and were believed. Two of
- * them broke the auth rate limiter through the deployed proxy, reproduced
- * against a local copy of the production stack on 2026-09-24:
+ * them broke the auth rate limiter through Caddy as configured for production,
+ * reproduced against a local copy of that stack on 2026-09-24 (production itself
+ * was not probed):
  * {@code Forwarded: for=...} minted a fresh bucket per forged address, and
  * {@code X-Forwarded-Prefix} moved the request URI outside the limiter's path.
  *
@@ -55,11 +57,18 @@ class ForwardedHeaderConfig {
     static final Set<String> WRITTEN_BY_PROXY =
             Set.of("x-forwarded-for", "x-forwarded-proto", "x-forwarded-host");
 
+    /**
+     * Everything Boot 3.5.16's registration does, which this one replaces --
+     * including its Tomcat customizer, which reads
+     * {@code server.tomcat.use-relative-redirects}. Dropping that would make the
+     * property a silent no-op. Re-check this against Boot's own registration when
+     * Phase 11.5 moves to Boot 4.
+     */
     @Bean
-    FilterRegistrationBean<ForwardedHeaderFilter> proxyForwardedHeaderFilter() {
-        FilterRegistrationBean<ForwardedHeaderFilter> registration =
-                new FilterRegistrationBean<>(new ProxyWrittenOnly());
-        // Mirrors Boot's registration, which this replaces.
+    FilterRegistrationBean<ForwardedHeaderFilter> proxyForwardedHeaderFilter(ServerProperties server) {
+        ProxyWrittenOnly filter = new ProxyWrittenOnly();
+        filter.setRelativeRedirects(server.getTomcat().isUseRelativeRedirects());
+        FilterRegistrationBean<ForwardedHeaderFilter> registration = new FilterRegistrationBean<>(filter);
         registration.setDispatcherTypes(DispatcherType.REQUEST, DispatcherType.ASYNC, DispatcherType.ERROR);
         registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
         return registration;

@@ -19,7 +19,7 @@ and nothing caught it for two days.
 | Phases shipped | **0 → 5c** |
 | Currently next | **Phase 11.5** — Spring Boot 3.5 → 4, overdue security work (north-star §10). Then Phase 6 — Projections. **5d is live** at `https://www.fantasykai.com` since 2026-09-23 |
 | Backend | **74** files · Java 25 / Spring Boot 3.5.16 — **OSS-EOL since 2026-06-30**, Tomcat pinned to 10.1.59 over the parent's 10.1.55. See [`../CLAUDE.md`](../CLAUDE.md) "The EOL clock" |
-| Tests | 17 files · **140 tests**, all green · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 47.5s measured 2026-09-24, 58.2s on 09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
+| Tests | 17 files · **142 tests**, all green · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 47.5s measured 2026-09-24, 58.2s on 09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
 | HTTP endpoints | **12** — 5 public `GET`, 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V5` |
 | Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
@@ -34,7 +34,7 @@ and nothing caught it for two days.
 | 3.5 | Close the baseline — k6 at 1/5/10/20 VUs; **the bottleneck is Postgres, not the scorer (88/12)** | ✅ |
 | 4 | Vegas in the schema — `V4` widens `games` by 10 columns | ✅ |
 | 4.75 | Toolchain recovery — JDK 25 located, enforcer rule, deps current, headless-context bug fixed | ✅ |
-| **5** | **Auth + web shell** — Argon2id, JWT, rotating refresh, Bucket4j · Next.js shell | ✅ 5a/5b · 5c · **5d live 2026-09-23** — 9/10 acceptance checks, 4b owed. `DEPLOY-STEPS.md` |
+| **5** | **Auth + web shell** — Argon2id, JWT, rotating refresh, Bucket4j · Next.js shell | ✅ 5a/5b · 5c · **5d live 2026-09-23** — 9/11 acceptance checks; 4b owed, and 4c (three rate-limiter bypasses, fixed in code 2026-09-24) owed until deployed. `DEPLOY-STEPS.md` |
 | 6 | Projections — `SignalKey`, `ProjectionEngine`, `ExplainedScore`, published MAE | |
 | 7 | League import — `LeagueProvider`, ESPN + Sleeper | |
 | 8 | Roster tools — optimizer, simulator, trade evaluator, waivers | |
@@ -116,7 +116,7 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | `RankingRow` · `PlayerSummary` · `PlayerDetail` · `GamelogWeek` · `GamelogResponse` · `ScoringProfileSummary` | Response records |
 | `PlayerNotFoundException` | 404 |
 
-#### `auth/` — Phase 5a/5b · 16 files
+#### `auth/` — Phase 5a/5b · 17 files
 
 | Class | Does |
 |---|---|
@@ -128,7 +128,8 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | `RefreshTokenService` | Rotation with reuse detection. **`noRollbackFor = InvalidTokenException`** is load-bearing — a plain `@Transactional` undid the family revocation on the way out |
 | `RefreshTokenRepository` | The `refresh_tokens` table from `V5`. Hashed at rest, never the token itself |
 | `UserRepository` | The `users` table `V1` created and nothing touched until now. `JdbcTemplate`, deliberately — north-star §5a |
-| `AuthRateLimitFilter` | 5/min/IP across the **whole** `/api/v1/auth/**` surface. One bucket, so guessing passwords and enumerating emails share a count instead of resetting each other |
+| `AuthRateLimitFilter` | 5/min/IP across the **whole** `/api/v1/auth/**` surface. One bucket, so guessing passwords and enumerating emails share a count instead of resetting each other. Matches the path the way routing does (`PathPatternRequestMatcher`) — a raw-URI `startsWith` let `/api/v1/%61uth/login` skip it |
+| `ForwardedHeaderConfig` | Replaces Boot's `ForwardedHeaderFilter` registration with an **allowlist**: only `X-Forwarded-For/-Proto/-Host`, the three Caddy writes, are believed. `Forwarded` and `X-Forwarded-Prefix` bypassed the limiter through Caddy until 2026-09-24 |
 | `RateLimitConfig` | Bucket4j's Redis store, on Lettuce directly — `RedisTemplate` lacks the compare-and-swap Bucket4j needs. Resolved lazily, so a Redis outage costs logins and not the site |
 | `AuthProperties` | `@ConfigurationProperties`. **Refuses to start** without a ≥32-byte `JWT_SECRET`; no committed default |
 | `Problems` · `ProblemAuthenticationEntryPoint` · `ProblemAccessDeniedHandler` | RFC 7807 for the filter-chain paths, which run before `DispatcherServlet` and so never reach `ApiExceptionHandler` |
@@ -149,7 +150,7 @@ deploy/                            Phase 5d
   compose.prod.yml                 Postgres + Redis + backend + Caddy. restart: unless-stopped is
                                    load-bearing -- @Scheduled needs a live JVM
   Caddyfile                        TLS, and a warning against adding trusted_proxies
-  README.md                        the runbook, the OCI firewall trap, 9 acceptance checks
+  README.md                        the runbook, the OCI firewall trap, the acceptance checks
 frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6, Tailwind 4
   src/lib/api.ts                   the only place the access token lives, and it is memory-only
   src/lib/auth.tsx                 trades the HttpOnly refresh cookie for a token on load
@@ -233,7 +234,7 @@ scored before a page can be taken. That is the [§9 baseline](perf/baseline.md),
 | Understand any of this without the jargon | [`orientation.md`](orientation.md) — glossary, real-vs-planned, how a request actually works |
 | Finish a piece of work | [`../CLAUDE.md`](../CLAUDE.md), "Definition of done" · or type `/review-pass` |
 | Run it | [`../README.md`](../README.md) for setup · [`../CLAUDE.md`](../CLAUDE.md) for the full command list |
-| Deploy it | [`../deploy/README.md`](../deploy/README.md) — the runbook, the firewall trap, and nine acceptance checks. `deploy/compose.prod.yml` + `Caddyfile`; move the data with `scripts/db-restore.sh`. north-star §5d |
+| Deploy it | [`../deploy/README.md`](../deploy/README.md) — the runbook, the firewall trap, and the acceptance checks. `deploy/compose.prod.yml` + `Caddyfile`; move the data with `scripts/db-restore.sh`. north-star §5d |
 | Add a screen | a route under `frontend/src/app/`, a hook in `src/lib/queries.ts`, a type in `src/lib/types.ts` |
 | Change how a request is authenticated | `frontend/src/lib/api.ts` — one fetch wrapper, and the only thing that holds the access token |
 | Understand why a build died on the JDK | `pom.xml`'s enforcer rule says it in the error. Background in [`../CLAUDE.md`](../CLAUDE.md) |

@@ -46,8 +46,9 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
      * -- never with {@code getRequestURI().startsWith(...)}. The raw URI is
      * still percent-encoded and carries any forwarded prefix, so
      * {@code /api/v1/%61uth/login} and {@code X-Forwarded-Prefix: /x} both
-     * reached login with this filter skipped. Reproduced through the deployed
-     * proxy on 2026-09-24; {@code AuthRateLimitTests} pins both.
+     * reached login with this filter skipped. Reproduced 2026-09-24 through Caddy
+     * as configured for production, on a local copy of that stack;
+     * {@code AuthRateLimitTests} pins both.
      */
     private static final RequestMatcher AUTH =
             PathPatternRequestMatcher.withDefaults().matcher("/api/v1/auth/**");

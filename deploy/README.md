@@ -146,7 +146,7 @@ with an expected result.
 | 3 | Register, log in, hard-reload in a **real browser** | session survives — the `SameSite` fix, proven not reasoned |
 | 4a | Six `/api/v1/auth/login` **through Caddy** with a varying forged `X-Forwarded-For` | the 6th is `429` — this tests **Caddy**, not the app |
 | 4b | With that bucket at `429`, one request from a **genuinely different client** (phone off wifi) | `401`, not `429` |
-| 4c | With that bucket at `429`, three more logins: `Forwarded: for=203.0.113.77`; `X-Forwarded-Prefix: /x`; and the path `/api/v1/%61uth/login` | all three `429` — each one was `401` (a bypass) until 2026-09-24 |
+| 4c | With that bucket at `429`, three more logins: `Forwarded: for=203.0.113.77`; `X-Forwarded-Prefix: /x`; and the path `/api/v1/%61uth/login` | all three `429`. A `401` on any of them means the bypass is live — every backend and Caddyfile before the 2026-09-24 fix returns it |
 | 5 | `curl -H 'Origin: https://evil.example'` | no `access-control-allow-origin`; the real origin gets one |
 | 6 | `curl -sI http://api.D/...` and a `https` response | `308` to https, and `strict-transport-security` present |
 | 7 | `nc -z <vm-ip> 5432` / `6379` | **refused** — neither is on the internet |
