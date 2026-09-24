@@ -13,6 +13,8 @@ import java.time.Duration;
 import java.util.function.Supplier;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -39,7 +41,17 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class AuthRateLimitFilter extends OncePerRequestFilter {
 
-    private static final String PATH = "/api/v1/auth/";
+    /**
+     * Matched the way routing matches -- decoded segments, context path removed
+     * -- never with {@code getRequestURI().startsWith(...)}. The raw URI is
+     * still percent-encoded and carries any forwarded prefix, so
+     * {@code /api/v1/%61uth/login} and {@code X-Forwarded-Prefix: /x} both
+     * reached login with this filter skipped. Reproduced 2026-09-24 through Caddy
+     * as configured for production, on a local copy of that stack;
+     * {@code AuthRateLimitTests} pins both.
+     */
+    private static final RequestMatcher AUTH =
+            PathPatternRequestMatcher.withDefaults().matcher("/api/v1/auth/**");
 
     private final ObjectProvider<ProxyManager<byte[]>> buckets;
     private final Supplier<BucketConfiguration> configuration;
@@ -60,7 +72,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith(PATH);
+        return !AUTH.matches(request);
     }
 
     @Override
@@ -87,13 +99,15 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Behind Fly and Vercel the socket address is a proxy, so the client is the
-     * first hop in X-Forwarded-For.
+     * Behind Caddy the socket address is the proxy, so the client comes from the
+     * forwarded headers.
      *
-     * <p>That header is client-controlled and therefore forgeable, which would
-     * let an attacker mint a fresh bucket per request. It is trusted here only
-     * because the deployment terminates TLS at a proxy that overwrites it. On a
-     * host that does not, this must go back to {@code getRemoteAddr}.
+     * <p>While {@code forward-headers-strategy: framework} is set, the header
+     * branch below is dead: Spring's filter has already removed the header and
+     * rewritten {@code getRemoteAddr()} from it. Either way the value is
+     * client-controlled and trusted only because Caddy overwrites
+     * {@code X-Forwarded-For}; every other forwarded header is refused before it
+     * gets here ({@link ForwardedHeaderConfig}).
      */
     private static String clientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");

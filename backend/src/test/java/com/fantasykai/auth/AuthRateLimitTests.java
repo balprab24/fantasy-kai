@@ -3,19 +3,25 @@ package com.fantasykai.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.redis.testcontainers.RedisContainer;
+import java.net.URI;
+import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.web.filter.ForwardedHeaderFilter;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -53,6 +59,17 @@ class AuthRateLimitTests {
 
     @Autowired
     private TestRestTemplate rest;
+
+    /**
+     * Every test here comes from the same peer, so they all share one bucket.
+     * Without this, a test that asserts "the 6th is 429" can pass because an
+     * earlier test already drained the bucket -- which, for the bypass tests
+     * below, would turn a live bypass into a green bar.
+     */
+    @BeforeEach
+    void emptyTheBuckets() throws Exception {
+        REDIS.execInContainer("redis-cli", "FLUSHALL");
+    }
 
     @Test
     void refusesTheSixthAuthenticationAttemptInAMinute() {
@@ -116,6 +133,12 @@ class AuthRateLimitTests {
      * {@code /api/v1/auth/**} becomes decoration — an attacker varies the fake
      * address and gets a fresh five attempts every request.
      *
+     * <p>That argument covered {@code X-Forwarded-For} and nothing else: on
+     * 2026-09-24 {@code Forwarded}, {@code X-Forwarded-Prefix} and a
+     * percent-encoded path all went straight through Caddy. The {@code Forwarded},
+     * {@code X-Forwarded-Prefix} and encoded-path tests below are those holes,
+     * closed in the application.
+     *
      * <p><strong>The mechanism is not the one the code appears to use.</strong>
      * {@code application.yml} sets {@code server.forward-headers-strategy: framework},
      * which installs Spring's {@code ForwardedHeaderFilter} ahead of the security
@@ -165,6 +188,135 @@ class AuthRateLimitTests {
                 .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
     }
 
+    /**
+     * RFC 7239 {@code Forwarded} is a second spelling of the client address, and
+     * Spring's {@code ForwardedHeaderUtils} reads it <em>before</em>
+     * {@code X-Forwarded-For}. Caddy overwrites only the {@code X-Forwarded-*}
+     * trio and passes this one through untouched, so it bought a fresh bucket per
+     * forged address <em>through Caddy as configured for production</em> --
+     * reproduced 2026-09-24 against a local copy of that stack, seven for seven.
+     *
+     * <p>Unlike {@code X-Forwarded-For}, nothing upstream ever writes this header
+     * for us, so the application refuses it outright rather than leaving the
+     * defence to the proxy alone.
+     */
+    @Test
+    void aForgedRfc7239ForwardedHeaderDoesNotBuyAFreshBucket() {
+        for (int attempt = 1; attempt <= LIMIT; attempt++) {
+            assertThat(loginWith(Map.of("Forwarded", "for=203.0.113.%d".formatted(attempt))).getStatusCode())
+                    .as("attempt %d of %d is within the limit", attempt, LIMIT)
+                    .isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+
+        assertThat(loginWith(Map.of("Forwarded", "for=203.0.113.99")).getStatusCode())
+                .as("a forged Forwarded header must not change which bucket is counted")
+                .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    /**
+     * {@code X-Forwarded-Prefix} rewrites {@code getRequestURI()}, so a limiter
+     * that asks "does the URI start with /api/v1/auth/" was not bypassed so much
+     * as never consulted: {@code /x/api/v1/auth/login} does not start with it, yet
+     * still routes to login, because routing strips the (forged) context path.
+     * One constant header, no variation needed.
+     *
+     * <p>Either layer alone passes this test: the allowlist drops the header, and
+     * the path matcher strips a believed prefix anyway. The next test is the one
+     * that pins the allowlist on its own.
+     */
+    @Test
+    void aForgedForwardedPrefixCannotSkipTheLimiter() {
+        drainTheBucket();
+
+        assertThat(loginWith(Map.of("X-Forwarded-Prefix", "/x")).getStatusCode())
+                .as("a forged prefix must not take the request outside the limiter")
+                .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    /**
+     * The allowlist itself, observed where the request URI is visible: a problem
+     * response's {@code instance}. If {@code X-Forwarded-Prefix} were believed it
+     * would read {@code /x/api/v1/players/...}.
+     */
+    @Test
+    void aForgedForwardedPrefixIsNotBelieved() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Forwarded-Prefix", "/x");
+
+        ResponseEntity<Map> response = rest.exchange("/api/v1/players/999999999", HttpMethod.GET,
+                new HttpEntity<>(headers), Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).containsEntry("instance", "/api/v1/players/999999999");
+    }
+
+    /**
+     * Both directions of the proto question, because HSTS depends on it. Caddy
+     * writes {@code X-Forwarded-Proto}, so it must still make a request secure --
+     * without it HSTS silently stops being sent (the trap in CLAUDE.md). Nothing
+     * writes {@code X-Forwarded-Ssl}, so it must not.
+     */
+    @Test
+    void onlyTheProxyWrittenProtoHeaderMakesARequestSecure() {
+        HttpHeaders proxied = new HttpHeaders();
+        proxied.set("X-Forwarded-Proto", "https");
+        HttpHeaders forged = new HttpHeaders();
+        forged.set("X-Forwarded-Ssl", "on");
+
+        ResponseEntity<String> viaProto = rest.exchange("/api/v1/scoring-profiles", HttpMethod.GET,
+                new HttpEntity<>(proxied), String.class);
+        ResponseEntity<String> viaSsl = rest.exchange("/api/v1/scoring-profiles", HttpMethod.GET,
+                new HttpEntity<>(forged), String.class);
+
+        assertThat(viaProto.getHeaders().getFirst("Strict-Transport-Security"))
+                .as("X-Forwarded-Proto is written by Caddy and must still be believed")
+                .isNotNull();
+        assertThat(viaSsl.getHeaders().getFirst("Strict-Transport-Security"))
+                .as("X-Forwarded-Ssl is written by nobody and must not make a request secure")
+                .isNull();
+    }
+
+    /**
+     * No header at all: {@code getRequestURI()} is the raw, still-encoded path,
+     * while routing and Spring Security both match decoded segments. So
+     * {@code /api/v1/%61uth/login} reached login with the limiter skipped.
+     * The firewall rejects encoded {@code /}, {@code .} and {@code %}, but not an
+     * encoded letter. A proxy cannot fix this one; only matching the path the
+     * way routing does can.
+     */
+    @Test
+    void aPercentEncodedPathCannotSkipTheLimiter() {
+        drainTheBucket();
+
+        // A URI, not a String: RestTemplate would otherwise re-encode the % sign.
+        URI encoded = URI.create(rest.getRootUri() + "/api/v1/%61uth/login");
+        ResponseEntity<String> response = rest.postForEntity(encoded,
+                new HttpEntity<>(Map.of("email", "nobody@example.com", "password", "wrong-password-here"),
+                        jsonHeaders()),
+                String.class);
+
+        assertThat(response.getStatusCode())
+                .as("an encoded letter in the path must not take the request outside the limiter")
+                .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    /**
+     * Boot registers its own {@code ForwardedHeaderFilter} unless it sees one
+     * already. If that back-off ever failed, two would run at the same
+     * {@code HIGHEST_PRECEDENCE} in an unspecified order -- and the unfiltered one
+     * running first would quietly reopen both header bypasses above.
+     */
+    @Test
+    void exactlyOneForwardedHeaderFilterIsRegistered_andItIsTheAllowlist(
+            @Autowired List<FilterRegistrationBean<?>> registrations) {
+        List<Object> forwarded = registrations.stream()
+                .<Object>map(FilterRegistrationBean::getFilter)
+                .filter(ForwardedHeaderFilter.class::isInstance)
+                .toList();
+
+        assertThat(forwarded).singleElement().isInstanceOf(ForwardedHeaderConfig.ProxyWrittenOnly.class);
+    }
+
     /** Registration is on the same surface and the same bucket as login. */
     @Test
     void appliesTheSameLimitToRegistration() {
@@ -193,11 +345,34 @@ class AuthRateLimitTests {
     }
 
     private ResponseEntity<String> post(String path, Map<String, String> body, String forwardedFor) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpHeaders headers = jsonHeaders();
         if (forwardedFor != null) {
             headers.set("X-Forwarded-For", forwardedFor);
         }
         return rest.postForEntity(path, new HttpEntity<>(body, headers), String.class);
+    }
+
+    private ResponseEntity<String> loginWith(Map<String, String> extraHeaders) {
+        HttpHeaders headers = jsonHeaders();
+        extraHeaders.forEach(headers::set);
+        return rest.postForEntity("/api/v1/auth/login",
+                new HttpEntity<>(Map.of("email", "nobody@example.com", "password", "wrong-password-here"), headers),
+                String.class);
+    }
+
+    /** Five plain attempts from this peer, asserting the bucket really is empty afterwards. */
+    private void drainTheBucket() {
+        for (int attempt = 0; attempt < LIMIT; attempt++) {
+            login("nobody@example.com");
+        }
+        assertThat(login("nobody@example.com").getStatusCode())
+                .as("precondition: the plain bucket is drained")
+                .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    private static HttpHeaders jsonHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        return headers;
     }
 }
