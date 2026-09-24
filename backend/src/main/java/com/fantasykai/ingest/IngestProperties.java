@@ -1,6 +1,7 @@
 package com.fantasykai.ingest;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.Month;
 import java.util.EnumSet;
@@ -17,6 +18,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param scheduledEnabled  master switch for the scheduled job (off in tests)
  * @param backfillOnStartup runs a full backfill once at boot, for the initial load
  * @param once              pulls the current season once, then exits; the daily launchd job
+ * @param fetchTimeout      bounds one nflverse download end to end -- headers AND body. Measured
+ *                          on the monotonic clock, so time the Mac spends asleep does not count;
+ *                          see {@code NflverseClient#read}
  */
 @ConfigurationProperties(prefix = "fantasykai.ingest")
 public record IngestProperties(
@@ -26,7 +30,8 @@ public record IngestProperties(
         String cron,
         boolean scheduledEnabled,
         boolean backfillOnStartup,
-        boolean once) {
+        boolean once,
+        Duration fetchTimeout) {
 
     /** September through February. Outside this the scheduled pull is a no-op. */
     private static final Set<Month> IN_SEASON = EnumSet.of(

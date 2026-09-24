@@ -31,7 +31,7 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | Class | Does |
 |---|---|
 | `IngestService` | Orchestrator. Sequences the six sources, wraps each in an `ingest_runs` row |
-| `NflverseClient` | One HTTP GET of a GitHub release asset + commons-csv parse |
+| `NflverseClient` | One HTTP GET of a GitHub release asset + commons-csv parse. The whole download, body included, is bounded by `fetch-timeout` on the monotonic clock, and every fetch logs `monotonic_ms` beside `wall_ms` |
 | `TeamIngestor` | `teams_colors_logos.csv` → `teams`, including historical abbreviations, and since `V6` the ESPN logo URL (https only) |
 | `PlayerIngestor` | `players.csv` → `players`; espn/pfr/nfl/esb ids as `jsonb`, and since `V6` `birth_date` — read but never required, and a malformed one is null: display-only data must not stop the pull |
 | `GameIngestor` | `schedules/games.csv` → `games`. 18 of the source's 46 columns; upsert generated from one ordered `List<Field>` |
@@ -382,6 +382,7 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 | `ingest_runs` was written and never read | `f478233` — `IngestFreshnessHealthIndicator`, with a `liveness` group so a stale pipeline cannot restart a machine |
 | A renamed upstream column zeroed a stat and reported SUCCESS | `f478233` — header verified against the columns each ingestor reads, generated from the same `List<Field>` as the upsert |
 | `NflverseClient` leaked the response body on the 404 path | `f478233` |
+| `NflverseClient` had no bound on the body: its 3-minute timeout covered only the wait for headers, and a mid-body reset escaped as `UncheckedIOException` | `fix/ingest-fetch-deadline` — one monotonic deadline over the whole fetch, cancel on timeout, `NflverseClientHttpTests` against a local server. **Not the root cause** of the 2026-09-22..24 daily failures (the Mac re-sleeping inside the Power Nap wake launchd starts the job in); retries and the schedule are still open |
 | No auth at all; five endpoints world-readable | Phase 5a/5b — default-deny chain, `show-details: when-authorized` |
 | `ScoringProfiles.byId` had no ownership check | Phase 5a/5b — filtered in the query, and the compile cache carries its owner so a warm entry is not a bypass |
 | `ScoringProfiles.evict(long)` had zero callers | Phase 5a/5b — every profile write calls it |
