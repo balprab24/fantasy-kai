@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Schibsted_Grotesk } from "next/font/google";
+import { Saira_Semi_Condensed, Schibsted_Grotesk } from "next/font/google";
 import { Providers } from "./providers";
-import { SiteHeader } from "@/components/SiteHeader";
-import { Attribution } from "@/components/Attribution";
+import { AppShell } from "@/components/shell/AppShell";
 import "./globals.css";
 
-const bricolage = Bricolage_Grotesque({
+// Display face for titles and tier letters only. Semi-condensed with a
+// slight instrument-panel cut: it reads as sport, not as a cartoon. Not a
+// variable font, so the weights in use are named.
+const saira = Saira_Semi_Condensed({
   subsets: ["latin"],
-  variable: "--font-bricolage",
+  weight: ["600", "700"],
+  variable: "--font-saira",
   display: "swap",
 });
 
@@ -25,14 +28,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${bricolage.variable} ${schibsted.variable}`}>
+    <html lang="en" className={`${saira.variable} ${schibsted.variable}`}>
       <body className="min-h-dvh bg-paper text-ink antialiased">
         <Providers>
-          <div className="flex min-h-dvh flex-col">
-            <SiteHeader />
-            <main className="flex-1">{children}</main>
-            <Attribution />
-          </div>
+          <AppShell>{children}</AppShell>
         </Providers>
       </body>
     </html>

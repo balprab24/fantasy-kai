@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 import { useAuth } from "./auth";
 import type {
@@ -44,32 +44,45 @@ export function useProfiles() {
   });
 }
 
-export interface RankingQuery {
+/**
+ * The rankings workspace's board: page after page from rank 1, never a page
+ * on its own.
+ *
+ * Two reasons, both measured facts rather than preferences. Every request
+ * scores the whole season whatever `size` is, so 200 -- the API's cap -- is the
+ * cheapest way to move a board: three requests for ~600 players instead of
+ * twelve. And a board that always starts at rank 1 is what lets positional
+ * ranks and tiers be derived here at all (`lib/board.ts`).
+ */
+export const BOARD_PAGE_SIZE = 200;
+
+export interface BoardQuery {
   profileId: number | null;
   season: number;
   position: Position | null;
   scope: Scope;
-  page: number;
-  size: number;
 }
 
-export function useRankings(q: RankingQuery) {
-  const params = new URLSearchParams({
-    profileId: String(q.profileId ?? ""),
-    season: String(q.season),
-    scope: q.scope,
-    page: String(q.page),
-    size: String(q.size),
-  });
-  if (q.position) params.set("position", q.position);
-
-  return useQuery({
-    queryKey: ["rankings", q.profileId, q.season, q.position, q.scope, q.page, q.size],
-    queryFn: () => api<Page<RankingRow>>(`/api/v1/rankings?${params}`),
+export function useRankingsBoard(q: BoardQuery) {
+  return useInfiniteQuery({
+    queryKey: ["rankings-board", q.profileId, q.season, q.position, q.scope],
     enabled: q.profileId !== null,
-    // Keeping the previous board on screen while the next one loads is what
-    // makes switching rulesets read as movement rather than as a reload.
-    placeholderData: (previous) => previous,
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({
+        profileId: String(q.profileId ?? ""),
+        season: String(q.season),
+        scope: q.scope,
+        page: String(pageParam),
+        size: String(BOARD_PAGE_SIZE),
+      });
+      if (q.position) params.set("position", q.position);
+      return api<Page<RankingRow>>(`/api/v1/rankings?${params}`);
+    },
+    getNextPageParam: (last) => (last.page + 1 < last.totalPages ? last.page + 1 : undefined),
+    // The previous board stays on screen while the next ruleset is scored, so
+    // a switch reads as movement rather than as a reload.
+    placeholderData: keepPreviousData,
   });
 }
 
