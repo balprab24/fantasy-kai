@@ -83,10 +83,10 @@ export function PlayerRow({
         <div className="flex items-center justify-end gap-4 pl-4">
           <span
             aria-hidden
-            className="hidden h-1 max-w-80 flex-1 overflow-hidden rounded-full bg-line sm:block"
+            className="hidden h-1 max-w-80 flex-1 overflow-hidden rounded-full bg-white/[0.06] sm:block"
           >
             <span
-              className="block h-full rounded-full bg-mute/60"
+              className="block h-full rounded-full bg-ink/45"
               style={{ width: `${row.share * 100}%` }}
             />
           </span>

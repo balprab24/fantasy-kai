@@ -205,39 +205,50 @@ export function RankingsBoard({
             </caption>
             <thead>
               <tr className="text-left">
-                <th scope="col" className={`${COL.rank} eyebrow bg-paper pb-1 pl-2 font-semibold`}>
-                  #
+                {/* Rank and name keep an opaque cell: they are pinned when the
+                    board scrolls sideways on a phone, and the columns sliding
+                    under them must not show through. */}
+                <th scope="col" className={`${COL.rank} colhead bg-paper`}>
+                  <span className="colhead-box">#</span>
                 </th>
-                <th scope="col" className={`${COL.player} eyebrow bg-paper pb-1 font-semibold`}>
-                  Player
+                <th scope="col" className={`${COL.player} colhead bg-paper`}>
+                  <span className="colhead-box">Player</span>
                 </th>
-                <th scope="col" className={`${COL.pos} eyebrow pb-1 font-semibold`}>
-                  Pos
+                <th scope="col" className={`${COL.pos} colhead`}>
+                  <span className="colhead-box">Pos</span>
                 </th>
-                <th scope="col" className={`${COL.team} eyebrow pb-1 font-semibold`}>
-                  Team
+                <th scope="col" className={`${COL.team} colhead`}>
+                  <span className="colhead-box">Team</span>
                 </th>
-                <th scope="col" className={`${COL.games} eyebrow pb-1 font-semibold`}>
-                  <abbr title="Games played" className="no-underline">
+                <th scope="col" className={`${COL.games} colhead`}>
+                  <abbr title="Games played" className="colhead-box no-underline">
                     G
                   </abbr>
                 </th>
                 {/* The headline column is whatever the board is sorted by; the
                     other figure steps down beside it. */}
-                <th scope="col" className={`${COL.primary} eyebrow pb-1 font-semibold`}>
-                  {perGame ? <span title={QUALITY_KEY}>Per game</span> : "Points"}
-                </th>
-                <th scope="col" className={`${COL.secondary} eyebrow pb-1 font-semibold`}>
+                <th scope="col" className={`${COL.primary} colhead`}>
                   {perGame ? (
-                    "Total"
+                    <span title={QUALITY_KEY} className="colhead-box">
+                      Per game
+                    </span>
                   ) : (
-                    <abbr title={`Points per game. ${QUALITY_KEY}`} className="no-underline">
+                    <span className="colhead-box">Points</span>
+                  )}
+                </th>
+                <th scope="col" className={`${COL.secondary} colhead`}>
+                  {perGame ? (
+                    <span className="colhead-box">Total</span>
+                  ) : (
+                    <abbr title={`Points per game. ${QUALITY_KEY}`} className="colhead-box no-underline">
                       Per G
                     </abbr>
                   )}
                 </th>
-                <th scope="col" className={`${COL.move} eyebrow pb-1 font-semibold`}>
-                  <span title="Places moved since the ruleset you were last viewing">Move</span>
+                <th scope="col" className={`${COL.move} colhead`}>
+                  <span title="Places moved since the ruleset you were last viewing" className="colhead-box">
+                    Move
+                  </span>
                 </th>
               </tr>
             </thead>
