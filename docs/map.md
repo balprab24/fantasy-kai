@@ -23,7 +23,7 @@ and nothing caught it for two days.
 | HTTP endpoints | **12** — 5 public `GET`, 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V5` |
 | Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
-| Frontend | **Next.js 16 · 36 `.ts`/`.tsx` files** (38 under `frontend/src`) — dark app shell with a left rail, the rankings workspace (tiers, positional ranks, find-in-board), player detail, auth, ruleset builder, attribution footer. `npm run build` + `npm run lint` green. No frontend test runner |
+| Frontend | **Next.js 16 · 36 `.ts`/`.tsx` files** (38 under `frontend/src`) — near-black app shell with a narrow left rail, the rankings workspace (tiers, positional ranks, find-in-board), player detail, auth, ruleset builder, attribution footer. `npm run build` + `npm run lint` green. No frontend test runner |
 
 | # | Phase | State |
 |---|---|---|
@@ -161,11 +161,15 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    per-game quality band against 12-team starter lines
   src/lib/season.ts                currentSeason() -- mirrors IngestProperties.seasonFor, so
                                    no page pins a season literal again
-  src/app/globals.css              the design tokens. Dark; ki orange = brand/best, energy
-                                   blue = interactive. Every text pair measured for contrast
+  src/app/globals.css              the design tokens. Near-black: void rail < paper page <
+                                   opaque raised rows; ki orange = brand/best, energy blue =
+                                   interactive. Every text pair measured for contrast
   src/components/                  RulesetSwitch (the hero), RankingsBoard, RulesetBuilder,
                                    RateInput, Movement, Attribution, AuthForm
-    shell/                         AppShell, Sidebar, MobileNav (<dialog>), nav.ts -- one nav
+    shell/                         AppShell, Sidebar (104px rail of stacked icon-over-label
+                                   tiles, fits 1440x780 unscrolled; wordmark with the
+                                   dragon-ball dot on the i), MobileNav (<dialog>, rows),
+                                   nav.ts -- one nav
                                    definition; unbuilt sections render as "soon", never links
     ui/                            Icon (inline SVG), SegmentedControl (native radios),
                                    SearchField, StatusMessage + Skeleton

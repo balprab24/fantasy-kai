@@ -38,7 +38,7 @@ export function RankingsWorkspace() {
   const scopeLabel = SCOPES.find((s) => s.value === scope)?.title;
 
   return (
-    <div className="aura">
+    <div>
       <div className="mx-auto max-w-[1320px] px-4 pt-5 pb-10 sm:px-6 lg:px-8">
         <header className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">

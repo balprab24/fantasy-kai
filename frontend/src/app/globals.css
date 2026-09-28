@@ -2,9 +2,14 @@
 
 /*
  * The product's claim is that one season has several correct answers, and the
- * ruleset decides which. So the palette is still instrument-like rather than
- * sporty -- a dark workstation now, not chalk paper -- and colour is spent only
- * where it carries meaning. Two accents, and they never trade jobs:
+ * ruleset decides which. So the palette is instrument-like rather than sporty,
+ * and colour is spent only where it carries meaning.
+ *
+ * "Ki in the dark": black is the stage. The page is near-black, the rail is
+ * darker still so the frame recedes, and the surfaces are neutral steps off the
+ * page rather than slate -- the old `raised` was a blue-grey that covered 63%
+ * of the screen (measured, 2026-09-28) and made the whole product read grey.
+ * The two accents come from the logo's two strokes, and they never trade jobs:
  *
  *   ki (orange)     the brand, the primary action, and the top tier. "The best."
  *   energy (blue)   anything you can act on or just did: selection, focus,
@@ -17,22 +22,29 @@
  * text, and `field` -- which always meant "active" -- now points at energy.
  *
  * Every text/background pair below was measured (WCAG 2 relative luminance),
- * not eyeballed. On paper / raised / surface-2:
- *   ink 16.3 / 15.1 / 13.7 · mute 7.9 / 7.3 / 6.6 · faint 5.5 / 5.1 / 4.6
- *   every pos-* hue >= 5.9, every stat-* >= 6.4, every q-* >= 6.7 on all
- *   three (re-measured 2026-09-28) · on-ki over ki 8.0
- *   line-strong 3.6 / 3.3 / 3.0 -- it bounds every input and control, and
- *   WCAG 1.4.11 wants 3:1 for that. `line` is decoration and is allowed not to.
+ * not eyeballed. On void / paper / raised / surface-2 (2026-09-28):
+ *   ink 18.1 / 17.9 / 17.1 / 16.1 · mute 8.1 / 8.0 / 7.7 / 7.2
+ *   faint 5.8 / 5.7 / 5.5 / 5.1 · energy-text >= 9.9 · ki >= 7.8
+ *   every pos-* >= 6.6, every q-* >= 7.5, every stat-* >= 7.2 on all four
+ *   on-ki over ki 8.0
+ *   line-strong 3.7 / 3.6 / 3.5 / 3.3 -- it bounds every input and control,
+ *   and WCAG 1.4.11 wants 3:1 for that. `line` is decoration and is allowed
+ *   not to.
  */
 @theme {
-  --color-paper: #0a0e17;
-  --color-raised: #111726;
-  --color-surface-2: #172033;
-  --color-ink: #e8ecf3;
-  --color-mute: #9aa6ba;
-  --color-faint: #7c89a1;
-  --color-line: #1f2a3d;
-  --color-line-strong: #5b6b86;
+  --color-void: #030407; /* the rail: darker than the page, so it frames it */
+  --color-paper: #05060b; /* near-black with a trace of blue, never flat #000 */
+  --color-raised: #0b0d14; /* rows and controls: opaque, so nothing shows through data */
+  --color-surface-2: #12151f;
+  /* The board's column-label band: deep indigo, the one surface that is not a
+     neutral, so the labels read as a header and not as more grey text.
+     ink on it 13.8:1. */
+  --color-head: #1a2240;
+  --color-ink: #eef1f6;
+  --color-mute: #9ba3b4;
+  --color-faint: #7f889b;
+  --color-line: rgb(255 255 255 / 0.06);
+  --color-line-strong: #5f687b;
 
   --color-ki: #ff8a3d;
   --color-on-ki: #1a0f05;
@@ -48,8 +60,9 @@
      purpose: TE leans magenta (323deg) so it cannot be read as RB's red (0deg),
      and WR leans cyan (200deg) and darker than energy-text, because blue is
      already the colour of "you can act on this".
-       contrast on paper / raised / surface-2:
-       qb 9.4 / 8.7 / 7.9 · rb 7.0 / 6.4 / 5.9 · wr 10.3 / 9.5 / 8.6 · te 9.3 / 8.6 / 7.8 */
+       contrast on void / paper / raised / surface-2:
+       qb 10.0 / 9.9 / 9.4 / 8.9 · rb 7.4 / 7.3 / 7.0 / 6.6
+       wr 10.9 / 10.8 / 10.3 / 9.7 · te 9.9 / 9.8 / 9.4 / 8.8 */
   --color-pos-qb: #c3a6ff;
   --color-pos-rb: #ff6b6b;
   --color-pos-wr: #5cc8ff;
@@ -60,7 +73,8 @@
      so a coloured number reads as a reading on an instrument, not a badge --
      and q-poor stays visibly quieter than pos-rb, which shares its hue. Text
      only, on numbers only.
-       good 10.2 / 9.4 / 8.6 · mid 10.8 / 10.0 / 9.1 · poor 7.9 / 7.3 / 6.7 */
+       good 10.8 / 10.7 / 10.2 / 9.6 · mid 11.5 / 11.3 / 10.9 / 10.2
+       poor 8.4 / 8.3 / 7.9 / 7.5 */
   --color-q-good: #6fcf97;
   --color-q-mid: #d9c162;
   --color-q-poor: #e58e8e;
@@ -105,7 +119,31 @@ body {
   border-radius: 2px;
 }
 
-/* The small uppercase label every control group and column carries. */
+/* The board's column labels: each one in its own small indigo box, white
+   text, sized to the label -- a box per label rather than a band across the
+   row, so the empty stretch over the score bars stays empty. Normal case at
+   12px rather than tracked capitals at 11px: short words in capitals are read
+   letter by letter, and these are read every time the eye comes back up.
+   ink on head 13.8:1. */
+.colhead {
+  height: 2.25rem;
+  vertical-align: middle;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--color-ink);
+}
+
+.colhead-box {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.3rem;
+  background: var(--color-head);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* The small uppercase label every control group and tier carries. */
 .eyebrow {
   font-size: 11px;
   font-weight: 600;
@@ -114,15 +152,57 @@ body {
   color: var(--color-mute);
 }
 
-/* A faint wash of energy behind a page header -- one of exactly three glows
-   in the product, with the active nav bar and the S-tier glyph. Present
-   enough to give the page a top, quiet enough to vanish. */
-.aura {
-  background-image: radial-gradient(
-    900px 280px at 0% 0%,
-    rgb(77 163 255 / 0.07),
-    transparent 70%
+/* The wordmark's i (Sidebar.tsx): a dotless ı -- already in the latin subset,
+   U+0131 -- with the dragon ball set where its dot would be.
+
+   line-height: 1 makes the box a property of the font rather than the page:
+   inherited at 1.5 it put the baseline 20.5px down a 28.5px box and the orb
+   floated well clear of the letter. At 1, measured in Saira Semi Condensed
+   700, the baseline sits 0.83em down and the ı's top 0.51em above it, so an
+   orb 0.42em tall at top -0.16em rests 0.06em above the stem. */
+.dotted-i {
+  position: relative;
+  display: inline-block;
+  line-height: 1;
+}
+
+.dragon-ball {
+  position: absolute;
+  left: 50%;
+  top: -0.16em;
+  width: 0.42em;
+  height: 0.42em;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle at 34% 30%,
+    #fff4cf 0 7%,
+    #ffc35c 20%,
+    #ff9426 52%,
+    #d9620f 82%,
+    #9f4308 100%
   );
+  box-shadow: inset 0 -0.06em 0.12em rgb(0 0 0 / 0.35);
+}
+
+/* The rail's right edge: a 1px hairline that starts in ki and ends in energy,
+   the logo's two strokes stretched the height of the screen. Neutral through
+   the middle, so it reads as an edge first and a colour second. */
+.rail-edge::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    rgb(255 138 61 / 0.55),
+    var(--color-line) 30%,
+    var(--color-line) 70%,
+    rgb(77 163 255 / 0.5)
+  );
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
