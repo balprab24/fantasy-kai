@@ -5,6 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { RulesetSwitch } from "@/components/RulesetSwitch";
 import { useGamelog, usePlayer, useSelectedProfile } from "@/lib/queries";
+import { currentSeason, seasons } from "@/lib/season";
 import type { GamelogWeek, StatKey } from "@/lib/types";
 
 /**
@@ -56,7 +57,7 @@ export default function PlayerPage() {
   const { profiles, profileId, setProfileId } = useSelectedProfile(
     search.get("profileId") ? Number(search.get("profileId")) : null,
   );
-  const [season, setSeason] = useState(Number(search.get("season") ?? 2025));
+  const [season, setSeason] = useState(() => Number(search.get("season") ?? currentSeason()));
 
   const player = usePlayer(playerId);
   const gamelog = useGamelog(playerId, profileId, season);
@@ -98,7 +99,7 @@ export default function PlayerPage() {
             onChange={(e) => setSeason(Number(e.target.value))}
             className="rounded border border-line-strong bg-raised px-2 py-1.5"
           >
-            {[2026, 2025, 2024, 2023, 2022, 2021, 2020].map((y) => (
+            {seasons().map((y) => (
               <option key={y} value={y}>
                 {y}
               </option>
@@ -176,7 +177,7 @@ export default function PlayerPage() {
                   <span className="tabular font-medium">{week.points.toFixed(1)}</span>
                   <span
                     aria-hidden
-                    className="mt-1 block h-1 rounded-full bg-field/70"
+                    className="mt-1 block h-1 rounded-full bg-mute/60"
                     style={{
                       width: `${Math.max(0, (week.points / best) * 100)}%`,
                       marginLeft: "auto",

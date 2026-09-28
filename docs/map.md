@@ -23,7 +23,7 @@ and nothing caught it for two days.
 | HTTP endpoints | **12** — 5 public `GET`, 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V5` |
 | Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
-| Frontend | **Next.js 16 · 21 `.ts`/`.tsx` files** (23 under `frontend/src`) — landing, rankings, player detail, auth, ruleset builder, attribution footer. `npm run build` + `npm run lint` green |
+| Frontend | **Next.js 16 · 36 `.ts`/`.tsx` files** (38 under `frontend/src`) — dark app shell with a left rail, the rankings workspace (tiers, positional ranks, find-in-board), player detail, auth, ruleset builder, attribution footer. `npm run build` + `npm run lint` green. No frontend test runner |
 
 | # | Phase | State |
 |---|---|---|
@@ -156,8 +156,21 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
   src/lib/auth.tsx                 trades the HttpOnly refresh cookie for a token on load
   src/lib/queries.ts               TanStack Query hooks; useProfiles waits for the session
   src/lib/ruleset.ts               the ruleset document + a mirror of RulesetValidator's bounds
+  src/lib/board.ts                 what the board derives, never invents: positional rank,
+                                   % of leader, tiers (natural breaks over the top 60), and a
+                                   per-game quality band against 12-team starter lines
+  src/lib/season.ts                currentSeason() -- mirrors IngestProperties.seasonFor, so
+                                   no page pins a season literal again
+  src/app/globals.css              the design tokens. Dark; ki orange = brand/best, energy
+                                   blue = interactive. Every text pair measured for contrast
   src/components/                  RulesetSwitch (the hero), RankingsBoard, RulesetBuilder,
-                                   RateInput, Movement, Attribution, SiteHeader, AuthForm
+                                   RateInput, Movement, Attribution, AuthForm
+    shell/                         AppShell, Sidebar, MobileNav (<dialog>), nav.ts -- one nav
+                                   definition; unbuilt sections render as "soon", never links
+    ui/                            Icon (inline SVG), SegmentedControl (native radios),
+                                   SearchField, StatusMessage + Skeleton
+    rankings/                      RankingsWorkspace (what / and /rankings both render),
+                                   FilterBar, PlayerRow, TierHeader, PositionBadge, PlayerAvatar
   src/app/                         / rankings /players/[id] /profiles /login /register
 backend/src/test/
   java/com/fantasykai/             15 test classes + ApiFixture, Presets
@@ -277,6 +290,20 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 | The ingest depends on a laptop being awake | launchd fires on wake, not at 06:00, and on local time rather than ET. Acceptable for a pull with no deadline — and the reason the freshness indicator exists rather than being optional |
 | No shared Testcontainers base class | Ten cached Spring contexts, seven with an embedded Tomcat. **Teardown measured at ~35s on 2026-09-14 — the largest single term in the build, more than compilation and all 132 tests together.** It sits just over Surefire's 30s fork-exit timeout, which is why the same commit builds in 31s some days and 58s others. **Back to urgent**: it was downgraded on a ~9s estimate that direct measurement contradicts. See [`../CLAUDE.md`](../CLAUDE.md) |
 | Hikari is at Spring Boot's default 10 connections | 10 × ~39 ms occupancy ≈ the 256 req/s ceiling. Phase 11 must not mistake raising it for a fix |
+
+### Follow-ups from the rankings workspace pass — **new** 2026-09-28
+
+Found while shipping the shell, the current-season fix, position hues and per-game quality
+colour. Recorded, deliberately not fixed in that milestone.
+
+| Follow-up | Detail |
+|---|---|
+| Local 2026 data is stale | The 06:09 ingest on 2026-09-28 FAILED and the jar is stale, so local week 3 holds 1 game against production's full slate. Ops, not frontend: rebuild with `./scripts/package.sh` **on the branch the ingest should run from**, then re-run |
+| Short absences go unjudged | `QUALIFYING_SHARE = 0.5` in `lib/board.ts` leaves Joe Burrow's 2025 (8 of 17 games, 16.8/game) uncoloured. Half the board's games is a judgement, not a measurement |
+| Starter lines assume a 12-team 1/2/3/1 league | `STARTERS` in `lib/board.ts`. Phase 7 league import supplies real roster slots; until then green means "a 12-team starter" and nothing more |
+| No quality colour on a phone's Season board | Per game is the secondary column there, hidden below `md`. Phones see the colour only on the Per-game board |
+| `/` and `/rankings` prerender the build-time season | Both are static; the client recomputes `currentSeason()` on load. A build from February viewed in March renders the old year before the client corrects it |
+| Two hue pairs sit close | `q-poor` shares RB's hue (lower saturation, numbers only); `pos-wr` sits 11° from `energy`. Separated by role and placement, not by hue — check with real users before calling it settled |
 
 ### Housekeeping
 

@@ -7,7 +7,7 @@
 export function Attribution() {
   return (
     <footer className="mt-16 border-t border-line">
-      <div className="mx-auto max-w-5xl px-4 py-8 text-sm leading-relaxed text-mute sm:px-6">
+      <div className="mx-auto max-w-[1320px] px-4 py-8 text-sm leading-relaxed text-mute sm:px-6 lg:px-8">
         <p className="max-w-[68ch]">
           Play-by-play, rosters and schedules from{" "}
           <a

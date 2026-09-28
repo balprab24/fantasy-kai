@@ -91,7 +91,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "register" }) {
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded bg-field px-4 py-2.5 font-medium text-white disabled:opacity-60"
+          className="w-full rounded bg-ki px-4 py-2.5 font-medium text-on-ki disabled:opacity-60"
         >
           {busy ? "Working…" : registering ? "Create account" : "Sign in"}
         </button>

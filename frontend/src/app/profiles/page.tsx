@@ -119,7 +119,7 @@ export default function ProfilesPage() {
             <button
               type="button"
               onClick={() => setBuilding(true)}
-              className="mt-5 rounded bg-field px-4 py-2 font-medium text-white"
+              className="mt-5 rounded bg-ki px-4 py-2 font-medium text-on-ki"
             >
               Build a ruleset
             </button>

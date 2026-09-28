@@ -241,7 +241,7 @@ export function RulesetBuilder({
         <button
           type="submit"
           disabled={saving || problems.length > 0}
-          className="rounded bg-field px-4 py-2 font-medium text-white disabled:opacity-60"
+          className="rounded bg-ki px-4 py-2 font-medium text-on-ki disabled:opacity-60"
         >
           {saving ? "Saving…" : "Save ruleset"}
         </button>

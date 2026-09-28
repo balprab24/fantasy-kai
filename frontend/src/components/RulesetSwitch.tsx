@@ -1,6 +1,7 @@
 "use client";
 
 import type { ScoringProfile } from "@/lib/types";
+import { SegmentedControl } from "./ui/SegmentedControl";
 
 /**
  * The hero control, and the product's whole argument in one widget.
@@ -14,36 +15,20 @@ export function RulesetSwitch({
   profiles,
   selected,
   onSelect,
+  hideLegend = false,
 }: {
   profiles: ScoringProfile[];
   selected: number | null;
   onSelect: (id: number) => void;
+  hideLegend?: boolean;
 }) {
   return (
-    <div
-      role="radiogroup"
-      aria-label="Scoring ruleset"
-      className="inline-flex flex-wrap gap-px overflow-hidden rounded-md border border-line-strong bg-line-strong"
-    >
-      {profiles.map((profile) => {
-        const active = profile.id === selected;
-        return (
-          <button
-            key={profile.id}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onSelect(profile.id)}
-            className={
-              active
-                ? "bg-field px-3.5 py-2 text-sm font-medium text-white"
-                : "bg-raised px-3.5 py-2 text-sm text-mute transition-colors hover:bg-field-soft hover:text-ink"
-            }
-          >
-            {profile.name}
-          </button>
-        );
-      })}
-    </div>
+    <SegmentedControl
+      legend="Scoring"
+      options={profiles.map((p) => ({ value: String(p.id), label: p.name }))}
+      value={selected === null ? null : String(selected)}
+      onChange={(id) => onSelect(Number(id))}
+      hideLegend={hideLegend}
+    />
   );
 }
