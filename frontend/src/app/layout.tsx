@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Saira_Semi_Condensed, Schibsted_Grotesk } from "next/font/google";
 import { Providers } from "./providers";
-import { AppShell } from "@/components/shell/AppShell";
 import "./globals.css";
 
 // Display face for titles and tier letters only. Semi-condensed with a
@@ -30,9 +29,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${saira.variable} ${schibsted.variable}`}>
       <body className="min-h-dvh bg-paper text-ink antialiased">
-        <Providers>
-          <AppShell>{children}</AppShell>
-        </Providers>
+        {/* Providers only. The two route groups choose their own frame: the
+            landing and auth pages sit under a site header, the product under
+            the rail (app/(site)/layout.tsx, app/(app)/layout.tsx). */}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -48,10 +48,23 @@ scoring engine already computes on demand against an arbitrary ruleset.
 
 | | Logged out | Account |
 |---|---|---|
-| Top-100 consensus board | ✅ | ✅ |
-| Everything else — projections, your rankings, waivers, trade calculator, league sync, custom profiles | ❌ | ✅ |
+| The landing page — what each part does, a phone drawn from real 2025 rows, sign-up | ✅ | sent on to the board |
+| Everything else — the rankings board, player pages, saved scoring, and projections, waivers, trade calculator, league sync when they exist | ❌ | ✅ |
 
 An account is an email and a password. Nothing else is collected.
+
+**Changed 2026-09-28, by owner decision.** This table used to give a logged-out visitor the top-100
+consensus board. From this change on (`feat/landing`), the website is members-only: `/` is a landing page that explains each part of
+the product and asks for an email, and every other route sits behind sign-in
+(`frontend/src/app/(app)/layout.tsx`). A signed-out visitor to a deep link is sent to sign in and
+returned to it afterwards.
+
+**The gate is the website's, not the data's.** `GET /api/v1/rankings` and `/api/v1/players/**` are
+still `permitAll` in `SecurityConfig`, so anyone with `curl` reads the same numbers a member sees.
+That is deliberate for now and must never be described as "the data is private". Closing those
+endpoints is a separate backend decision. It would reverse §5b's "the read endpoints are public" and
+Phase 5 acceptance test 3, and the landing page would lose nothing, because its preview is captured,
+not fetched.
 
 Enforced in the Spring Security filter chain as `permitAll` on an explicit, short list and
 `authenticated()` on everything else — a **default-deny** list, never a default-allow one. A new
@@ -280,7 +293,7 @@ a product you can't open is not one you'll use, and this only gets built if it g
 | 6 | Projections | `SignalKey`, `player_week_projection`, `ProjectionEngine`, `ExplainedScore`, backtest + published MAE. The heart of "valid reasons for ranking." | |
 | 7 | League import | `LeagueProvider` interface. ESPN first (cookie paste, encrypted at rest), **Sleeper in the same phase** to prove the seam is real. ESPN `mSettings.scoringItems` → `Ruleset`, auto-creating your profile. Manual ruleset builder as the fallback for when ESPN breaks — because it will. | |
 | 8 | Roster tools | `LineupOptimizer`, `SeasonSimulator`, `TradeEvaluator`, `WaiverBoard`. §7 made real. | |
-| 9 | Consensus board | FFC ADP ingest + `player_adp` + Sleeper `owned%`/trending → the logged-out top 100. In-season it's rest-of-season; **August 2027 it becomes the draft board** with no rework. | |
+| 9 | Consensus board | FFC ADP ingest + `player_adp` + Sleeper `owned%`/trending → the market board (a members' board since 2026-09-28, §2; it was "the logged-out top 100"). In-season it's rest-of-season; **August 2027 it becomes the draft board** with no rework. | |
 | 10 | iOS (Expo) | ~Nov. Same REST API. Native navigation + push — a webview wrapper fails Apple guideline 4.2 (minimum functionality). | |
 | 11.5 | **Spring Boot 3.5 → 4** | **Now a security obligation with a date on it, not a nicety.** This row said "3.5.16 is the head of its line and current" until 2026-09-21. It is the head of its line **because the line ended**: per [Spring's support policy](https://spring.io/support-policy/), **3.5's OSS support ended 2026-06-30 and 3.5.16 (2026-06-25) was the last OSS release**. Commercial support runs to 2032; free patches do not exist. Consequence already felt — the parent manages Tomcat **10.1.55**, which sits inside the affected range of **all 19 CVEs** fixed in 10.1.56/57/59, four rated Important, and there will never be a 3.5.17 to bump it. `pom.xml` now pins `<tomcat.version>10.1.59</tomcat.version>` as a **stopgap**: it works only for dependencies the parent exposes as a property, and it does nothing about Spring Framework or Spring Security themselves. **The first build blocker is still the one measured twice** — PR #11 and PR #21 both die before a test runs, because Boot 4's `spring-boot-dependencies` no longer manages `org.testcontainers:postgresql` or `:junit-jupiter`, which `pom.xml` declares version-less, so the POM does not parse. Testcontainers BOM or explicit versions, and that is only the error the build reaches *first*. **Do not let 5d slip behind this, and do not let this slip behind the perf pass.** | ⬅ **overdue** |
 | 11 | Perf pass | Cache → matview → indexes, measuring after each. **Order survives Phase 3.5's finding, expected magnitudes do not** — the matview and index attack the dominant cost (the scan), so they should beat §9's prediction rather than trail it. Sample Postgres CPU, not just the JVM's. Plus the trade simulator as a second endpoint for the ruleset-hash cache. | |
@@ -343,7 +356,8 @@ The biggest single chunk left, and fully specifiable now: handoff §8 already se
 decision, and §2 above settles the access model. Nothing here waits on Phase 4.
 
 **Why it comes before projections.** The whole product model is "logged out sees the top 100, an
-account sees everything." That makes the filter chain load-bearing infrastructure rather than
+account sees everything" — the model as it stood then; §2 made the website members-only on
+2026-09-28. That makes the filter chain load-bearing infrastructure rather than
 late-phase polish — every personalized feature after this one assumes it exists.
 
 **What is already in place and unused:** the `users` table (V1, email + Argon2id `password_hash`) has
@@ -459,7 +473,7 @@ not decoration either — they found three real `setState`-in-effect bugs while 
 written. `dependabot.yml` ignores those two majors with the reason written down; drop the ignores
 when `eslint-config-next` ships support. **"Latest" and "current" are not the same word.**
 
-Screens: public landing (top 100) · register/login · rankings table (virtualized, ~610 rows) ·
+Screens: public landing (top 100; shipped 2026-09-28 as a landing page with no live board, §2) · register/login · rankings table (virtualized, ~610 rows) ·
 player detail with game log · profile switcher · custom ruleset builder.
 
 Access token in **memory only, never `localStorage`** — the refresh cookie is the persistence

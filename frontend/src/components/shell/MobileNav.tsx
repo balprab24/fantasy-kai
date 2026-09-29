@@ -19,7 +19,7 @@ export function MobileNav() {
   return (
     <>
       <div className="sticky top-0 z-20 flex h-13 items-center justify-between border-b border-line bg-void/95 px-4 backdrop-blur md:hidden">
-        <Wordmark />
+        <Wordmark href="/rankings" />
         <button
           type="button"
           onClick={() => dialog.current?.showModal()}
@@ -42,7 +42,7 @@ export function MobileNav() {
         className="m-0 h-dvh max-h-none w-[min(280px,85vw)] max-w-none flex-col bg-void text-ink backdrop:bg-black/60 open:flex"
       >
         <div className="flex h-13 items-center justify-between border-b border-line px-4">
-          <Wordmark />
+          <Wordmark href="/rankings" />
           <button
             type="button"
             onClick={close}

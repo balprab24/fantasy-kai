@@ -2,7 +2,8 @@
  * Owed since Phase 0, and not optional: nflverse ships under CC BY 4.0, which
  * requires attribution wherever the data is shown, and Fantasy Football
  * Calculator asks for the same. This is the licence being honoured, not a
- * courtesy -- which is why it is in the root layout rather than on one page.
+ * courtesy -- which is why both route-group layouts carry it, the product's
+ * (via AppShell) and the landing page's, rather than any one page.
  */
 export function Attribution() {
   return (

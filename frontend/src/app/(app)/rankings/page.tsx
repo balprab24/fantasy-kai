@@ -4,7 +4,13 @@ import {
   RankingsWorkspaceFallback,
 } from "@/components/rankings/RankingsWorkspace";
 
-/** Same board as `/`; see `app/page.tsx` for why it sits in Suspense. */
+/**
+ * The rankings workspace -- the first screen of the product once signed in.
+ *
+ * Suspense because the board reads its filters from the URL, and this route is
+ * prerendered: without a boundary the build fails, and with one only the board
+ * waits for the browser.
+ */
 export default function RankingsPage() {
   return (
     <Suspense fallback={<RankingsWorkspaceFallback />}>

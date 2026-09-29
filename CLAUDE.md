@@ -90,6 +90,9 @@ frontend/        Phase 5c — Next.js 16 App Router. api.ts holds the only acces
                  2026-09-28 (later): components/player (the /players/[id] workspace),
                  lib/{profiles,headshot,playerStats,player,boardParams,boardReturn}.ts,
                  tests/lib.test.ts (npm test = node --test, no dependency)
+                 2026-09-28 (landing): app/(site) = / + /login + /register under a site
+                 header; app/(app) = the product, behind components/shell/RequireAccount.
+                 components/landing/*, lib/{landing,useNextParam,authErrors}.ts
 backend/src/test/resources/nflverse/       Real 2024 rows as fixtures — not invented
 docs/map.md                                Front door — status board, class map, pipelines
 docs/orientation.md                        Plain-English door — glossary, real-vs-planned
@@ -121,6 +124,7 @@ scripts/                                   session-check.sh (runs at every sessi
 | 5c — Web shell | ✅ Next.js 16 App Router, 21 `.ts`/`.tsx` files at ship (36 after the 2026-09-28 shell + rankings redesign and its refinement pass, which made `/` the rankings workspace and replaced three `2025` literals with `lib/season.ts`; still 36 after the near-black "ki in the dark" restyle). Rankings, player detail, auth, ruleset builder. **Attribution footer shipped — owed since Phase 0.** Proved end to end in a browser: a user-built 6-point-passing-TD ruleset put Stafford at #1 with 442.4 where Half PPR had him 4th at 350.4 |
 | 5d — Deploy | ✅ **2026-09-23 — live at `https://www.fantasykai.com`, API `https://api.fantasykai.com`.** Oracle Cloud Always Free A1 VM (2 OCPU / 12 GB, Chicago) running Postgres + Redis + backend + Caddy from `deploy/compose.prod.yml`; Vercel for the frontend; Porkbun domain, $11/yr — the only cost. **9 of 10 acceptance checks pass** (4b owed — needs a second real client); the production ingest **fired unattended at 06:00:00 ET on 2026-09-23**. Running the runbook for real found five bugs in it, all fixed. **Progress, findings F1–F13 and what's owed: top of [`DEPLOY-STEPS.md`](DEPLOY-STEPS.md)** |
 | 5c.2 — Player workspace | ✅ 2026-09-28, branch `feat/player-workspace` — `/players/[id]` becomes an identity + weekly chart + game log + career workspace; ESPN headshots **derived** from the stored espn id (never stored); `V6` stores `birth_date` and the team logo; new `GET /players/{id}/career` (regular season, season + weekly positional ranks); board filters in the URL; "Standard" shown as **0 PPR**, "Full PPR" as **PPR** (display only). **165 in the suite** · 24 frontend unit tests (`npm test`, now in CI). Career numbers equal the board's under every profile by test, and Gibbs/Chase 2025 were hand-computed and matched nflverse's own `fantasy_points`/`_ppr` exactly |
+| 5c.3 — Landing + account gate | ✅ 2026-09-28, branch `feat/landing` (from PR #33's head, `caafea1`, which merged to `main` at 20:57 the same evening) — `/` is a landing page (hero with a drawn runner until a licensed photo exists, a phone drawn from **captured** 2025 rows, header links that scroll to each section, email-first sign-up); the product moved behind sign-in. **Website gate only — the read API is still `permitAll`** (north-star §2). `safeNext` guards `?next=` and **its first version was an open redirect** (`/..//evil` normalises to `//evil`), caught by its own test. 29 frontend unit tests |
 | 5d.1 — security pass | ✅ 2026-09-21 — **Boot 3.5 went OSS-EOL on 2026-06-30 and nobody had checked.** Tomcat pinned to 10.1.59 over the parent's CVE-bearing 10.1.55; the auth rate limiter proved **forgeable at the application layer**; four-day ingest outage found and refilled. See "The EOL clock" below |
 | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
@@ -534,6 +538,11 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   it.** Dev renders on demand, so a missing boundary works there and fails `npm run build`. `/`
   and `/rankings` wrap the board; its fallback copies the header, control-row and row heights so
   nothing moves when the board lands.
+- **A `next dev` started before a route move makes `npm run build` fail on routes that no longer
+  exist.** The dev server writes `.next/dev/types/validator.ts`, `tsconfig` includes it, and the
+  build type-checks it: after moving `app/page.tsx` into `app/(site)/`, the build died on
+  `Cannot find module '../../../src/app/page.js'` while the code was correct. CI never sees it,
+  because CI never ran `next dev`. Stop the stale dev server and delete `.next/dev`.
 - **A launchd plist with a placeholder path is not an installed job.** The plist shipped three
   `__REPO__` placeholders and an instruction to "edit the two by hand"; it was never loaded, `logs/`
   stayed empty, and `ingest_runs` recorded three of the seven days before kickoff. `install-ingest.sh`

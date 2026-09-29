@@ -14,14 +14,15 @@ import { PRIMARY_NAV, SECONDARY_NAV, isActive, type NavItem } from "./nav";
  * md it is absent and MobileNav's drawer carries the same lists as rows.
  *
  * Sized to fit a 1440x780 laptop without the list scrolling: nine 60px tiles
- * plus the brand and account block come to ~760px. Taller tiles made the main
- * nav scroll at exactly the height most people use.
+ * plus the brand and account block came to ~760px; there are eight since Home
+ * left the rail (it is the landing page now), so there is a tile of slack.
+ * Taller tiles made the main nav scroll at exactly the height most people use.
  */
 export function Sidebar() {
   return (
     <aside className="rail-edge sticky top-0 hidden h-dvh w-[104px] shrink-0 flex-col bg-void md:flex">
       <div className="flex justify-center px-1 pt-4 pb-2">
-        <Wordmark stacked />
+        <Wordmark stacked href="/rankings" />
       </div>
       {/* The list scrolls on its own if a short window cannot fit it, so the
           brand and the account block never leave the screen. */}
@@ -35,11 +36,15 @@ export function Sidebar() {
   );
 }
 
-/** The logo and the word. `stacked` sets the mark large with the word beneath it, for the rail. */
-export function Wordmark({ stacked = false }: { stacked?: boolean }) {
+/**
+ * The logo and the word. `stacked` sets the mark large with the word beneath it, for the rail.
+ * `href` is `/` on the landing page and the board inside the product, where `/`
+ * would only bounce a member back.
+ */
+export function Wordmark({ stacked = false, href = "/" }: { stacked?: boolean; href?: string }) {
   return (
     <Link
-      href="/"
+      href={href}
       className={`flex items-center rounded-md ${stacked ? "flex-col gap-2" : "gap-2.5"}`}
     >
       <LogoMark size={stacked ? 40 : 30} />
@@ -83,7 +88,7 @@ function DragonBall() {
 }
 
 /** Two slanted strokes -- a rising bar and its after-image. Ours, not borrowed. */
-function LogoMark({ size }: { size: number }) {
+export function LogoMark({ size }: { size: number }) {
   return (
     <svg aria-hidden width={size} height={size} viewBox="0 0 26 26" className="shrink-0">
       <path d="M9 3h6L9 23H3z" fill="var(--color-ki)" />
@@ -216,8 +221,22 @@ export function AccountBlock({
   }
 
   if (status === "signed-in") {
+    // A full load of `/`, not a router push: the account gate is already
+    // replacing this page with `/login` the moment status flips, and two
+    // client navigations race. A hard load also leaves nothing of the session
+    // in memory -- the refresh cookie was revoked by the call that just returned.
+    // `finally`: signOut clears local state even when the logout call fails,
+    // and then rethrows -- which must not strand a signed-out user on a
+    // members' page waiting for a redirect the throw skipped.
+    const leave = async () => {
+      try {
+        await signOut();
+      } finally {
+        window.location.replace("/");
+      }
+    };
     return (
-      <button type="button" onClick={() => void signOut()} className={row}>
+      <button type="button" onClick={() => void leave()} className={row}>
         <Icon name="account" size={size} className="text-energy" />
         <span>Sign out</span>
       </button>

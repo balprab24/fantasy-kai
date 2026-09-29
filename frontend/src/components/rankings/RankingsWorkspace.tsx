@@ -17,11 +17,12 @@ import { FilterBar, SCOPES } from "./FilterBar";
 const FIND_DEBOUNCE_MS = 300;
 
 /**
- * The rankings workspace -- what `/` and `/rankings` both show.
+ * The rankings workspace -- what `/rankings` shows, and where a member lands.
  *
- * One component for both routes on purpose: the home page used to carry its
- * own hero and its own 100-row board, pinned to a season literal, and the two
- * boards drifted apart. The page is a tool, so it opens on the tool: a
+ * One board, on one route. The home page once carried its own hero and its own
+ * 100-row board, pinned to a season literal, and the two boards drifted apart;
+ * `/` is now the landing page and shows no live board at all, so there is
+ * nothing left to drift. The page is a tool, so it opens on the tool: a
  * two-line header, one row of controls, then rows.
  *
  * Every filter lives in the URL and is read back from it on each render --
