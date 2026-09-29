@@ -11,7 +11,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param accessTokenTtl   15 minutes. Short because an access token cannot be
  *                         revoked; the refresh token is the revocable half
  * @param refreshTokenTtl  how long a session survives without a login
- * @param loginAttemptsPerMinute  per IP, across the whole {@code /auth} surface
+ * @param loginAttemptsPerMinute  per IP: login, register, and any other {@code /auth}
+ *                         path not named as a session call -- the strict bucket
+ * @param sessionRequestsPerMinute  per IP: refresh and logout -- the loose bucket.
+ *                         See {@link AuthRateLimitFilter} for why they are apart
  * @param allowedOrigins   CORS allowlist. Never {@code *}
  */
 @ConfigurationProperties(prefix = "fantasykai.auth")
@@ -20,6 +23,7 @@ public record AuthProperties(
         Duration accessTokenTtl,
         Duration refreshTokenTtl,
         int loginAttemptsPerMinute,
+        int sessionRequestsPerMinute,
         java.util.List<String> allowedOrigins) {
 
     /**

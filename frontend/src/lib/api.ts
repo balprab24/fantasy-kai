@@ -1,4 +1,5 @@
 import { API_BASE } from "./apiBase";
+import { refreshOutcome, type RefreshOutcome } from "./memberHint";
 import type { Problem } from "./types";
 
 /**
@@ -15,7 +16,7 @@ import type { Problem } from "./types";
 const BASE = API_BASE;
 
 let accessToken: string | null = null;
-let refreshing: Promise<boolean> | null = null;
+let refreshing: Promise<RefreshOutcome> | null = null;
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
@@ -52,23 +53,25 @@ async function toProblem(response: Response): Promise<Problem> {
  * replay of a consumed one revokes the whole family, so an unsynchronised
  * retry storm would log the user out rather than recover them.
  */
-function refreshOnce(): Promise<boolean> {
+function refreshOnce(): Promise<RefreshOutcome> {
   refreshing ??= (async () => {
     try {
       const response = await fetch(`${BASE}/api/v1/auth/refresh`, {
         method: "POST",
         credentials: "include",
       });
-      if (!response.ok) {
+      const outcome = refreshOutcome(response.status);
+      if (outcome !== "restored") {
         accessToken = null;
-        return false;
+        return outcome;
       }
       const body = (await response.json()) as { accessToken: string };
       accessToken = body.accessToken;
-      return true;
+      return "restored";
     } catch {
+      // Never answered: offline, refused, or aborted by a navigation.
       accessToken = null;
-      return false;
+      return "unavailable";
     } finally {
       refreshing = null;
     }
@@ -103,7 +106,7 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
   // the row filter does the work -- so only retry when there was a session to
   // restore in the first place.
   if (response.status === 401 && !anonymous && accessToken !== null) {
-    if (await refreshOnce()) {
+    if ((await refreshOnce()) === "restored") {
       response = await send();
     }
   }
@@ -118,6 +121,6 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
 }
 
 /** Called once on load: turns the refresh cookie back into an access token. */
-export async function restoreSession(): Promise<boolean> {
+export async function restoreSession(): Promise<RefreshOutcome> {
   return refreshOnce();
 }

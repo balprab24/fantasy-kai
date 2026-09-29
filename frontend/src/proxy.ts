@@ -1,10 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { API_BASE } from "@/lib/apiBase";
 import { apiOriginOf, contentSecurityPolicy } from "@/lib/csp";
+import { hasMemberHint, routeFor } from "@/lib/memberHint";
 
 /**
- * Runs before every page request: mints the nonce and sets the
- * Content-Security-Policy (`lib/csp.ts` says why a nonce).
+ * Runs before every page request. First the member hint's routing
+ * (`lib/memberHint.ts`): a member skips the landing page and a never-signed-in
+ * visitor skips the product's loading skeleton, before either renders. Then it
+ * mints the nonce and sets the Content-Security-Policy (`lib/csp.ts` says why a
+ * nonce).
  *
  * The header goes on the REQUEST as well as the response, and that is not
  * redundant: Next.js finds the nonce by parsing the request's policy while it
@@ -12,6 +16,12 @@ import { apiOriginOf, contentSecurityPolicy } from "@/lib/csp";
  * would enforce a nonce that no script carries, and the page would not hydrate.
  */
 export function proxy(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+  const target = routeFor(pathname, search, hasMemberHint(request.headers.get("cookie") ?? ""));
+  if (target) {
+    return NextResponse.redirect(new URL(target, request.url), 307);
+  }
+
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const policy = contentSecurityPolicy({
     nonce,

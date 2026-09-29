@@ -27,7 +27,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Acceptance 4: the 6th login in a minute is 429, and the 6th read is not.
+ * Acceptance 4: the 6th login in a minute is 429, and the 6th read is not --
+ * and since 2026-09-29, the 6th <em>refresh</em> is not either: refresh and
+ * logout have their own looser bucket, and nothing else does.
  *
  * <p>The only test class that needs Redis, because the bucket store is resolved
  * lazily -- a Redis outage costs you logins and nothing else, which is also why
@@ -50,6 +52,9 @@ class AuthRateLimitTests {
 
     /** The limit, from application.yml. Handoff §8 says 5/min/IP on /auth. */
     private static final int LIMIT = 5;
+
+    /** The session bucket's limit, from application.yml: refresh and logout. */
+    private static final int SESSION_LIMIT = 30;
 
     @DynamicPropertySource
     static void redis(DynamicPropertyRegistry registry) {
@@ -329,6 +334,92 @@ class AuthRateLimitTests {
         assertThat(post("/api/v1/auth/register",
                 Map.of("email", "reg-last@example.com", "password", "correct-horse-battery-staple"))
                 .getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    /**
+     * The reason for the split. Every full page load of the web app spends a
+     * refresh, and while refresh shared the strict bucket, a member's own page
+     * loads spent the attempts signing in needs. More refreshes than the strict
+     * limit, then a login that must still be judged on its password.
+     */
+    @Test
+    void refreshesDoNotSpendSignInAttempts() {
+        for (int request = 1; request <= LIMIT + 1; request++) {
+            assertThat(refresh().getStatusCode()).as("refresh %d", request).isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+
+        assertThat(login("nobody@example.com").getStatusCode())
+                .as("a login after %d refreshes is judged on its password, not refused", LIMIT + 1)
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    /** The other direction: someone locked out of signing in is not also signed out. */
+    @Test
+    void aDrainedSignInBucketLeavesTheSessionCallsAlone() {
+        drainTheBucket();
+
+        assertThat(refresh().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(post("/api/v1/auth/logout", Map.of()).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+    }
+
+    /** Looser is not unlimited. */
+    @Test
+    void theSessionBucketHasALimitOfItsOwn() {
+        for (int request = 0; request < SESSION_LIMIT; request++) {
+            refresh();
+        }
+
+        ResponseEntity<String> over = refresh();
+        assertThat(over.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(over.getHeaders().getFirst("Retry-After")).isEqualTo("60");
+    }
+
+    /** Logout is in the session bucket because it is named there, not because it is "not login". */
+    @Test
+    void logoutSpendsTheSessionBucket() {
+        for (int request = 0; request < SESSION_LIMIT; request++) {
+            refresh();
+        }
+
+        assertThat(post("/api/v1/auth/logout", Map.of()).getStatusCode())
+                .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    /**
+     * The loose bucket is an allowlist, so everything else on /auth is strict --
+     * including an endpoint that does not exist yet. Password reset is the next
+     * one planned, and it must be limited the day it lands without anyone
+     * remembering to add it.
+     */
+    @Test
+    void anAuthPathNotNamedAsASessionCallIsStrict() {
+        drainTheBucket();
+
+        assertThat(post("/api/v1/auth/password-reset", Map.of("email", "nobody@example.com")).getStatusCode())
+                .as("an unlisted /auth path draws on the strict bucket")
+                .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    /**
+     * The allowlist matches decoded paths, the way routing does. If it compared
+     * the raw URI, an encoded refresh would fall to the strict bucket -- harmless
+     * here, but it would mean the two matchers disagree about what a path is,
+     * which is the exact disagreement that let {@code /api/v1/%61uth/login} skip
+     * the limiter entirely before 2026-09-24.
+     */
+    @Test
+    void anEncodedRefreshIsStillARefresh() {
+        for (int request = 0; request < SESSION_LIMIT; request++) {
+            refresh();
+        }
+
+        URI encoded = URI.create(rest.getRootUri() + "/api/v1/%61uth/refresh");
+        assertThat(rest.postForEntity(encoded, new HttpEntity<>(null, jsonHeaders()), String.class).getStatusCode())
+                .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    private ResponseEntity<String> refresh() {
+        return rest.postForEntity("/api/v1/auth/refresh", new HttpEntity<>(null, jsonHeaders()), String.class);
     }
 
     private ResponseEntity<String> login(String email) {

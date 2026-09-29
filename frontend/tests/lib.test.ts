@@ -5,12 +5,22 @@
  * be loaded this way -- which is also a fair test of what "pure" means.
  */
 import { strict as assert } from "node:assert";
+import { readdirSync } from "node:fs";
 import { describe, it } from "node:test";
 import { band, bandFor, formatPoints } from "../src/lib/board.ts";
 import { boardSearch, parseBoardParams } from "../src/lib/boardParams.ts";
 import { apiOriginOf, contentSecurityPolicy } from "../src/lib/csp.ts";
 import { headshotUrl } from "../src/lib/headshot.ts";
 import { LANDING_SECTIONS, safeNext } from "../src/lib/landing.ts";
+import {
+  MEMBER_HINT_MAX_AGE,
+  clearedMemberHintCookie,
+  hasMemberHint,
+  isMemberRoute,
+  memberHintCookie,
+  refreshOutcome,
+  routeFor,
+} from "../src/lib/memberHint.ts";
 import { ageOn, matchup, pickSeason, playoffRound } from "../src/lib/player.ts";
 import { COLUMNS, columnsFor, formatCount, type StatSource } from "../src/lib/playerStats.ts";
 import { profileLabel } from "../src/lib/profiles.ts";
@@ -291,5 +301,54 @@ describe("apiOriginOf", () => {
   });
   it("reads an empty base as same-origin, the way lib/api.ts fetches with it", () => {
     assert.equal(apiOriginOf(""), null);
+  });
+});
+
+describe("member hint", () => {
+  it("is read only when it says exactly fk_member=1, wherever it sits", () => {
+    assert.equal(hasMemberHint("fk_member=1"), true);
+    assert.equal(hasMemberHint("theme=dark; fk_member=1; other=2"), true);
+    for (const cookies of ["", "fk_member=0", "fk_member=", "fk_memberx=1", "xfk_member=1", "fk_member=11"]) {
+      assert.equal(hasMemberHint(cookies), false, JSON.stringify(cookies));
+    }
+  });
+  it("lives as long as the refresh token, site-wide, Secure over https", () => {
+    assert.equal(MEMBER_HINT_MAX_AGE, 30 * 24 * 60 * 60, "refresh-token-ttl: 30d in application.yml");
+    const secure = memberHintCookie(true);
+    for (const part of ["fk_member=1", "Path=/", `Max-Age=${MEMBER_HINT_MAX_AGE}`, "SameSite=Lax", "Secure"]) {
+      assert.ok(secure.split("; ").includes(part), part);
+    }
+    assert.ok(!memberHintCookie(false).includes("Secure"), "http localhost must still get the hint");
+    assert.ok(clearedMemberHintCookie().split("; ").includes("Max-Age=0"));
+  });
+  it("is retired only by the server's 401, never by a refresh that did not finish", () => {
+    assert.equal(refreshOutcome(200), "restored");
+    assert.equal(refreshOutcome(401), "rejected");
+    // A reload aborting the request, the session bucket's 429, a limiter or
+    // server outage: none of them is news about the session.
+    for (const status of [null, 429, 500, 502, 503]) assert.equal(refreshOutcome(status), "unavailable", String(status));
+  });
+  it("sends a member past the landing page, and nobody else", () => {
+    assert.equal(routeFor("/", "", true), "/rankings");
+    assert.equal(routeFor("/", "", false), null);
+  });
+  it("sends a never-signed-in visitor to sign in, carrying where they were going", () => {
+    const target = routeFor("/rankings", "?season=2025&position=WR", false)!;
+    const next = new URL(target, "https://fantasykai.invalid").searchParams.get("next");
+    assert.equal(next, "/rankings?season=2025&position=WR");
+    assert.equal(safeNext(next), next, "the login page must accept what the proxy hands it");
+    assert.equal(routeFor("/players/344", "", false), "/login?next=%2Fplayers%2F344");
+  });
+  it("leaves members on member routes, and everyone on the site's own pages", () => {
+    for (const [path, hinted] of [["/rankings", true], ["/players/344", true], ["/login", false], ["/login", true], ["/register", false], ["/rankingsx", false]] as const) {
+      assert.equal(routeFor(path, "", hinted), null, `${path} hinted=${hinted}`);
+    }
+  });
+  it("knows every route under app/(app) -- a new members-only page cannot be forgotten", () => {
+    const routes = readdirSync(new URL("../src/app/(app)/", import.meta.url), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => `/${entry.name}`);
+    assert.ok(routes.length >= 3, `found ${routes.join(", ")}`);
+    for (const route of routes) assert.ok(isMemberRoute(route), `${route} is behind RequireAccount but not in MEMBER_ROUTES`);
   });
 });
