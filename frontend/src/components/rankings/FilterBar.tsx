@@ -103,6 +103,9 @@ export function FilterBar({
         placeholder="Find a player…"
         value={find}
         onChange={onFind}
+        // The URL keeps 60 characters of it (lib/boardParams.ts); the box
+        // should not accept more than a refresh would give back.
+        maxLength={60}
         className="min-w-40 flex-1 lg:ml-auto lg:max-w-72"
       />
     </div>

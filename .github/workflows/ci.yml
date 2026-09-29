@@ -58,6 +58,13 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
+      # node --test over the pure libs (tests/lib.test.ts): the ESPN-id check
+      # before an image URL, the board's URL whitelists, the stat columns. No
+      # dependency -- Node 24 runs the TypeScript directly.
+      - name: Unit tests
+        working-directory: frontend
+        run: npm test
+
       - name: Build
         working-directory: frontend
         run: npm run build

@@ -66,4 +66,17 @@ class PlayerController {
         return players.gamelog(id, season == null ? ingest.currentSeason(clock) : season,
                 profileId, userId);
     }
+
+    /**
+     * Every regular season on record, scored under {@code profileId}. Required,
+     * like the ranking's: a career total is only meaningful against a ruleset.
+     */
+    @GetMapping("/{id}/career")
+    CareerResponse career(
+            @PathVariable long id,
+            @RequestParam long profileId,
+            @AuthenticationPrincipal Long userId) {
+
+        return players.career(id, profileId, userId);
+    }
 }

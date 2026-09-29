@@ -11,7 +11,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.ToDoubleFunction;
 import org.springframework.stereotype.Service;
 
 /**
@@ -66,67 +65,49 @@ public class RankingsService {
             weekFloor = Math.max(1, latest.get() - RankingScope.LAST_N_WEEKS + 1);
         }
 
-        Map<Long, Tally> byPlayer = new HashMap<>();
+        Map<Long, Entry> byPlayer = new HashMap<>();
         for (ScorableRow row : players.findScorableRows(season, positions, weekFloor)) {
-            byPlayer.computeIfAbsent(row.playerId(), id -> new Tally(row))
-                    .add(ScoringEngine.score(row.line(), rules));
+            byPlayer.computeIfAbsent(row.playerId(), id -> new Entry(row, new PointsTally(id)))
+                    .tally().add(row.week(), ScoringEngine.score(row.line(), rules));
         }
 
-        ToDoubleFunction<Tally> metric =
-                scope == RankingScope.PER_GAME ? Tally::perGame : Tally::points;
         // Descending by the scope's metric, then by id so a page boundary that
-        // falls inside a tie is stable across requests.
-        List<Tally> ranked = byPlayer.values().stream()
-                .sorted(Comparator.comparingDouble(metric).reversed()
-                        .thenComparingLong(Tally::playerId))
+        // falls inside a tie is stable across requests. The same comparator
+        // orders a career's positional rank, which is what makes the two agree.
+        Comparator<PointsTally> order =
+                scope == RankingScope.PER_GAME ? PointsTally.BY_PER_GAME : PointsTally.BY_POINTS;
+        List<Entry> ranked = byPlayer.values().stream()
+                .sorted(Comparator.comparing(Entry::tally, order))
                 .toList();
 
         int from = Math.min((int) Math.min((long) page * size, Integer.MAX_VALUE), ranked.size());
         int to = Math.min(from + size, ranked.size());
+        List<Entry> slice = ranked.subList(from, to);
 
-        List<RankingRow> content = new java.util.ArrayList<>(to - from);
-        for (int i = from; i < to; i++) {
-            Tally tally = ranked.get(i);
-            content.add(new RankingRow(i + 1, tally.playerId, tally.name, tally.position,
-                    tally.team, tally.games,
+        // Identity for display, fetched for this page only -- after the sort, so
+        // the SQL the §9 baseline measures is unchanged. Not free: one more round
+        // trip per request (a PK lookup, ~0.15 ms), and PointsTally keeps a
+        // record per row and sorts each player's weeks. Phase 11 compares with
+        // both in.
+        Map<Long, String> espnIds = players.findEspnIds(
+                slice.stream().map(entry -> entry.tally().playerId()).toList());
+
+        List<RankingRow> content = new java.util.ArrayList<>(slice.size());
+        for (int i = 0; i < slice.size(); i++) {
+            ScorableRow who = slice.get(i).who();
+            PointsTally tally = slice.get(i).tally();
+            content.add(new RankingRow(from + i + 1, tally.playerId(), who.name(), who.position(),
+                    who.team(), tally.games(),
                     ScoringEngine.roundForDisplay(tally.points()),
-                    ScoringEngine.roundForDisplay(tally.perGame())));
+                    ScoringEngine.roundForDisplay(tally.perGame()),
+                    espnIds.get(tally.playerId())));
         }
         return PageResponse.of(content, page, size, ranked.size());
     }
 
-    /** Running unrounded total for one player. Rounding happens at the boundary, above. */
-    private static final class Tally {
-
-        private final long playerId;
-        private final String name;
-        private final String position;
-        private final String team;
-        private double points;
-        private int games;
-
-        private Tally(ScorableRow row) {
-            this.playerId = row.playerId();
-            this.name = row.name();
-            this.position = row.position();
-            this.team = row.team();
-        }
-
-        private void add(double weekPoints) {
-            points += weekPoints;
-            games++;
-        }
-
-        private long playerId() {
-            return playerId;
-        }
-
-        private double points() {
-            return points;
-        }
-
-        private double perGame() {
-            return games == 0 ? 0 : points / games;
-        }
-    }
+    /**
+     * A player's identity, taken from the first row seen -- name, position and
+     * current team are the same on every row -- and his running tally.
+     */
+    private record Entry(ScorableRow who, PointsTally tally) {}
 }

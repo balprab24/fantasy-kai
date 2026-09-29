@@ -127,7 +127,7 @@ not down, so a platform health check belongs on `/actuator/health/liveness` inst
 
 ```
 backend/    Spring Boot API — ingestion, scoring engine, auth, REST layer
-frontend/   Next.js 16 web shell — rankings, player detail, ruleset builder
+frontend/   Next.js 16 web shell — rankings, player workspace, ruleset builder
 docs/       Design docs, the roadmap, the glossary, and the measured performance baseline
 perf/       k6 load script
 scripts/    session-check.sh · packaging · daily ingest (installer, plist, one-shot runner)

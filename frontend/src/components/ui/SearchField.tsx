@@ -6,6 +6,7 @@ export function SearchField({
   value,
   onChange,
   className = "",
+  maxLength,
 }: {
   /** What a screen reader hears. The placeholder is not a label. */
   label: string;
@@ -13,6 +14,7 @@ export function SearchField({
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  maxLength?: number;
 }) {
   return (
     <label className={`relative block ${className}`}>
@@ -28,6 +30,7 @@ export function SearchField({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoComplete="off"
+        maxLength={maxLength}
         spellCheck={false}
         className="h-[46px] w-full rounded-lg border border-line-strong bg-raised pr-3 pl-10 text-sm text-ink placeholder:text-faint hover:border-mute md:h-[38px] focus-visible:border-energy"
       />

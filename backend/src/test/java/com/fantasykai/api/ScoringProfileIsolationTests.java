@@ -142,6 +142,25 @@ class ScoringProfileIsolationTests {
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
+    /**
+     * And the career, the third endpoint taking a profileId. A logged-out caller
+     * gets the same 404 as Alice: the row filter binds a null owner.
+     */
+    @Test
+    void theCareerHonoursTheSameOwnership() {
+        String bob = tokenFor("career-bob@example.com");
+        String alice = tokenFor("career-alice@example.com");
+        long bobsProfile = createProfile(bob, "Career League");
+        long playerId = jdbc.queryForObject(
+                "SELECT id FROM players WHERE full_name = 'Josh Allen' AND position = 'QB'",
+                Long.class);
+        String career = "/api/v1/players/%d/career?profileId=%d".formatted(playerId, bobsProfile);
+
+        assertThat(get(career, bob).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(get(career, alice).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(get(career, null).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
     /** Acceptance 3. Reads are public; the presets are what a logged-out caller gets. */
     @Test
     void readsArePublicAndResolvePresetsForALoggedOutCaller() {

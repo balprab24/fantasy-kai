@@ -88,6 +88,7 @@ export function RankingsBoard({
   onRetry,
   onSeason,
   find = "",
+  onOpenPlayer,
 }: {
   rows: RankingRow[] | undefined;
   /** Changes whenever the thing being compared changes (the ruleset). */
@@ -109,6 +110,8 @@ export function RankingsBoard({
   onSeason?: (season: number) => void;
   /** Narrows the rows already loaded. Tiers are decided before it applies. */
   find?: string;
+  /** A player row's link is being followed. */
+  onOpenPlayer?: (href: string) => void;
 }) {
   const metric: Metric = scope === "per_game" ? "pointsPerGame" : "points";
   const previous = usePreviousRanks(rows, comparisonKey, boardKey, stale);
@@ -218,7 +221,11 @@ export function RankingsBoard({
                   <span className="colhead-box">Pos</span>
                 </th>
                 <th scope="col" className={`${COL.team} colhead`}>
-                  <span className="colhead-box">Team</span>
+                  {/* Current, on every season's board: team history is not
+                      stored, so a player traded since shows his new team. */}
+                  <span title="Current team" className="colhead-box">
+                    Team
+                  </span>
                 </th>
                 <th scope="col" className={`${COL.games} colhead`}>
                   <abbr title="Games played" className="colhead-box no-underline">
@@ -262,16 +269,20 @@ export function RankingsBoard({
                   unit={perGame ? "pts/game" : "pts"}
                   colSpan={COLUMN_COUNT}
                 />
-                {g.shown.map((row) => (
-                  <PlayerRow
-                    key={row.playerId}
-                    row={row}
-                    delta={delta(row)}
-                    baseline={previous?.size ?? 0}
-                    metric={metric}
-                    href={`/players/${row.playerId}?season=${season}&profileId=${profileId ?? ""}`}
-                  />
-                ))}
+                {g.shown.map((row) => {
+                  const href = `/players/${row.playerId}?season=${season}&profileId=${profileId ?? ""}`;
+                  return (
+                    <PlayerRow
+                      key={row.playerId}
+                      row={row}
+                      delta={delta(row)}
+                      baseline={previous?.size ?? 0}
+                      metric={metric}
+                      href={href}
+                      onOpen={onOpenPlayer ? () => onOpenPlayer(href) : undefined}
+                    />
+                  );
+                })}
               </tbody>
             ))}
           </table>

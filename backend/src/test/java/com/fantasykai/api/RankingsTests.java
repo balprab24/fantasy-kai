@@ -2,7 +2,11 @@ package com.fantasykai.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fantasykai.query.Usage;
+import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +40,7 @@ class RankingsTests {
             new ParameterizedTypeReference<>() {};
 
     private static ApiFixture.Seeded seeded;
+    private static ApiFixture.History history;
 
     @Autowired
     private TestRestTemplate rest;
@@ -43,6 +48,7 @@ class RankingsTests {
     @BeforeAll
     static void seed(@Autowired JdbcTemplate jdbc) {
         seeded = ApiFixture.seed(jdbc);
+        history = ApiFixture.seedHistory(jdbc, seeded);
     }
 
     /**
@@ -111,7 +117,7 @@ class RankingsTests {
 
         GamelogResponse log = gamelog(seeded.allen(), ApiFixture.Seeded.STANDARD);
         assertThat(log.gamesPlayed()).isEqualTo(3);
-        assertThat(log.weeks()).extracting(GamelogWeek::seasonType).contains("POST");
+        assertThat(log.weeks()).extracting(GamelogWeek::seasonType).contains("DIV");
         assertThat(log.totalPoints()).isEqualTo(85.76);
     }
 
@@ -180,6 +186,238 @@ class RankingsTests {
         assertThat(secondPage.content().get(0).rank()).isEqualTo(2);
         assertThat(secondPage.page()).isEqualTo(1);
         assertThat(secondPage.total()).isGreaterThan(1);
+    }
+
+    /**
+     * The player workspace shows a season's points, per-game and games from the
+     * career endpoint, right beside a rank the board derived -- so they must be the
+     * board's own three numbers, under every ruleset. The two custom profiles are
+     * the ones that can tell: Thirds lands off the hundredths (rounded once or per
+     * week?) and Century pays a per-game bonus (scored per game, or on the summed
+     * season?). The presets cannot show either.
+     */
+    @Test
+    void aCareerSeasonIsTheSameThreeNumbersAsItsRankingRow() {
+        for (long profile : everyProfile()) {
+            for (int season : List.of(2025, 2023)) {
+                for (RankingRow row : board(profile, season).content()) {
+                    CareerSeason career = careerSeason(row.playerId(), profile, season);
+                    String who = "player %d, %d, profile %d".formatted(row.playerId(), season, profile);
+                    assertThat(career.points()).as(who).isEqualTo(row.points());
+                    assertThat(career.pointsPerGame()).as(who).isEqualTo(row.pointsPerGame());
+                    assertThat(career.gamesPlayed()).as(who).isEqualTo(row.gamesPlayed());
+                }
+            }
+        }
+        assertThat(careerSeason(seeded.thirds(), seeded.thirdsProfile(), 2025).points())
+                .as("the rounded sum of the weeks, not the sum of the rounded weeks")
+                .isEqualTo(9.97);
+        assertThat(careerSeason(seeded.century(), seeded.centuryProfile(), 2025).points())
+                .as("two 100-yard games are two bonuses")
+                .isEqualTo(31.0);
+    }
+
+    /**
+     * The claim is not "close to the board": it is the positional rank the board
+     * derives, derived here exactly the way {@code lib/board.ts} does it -- walk
+     * the all-positions ranking in order and count each position. 2023 has two
+     * receivers level on points, so the id tiebreak is exercised.
+     */
+    @Test
+    void aCareerRankIsThePositionalRankTheBoardDerives() {
+        for (long profile : everyProfile()) {
+            for (int season : List.of(2025, 2023)) {
+                Map<String, Integer> seen = new HashMap<>();
+                for (RankingRow row : board(profile, season).content()) {
+                    int derived = seen.merge(row.position(), 1, Integer::sum);
+                    assertThat(careerSeason(row.playerId(), profile, season).posRank())
+                            .as("player %d, %d, profile %d", row.playerId(), season, profile)
+                            .isEqualTo(derived);
+                }
+            }
+        }
+    }
+
+    /**
+     * Two tie rules. A season place is one per player, lower id first, because
+     * it must equal the board's. A week has no board to match, so two players on
+     * the same points share the place.
+     */
+    @Test
+    void levelSeasonsSplitByIdButLevelWeeksShareAPlace() {
+        CareerSeason first = careerSeason(seeded.receiver(), ApiFixture.Seeded.HALF_PPR, 2023);
+        CareerSeason second = careerSeason(history.tiedReceiver(), ApiFixture.Seeded.HALF_PPR, 2023);
+
+        assertThat(first.points()).isEqualTo(second.points()).isEqualTo(15.0);
+        assertThat(first.posRank()).isEqualTo(1);
+        assertThat(second.posRank()).isEqualTo(2);
+
+        assertThat(first.weeks().get(0).posRank()).isEqualTo(1);
+        assertThat(second.weeks().get(0).posRank()).isEqualTo(1);
+
+        // Ranked by season points, not per game: the one-game receiver has the
+        // best per-game figure and the lowest total, so he is third.
+        CareerSeason oneGame =
+                careerSeason(history.oneGameReceiver(), ApiFixture.Seeded.HALF_PPR, 2023);
+        assertThat(oneGame.pointsPerGame()).isGreaterThan(first.pointsPerGame());
+        assertThat(oneGame.posRank()).isEqualTo(3);
+
+        // And a week that is not a tie: Allen's 38.76 beats Thirds' 4.0.
+        CareerSeason thirds = careerSeason(seeded.thirds(), ApiFixture.Seeded.STANDARD, 2025);
+        assertThat(thirds.weeks().get(0).posRank()).isEqualTo(2);
+    }
+
+    /** Regular season only, like a ranking; the log keeps the wild-card game. */
+    @Test
+    void aCareerLeavesOutThePlayoffsTheGameLogKeeps() {
+        CareerSeason allen = careerSeason(seeded.allen(), ApiFixture.Seeded.STANDARD, 2023);
+        assertThat(allen.gamesPlayed()).isEqualTo(2);
+        assertThat(allen.weeks()).extracting(CareerWeek::week).containsExactly(1, 3);
+        // 250/2/20/0 -> 20.0 and 300/3/10/1 -> 31.0.
+        assertThat(allen.points()).isEqualTo(51.0);
+        assertThat(allen.stats()).containsEntry("pass_yd", 550.0).containsEntry("rush_td", 1.0);
+
+        GamelogResponse log = gamelog(seeded.allen(), ApiFixture.Seeded.STANDARD, 2023);
+        assertThat(log.gamesPlayed()).isEqualTo(3);
+        assertThat(log.weeks()).extracting(GamelogWeek::seasonType).containsExactly("REG", "REG", "WC");
+    }
+
+    /**
+     * Newest first. A season with no regular-season line has no career row --
+     * but it is in {@code seasonsPlayed}, so a page can still reach its playoff
+     * games.
+     */
+    @Test
+    void listsEverySeasonOnRecordNewestFirst() {
+        CareerResponse career = career(seeded.allen(), ApiFixture.Seeded.FULL_PPR);
+        assertThat(career.seasons()).extracting(CareerSeason::season).containsExactly(2025, 2023);
+        assertThat(career.seasonsPlayed()).containsExactly(2025, 2023);
+        assertThat(career(seeded.tightEnd(), ApiFixture.Seeded.FULL_PPR).seasons())
+                .extracting(CareerSeason::season).containsExactly(2025);
+
+        CareerResponse playoffOnly = career(history.tiedReceiver(), ApiFixture.Seeded.FULL_PPR);
+        assertThat(playoffOnly.seasons()).extracting(CareerSeason::season).containsExactly(2023);
+        assertThat(playoffOnly.seasonsPlayed()).containsExactly(2023, 2022);
+    }
+
+    /**
+     * The receiver is traded to BAL before week 3. A week carries that week's
+     * team, and {@code home} is read off the game rather than assumed.
+     */
+    @Test
+    void aTradedPlayerCarriesBothTeamsAndEachGamesVenue() {
+        assertThat(careerSeason(seeded.receiver(), ApiFixture.Seeded.HALF_PPR, 2023).teams())
+                .containsExactly("BUF", "BAL");
+
+        List<GamelogWeek> receiver =
+                gamelog(seeded.receiver(), ApiFixture.Seeded.HALF_PPR, 2023).weeks();
+        assertThat(receiver).extracting(GamelogWeek::team).containsExactly("BUF", "BAL");
+        assertThat(receiver).extracting(GamelogWeek::opponent).containsExactly("BAL", "BUF");
+        assertThat(receiver).extracting(GamelogWeek::home).containsExactly(true, true);
+
+        List<GamelogWeek> allen = gamelog(seeded.allen(), ApiFixture.Seeded.HALF_PPR, 2023).weeks();
+        assertThat(allen).extracting(GamelogWeek::home).containsExactly(true, false, true);
+        assertThat(careerSeason(seeded.allen(), ApiFixture.Seeded.HALF_PPR, 2023).weeks())
+                .extracting(CareerWeek::home).containsExactly(true, false);
+    }
+
+    /** Attempts, completions, carries and targets: shown, summed, never scored. */
+    @Test
+    void carriesVolumeBesideTheScorableLineWithoutScoringIt() {
+        GamelogWeek week1 = gamelog(seeded.allen(), ApiFixture.Seeded.STANDARD, 2023).weeks().get(0);
+        assertThat(week1.usage()).isEqualTo(new Usage(35, 24, 4, 0));
+        assertThat(week1.stats()).doesNotContainKeys("pass_att", "pass_cmp", "rush_att", "targets");
+
+        assertThat(careerSeason(seeded.allen(), ApiFixture.Seeded.STANDARD, 2023).usage())
+                .isEqualTo(new Usage(75, 53, 7, 0));
+        assertThat(careerSeason(seeded.receiver(), ApiFixture.Seeded.STANDARD, 2023).usage())
+                .isEqualTo(new Usage(0, 0, 1, 16));
+    }
+
+    /**
+     * A center has a stat line and a page, and v1 does not rank his position. He
+     * gets his points and no rank -- not a 400 from the position whitelist.
+     */
+    @Test
+    void aPositionV1DoesNotRankStillHasACareerWithoutRanks() {
+        CareerResponse center = career(seeded.allenCenter(), ApiFixture.Seeded.FULL_PPR);
+
+        assertThat(center.seasons()).hasSize(1);
+        CareerSeason season = center.seasons().get(0);
+        assertThat(season.points()).isEqualTo(1.4);
+        assertThat(season.posRank()).isNull();
+        assertThat(season.weeks()).extracting(CareerWeek::posRank).containsOnlyNulls();
+    }
+
+    /** Identity for display: an ESPN id only when well-formed, and a season's age. */
+    @Test
+    void carriesDisplayIdentityOnlyWhenItIsWellFormed() {
+        PlayerDetail allen = rest.getForObject("/api/v1/players/" + seeded.allen(), PlayerDetail.class);
+        assertThat(allen.espnId()).isEqualTo("3918298");
+        assertThat(allen.birthDate()).isEqualTo(LocalDate.of(1996, 5, 21));
+        assertThat(allen.teamName()).isEqualTo("Buffalo Bills");
+
+        PlayerDetail receiver =
+                rest.getForObject("/api/v1/players/" + seeded.receiver(), PlayerDetail.class);
+        assertThat(receiver.espnId()).as("\"4262921.0\" is not an id").isNull();
+        assertThat(receiver.birthDate()).isNull();
+
+        PageResponse<RankingRow> board = board(ApiFixture.Seeded.FULL_PPR, 2025);
+        assertThat(rowFor(board, seeded.allen()).espnId()).isEqualTo("3918298");
+        assertThat(rowFor(board, seeded.receiver()).espnId()).isNull();
+        assertThat(rowFor(board, seeded.tightEnd()).espnId()).isNull();
+
+        // Born 21 May 1996: 29 on 1 September 2025, 27 on 1 September 2023.
+        assertThat(career(seeded.allen(), ApiFixture.Seeded.FULL_PPR).seasons())
+                .extracting(CareerSeason::age).containsExactly(29, 27);
+        assertThat(careerSeason(seeded.receiver(), ApiFixture.Seeded.FULL_PPR, 2025).age()).isNull();
+    }
+
+    /** A page past the end is empty, and the identity lookup is not asked about nobody. */
+    @Test
+    void aPagePastTheEndIsEmptyRatherThanAnError() {
+        PageResponse<RankingRow> past = rest.exchange(
+                "/api/v1/rankings?profileId=1&season=2025&page=50&size=200",
+                HttpMethod.GET, null, RANKING).getBody();
+        assertThat(past.content()).isEmpty();
+        assertThat(past.total()).isPositive();
+    }
+
+    @Test
+    void aCareerFor404sLikeTheGameLog() {
+        assertThat(rest.getForEntity("/api/v1/players/99999999/career?profileId=1", String.class)
+                .getStatusCode().value()).isEqualTo(404);
+        assertThat(rest.getForEntity("/api/v1/players/%d/career?profileId=999999"
+                .formatted(seeded.allen()), String.class).getStatusCode().value()).isEqualTo(404);
+    }
+
+    private List<Long> everyProfile() {
+        return List.of(ApiFixture.Seeded.STANDARD, ApiFixture.Seeded.HALF_PPR,
+                ApiFixture.Seeded.FULL_PPR, ApiFixture.Seeded.TE_PREMIUM,
+                seeded.thirdsProfile(), seeded.centuryProfile());
+    }
+
+    private PageResponse<RankingRow> board(long profileId, int season) {
+        return rest.exchange("/api/v1/rankings?profileId=%d&season=%d&scope=season&size=200"
+                .formatted(profileId, season), HttpMethod.GET, null, RANKING).getBody();
+    }
+
+    private CareerResponse career(long playerId, long profileId) {
+        return rest.getForObject("/api/v1/players/%d/career?profileId=%d"
+                .formatted(playerId, profileId), CareerResponse.class);
+    }
+
+    private CareerSeason careerSeason(long playerId, long profileId, int season) {
+        return career(playerId, profileId).seasons().stream()
+                .filter(s -> s.season() == season)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no %d season for player %d"
+                        .formatted(season, playerId)));
+    }
+
+    private GamelogResponse gamelog(long playerId, long profileId, int season) {
+        return rest.getForObject("/api/v1/players/%d/gamelog?season=%d&profileId=%d"
+                .formatted(playerId, season, profileId), GamelogResponse.class);
     }
 
     private PageResponse<RankingRow> rank(long profileId, String position, String scope) {

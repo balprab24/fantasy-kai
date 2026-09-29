@@ -82,9 +82,15 @@ export type Quality = "good" | "mid" | "poor";
 
 export const STARTERS: Record<Position, number> = { QB: 12, RB: 24, WR: 36, TE: 12 };
 
-function band(rank: number, position: Position): Quality {
+export function band(rank: number, position: Position): Quality {
   const line = STARTERS[position];
   return rank <= line ? "good" : rank <= 2 * line ? "mid" : "poor";
+}
+
+/** `band` for a position that may be one v1 does not rank (K, OL...): null there. */
+export function bandFor(rank: number | null, position: string): Quality | null {
+  // hasOwn, not `in`: "constructor" is `in` every object.
+  return rank !== null && Object.hasOwn(STARTERS, position) ? band(rank, position as Position) : null;
 }
 
 /**
