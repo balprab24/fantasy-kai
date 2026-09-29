@@ -19,8 +19,8 @@ and nothing caught it for two days.
 | Phases shipped | **0 → 5c** |
 | Currently next | **Phase 11.5** — Spring Boot 3.5 → 4, overdue security work (north-star §10). Then Phase 6 — Projections. **5d is live** at `https://www.fantasykai.com` since 2026-09-23 |
 | Backend | **81** files · Java 25 / Spring Boot 3.5.16 — **OSS-EOL since 2026-06-30**, Tomcat pinned to 10.1.59 over the parent's 10.1.55. See [`../CLAUDE.md`](../CLAUDE.md) "The EOL clock" |
-| Tests | 20 files · **174 tests**, all green (this row said "17 files" until 2026-09-28; there were 18 — counted with `find`, not recalled) · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 47.5s measured 2026-09-24, 58.2s on 09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
-| HTTP endpoints | **13** — 6 public `GET` (the sixth is `/players/{id}/career`, 2026-09-28), 4 `/auth`, 3 authenticated mutations |
+| Tests | 20 files · **175 tests**, all green (this row said "17 files" until 2026-09-28; there were 18 — counted with `find`, not recalled) · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 47.5s measured 2026-09-24, 58.2s on 09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
+| HTTP endpoints | **13** — 6 `GET`, members only since 2026-09-29 (the sixth is `/players/{id}/career`, 2026-09-28), 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V6` (`V6`: `players.birth_date`, `teams.logo_url`) |
 | Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
 | Frontend | **Next.js 16 · 67 `.ts`/`.tsx` files** (69 under `frontend/src`) — every page rendered per request since 2026-09-29, under a nonce-based CSP (`src/proxy.ts`) — a landing page at `/` (hero, a phone drawn from real 2025 rows, email-first sign-up), and behind sign-in since 2026-09-28 the near-black app shell with a narrow left rail, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (identity, weekly chart, game log, career), ruleset builder; attribution footer on both. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, 46 tests, no dependency, and in CI since 2026-09-28 |
@@ -98,7 +98,7 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | `PlayerQueryRepository` | Every read the API makes, as parameterized JDBC |
 | `StatColumns` | Generates the `SELECT` list from `StatKey`; reads a `ResultSet` into `double[]` by name |
 | `PlayerSort` · `RankingScope` · `ScoringPosition` | **The three whitelists.** Each resolves a request string to an enum constant or throws |
-| `ScoringProfileQueryRepository` | Preset metadata only — never the `rules` column. **Phase 5 grew it `OR user_id = ?`, bound in the query** — a logged-out caller binds `null` and matches only the presets |
+| `ScoringProfileQueryRepository` | Preset metadata only — never the `rules` column. **Phase 5 grew it `OR user_id = ?`, bound in the query** — a member sees the presets and their own; since 2026-09-29 a logged-out caller never reaches it |
 | `ScoringProfileWriteRepository` | Insert / update / delete a user's own profile. Phase 5 |
 | `DuplicateProfileNameException` | Two profiles with one name, for one owner |
 | `ScorableRow` · `PlayerRow` · `GamelogRow` · `PositionWeekRow` | Row records. `PositionWeekRow` is the career's lean position-wide scan: id, season, week, the 13 stats |
@@ -123,7 +123,7 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 
 | Class | Does |
 |---|---|
-| `SecurityConfig` | **The filter chain, and it is default-deny.** `permitAll` on an explicit short list, `authenticated()` on everything else, so a new endpoint is private until someone lists it. Also the CORS allowlist and HSTS. The chain bean is `@ConditionalOnWebApplication(SERVLET)` — the headless ingest entrypoint has no `HttpSecurity` and died on it for three days; `@EnableMethodSecurity` stays unconditional on purpose |
+| `SecurityConfig` | **The filter chain, and it is default-deny.** `permitAll` on an explicit short list — since 2026-09-29 only `/api/v1/auth/**` and health, every read included in `authenticated()` — so a new endpoint is private until someone lists it. Also the CORS allowlist and HSTS. The chain bean is `@ConditionalOnWebApplication(SERVLET)` — the headless ingest entrypoint has no `HttpSecurity` and died on it for three days; `@EnableMethodSecurity` stays unconditional on purpose |
 | `AuthController` | Register · login · refresh · logout. Access token in the body, refresh token in an `HttpOnly` cookie — the asymmetry is the design, not an inconsistency |
 | `AuthDtos` | The codebase's **first request bodies**, which is why §8's `@Valid` row starts mattering here and not in Phase 3 |
 | `JwtService` | Issues and verifies the 15-minute HS256 access token. **Pins `Jwts.SIG.HS256`** — `hmacShaKeyFor` otherwise picks the algorithm from the key's length, so the env var would decide it |
@@ -367,7 +367,7 @@ colour. Recorded, deliberately not fixed in that milestone.
 
 | Follow-up | Detail |
 |---|---|
-| The API is still public | The gate is the website's. `GET /rankings` and `/players/**` stay `permitAll`, so the numbers behind the sign-in are one `curl` away. north-star §2 records the decision; closing it is a backend change |
+| ~~The API is still public~~ | **Closed 2026-09-29** (`feat/members-only-api`, owner decision): every read needs a token, proven by `ReadApiTests.everyReadNeedsAnAccount` across all 6 GETs; the signed-in app reads 200 everywhere (measured in a browser). Production is public until the backend redeploys |
 | The hero wants a real player, and has none | `components/landing/heroImage.ts` is `null` until an image clears copyright (an agency's editorial licence does not cover promotion) **and** the player's consent. A drawn runner stands in. An owner call, next to the ESPN one above |
 | ~~Every anonymous page load spends an auth token~~ | **Closed 2026-09-29, twice over.** A visitor with no `fk_member` hint makes no `/auth/refresh` call at all (measured: 0 on the landing page), and a member's refreshes spend their own 30/min bucket, not login's 5/min (measured: 8 refreshes, then a login still judged on its password) |
 | ~~A member can glimpse the landing page~~ | **Closed 2026-09-29.** `proxy.ts` reads the hint and answers `/` with a 307 to `/rankings` before anything renders (measured: the landing form never mounted). A never-signed-in visitor's deep link likewise goes straight to sign-in. One-time cost: a member who signed in before this shipped has no hint, and signs in once more |

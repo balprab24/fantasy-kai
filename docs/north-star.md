@@ -68,12 +68,14 @@ the product and asks for an email, and every other route sits behind sign-in
 (`frontend/src/app/(app)/layout.tsx`). A signed-out visitor to a deep link is sent to sign in and
 returned to it afterwards.
 
-**The gate is the website's, not the data's.** `GET /api/v1/rankings` and `/api/v1/players/**` are
-still `permitAll` in `SecurityConfig`, so anyone with `curl` reads the same numbers a member sees.
-That is deliberate for now and must never be described as "the data is private". Closing those
-endpoints is a separate backend decision. It would reverse §5b's "the read endpoints are public" and
-Phase 5 acceptance test 3, and the landing page would lose nothing, because its preview is captured,
-not fetched.
+**Since 2026-09-29 the gate is the data's as well as the website's (owner decision).** For one day
+the website was members-only while `GET /api/v1/rankings`, `/api/v1/players/**` and
+`/api/v1/scoring-profiles` stayed `permitAll`, so anyone with `curl` read what a member saw — and
+each unthrottled `/rankings` call scores a full season on a free VM whose measured ceiling is
+~256 req/s. Now every read needs a token (`SecurityConfig`). This reverses §5b's "the read endpoints
+are public" and Phase 5 acceptance test 3, both kept below as history. The landing page lost
+nothing: its preview is captured, not fetched. The data itself is still nflverse's, CC BY 4.0 —
+"members-only" describes this service, not a claim that the numbers are secret.
 
 Enforced in the Spring Security filter chain as `permitAll` on an explicit, short list and
 `authenticated()` on everything else — a **default-deny** list, never a default-allow one. A new
@@ -422,8 +424,9 @@ and `/actuator/health`; and acceptance test 3 below says `GET /api/v1/rankings` 
 cannot hold.
 
 The resolution is that **the filter chain gates endpoints and the query gates rows.** The read
-endpoints are public; *which profile* you may score against is decided by the ownership-filtered
-query, not by the chain. A logged-out caller carries `userId = null`, so
+endpoints were public *(until 2026-09-29 — see §2; they now need a token, and the row filter below
+still decides which profiles a member may use)*; *which profile* you may score against is decided by
+the ownership-filtered query, not by the chain. A logged-out caller carries `userId = null`, so
 `WHERE id = ? AND (user_id IS NULL OR user_id = ?)` resolves presets and nothing else — public data
 under public rules, and no way to name a profile you do not own. Default-deny is intact: a *new*
 endpoint is still private until it is listed.
@@ -432,6 +435,10 @@ endpoint is still private until it is listed.
 permitAll:     GET /api/v1/players/**, GET /api/v1/rankings, GET /api/v1/scoring-profiles,
                /api/v1/auth/**, /api/v1/public/**, /actuator/health
 authenticated: everything else, every mutation included
+
+since 2026-09-29 (§2):
+permitAll:     /api/v1/auth/**, /actuator/health
+authenticated: everything else -- every read and every mutation
 ```
 
 `ScoringProfileQueryRepository.PRESETS` grows `OR user_id = ?` bound to the JWT subject **in the
@@ -630,7 +637,8 @@ the attack* and then checking the table survived. Auth gets the same treatment:
 
 1. **User A cannot read user B's scoring profiles** — the single most important test in the phase.
 2. **Replaying a consumed refresh token revokes the family**, and the old access token stops working.
-3. **`GET /api/v1/rankings` is public; `POST /api/v1/scoring-profiles` is 401 without a token** and
+3. **`GET /api/v1/rankings` is public** *(reversed 2026-09-29: every read is now 401 without a token —
+   `ReadApiTests.everyReadNeedsAnAccount`)*; **`POST /api/v1/scoring-profiles` is 401 without a token** and
    403 with a valid token for another user's row.
 4. **The 6th `/auth/login` in a minute from one IP is 429**, and the 6th read is not.
 5. **A JWT signed with the wrong secret is rejected**, and an expired one returns 401 not 500.

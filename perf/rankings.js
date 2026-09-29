@@ -13,6 +13,16 @@
 //
 // Re-run this same script unchanged after each Phase 11 step so the numbers
 // compare.
+//
+// Since 2026-09-29 every read needs an account, so the run signs in once and
+// every virtual user carries the token:
+//
+//   K6_EMAIL=you@example.com K6_PASSWORD=... k6 run --vus 1 --duration 60s perf/rankings.js
+//
+// The Phase 3.5 baseline in docs/perf/baseline.md was measured anonymously. The
+// difference is one HS256 verification per request -- microseconds against a
+// 12 ms p50 -- but Phase 11 re-captures its baseline with this script before it
+// compares anything, so the two runs differ in nothing else.
 import http from 'k6/http';
 import { check } from 'k6';
 
@@ -41,7 +51,25 @@ function pick(xs) {
   return xs[Math.floor(Math.random() * xs.length)];
 }
 
-export default function () {
+// Signs in once, before any virtual user starts. The access token lives 15
+// minutes, which covers every run this file describes. No credentials, no run:
+// registering a fresh account each time would leave test users in a database
+// whose full dump has already carried test accounts into production (F8).
+export function setup() {
+  const email = __ENV.K6_EMAIL;
+  const password = __ENV.K6_PASSWORD;
+  if (!email || !password) {
+    throw new Error('set K6_EMAIL and K6_PASSWORD: every read needs an account since 2026-09-29');
+  }
+  const res = http.post(`${BASE}/api/v1/auth/login`, JSON.stringify({ email, password }),
+    { headers: { 'Content-Type': 'application/json' } });
+  if (res.status !== 200) {
+    throw new Error(`sign-in failed with ${res.status}; the run would measure 401s`);
+  }
+  return { token: JSON.parse(res.body).accessToken };
+}
+
+export default function (data) {
   const position = pick(POSITIONS);
   const url = `${BASE}/api/v1/rankings`
     + `?profileId=${pick(PROFILES)}`
@@ -50,7 +78,7 @@ export default function () {
     + `&scope=${pick(SCOPES)}`
     + `&size=50`;
 
-  const res = http.get(url);
+  const res = http.get(url, { headers: { Authorization: `Bearer ${data.token}` } });
 
   check(res, {
     'status is 200': (r) => r.status === 200,

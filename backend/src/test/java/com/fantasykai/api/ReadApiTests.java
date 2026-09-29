@@ -1,5 +1,7 @@
 package com.fantasykai.api;
 
+import org.junit.jupiter.api.BeforeEach;
+import com.fantasykai.auth.JwtService;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
@@ -36,7 +38,15 @@ class ReadApiTests {
     private static ApiFixture.Seeded seeded;
 
     @Autowired
+    private TestRestTemplate anonymous;
+
+    /** A member's client: every read needs an account since 2026-09-29 (ApiFixture.asMember). */
     private TestRestTemplate rest;
+
+    @BeforeEach
+    void signIn(@Autowired JdbcTemplate jdbc, @Autowired JwtService jwt) {
+        rest = ApiFixture.asMember(anonymous, jdbc, jwt);
+    }
 
     @BeforeAll
     static void seed(@Autowired JdbcTemplate jdbc) {
@@ -161,5 +171,28 @@ class ReadApiTests {
 
     private PageResponse<PlayerSummary> players(String query) {
         return rest.exchange("/api/v1/players" + query, HttpMethod.GET, null, PLAYERS).getBody();
+    }
+
+    /**
+     * Since 2026-09-29 the gate is the data's, not only the website's
+     * (north-star §2): an anonymous caller is turned away from every read, with
+     * the same RFC 7807 body the chain gives any other unauthenticated request.
+     * The list is every GET the API has.
+     */
+    @Test
+    void everyReadNeedsAnAccount() {
+        long allen = seeded.allen();
+        for (String path : List.of(
+                "/api/v1/rankings?season=2025",
+                "/api/v1/players?size=1",
+                "/api/v1/players/" + allen,
+                "/api/v1/players/" + allen + "/gamelog?season=2025",
+                "/api/v1/players/" + allen + "/career?profileId=1",
+                "/api/v1/scoring-profiles")) {
+            ResponseEntity<String> response = anonymous.getForEntity(path, String.class);
+            assertThat(response.getStatusCode()).as(path).isEqualTo(HttpStatus.UNAUTHORIZED);
+            assertThat(response.getHeaders().getContentType()).as(path)
+                    .isEqualTo(MediaType.APPLICATION_PROBLEM_JSON);
+        }
     }
 }

@@ -1,5 +1,7 @@
 package com.fantasykai.api;
 
+import org.junit.jupiter.api.BeforeEach;
+import com.fantasykai.auth.JwtService;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -36,7 +38,15 @@ class QuerySafetyTests {
     private static final String TAUTOLOGY = "BUF' OR '1'='1";
 
     @Autowired
+    private TestRestTemplate anonymous;
+
+    /** A member's client: every read needs an account since 2026-09-29 (ApiFixture.asMember). */
     private TestRestTemplate rest;
+
+    @BeforeEach
+    void signIn(@Autowired JdbcTemplate jdbc, @Autowired JwtService jwt) {
+        rest = ApiFixture.asMember(anonymous, jdbc, jwt);
+    }
 
     @Autowired
     private JdbcTemplate jdbc;

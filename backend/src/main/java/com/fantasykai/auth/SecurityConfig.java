@@ -4,7 +4,6 @@ import java.util.List;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -25,15 +24,17 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * opens it. The inverse, denying a list and allowing the rest, fails open every
  * time someone adds a controller and forgets.
  *
- * <p><strong>The reads are public and that is not a contradiction.</strong> §2
- * says personalized data needs an account; it does not say the endpoint does.
- * The split is that <em>the chain gates endpoints and the query gates rows</em>:
- * an anonymous caller reaches {@code /rankings}, carries a {@code null} user id
- * into {@code ScoringProfiles.byId}, and the ownership filter there resolves
- * system presets and nothing else. Public data under public rules, with no way
- * to name a profile you do not own. Putting that check in the chain instead
- * would mean either logging users in to see a public ranking, or duplicating
- * row-level authorization in two places.
+ * <p><strong>The reads need an account, since 2026-09-29</strong> (owner
+ * decision, north-star §2). Until then they were {@code permitAll} -- the
+ * website had gone members-only a day earlier, but the numbers behind the
+ * sign-in were one {@code curl} away, and each unthrottled {@code /rankings}
+ * call scores a whole season on a free VM whose ceiling is ~256 req/s.
+ *
+ * <p><em>The chain gates endpoints and the query gates rows</em>, and both still
+ * do their job: the chain now turns an anonymous caller away, and the ownership
+ * filter in {@code ScoringProfiles.byId} still decides which profiles a member
+ * may score against. The filter was the only gate for three weeks; it stays,
+ * because a chain rule is one line away from being reopened.
  */
 @Configuration
 @EnableMethodSecurity
@@ -82,11 +83,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // The public list, in full. Every entry is a deliberate
                         // decision; adding one is not a formality.
+                        // Signing in, and the health probes. /api/v1/public/**
+                        // was here too, with nothing under it: a prefix that
+                        // opens whatever is added beneath it later.
                         .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers("/api/v1/public/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/players/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/rankings").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/scoring-profiles").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         // Everything else, including every mutation.
                         .anyRequest().authenticated())

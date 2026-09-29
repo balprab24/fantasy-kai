@@ -122,9 +122,9 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
 
   let response = await send();
 
-  // A 401 on a read is normal for a logged-out visitor -- reads are public and
-  // the row filter does the work -- so only retry when there was a session to
-  // restore in the first place.
+  // A 401 with a token in hand means the 15-minute access token has expired:
+  // trade the refresh cookie for a new one and try once more. Without a token
+  // there was no session to restore, and every read needs one (2026-09-29).
   if (response.status === 401 && !anonymous && accessToken !== null) {
     if ((await refreshOnce()) === "restored") {
       response = await send();

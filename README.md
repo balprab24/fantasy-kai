@@ -70,22 +70,28 @@ cd backend && ./mvnw spring-boot:run \
   -Dspring-boot.run.arguments=--fantasykai.ingest.backfill-on-startup=true
 ```
 
-Now ask it something. `profileId=3` is full PPR; the presets are seeded by `V3`:
-
-```bash
-curl -s 'localhost:8080/api/v1/rankings?profileId=3&season=2025&position=WR&size=5'
-```
-
-Change `profileId` and every number changes, because none of them were stored.
-
-**Make it yours.** Reads are public; a profile of your own needs an account:
+Every read needs an account (since 2026-09-29), so make one — the response carries a 15-minute
+access token:
 
 ```bash
 TOKEN=$(curl -s -X POST localhost:8080/api/v1/auth/register \
   -H 'Content-Type: application/json' \
   -d '{"email":"you@example.com","password":"a-long-enough-password"}' \
   | python3 -c 'import sys,json;print(json.load(sys.stdin)["accessToken"])')
+```
 
+Now ask it something. `profileId=3` is full PPR; the presets are seeded by `V3`:
+
+```bash
+curl -s -H "Authorization: Bearer $TOKEN" \
+  'localhost:8080/api/v1/rankings?profileId=3&season=2025&position=WR&size=5'
+```
+
+Change `profileId` and every number changes, because none of them were stored.
+
+**Make it yours** — a scoring profile of your own:
+
+```bash
 curl -s -X POST localhost:8080/api/v1/scoring-profiles \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"name":"My League","rules":"{\"version\":1,\"base\":{\"rec\":1.5,\"rec_td\":6}}"}'
