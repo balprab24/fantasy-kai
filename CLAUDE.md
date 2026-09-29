@@ -78,7 +78,8 @@ backend/src/main/java/com/fantasykai/
   api/             Phase 3 — controllers, DTOs, RFC 7807 advice; Phase 5 write endpoints
   auth/            Phase 5 — filter chain, JWT, rotating refresh, Argon2id, rate limit
 backend/src/main/resources/db/migration/   Flyway. V1 schema, V2 ingestion support,
-                                           V3 presets, V4 Vegas columns, V5 refresh_tokens
+                                           V3 presets, V4 Vegas columns, V5 refresh_tokens,
+                                           V6 players.birth_date + teams.logo_url
 backend/Dockerfile                         Phase 5d. Temurin 25 JRE on Alpine, arm64 and amd64
 deploy/                                    Phase 5d. compose.prod.yml + Caddyfile + README.md
                                            (the runbook, the firewall trap, the acceptance checks)
@@ -86,6 +87,9 @@ frontend/        Phase 5c — Next.js 16 App Router. api.ts holds the only acces
                  2026-09-28: dark shell + rankings workspace; components/{shell,ui,rankings},
                  lib/board.ts (derived positional rank + natural-break tiers + per-game quality band),
                  lib/season.ts (mirrors IngestProperties.seasonFor), tokens in globals.css
+                 2026-09-28 (later): components/player (the /players/[id] workspace),
+                 lib/{profiles,headshot,playerStats,player,boardParams,boardReturn}.ts,
+                 tests/lib.test.ts (npm test = node --test, no dependency)
 backend/src/test/resources/nflverse/       Real 2024 rows as fixtures — not invented
 docs/map.md                                Front door — status board, class map, pipelines
 docs/orientation.md                        Plain-English door — glossary, real-vs-planned
@@ -116,6 +120,7 @@ scripts/                                   session-check.sh (runs at every sessi
 | 4.75 — toolchain recovery | ✅ 2026-09-12 — JDK 25 found, enforcer rule, jjwt/bucket4j/bcprov bumped, **the headless-context bug the suite could not see** fixed. **132 in the suite** |
 | 5c — Web shell | ✅ Next.js 16 App Router, 21 `.ts`/`.tsx` files at ship (36 after the 2026-09-28 shell + rankings redesign and its refinement pass, which made `/` the rankings workspace and replaced three `2025` literals with `lib/season.ts`; still 36 after the near-black "ki in the dark" restyle). Rankings, player detail, auth, ruleset builder. **Attribution footer shipped — owed since Phase 0.** Proved end to end in a browser: a user-built 6-point-passing-TD ruleset put Stafford at #1 with 442.4 where Half PPR had him 4th at 350.4 |
 | 5d — Deploy | ✅ **2026-09-23 — live at `https://www.fantasykai.com`, API `https://api.fantasykai.com`.** Oracle Cloud Always Free A1 VM (2 OCPU / 12 GB, Chicago) running Postgres + Redis + backend + Caddy from `deploy/compose.prod.yml`; Vercel for the frontend; Porkbun domain, $11/yr — the only cost. **9 of 10 acceptance checks pass** (4b owed — needs a second real client); the production ingest **fired unattended at 06:00:00 ET on 2026-09-23**. Running the runbook for real found five bugs in it, all fixed. **Progress, findings F1–F13 and what's owed: top of [`DEPLOY-STEPS.md`](DEPLOY-STEPS.md)** |
+| 5c.2 — Player workspace | ✅ 2026-09-28, branch `feat/player-workspace` — `/players/[id]` becomes an identity + weekly chart + game log + career workspace; ESPN headshots **derived** from the stored espn id (never stored); `V6` stores `birth_date` and the team logo; new `GET /players/{id}/career` (regular season, season + weekly positional ranks); board filters in the URL; "Standard" shown as **0 PPR**, "Full PPR" as **PPR** (display only). **165 in the suite** · 24 frontend unit tests (`npm test`, now in CI). Career numbers equal the board's under every profile by test, and Gibbs/Chase 2025 were hand-computed and matched nflverse's own `fantasy_points`/`_ppr` exactly |
 | 5d.1 — security pass | ✅ 2026-09-21 — **Boot 3.5 went OSS-EOL on 2026-06-30 and nobody had checked.** Tomcat pinned to 10.1.59 over the parent's CVE-bearing 10.1.55; the auth rate limiter proved **forgeable at the application layer**; four-day ingest outage found and refilled. See "The EOL clock" below |
 | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
@@ -235,6 +240,19 @@ column types are justified by — do not re-derive them either:
 
 **"1,243 skill players" is a six-season union.** No single season clears 700. Say "across six seasons" or the claim breaks the moment someone asks whether it is one year.
 
+**Player identity, measured 2026-09-28** (what the player workspace's headshots, ages and logos
+rest on — the source files and the loaded database, not a guess):
+
+| | |
+|---|---|
+| QB/RB/WR/TE with a stat line carrying an ESPN id | **1,296 of 1,298** before that day's 14:12 ingest, **1,306 of 1,308** after — every one all digits. The two without: Kevin White, Rod Williams |
+| Same, in `players.csv` (active since 2020) | espn id **1,897** · nflverse `headshot` URL **1,841** · birth date **1,900** — of 1,903 |
+| `players.csv` birth dates | 24,833 rows · 32 blank · **0 malformed** → **24,801 of 25,066** stored (the rest are `StatIngestor`'s placeholder players). Read but never *required*: a bad or missing one costs an age on screen, never the pull |
+| Team logos | **36 of 36** rows https; longest URL 54 chars. `LA`/`STL` → `lar.png`, `WAS` → `wsh.png`: not derivable from the abbreviation |
+| ESPN headshot, full · resized 64px square | ~237 KB · ~6 KB. A missing id is a **404**, so `<img onError>` is a reliable fallback |
+| Stat rows whose team is neither side of the game | **0** of 115,590 |
+| QB/RB/WR/TE player-seasons with playoff games and no regular season | **7** — one player has no regular season at all. `/career`'s `seasonsPlayed` exists for them |
+
 **k6 baseline, 2026-09-07** (`docs/perf/baseline.md`, four 60s passes, one warm JVM):
 
 | | 1 VU | 5 VUs | 10 VUs | 20 VUs |
@@ -279,7 +297,14 @@ Raising it without making the query cheaper moves the queue, it does not remove 
 - **`JdbcTemplate` reads a jsonb `?` operator as a bind placeholder.** `external_ids ? 'pfr'` will not work; use `external_ids ->> 'pfr' IS NOT NULL`.
 - **nflverse's `fantasy_points` penalises only *offensive* fumbles.** We score `fumbles_lost_total`, which also counts a muffed punt or kickoff — 39 rows of 19,422 in 2025, each worth exactly 2 points. This is a deliberate disagreement (real leagues penalise any fumble the roster player loses), pinned exactly in `NflverseOracleTests` rather than hidden behind a tolerance. Do not "fix" it toward nflverse.
 - **`players.full_name` is not unique.** 832 names are shared, 24 of them between players who both have stat lines — `Josh Allen` is a quarterback (id 344) and a center (id 343). Never key a lookup on a name; the API returns `id` everywhere and treats the name as display text.
-- **Weeks run to 22, not 18.** Weeks 19–22 are `season_type = 'POST'`. Rankings join `games` and filter to `REG`, because fantasy leagues do not score the playoffs and `last4` would otherwise mean "the postseason". The game log deliberately does *not* filter — it is a record of what a player did.
+- **Weeks run to 22, not 18 — and a playoff game is never `'POST'`.** `games.season_type` holds
+  `REG` or the round: `WC`, `DIV`, `CON`, `SB` (measured 2026-09-28). This entry said `'POST'`
+  until then, the API test fixture seeded a fictional `"POST"`, and the old player page tagged
+  playoff weeks with `seasonType === "POST"` — so it never tagged one. Test for `REG`, never for
+  a postseason value. Weeks also overlap: 2020's wild card is week 18. Rankings join `games` and
+  filter to `REG`, because fantasy leagues do not score the playoffs and `last4` would otherwise
+  mean "the postseason". The game log deliberately does *not* filter — it is a record of what a
+  player did — and `/career` does, so the workspace's season numbers are the board's.
 - **`@Validated` on a controller turns a 400 into a 500.** It proxies the class so Bean Validation throws `ConstraintViolationException`, which no Spring MVC handler knows about. Without it, Spring 6.1+ validates constrained parameters itself and raises `HandlerMethodValidationException`, which `ResponseEntityExceptionHandler` renders as `problem+json`. Found by sending `?size=5000`, not by reading the docs.
 - **A blank `temp` does not mean "dome".** 297 *outdoor* games in 2020–2026 have no temperature
   either, and one `closed`-roof game does have one. Blank means not recorded. `wind = 0` is likewise a
@@ -493,6 +518,22 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   way routing does (`PathPatternRequestMatcher`). **The lesson: a trust boundary is a list of
   everything that crosses it, not the one thing you thought about.** `X-Forwarded-For` alone
   remains Caddy's job.
+- **A test that passes is not a test that can fail.** The first career-rank test compared the
+  career's positional rank with the board's under every profile and passed — and it still passed
+  with the career ranking by *per game* instead of by points, because in every fixture position
+  the points leader was also the per-game leader. Found by mutating the comparator and watching
+  20 of 20 stay green. The fix was data, not assertions: a one-game receiver who leads on per-game
+  and trails on total. Mutate the line a test exists to protect before believing it.
+- **Summing in arrival order makes a total depend on the scan.** A ranking added each player's
+  weeks in whatever order the sequential scan returned them, and floating-point addition is not
+  associative — `0.1 + 0.2 + 0.3 != 0.3 + 0.2 + 0.1`. Upserts and synchronized scans move that
+  order, so two players level on screen could swap between requests, and a career rank could
+  disagree with the board's. `PointsTally` sums in week order; `PointsTallyTests` pins it with the
+  textbook triple. Java-only — the §9 SQL is unchanged.
+- **`useSearchParams` on a prerendered route needs a `<Suspense>` boundary, and `next dev` hides
+  it.** Dev renders on demand, so a missing boundary works there and fails `npm run build`. `/`
+  and `/rankings` wrap the board; its fallback copies the header, control-row and row heights so
+  nothing moves when the board lands.
 - **A launchd plist with a placeholder path is not an installed job.** The plist shipped three
   `__REPO__` placeholders and an instruction to "edit the two by hand"; it was never loaded, `logs/`
   stayed empty, and `ingest_runs` recorded three of the seven days before kickoff. `install-ingest.sh`
@@ -592,7 +633,7 @@ curl -s localhost:8080/actuator/health | jq .components.ingestFreshness
 # web shell (Phase 5c). Node 24 -- .nvmrc pins it; Node 20 went EOL 2026-04-30.
 cd frontend && nvm use && npm ci
 npm run dev                               # :3000, expects the API on :8080
-npm run lint && npm run build             # what CI runs
+npm run lint && npm test && npm run build # what CI runs (npm test = node --test, no dependency)
 
 # the deploy image, built and run against the compose Postgres
 cd backend && docker build -t fantasykai-backend:local .
@@ -622,7 +663,7 @@ is there to defeat.
 Then, in order:
 
 1. **Run the gates and paste what they printed.** `./scripts/session-check.sh` ·
-   `./mvnw -B verify` · `npm run lint && npm run build`. A gate you did not run is reported as
+   `./mvnw -B verify` · `npm run lint && npm test && npm run build`. A gate you did not run is reported as
    **not run** — never as passing, never by omission. "Nothing here touches Java" is a
    defensible reason to skip one; silence is not.
 2. **Walk the invariant table above as yes/no questions against the diff.** Persisted a computed

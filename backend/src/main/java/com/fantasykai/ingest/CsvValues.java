@@ -2,6 +2,8 @@ package com.fantasykai.ingest;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import org.apache.commons.csv.CSVRecord;
 
 /**
@@ -67,6 +69,28 @@ final class CsvValues {
         try {
             return new BigDecimal(value);
         } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * An ISO {@code YYYY-MM-DD} date, or null when blank <em>or malformed</em>.
+     *
+     * <p>Null rather than a failed run, deliberately, because the only date read
+     * is a birth date and it is display-only: a bad one costs a player his age
+     * on screen. Failing would cost the whole daily pull -- games, stat lines,
+     * snaps -- over one impossible date like {@code 1995-02-29}, and this project
+     * has already lost days of ingest three times. A scored stat is the opposite
+     * case, and it stays behind the hard header check.
+     */
+    static LocalDate date(CSVRecord record, String column) {
+        String value = raw(record, column);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeParseException e) {
             return null;
         }
     }

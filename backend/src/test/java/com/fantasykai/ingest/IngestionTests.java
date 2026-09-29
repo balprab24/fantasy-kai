@@ -258,6 +258,53 @@ class IngestionTests {
         assertThat(recYards).isEqualTo(264);
     }
 
+    /**
+     * V6: two display facts from files the ingest already downloads. Both values
+     * are the fixture's real rows -- Chase's birth date and the logo URL whose
+     * slug is not the nflverse abbreviation (WAS is wsh.png), which is why the
+     * URL is stored rather than derived.
+     */
+    @Test
+    void storesTheBirthDateAndTheTeamLogoTheSourceShips() {
+        assertThat(jdbc.queryForObject(
+                "SELECT birth_date::text FROM players WHERE gsis_id = ?", String.class, CHASE))
+                .isEqualTo("2000-03-01");
+        assertThat(jdbc.queryForObject(
+                "SELECT logo_url FROM teams WHERE abbr = 'BAL'", String.class))
+                .isEqualTo("https://a.espncdn.com/i/teamlogos/nfl/500/bal.png");
+        assertThat(jdbc.queryForObject(
+                "SELECT logo_url FROM teams WHERE abbr = 'WAS'", String.class))
+                .isEqualTo("https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png");
+    }
+
+    /**
+     * The opposite of a stat column, on purpose: a renamed birth_date costs ages
+     * on screen, never the run -- the stat lines still load.
+     */
+    @Test
+    void aRenamedBirthDateColumnDoesNotStopTheRun() {
+        renameInHeader = Map.entry("birth_date", "dob");
+        jdbc.update("TRUNCATE ingest_runs");
+
+        ingestService.backfill();
+
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM ingest_runs WHERE status = 'FAILED'", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT max(rec_yd) FROM player_game_stats", Integer.class))
+                .isEqualTo(264);
+    }
+
+    /** Blank and malformed both read back null: a birth date is display-only. */
+    @Test
+    void aBlankOrMalformedBirthDateIsNull() throws Exception {
+        try (CSVParser parser = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true)
+                .get().parse(new StringReader("gsis_id,birth_date\na,\nb,03/01/2000\n"))) {
+            List<CSVRecord> records = parser.getRecords();
+            assertThat(CsvValues.date(records.get(0), "birth_date")).isNull();
+            assertThat(CsvValues.date(records.get(1), "birth_date")).isNull();
+        }
+    }
+
     @Test
     void namesEveryMissingColumnRatherThanTheFirst() {
         assertThatThrownBy(() -> NflverseClient.verifyHeader(
@@ -292,6 +339,10 @@ class IngestionTests {
         assertThat(GameIngestor.REQUIRED_COLUMNS)
                 .contains("spread_line", "total_line", "temp", "wind", "roof", "surface")
                 .contains("game_id", "home_team", "away_team", "gameday");
+
+        // Display-only columns are read but never required: they must not stop a run.
+        assertThat(PlayerIngestor.REQUIRED_COLUMNS).contains("espn_id").doesNotContain("birth_date");
+        assertThat(TeamIngestor.REQUIRED_COLUMNS).doesNotContain("team_logo_espn");
     }
 
     @Test

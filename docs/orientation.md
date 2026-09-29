@@ -125,7 +125,9 @@ The terms the other docs use without introducing.
 **Fantasy football terms**
 
 - **PPR** — "points per reception". How much a catch is worth: 1 point (full PPR), 0.5 (half), or
-  0 (standard). The single biggest difference between league rulesets.
+  0. The single biggest difference between league rulesets. The screen says **0 PPR · Half PPR ·
+  PPR**; the stored preset names are still "Standard" and "Full PPR" (`lib/profiles.ts` maps them),
+  because "standard" stopped meaning 0 once most leagues made PPR their standard.
 - **TE premium** — a ruleset that pays tight ends more per catch than other positions, because
   otherwise nobody drafts them.
 - **Ruleset** — one league's complete scoring rules. In this codebase it's a JSON document with a

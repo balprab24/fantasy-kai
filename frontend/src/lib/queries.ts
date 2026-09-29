@@ -1,8 +1,8 @@
-import { useState } from "react";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 import { useAuth } from "./auth";
 import type {
+  CareerResponse,
   GamelogResponse,
   Page,
   PlayerDetail,
@@ -17,7 +17,8 @@ import type {
  * the axis they actually differ on and seeing them in that order is half the
  * explanation. The API returns them by name, which sorts Full PPR above
  * Standard and makes the set look arbitrary. Anything the user made follows,
- * in the order the API gave it.
+ * in the order the API gave it. These are the stored names; the screen shows
+ * `profileLabel` -- 0 PPR, Half PPR, PPR.
  */
 const PRESET_ORDER = ["Standard", "Half PPR", "Full PPR", "TE Premium"];
 
@@ -83,6 +84,10 @@ export function useRankingsBoard(q: BoardQuery) {
     // The previous board stays on screen while the next ruleset is scored, so
     // a switch reads as movement rather than as a reload.
     placeholderData: keepPreviousData,
+    // Kept well past the default five minutes: the board unmounts while a
+    // player page is open, and coming back to a board that has to be scored
+    // again -- with the pages you had loaded gone -- loses your place in it.
+    gcTime: 30 * 60_000,
   });
 }
 
@@ -90,38 +95,65 @@ export function usePlayer(id: number) {
   return useQuery({
     queryKey: ["player", id],
     queryFn: () => api<PlayerDetail>(`/api/v1/players/${id}`),
+    // A malformed id in the URL is 0 here (app/players/[id]); asking the API
+    // about it would only be a 400 dressed up as a request.
+    enabled: id > 0,
   });
 }
 
-export function useGamelog(id: number, profileId: number | null, season: number) {
+export function useGamelog(id: number, profileId: number | null, season: number | null) {
   return useQuery({
     queryKey: ["gamelog", id, profileId, season],
     queryFn: () =>
       api<GamelogResponse>(
         `/api/v1/players/${id}/gamelog?profileId=${profileId}&season=${season}`,
       ),
-    enabled: profileId !== null,
+    enabled: id > 0 && profileId !== null && season !== null,
+    placeholderData: keepPreviousData,
   });
 }
 
 /**
- * The selected ruleset, with a default that is derived rather than stored.
+ * Every regular season, scored under one profile, with positional ranks. One
+ * request per (player, profile) feeds the identity tiles, the chart and the
+ * career table; switching season never refetches it.
+ */
+export function useCareer(id: number, profileId: number | null) {
+  return useQuery({
+    queryKey: ["career", id, profileId],
+    queryFn: () => api<CareerResponse>(`/api/v1/players/${id}/career?profileId=${profileId}`),
+    enabled: id > 0 && profileId !== null,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * The ruleset a page scores against, resolved from the one it asked for.
  *
- * The obvious version sets the default from an effect once the profile list
- * arrives, which React 19 correctly flags: it is a cascading render, and it
- * leaves two sources of truth for one fact — the state, and the list it was
- * derived from. Falling back at read time has neither problem, and "nothing
- * chosen yet" stays honestly represented as null.
+ * Derived, never stored: the choice lives in the URL, and the default falls
+ * out at read time rather than from an effect -- which React 19 correctly
+ * flags as a cascading render that leaves two sources of truth for one fact.
+ *
+ * A requested id counts only once the profile list is back and contains it.
+ * That list waits for the session to be restored (`useProfiles`), so this is
+ * what stops a URL carrying a private ruleset's id from firing rankings, game
+ * log and career requests before the access token exists. Those would come
+ * back 404 -- an ownership miss is a 404, which the refresh-and-retry never
+ * sees -- and be cached as the answer. Until the list arrives the result is
+ * null and every query keyed on it waits.
  *
  * Half PPR is the fallback because it is what most real leagues run, so the
  * first board a visitor sees is the one most likely to be theirs.
  */
-export function useSelectedProfile(initial: number | null = null) {
+export function useSelectedProfile(requested: number | null) {
   const profiles = useProfiles();
-  const [chosen, setChosen] = useState<number | null>(initial);
+  const list = profiles.data;
 
-  const fallback =
-    profiles.data?.find((p) => p.name === "Half PPR")?.id ?? profiles.data?.[0]?.id ?? null;
-
-  return { profiles, profileId: chosen ?? fallback, setProfileId: setChosen };
+  let profileId: number | null = null;
+  if (list) {
+    profileId = list.some((p) => p.id === requested)
+      ? requested
+      : (list.find((p) => p.preset && p.name === "Half PPR")?.id ?? list[0]?.id ?? null);
+  }
+  return { profiles, profileId };
 }

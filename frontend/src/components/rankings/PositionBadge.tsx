@@ -22,11 +22,24 @@ const NAMES: Record<string, string> = {
   TE: "tight end",
 };
 
-export function PositionBadge({ position, rank }: { position: string; rank: number | null }) {
+/**
+ * @param basis what the rank is a rank of, for the tooltip: "on this board" on
+ *   the board, "by season points" on a player page -- the two can differ on a
+ *   per-game board, and the tooltip is where that is said.
+ */
+export function PositionBadge({
+  position,
+  rank,
+  basis = "on this board",
+}: {
+  position: string;
+  rank: number | null;
+  basis?: string;
+}) {
   const hue = positionHue(position);
   return (
     <span
-      title={rank === null ? undefined : `${ordinal(rank)} ${NAMES[position] ?? position} on this board`}
+      title={rank === null ? undefined : `${ordinal(rank)} ${NAMES[position] ?? position} ${basis}`}
       className={`tabular inline-flex h-6 min-w-12 items-center justify-center gap-1 rounded border px-1.5 text-xs font-semibold ${hue.text} ${hue.border}`}
     >
       {position}

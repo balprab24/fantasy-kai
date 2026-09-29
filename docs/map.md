@@ -18,12 +18,12 @@ and nothing caught it for two days.
 |---|---|
 | Phases shipped | **0 → 5c** |
 | Currently next | **Phase 11.5** — Spring Boot 3.5 → 4, overdue security work (north-star §10). Then Phase 6 — Projections. **5d is live** at `https://www.fantasykai.com` since 2026-09-23 |
-| Backend | **74** files · Java 25 / Spring Boot 3.5.16 — **OSS-EOL since 2026-06-30**, Tomcat pinned to 10.1.59 over the parent's 10.1.55. See [`../CLAUDE.md`](../CLAUDE.md) "The EOL clock" |
-| Tests | 17 files · **142 tests**, all green · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 47.5s measured 2026-09-24, 58.2s on 09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
-| HTTP endpoints | **12** — 5 public `GET`, 4 `/auth`, 3 authenticated mutations |
-| Migrations | `V1` … `V5` |
+| Backend | **81** files · Java 25 / Spring Boot 3.5.16 — **OSS-EOL since 2026-06-30**, Tomcat pinned to 10.1.59 over the parent's 10.1.55. See [`../CLAUDE.md`](../CLAUDE.md) "The EOL clock" |
+| Tests | 20 files · **165 tests**, all green (this row said "17 files" until 2026-09-28; there were 18 — counted with `find`, not recalled) · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 47.5s measured 2026-09-24, 58.2s on 09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
+| HTTP endpoints | **13** — 6 public `GET` (the sixth is `/players/{id}/career`, 2026-09-28), 4 `/auth`, 3 authenticated mutations |
+| Migrations | `V1` … `V6` (`V6`: `players.birth_date`, `teams.logo_url`) |
 | Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
-| Frontend | **Next.js 16 · 36 `.ts`/`.tsx` files** (38 under `frontend/src`) — near-black app shell with a narrow left rail, the rankings workspace (tiers, positional ranks, find-in-board), player detail, auth, ruleset builder, attribution footer. `npm run build` + `npm run lint` green. No frontend test runner |
+| Frontend | **Next.js 16 · 46 `.ts`/`.tsx` files** (48 under `frontend/src`) — near-black app shell with a narrow left rail, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (identity, weekly chart, game log, career), auth, ruleset builder, attribution footer. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, 24 tests, no dependency, and in CI since 2026-09-28 |
 
 | # | Phase | State |
 |---|---|---|
@@ -61,8 +61,8 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 |---|---|
 | `IngestService` | Orchestrator. Sequences the six sources, wraps each in an `ingest_runs` row |
 | `NflverseClient` | One HTTP GET of a GitHub release asset + commons-csv parse |
-| `TeamIngestor` | `teams_colors_logos.csv` → `teams`, including historical abbreviations |
-| `PlayerIngestor` | `players.csv` → `players`; espn/pfr/nfl/esb ids as `jsonb` |
+| `TeamIngestor` | `teams_colors_logos.csv` → `teams`, including historical abbreviations, and since `V6` the ESPN logo URL (https only) |
+| `PlayerIngestor` | `players.csv` → `players`; espn/pfr/nfl/esb ids as `jsonb`, and since `V6` `birth_date` — read but never required, and a malformed one is null: display-only data must not stop the pull |
 | `GameIngestor` | `schedules/games.csv` → `games`. 18 of the source's 46 columns; upsert generated from one ordered `List<Field>` |
 | `StatIngestor` | `stats_player_week_{season}.csv` → `player_game_stats`. 47 stat columns from one `FIELDS` list |
 | `SnapCountIngestor` | `snap_counts_{season}.csv` → `player_game_stats.snap_pct`, joined on pfr id |
@@ -91,7 +91,7 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | `StatLine` · `Bonus` | Records: one player-week, one threshold bonus |
 | `InvalidRulesetException` · `NoSuchProfileException` | Drive the 422-vs-404 split |
 
-#### `query/` — Phase 3 · 12 files
+#### `query/` — Phase 3 · 14 files
 
 | Class | Does |
 |---|---|
@@ -101,19 +101,22 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | `ScoringProfileQueryRepository` | Preset metadata only — never the `rules` column. **Phase 5 grew it `OR user_id = ?`, bound in the query** — a logged-out caller binds `null` and matches only the presets |
 | `ScoringProfileWriteRepository` | Insert / update / delete a user's own profile. Phase 5 |
 | `DuplicateProfileNameException` | Two profiles with one name, for one owner |
-| `ScorableRow` · `PlayerRow` · `GamelogRow` | Row records |
+| `ScorableRow` · `PlayerRow` · `GamelogRow` · `PositionWeekRow` | Row records. `PositionWeekRow` is the career's lean position-wide scan: id, season, week, the 13 stats |
+| `Usage` | Attempts, completions, carries, targets — volume, **deliberately not `StatKey`s**. The only place those four columns are named on the read path |
 | `InvalidQueryParameterException` | A name that isn't on a whitelist |
 
-#### `api/` — Phase 3 · 14 files
+#### `api/` — Phase 3 · 19 files
 
 | Class | Does |
 |---|---|
-| `RankingsController` · `PlayerController` · `ScoringProfileController` | **Eight endpoints** — 5 public `GET` plus, since Phase 5, three profile mutations behind `@PreAuthorize` |
-| `RankingsService` | Scores every player-week in Java, aggregates per player, sorts, pages |
-| `PlayerService` | Player list, detail, and the scored game log |
+| `RankingsController` · `PlayerController` · `ScoringProfileController` | **Nine endpoints** — 6 public `GET` plus, since Phase 5, three profile mutations behind `@PreAuthorize` |
+| `RankingsService` | Scores every player-week in Java, aggregates per player, sorts, pages; then looks up the page's ESPN ids by primary key |
+| `PlayerService` | Player list, detail, the scored game log, and the **career** — regular-season totals plus season and weekly positional ranks from one position-wide scan |
+| `PointsTally` | One player's points, **summed in week order**, and the one ranking comparator (points desc, id asc). Shared by rankings and career, so a career's positional rank equals the board's by construction |
+| `Ages` | Age on 1 September of a season — the one rule |
 | `ApiExceptionHandler` | RFC 7807 `problem+json` over `ResponseEntityExceptionHandler` |
 | `PageResponse` | Generic page envelope. `DEFAULT_SIZE=50`, `MAX_SIZE=200` |
-| `RankingRow` · `PlayerSummary` · `PlayerDetail` · `GamelogWeek` · `GamelogResponse` · `ScoringProfileSummary` | Response records |
+| `RankingRow` · `PlayerSummary` · `PlayerDetail` · `GamelogWeek` · `GamelogResponse` · `CareerResponse` · `CareerSeason` · `CareerWeek` · `ScoringProfileSummary` | Response records |
 | `PlayerNotFoundException` | 404 |
 
 #### `auth/` — Phase 5a/5b · 17 files
@@ -141,7 +144,7 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 backend/src/main/resources/
   application.yml                  datasource, flyway, ingest config
   db/migration/                    V1 schema · V2 ingestion support · V3 presets · V4 Vegas
-                                   columns · V5 auth
+                                   columns · V5 auth · V6 birth date + team logo
 backend/
   Dockerfile                       multi-stage, Temurin 25, Alpine runtime. arm64 + amd64;
                                    3.82s from docker restart to a 200 on liveness
@@ -161,6 +164,14 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    per-game quality band against 12-team starter lines
   src/lib/season.ts                currentSeason() -- mirrors IngestProperties.seasonFor, so
                                    no page pins a season literal again
+  src/lib/profiles.ts              profileLabel(): presets Standard -> "0 PPR", Full PPR -> "PPR"
+                                   (display only; stored names unchanged)
+  src/lib/headshot.ts              ESPN headshot URL from the stored espn id -- never stored
+  src/lib/playerStats.ts           the position-aware box-score columns, one definition for
+                                   the game log, the career table and the season line
+  src/lib/player.ts                age, season to open on, playoff round names, matchup text
+  src/lib/boardParams.ts           the board's URL state: parse against whitelists, serialize
+  src/lib/boardReturn.ts           sessionStorage note of where the board was left, for back
   src/app/globals.css              the design tokens. Near-black: void rail < paper page <
                                    opaque raised rows; ki orange = brand/best, energy blue =
                                    interactive. Every text pair measured for contrast
@@ -175,9 +186,14 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    SearchField, StatusMessage + Skeleton
     rankings/                      RankingsWorkspace (what / and /rankings both render),
                                    FilterBar, PlayerRow, TierHeader, PositionBadge, PlayerAvatar
+                                   (headshot with a monogram fallback)
+    player/                        PlayerWorkspace (the /players/[id] page), PlayerIdentity,
+                                   WeeklyChart (dependency-free columns), StatTable (game log
+                                   and career share it)
   src/app/                         / rankings /players/[id] /profiles /login /register
+  tests/lib.test.ts                node --test over the pure libs (npm test)
 backend/src/test/
-  java/com/fantasykai/             15 test classes + ApiFixture, Presets
+  java/com/fantasykai/             18 test classes + ApiFixture, Presets
   resources/application.properties test JWT secret, and Redis pointed at redis.invalid
                                    so a test that needs it has to declare a container
   resources/nflverse/              6 fixture files — real rows, never invented
@@ -302,12 +318,24 @@ colour. Recorded, deliberately not fixed in that milestone.
 
 | Follow-up | Detail |
 |---|---|
-| Local 2026 data is stale | The 06:09 ingest on 2026-09-28 FAILED and the jar is stale, so local week 3 holds 1 game against production's full slate. Ops, not frontend: rebuild with `./scripts/package.sh` **on the branch the ingest should run from**, then re-run |
+| ~~Local 2026 data is stale~~ | **Refilled 2026-09-28 14:12** by a one-shot ingest from the `feat/player-workspace` jar (which also applied `V6`): weeks 1–3 now hold 16 / 16 / 15 games, 1,117 / 1,106 / 1,048 rows — week 3's Monday game had not been played. The launchd job itself still last exited 1 |
 | Short absences go unjudged | `QUALIFYING_SHARE = 0.5` in `lib/board.ts` leaves Joe Burrow's 2025 (8 of 17 games, 16.8/game) uncoloured. Half the board's games is a judgement, not a measurement |
 | Starter lines assume a 12-team 1/2/3/1 league | `STARTERS` in `lib/board.ts`. Phase 7 league import supplies real roster slots; until then green means "a 12-team starter" and nothing more |
 | No quality colour on a phone's Season board | Per game is the secondary column there, hidden below `md`. Phones see the colour only on the Per-game board |
-| `/` and `/rankings` prerender the build-time season | Both are static; the client recomputes `currentSeason()` on load. A build from February viewed in March renders the old year before the client corrects it |
+| ~~`/` and `/rankings` prerender the build-time season~~ | **Closed 2026-09-28** by the player-workspace branch: the board reads its filters from the URL inside `<Suspense>`, so it renders in the browser and no build-time season is ever prerendered |
 | Two hue pairs sit close | `q-poor` shares RB's hue (lower saturation, numbers only); `pos-wr` sits 11° from `energy`. Separated by role and placement, not by hue — check with real users before calling it settled |
+
+### Follow-ups from the player workspace — **new** 2026-09-28
+
+| Follow-up | Detail |
+|---|---|
+| Hotlinked ESPN images | Headshots and team logos load from `a.espncdn.com`. Nothing is copied or stored, and the footer says where they come from — but no doc decides image rights. An owner call for `north-star.md`; the monogram fallback means dropping them costs one line in `lib/headshot.ts` |
+| No historical team or position | `players.team_id` and `players.position` are current only. The board's Team column is today's team on every season's board (its header says so), and a past season is ranked under today's position — on the board and in `/career` alike, so the two agree, and are equally wrong for a player who moved |
+| Byes and missed games look the same | Only played games have rows, so the chart's gap and the log's missing week cannot say which. The schedule (`games`) could, per team, for a player who was not traded |
+| "Home" is the designated home side | nflverse's `location` (neutral site) is not stored |
+| A player page costs a position-wide scan | One per (player, ruleset); measured at 23.6–26.0 ms for WR on 2026-09-28 (`perf/baseline.md`). Phase 11's cache covers it with the ranking |
+| Deploy order | The frontend reads `espnId`, `birthDate`, `teamLogo` and `/career`; the backend must reach production first. Missing fields degrade (monogram, no age), but a missing `/career` shows its error state |
+| Production data needs one ingest | `V6` adds empty columns; birth dates and logos fill on the next daily pull after the backend deploys |
 
 ### Housekeeping
 

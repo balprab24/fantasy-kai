@@ -1,5 +1,6 @@
 "use client";
 
+import { profileLabel } from "@/lib/profiles";
 import type { ScoringProfile } from "@/lib/types";
 import { SegmentedControl } from "./ui/SegmentedControl";
 
@@ -25,7 +26,7 @@ export function RulesetSwitch({
   return (
     <SegmentedControl
       legend="Scoring"
-      options={profiles.map((p) => ({ value: String(p.id), label: p.name }))}
+      options={profiles.map((p) => ({ value: String(p.id), label: profileLabel(p) }))}
       value={selected === null ? null : String(selected)}
       onChange={(id) => onSelect(Number(id))}
       hideLegend={hideLegend}

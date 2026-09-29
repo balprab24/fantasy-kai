@@ -119,6 +119,22 @@ The game log is the control: it hits the primary key's leading column, so it is
 already fast and Phase 11 should not move it. If a "performance improvement" later
 shows a large win here, something else changed.
 
+**Added 2026-09-28 with the player workspace** — a different day, a vacuumed database
+(`VACUUM (FULL, ANALYZE)` on all four tables) and 115,590 stat rows, so these sit beside the
+table above rather than in it. Three runs each, warm, Execution Time; buffers are the top
+node's (execution), not the separate `Planning:` line:
+
+| Query | Time | Buffers | Plan |
+|---|---|---|---|
+| Rankings, 2025, four positions — same day, for scale | 13.9–14.7 ms | 2,728 | three seq scans |
+| **Career rank scan**, WR, seven seasons (15,019 rows) | **23.6–26.0 ms** | 2,727 | hash join over seq scans — the same tables, the same buffers as one ranking; the extra time is the 15,019 rows the join emits against a season ranking's ~6,000 |
+| Game log by id, widened (team, home, usage, second `teams` join) | **0.67–0.68 ms** | 98 | still the PK bitmap index scan — **the control did not move** |
+| ESPN ids for a 200-row page | ~0.15 ms | — | `players` PK bitmap scan, after the ranking is sorted and sliced |
+
+A player page therefore costs one position-wide scan per (player, ruleset) — about 1.7x a
+ranking request's SQL — and a season switch costs only the control. The rankings SQL itself
+is unchanged; the ESPN lookup runs per page, not per scored row.
+
 | Table | Size |
 |---|---|
 | `player_game_stats` | 27 MB |

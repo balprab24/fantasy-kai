@@ -16,7 +16,8 @@ export const COL = {
   // min-w, not just w: table layout will shrink a `w-12` cell to 46.66px, and
   // the pinned player column's `left-12` offset then opens a 1.3px seam.
   rank: "w-12 min-w-12 pr-3 text-right max-md:sticky max-md:left-0 max-md:z-[1]",
-  player: "w-60 min-w-36 pr-3 sm:min-w-44 max-md:sticky max-md:left-12 max-md:z-[1]",
+  // 13rem floor from sm: a 32px headshot and its gap take 44px of the cell.
+  player: "w-60 min-w-40 pr-3 sm:min-w-52 max-md:sticky max-md:left-12 max-md:z-[1]",
   pos: "w-20 pr-3",
   team: "hidden w-16 pr-3 sm:table-cell",
   games: "hidden w-12 pr-3 text-right lg:table-cell",
@@ -47,6 +48,7 @@ export function PlayerRow({
   baseline,
   metric,
   href,
+  onOpen,
 }: {
   row: BoardRow;
   /** Places moved since the previous ruleset; see `Movement`. */
@@ -55,6 +57,8 @@ export function PlayerRow({
   baseline: number;
   metric: Metric;
   href: string;
+  /** Called as the player link is followed, so the board can note its place. */
+  onOpen?: () => void;
 }) {
   const other = metric === "points" ? row.pointsPerGame : row.points;
   return (
@@ -62,9 +66,10 @@ export function PlayerRow({
       <td className={`${cell} ${COL.rank} tabular rounded-l-md pl-2 text-mute`}>{row.rank}</td>
       <th scope="row" className={`${cell} ${COL.player} text-left font-normal`}>
         <div className="flex items-center gap-3">
-          <PlayerAvatar name={row.name} position={row.position} />
+          <PlayerAvatar name={row.name} position={row.position} espnId={row.espnId} />
           <Link
             href={href}
+            onClick={onOpen}
             className="truncate font-medium text-ink after:absolute after:inset-0 after:rounded-md focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-energy"
           >
             {row.name}

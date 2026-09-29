@@ -79,6 +79,16 @@
   --color-q-mid: #d9c162;
   --color-q-poor: #e58e8e;
 
+  /* The weekly chart's two bar fills (components/player/WeeklyChart.tsx): a
+     week inside the position's starter line, and every other week. Fills, not
+     text -- the q-* pair fails as fills (q-good/q-mid are dE 12.6 apart, under
+     the 15 floor, and too light for the dark band). This pair was run through
+     the dataviz validator against raised (#0b0d14), 2026-09-28: lightness
+     inside 0.48-0.67, CVD dE 16.6, normal-vision dE 20.1, contrast >= 3:1 for
+     both. The grey is deliberately low-chroma -- it is the "not this" colour. */
+  --color-chart-starter: #3fa877;
+  --color-chart-rest: #5d667c;
+
   /* Stat composition, lightened to hold contrast on a dark surface. Still six
      hues read as data, not as flair. */
   --color-stat-pass: #6fa8dc;

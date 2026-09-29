@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { profileLabel } from "@/lib/profiles";
 import { useProfiles } from "@/lib/queries";
 import { RulesetBuilder } from "@/components/RulesetBuilder";
 import type { RulesetDoc } from "@/lib/ruleset";
@@ -58,9 +59,9 @@ export default function ProfilesPage() {
         <ul className="mt-3 divide-y divide-line border-y border-line">
           {presets.map((profile) => (
             <li key={profile.id} className="flex items-center justify-between py-3">
-              <span className="font-medium">{profile.name}</span>
+              <span className="font-medium">{profileLabel(profile)}</span>
               <Link
-                href="/rankings"
+                href={`/rankings?profileId=${profile.id}`}
                 className="text-sm text-mute underline decoration-line-strong underline-offset-4 hover:text-ink"
               >
                 Use it

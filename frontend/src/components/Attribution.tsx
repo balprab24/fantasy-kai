@@ -37,7 +37,8 @@ export function Attribution() {
           >
             Fantasy Football Calculator
           </a>
-          .
+          . Player headshots and team logos load from ESPN&rsquo;s image servers, keyed by the ESPN
+          id nflverse publishes; nothing is copied or stored here.
         </p>
         <p className="mt-3 max-w-[68ch]">
           Not affiliated with or endorsed by the NFL. No expert rankings are used anywhere in this
