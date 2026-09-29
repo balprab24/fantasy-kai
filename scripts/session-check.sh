@@ -393,16 +393,23 @@ check_data() {
             local month in_season=0
             month="$(date +%m)"
             [[ "$month" == "09" || "$month" == "10" || "$month" == "11" || "$month" == "12" || "$month" == "01" || "$month" == "02" ]] && in_season=1
+            # This database is a LOCAL MIRROR since 2026-09-29: the laptop's launchd
+            # job was uninstalled (it failed on 6 of its last 8 mornings; production's
+            # has succeeded daily since 09-23), and production's
+            # 06:00 ET pull is the only scheduled ingest. A failed or stale mirror
+            # is therefore a warn, not a FAIL -- the FAIL for a stopped pipeline
+            # lives in DEPLOY's health row. An empty table stays a FAIL: that is a
+            # database nothing has ever loaded, not a mirror that fell behind.
             if [[ "$age_s" == "-1" ]]; then
                 fail "ingest" "ingest_runs is empty -- the pipeline has never run"
             elif (( failed > 0 )); then
-                fail "ingest" "$failed source(s) whose most recent run FAILED -- last run $newest"
+                warn "ingest" "local mirror: $failed source(s) whose most recent run FAILED -- last run $newest. Refresh with ./scripts/ingest-once.sh"
             elif (( in_season && age_s > STALE_AFTER_HOURS * 3600 )); then
-                fail "ingest" "last run $newest, $(human_age "$age_s") ago -- past the ${STALE_AFTER_HOURS}h in-season threshold"
+                warn "ingest" "local mirror last refreshed $newest, $(human_age "$age_s") ago -- ./scripts/ingest-once.sh when you need current weeks"
             elif (( in_season )); then
-                ok "ingest" "last run $newest, $(human_age "$age_s") ago (stale after ${STALE_AFTER_HOURS}h)"
+                ok "ingest" "local mirror last refreshed $newest, $(human_age "$age_s") ago"
             else
-                ok "ingest" "last run $newest, $(human_age "$age_s") ago -- out of season, the pull is a no-op"
+                ok "ingest" "local mirror last refreshed $newest, $(human_age "$age_s") ago -- out of season, the pull is a no-op"
             fi
         fi
     else
@@ -413,7 +420,7 @@ check_data() {
     local ld status
     ld="$(launchctl list 2>/dev/null | grep -E '[[:space:]]com\.fantasykai\.ingest$')"
     if [[ -z "$ld" ]]; then
-        warn "launchd" "com.fantasykai.ingest is not loaded -- run ./scripts/install-ingest.sh"
+        ok "launchd" "not installed -- by design since 2026-09-29; production is the only scheduled ingest (DEPLOY health)"
     else
         status="$(awk '{print $2}' <<<"$ld")"
         if [[ "$status" == "0" ]]; then
@@ -479,6 +486,13 @@ check_deploy() {
     # must not pretend otherwise. It is still worth printing: DOWN with liveness
     # UP means something beyond ping/db is unhappy, and ingestFreshness is the
     # component that usually is.
+    #
+    # A FAIL since 2026-09-29, when the laptop's launchd job was uninstalled:
+    # production's pull is now the only scheduled ingest, so a stopped pipeline
+    # shows up in this row and nowhere else -- and at once, not after 36h:
+    # ingestFreshness goes DOWN as soon as any source's latest run FAILED. The
+    # other candidates are Redis (sign-in goes with it) and diskSpace -- a FAIL
+    # whichever it is.
     # Non-greedy by construction: take the FIRST status, which is the aggregate.
     # `.*status:` would be greedy and, the day show-details is ever widened or a
     # component list appears in the body, would silently report the LAST
@@ -488,7 +502,7 @@ check_deploy() {
            | tr -d ' "' | sed -n 's/^[^s]*status:\([A-Z_]*\).*/\1/p' | head -1)"
     case "$agg" in
         UP)   ok   "health" "aggregate UP" ;;
-        DOWN) warn "health" "aggregate DOWN with liveness up -- a component is degraded, but components are when-authorized so the cause is not visible from here" ;;
+        DOWN) fail "health" "aggregate DOWN with liveness up -- most likely the production ingest failed or stopped (the only scheduled one), else Redis or disk space. Components are when-authorized, so ssh in and read them" ;;
         "")   unknown "health" "no status in the response body" ;;
         *)    warn "health" "aggregate $agg" ;;
     esac

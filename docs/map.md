@@ -34,7 +34,7 @@ and nothing caught it for two days.
 | 3.5 | Close the baseline — k6 at 1/5/10/20 VUs; **the bottleneck is Postgres, not the scorer (88/12)** | ✅ |
 | 4 | Vegas in the schema — `V4` widens `games` by 10 columns | ✅ |
 | 4.75 | Toolchain recovery — JDK 25 located, enforcer rule, deps current, headless-context bug fixed | ✅ |
-| **5** | **Auth + web shell** — Argon2id, JWT, rotating refresh, Bucket4j · Next.js shell | ✅ 5a/5b · 5c · **5d live 2026-09-23** — 9/11 acceptance checks; 4b owed, and 4c (three rate-limiter bypasses, fixed in code 2026-09-24) owed until deployed. `DEPLOY-STEPS.md` |
+| **5** | **Auth + web shell** — Argon2id, JWT, rotating refresh, Bucket4j · Next.js shell | ✅ 5a/5b · 5c · **5d live 2026-09-23** — 10/11 acceptance checks; 4b owed. 4c (three rate-limiter bypasses, fixed in code 2026-09-24) passes since the **2026-09-29 redeploy**. `DEPLOY-STEPS.md` |
 | 6 | Projections — `SignalKey`, `ProjectionEngine`, `ExplainedScore`, published MAE | |
 | 7 | League import — `LeagueProvider`, ESPN + Sleeper | |
 | 8 | Roster tools — optimizer, simulator, trade evaluator, waivers | |
@@ -153,7 +153,10 @@ deploy/                            Phase 5d
   compose.prod.yml                 Postgres + Redis + backend + Caddy. restart: unless-stopped is
                                    load-bearing -- @Scheduled needs a live JVM
   Caddyfile                        TLS, and a warning against adding trusted_proxies
-  README.md                        the runbook, the OCI firewall trap, the acceptance checks
+  README.md                        the runbook, the OCI firewall trap, the acceptance checks,
+                                   §7 redeploying a running stack (and the bind-mount inode trap)
+  acceptance.sh                    the §6 checks as one command, run from the laptop; `?` for a
+                                   check it cannot run, never PASS
 frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6, Tailwind 4
   src/lib/api.ts                   the only place the access token lives, and it is memory-only
   src/lib/auth.tsx                 trades the HttpOnly refresh cookie for a token on load
@@ -321,7 +324,7 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 | Risk | Detail |
 |---|---|
 | `StatIngestor` holds a whole season in memory | Identity mapper into a `List<CSVRecord>`, then a second full-size batch, under a JVM with no `-Xmx` |
-| The ingest depends on a laptop being awake | launchd fires on wake, not at 06:00, and on local time rather than ET. Acceptable for a pull with no deadline — and the reason the freshness indicator exists rather than being optional |
+| ~~The ingest depends on a laptop being awake~~ | **Closed 2026-09-29.** Production's `IngestScheduler` has run at 06:00 ET since 2026-09-23 and the laptop's launchd job was uninstalled — it had failed on 6 of its last 8 mornings, the three examined with `pmset` inside a Power Nap DarkWake (inferred, not proven). The local database is a mirror refreshed by hand; `session-check.sh` treats it as one |
 | No shared Testcontainers base class | Ten cached Spring contexts, seven with an embedded Tomcat. **Teardown measured at ~35s on 2026-09-14 — the largest single term in the build, more than compilation and all 132 tests together.** It sits just over Surefire's 30s fork-exit timeout, which is why the same commit builds in 31s some days and 58s others. **Back to urgent**: it was downgraded on a ~9s estimate that direct measurement contradicts. See [`../CLAUDE.md`](../CLAUDE.md) |
 | Hikari is at Spring Boot's default 10 connections | 10 × ~39 ms occupancy ≈ the 256 req/s ceiling. Phase 11 must not mistake raising it for a fix |
 
@@ -348,8 +351,8 @@ colour. Recorded, deliberately not fixed in that milestone.
 | Byes and missed games look the same | Only played games have rows, so the chart's gap and the log's missing week cannot say which. The schedule (`games`) could, per team, for a player who was not traded |
 | "Home" is the designated home side | nflverse's `location` (neutral site) is not stored |
 | A player page costs a position-wide scan | One per (player, ruleset); measured at 23.6–26.0 ms for WR on 2026-09-28 (`perf/baseline.md`). Phase 11's cache covers it with the ranking |
-| Deploy order | The frontend reads `espnId`, `birthDate`, `teamLogo` and `/career`; the backend must reach production first. Missing fields degrade (monogram, no age), but a missing `/career` shows its error state |
-| Production data needs one ingest | `V6` adds empty columns; birth dates and logos fill on the next daily pull after the backend deploys |
+| ~~Deploy order~~ | **Closed 2026-09-29, the wrong way round.** The frontend reached production first, twice (PR #33 at 01:58 UTC, PR #34 at 15:38 UTC), and player pages showed the career error state for 19h17m until the backend redeployed at 21:15 UTC. `deploy/README.md` §7 is the procedure now; the order problem itself — nothing stops a frontend merge from outrunning its backend — is not solved |
+| ~~Production data needs one ingest~~ | **Closed 2026-09-29** by a one-shot ingest right after the redeploy: `birth_date` on 24,802 players, `logo_url` on 36 of 36 teams |
 
 ### Follow-ups from the landing page and the account gate — **new** 2026-09-28
 

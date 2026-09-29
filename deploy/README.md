@@ -137,7 +137,8 @@ CORS stops the request first. Production only.
 
 `QuerySafetyTests` proves the SQL-injection defence by attempting the attack and
 then checking the table survived. Same treatment here. Each of these is a command
-with an expected result.
+with an expected result, and **`./deploy/acceptance.sh` runs 1, 2, 4a, 4c, 5, 6, 7 and 9** in one
+go from the laptop — 3 needs a browser and an account, 4b a second real client, 8 the VM.
 
 | # | Check | Expected |
 |---|---|---|
@@ -245,3 +246,92 @@ is allowed to scale to zero. **Measured on 2026-09-21, before any of this deploy
 the laptop's pull had been dead four days and 2026 week 2 — 1,043 stat rows — was
 simply absent from the database.** Third occurrence. That is the argument for this
 phase, restated with a number.
+
+## 7. Redeploy a running stack
+
+The procedure every backend change after the first deploy follows, written from the one that
+proved it: 2026-09-29, backend `6c2580b` → `366b0ad`, carrying `V6`. On the VM, from
+`~/fantasy-kai`, with
+
+```bash
+C="docker compose --env-file deploy/.env -f deploy/compose.prod.yml"
+```
+
+**1. If the change carries a migration, prove the rollback before you need it.** Build the
+*running* commit's image on the laptop and boot it against a database already at the new version:
+
+```bash
+git archive <running-sha> backend | tar -x -C "$TMP" && docker build -t fantasykai-backend:<running-sha>-local "$TMP/backend"
+docker run --rm -p 18080:8080 -e DB_URL=jdbc:postgresql://host.docker.internal:5433/fantasykai \
+  -e DB_USERNAME=... -e DB_PASSWORD=... -e JWT_SECRET=... -e ALLOWED_ORIGINS=http://localhost:3000 \
+  fantasykai-backend:<running-sha>-local
+```
+
+Flyway ignores migrations newer than the code it ships with, so an additive migration leaves the
+old image bootable — measured, not assumed: on 2026-09-29 the `6c2580b` image logged *"Schema
+"public" has a version (6) that is newer than the latest available migration (5)"* and served
+rankings 3.1 s later. A migration that fails this test makes the backup in step 2 the only way
+back, and deserves a second look before it ships.
+
+**2. Back up, copy it off the box, and restore the copy.**
+
+```bash
+mkdir -p ~/backups && f=~/backups/pre-<change>-$(date -u +%Y%m%dT%H%M%SZ).dump
+$C exec -T postgres pg_dump -U fantasykai -Fc fantasykai > "$f" && sha256sum "$f"
+# then, from the laptop:
+scp -i ~/.ssh/fantasykai_oracle ubuntu@<vm-ip>:backups/<file> ~/fantasykai-backups/
+```
+
+Restore the laptop's copy into a scratch database and compare every table's count with
+production's; then drop the scratch database. A backup that has never been restored is a file, not
+a backup. The dump carries users' emails and password hashes: it lives in `~/fantasykai-backups/`,
+never in the repository.
+
+**3. Tag the running image:** `docker tag fantasykai-backend:latest fantasykai-backend:<running-sha>`.
+
+**4. Pull:** `git status --short` must print nothing, then `git pull --ff-only origin main`.
+
+**5. Build and swap the backend:**
+
+```bash
+$C build backend && $C up -d --wait backend
+$C logs backend --since 5m | grep -E 'Migrating|Successfully applied|Started FantasyKai'
+docker run --rm --entrypoint sh fantasykai-backend:latest -c 'unzip -l app.jar | grep tomcat-embed-core'
+```
+
+119 s to build and 18 s from swap to healthy on 2026-09-29, of which the new JVM took ~12 s from
+container creation to *Started*. Caddy answers `502` while nothing listens — how long that window
+lasts from outside has not been measured.
+The last line must still say **10.1.59** — CLAUDE.md, "The EOL clock".
+
+**6. If the Caddyfile changed, recreate Caddy — never just reload it:**
+
+```bash
+$C up -d --force-recreate --no-deps caddy
+$C exec -T caddy grep -c header_up /etc/caddy/Caddyfile    # must equal the count on disk
+```
+
+The Caddyfile is a **single-file bind mount, and a single-file bind mount pins an inode, not a
+path.** `git pull` replaces the file — a new inode — and the running container keeps reading the
+old one. Measured on 2026-09-29 after the pull: the host's Caddyfile was inode 552587 with four
+`header_up` lines; the container's was 552551 with **none**. `caddy reload` would have reloaded
+the old config, reported success, and left all three 4c bypasses open behind a green step.
+Certificates survive a recreate because they live in the `caddy_data` volume.
+
+**7. Ingest once** (the command in §6) if the change adds columns the ingest fills — then query
+those columns. The exit code says the pull ran, not that it wrote what you added.
+
+**8. Run the acceptance checks:** `./deploy/acceptance.sh` from the laptop, with the local stack up
+for check 9. It exits 1 on any failure and prints `?`, never PASS, for a check it could not run.
+
+**Rolling back** the backend is the tag from step 3:
+
+```bash
+docker tag fantasykai-backend:<running-sha> fantasykai-backend:latest
+$C up -d --no-build --wait backend
+```
+
+`up` does not rebuild an image that exists; `--no-build` makes that a guarantee rather than a
+default, because the checkout is the new code and a build from it would undo the rollback. If the
+Caddyfile moved too, `git checkout <running-sha> -- deploy/Caddyfile` and repeat step 6. The
+rollback's *image* half is proven by step 1; these two commands have not yet been run on the VM.
