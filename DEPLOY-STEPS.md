@@ -1,14 +1,35 @@
 # Phase 5d — Deploy
 
-> ## ▶ Status — last updated 2026-09-23
+> ## ▶ Status — last updated 2026-09-29
 >
 > **Live: https://www.fantasykai.com** (the apex 308s to `www`) · API **https://api.fantasykai.com**
 >
-> **9 of 11 acceptance checks pass.** Owed: **4b** (needs a phone on cellular — see below) and
-> **4c** — three rate-limiter bypasses found 2026-09-24 through Caddy as configured here, **fixed in
-> code, not yet deployed. Production is exposed to them until it is.**
-> The production daily ingest **fired on its own at 06:00:00 ET on 2026-09-23**.
+> **10 of 11 acceptance checks pass.** Owed: **4b** only (needs a phone on cellular — see below).
+> The 2026-09-29 redeploy re-ran 1, 2, 4a, 4c, 5, 6, 7 and 9 on the new image. **3 and 8 carry over
+> from 2026-09-23**: 3 was only half re-exercised (a full page load restored an existing session;
+> nobody registered or signed in), and 8's unattended half is re-proven on the new image by the
+> first 06:00 ET run after it — **2026-09-30** — which nobody has checked yet.
+> **4c passes since the 2026-09-29 redeploy** — the three rate-limiter bypasses are closed on
+> production, each answering `429` with the bucket full.
+> The production daily ingest **fired on its own at 06:00:00 ET on 2026-09-23**, and it is now the
+> **only** scheduled ingest: the laptop's launchd job was uninstalled on 2026-09-29.
 > Next phase: **11.5 — Spring Boot 3.5 → 4** (overdue security work), then **6 — Projections**.
+>
+> **2026-09-29 redeploy — backend `6c2580b` → `366b0ad`.** The frontend had shipped *first*, twice:
+> PR #33's player workspace went live at 01:58 UTC on 09-29 against a backend with no `/career`, and
+> PR #34's sign-in gate followed at 15:38 UTC. Production player pages showed their career error
+> state for **19h17m**. The redeploy, and the procedure it was run with, are in
+> [`deploy/README.md` §7](deploy/README.md#7-redeploy-a-running-stack). What it measured:
+>
+> | Step | Result |
+> |---|---|
+> | Rollback proven *before* deploying | the `6c2580b` image, booted locally on a V6 database: *"Schema has a version (6) that is newer than the latest available migration (5)"*, started in 3.1 s, served rankings |
+> | Backup, off-box, **restored** | `pg_dump -Fc` 2,236,926 bytes, sha256 `dcc48096…`; restored into a scratch local database and all 8 table counts matched production (115,655 stats · 25,066 players · 1,965 games · 36 teams · 1 user · 4 profiles · 3 refresh tokens · 167 ingest runs) |
+> | Build · swap to healthy | 119 s · 18 s. `V6` applied in 29 ms; backend started in 9.5 s; `tomcat-embed-core-10.1.59` in the image |
+> | Caddy | **the running container still read the old Caddyfile** after `git pull` — inode 552551, zero `header_up` lines, against 552587 and four on disk. `--force-recreate` fixed it; same certificate kept (`caddy_data` volume) |
+> | One-shot ingest | exit 0 in 15 s, no Tomcat, no leftover container; 6 sources SUCCESS; `birth_date` on 24,802 players, `logo_url` on 36 of 36 teams |
+> | Acceptance | 1, 2, 4a, **4c**, 5, 6, 7, 9 pass (9: top 10 identical under all four presets, 2025) · `/career` 200 · `espnId`, `birthDate`, `teamLogo` present |
+> | Browser | a member's `/players/344` renders headshot, logo, age, chart, game log and career. The signed-out walk (gate → sign in → back → sign out) is owed to the owner: browser automation may not create accounts or enter passwords on a non-local host |
 
 ---
 
@@ -72,7 +93,7 @@ Each check is an attack or a failure tried against the live site, with the resul
 | 3 | Register → log in → **hard-reload** in a real browser | still signed in; `refresh` → **200** | ✅ |
 | 4a | Six logins, each with a **different forged `X-Forwarded-For`** | `401 ×5`, then **`429`** — Caddy throws the forged header away, so all six share one bucket | ✅ |
 | 4b | With that bucket full, one login from a **different real client** | owed — needs a phone off wifi | ⬜ |
-| 4c | With that bucket full: `Forwarded: for=<forged>`, `X-Forwarded-Prefix: /x`, and the path `/api/v1/%61uth/login` | owed — each was `401` (a bypass) on a local copy of this stack; the fix is not deployed yet | ⬜ |
+| 4c | With that bucket full: `Forwarded: for=<forged>`, `X-Forwarded-Prefix: /x`, and the path `/api/v1/%61uth/login` | **`429` ×3** on production, 2026-09-29. Each was `401` — a bypass — on a local copy of this stack before the fix | ✅ |
 | 5 | Call the API from `Origin: evil.example` and from `*.vercel.app` | **403** both; the real origin gets `allow-origin` + `allow-credentials` | ✅ |
 | 6 | Plain `http://` · inspect HTTPS headers | **308** to https · `strict-transport-security` **actually sent** (it was configured but silently missing before 5d) | ✅ |
 | 7 | Port-scan 5432 / 6379 / 8080 from the internet | all **time out** — dropped before they reach the VM | ✅ |
@@ -211,11 +232,17 @@ line is a vector, a score is a dot product plus threshold bonuses — computed p
       `NEXT_PUBLIC_API_URL`.
 - [ ] **F9** — open UDP 443 in both firewalls, or stop publishing it.
 - [ ] **Backups** — a `pg_dump` cron on the VM **and an off-box copy**. One free VM with no copy is
-      one reclamation away from losing seven seasons.
+      one reclamation away from losing seven seasons. *Partly done:* the 2026-09-29 redeploy took one
+      by hand, copied it to `~/fantasykai-backups/` on the laptop and **proved it restores** (all 8
+      table counts matched). §7 of the runbook makes that the first step of every redeploy. The
+      schedule is still owed.
 - [ ] Confirm **auto-renew** is on at Porkbun; consider a **reserved** public IP.
-- [ ] Decide whether the laptop's launchd ingest stays as a local mirror or is uninstalled — it
-      failed on wake two mornings running (09-22, 09-23), so `session-check.sh` will keep reporting
-      `FAIL ingest` locally while production is healthy.
+- [x] ~~Decide whether the laptop's launchd ingest stays~~ — **uninstalled 2026-09-29, owner
+      decision.** It failed on 6 of its last 8 mornings (09-22 → 09-29); production's has succeeded
+      every day since its first unattended run on 09-23. The three failures examined with `pmset` fired
+      inside a Power Nap DarkWake — inferred, not proven. The local database is now a mirror refreshed by hand with `./scripts/ingest-once.sh`;
+      `session-check.sh` reports a stale or failed mirror as a warn and a production aggregate DOWN as
+      a FAIL, because production is the only scheduled ingest left.
 
 ---
 
@@ -437,9 +464,9 @@ the failure that stopped the pipeline for three days in September and that nothi
 
 - **The home region choice is the only step you can't undo.**
 - **Never press "Upgrade to Paid."**
-- **Your laptop's daily ingest keeps running** against the local database. Local and production will
-  drift apart, which is expected — `session-check.sh` has a `DEPLOY` group that watches production
-  separately.
+- **Your laptop's daily ingest was uninstalled on 2026-09-29.** The local database is a mirror you
+  refresh by hand (`./scripts/ingest-once.sh`), so it drifts behind production between refreshes —
+  expected. `session-check.sh`'s `DEPLOY` group watches production, and a DOWN there is now a FAIL.
 - **Auth won't work on Vercel preview deploys.** Previews are served from `*.vercel.app`, which is
   cross-site from your API, so the cookie isn't sent — and CORS refuses that origin outright (403,
   measured 2026-09-23), so reads fail too. Production only.

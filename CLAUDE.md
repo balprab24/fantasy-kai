@@ -82,7 +82,8 @@ backend/src/main/resources/db/migration/   Flyway. V1 schema, V2 ingestion suppo
                                            V6 players.birth_date + teams.logo_url
 backend/Dockerfile                         Phase 5d. Temurin 25 JRE on Alpine, arm64 and amd64
 deploy/                                    Phase 5d. compose.prod.yml + Caddyfile + README.md
-                                           (the runbook, the firewall trap, the acceptance checks)
+                                           (the runbook, the firewall trap, the acceptance checks,
+                                           §7 the redeploy) + acceptance.sh (the checks, runnable)
 frontend/        Phase 5c — Next.js 16 App Router. api.ts holds the only access token, in memory.
                  2026-09-28: dark shell + rankings workspace; components/{shell,ui,rankings},
                  lib/board.ts (derived positional rank + natural-break tiers + per-game quality band),
@@ -122,9 +123,9 @@ scripts/                                   session-check.sh (runs at every sessi
 | 5a/5b — Auth + tenant isolation | ✅ `com.fantasykai.auth` (16 classes) + `V5`. Default-deny chain, Argon2id, HS256 JWT, rotating refresh with family revocation, Bucket4j on Redis. **130 in the suite** |
 | 4.75 — toolchain recovery | ✅ 2026-09-12 — JDK 25 found, enforcer rule, jjwt/bucket4j/bcprov bumped, **the headless-context bug the suite could not see** fixed. **132 in the suite** |
 | 5c — Web shell | ✅ Next.js 16 App Router, 21 `.ts`/`.tsx` files at ship (36 after the 2026-09-28 shell + rankings redesign and its refinement pass, which made `/` the rankings workspace and replaced three `2025` literals with `lib/season.ts`; still 36 after the near-black "ki in the dark" restyle). Rankings, player detail, auth, ruleset builder. **Attribution footer shipped — owed since Phase 0.** Proved end to end in a browser: a user-built 6-point-passing-TD ruleset put Stafford at #1 with 442.4 where Half PPR had him 4th at 350.4 |
-| 5d — Deploy | ✅ **2026-09-23 — live at `https://www.fantasykai.com`, API `https://api.fantasykai.com`.** Oracle Cloud Always Free A1 VM (2 OCPU / 12 GB, Chicago) running Postgres + Redis + backend + Caddy from `deploy/compose.prod.yml`; Vercel for the frontend; Porkbun domain, $11/yr — the only cost. **9 of 10 acceptance checks pass** (4b owed — needs a second real client); the production ingest **fired unattended at 06:00:00 ET on 2026-09-23**. Running the runbook for real found five bugs in it, all fixed. **Progress, findings F1–F13 and what's owed: top of [`DEPLOY-STEPS.md`](DEPLOY-STEPS.md)** |
-| 5c.2 — Player workspace | ✅ 2026-09-28, branch `feat/player-workspace` — `/players/[id]` becomes an identity + weekly chart + game log + career workspace; ESPN headshots **derived** from the stored espn id (never stored); `V6` stores `birth_date` and the team logo; new `GET /players/{id}/career` (regular season, season + weekly positional ranks); board filters in the URL; "Standard" shown as **0 PPR**, "Full PPR" as **PPR** (display only). **165 in the suite** · 24 frontend unit tests (`npm test`, now in CI). Career numbers equal the board's under every profile by test, and Gibbs/Chase 2025 were hand-computed and matched nflverse's own `fantasy_points`/`_ppr` exactly |
-| 5c.3 — Landing + account gate | ✅ 2026-09-28, branch `feat/landing` (from PR #33's head, `caafea1`, which merged to `main` at 20:57 the same evening) — `/` is a landing page (hero with a drawn runner until a licensed photo exists, a phone drawn from **captured** 2025 rows, header links that scroll to each section, email-first sign-up); the product moved behind sign-in. **Website gate only — the read API is still `permitAll`** (north-star §2). `safeNext` guards `?next=` and **its first version was an open redirect** (`/..//evil` normalises to `//evil`), caught by its own test. 29 frontend unit tests |
+| 5d — Deploy | ✅ **2026-09-23 — live at `https://www.fantasykai.com`, API `https://api.fantasykai.com`.** Oracle Cloud Always Free A1 VM (2 OCPU / 12 GB, Chicago) running Postgres + Redis + backend + Caddy from `deploy/compose.prod.yml`; Vercel for the frontend; Porkbun domain, $11/yr — the only cost. **10 of 11 acceptance checks pass** (4b owed — needs a second real client); the production ingest **fired unattended at 06:00:00 ET on 2026-09-23** and is the only scheduled ingest since 2026-09-29. Running the runbook for real found five bugs in it, all fixed. **Redeployed 2026-09-29** (`6c2580b` → `366b0ad`: `V6`, the rate-limiter fix, 4c now passes) with a rollback proven first and a restored backup — `deploy/README.md` §7 is the procedure, `deploy/acceptance.sh` the checks. **Progress, findings F1–F13 and what's owed: top of [`DEPLOY-STEPS.md`](DEPLOY-STEPS.md)** |
+| 5c.2 — Player workspace | ✅ 2026-09-28, branch `feat/player-workspace` — `/players/[id]` becomes an identity + weekly chart + game log + career workspace; ESPN headshots **derived** from the stored espn id (never stored); `V6` stores `birth_date` and the team logo; new `GET /players/{id}/career` (regular season, season + weekly positional ranks); board filters in the URL; "Standard" shown as **0 PPR**, "Full PPR" as **PPR** (display only). **165 in the suite** · 24 frontend unit tests (`npm test`, now in CI). Career numbers equal the board's under every profile by test, and Gibbs/Chase 2025 were hand-computed and matched nflverse's own `fantasy_points`/`_ppr` exactly. **Merged as PR #33; its frontend shipped 19h17m before its backend** (2026-09-29, 21:15 UTC) — production player pages showed the career error state until then |
+| 5c.3 — Landing + account gate | ✅ 2026-09-28, branch `feat/landing` (from PR #33's head, `caafea1`, which merged to `main` at 20:57 the same evening), merged as PR #34 at 15:38 UTC on 2026-09-29 — also ahead of the backend — `/` is a landing page (hero with a drawn runner until a licensed photo exists, a phone drawn from **captured** 2025 rows, header links that scroll to each section, email-first sign-up); the product moved behind sign-in. **Website gate only — the read API is still `permitAll`** (north-star §2). `safeNext` guards `?next=` and **its first version was an open redirect** (`/..//evil` normalises to `//evil`), caught by its own test. 29 frontend unit tests |
 | 5d.1 — security pass | ✅ 2026-09-21 — **Boot 3.5 went OSS-EOL on 2026-06-30 and nobody had checked.** Tomcat pinned to 10.1.59 over the parent's CVE-bearing 10.1.55; the auth rate limiter proved **forgeable at the application layer**; four-day ingest outage found and refilled. See "The EOL clock" below |
 | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
@@ -181,9 +182,19 @@ played, the source carried 135 rows and 134 stored. By 2026-09-14 the full slate
 1,041 read, **1,040 stored**. Before week 1 published at all, those runs correctly recorded
 `SKIPPED`. A weekly pull would have held a 13%-complete week 1 for days.
 
-**The daily pull is installed** (`./scripts/install-ingest.sh`; launchd exit 0 re-verified
-2026-09-14). It fires on wake rather than at 06:00 on a sleeping laptop, and on local time rather
-than ET — so gaps are expected, and `/actuator/health`'s `ingestFreshness` component is what makes
+**The laptop's daily pull was uninstalled on 2026-09-29, by owner decision.** Production's 06:00 ET
+`IngestScheduler` is the only scheduled ingest now; the local database is a mirror refreshed by hand
+with `./scripts/ingest-once.sh`, and `session-check.sh` reports a stale or failed mirror as a warn
+and production's aggregate DOWN as a FAIL. The job had failed on 6 of its last 8 mornings (09-22 → 09-29, by `ingest_runs`), while
+production's own pull has succeeded every day since its first unattended run on 09-23. The three
+failures examined with `pmset` (09-22/23/24) fired inside a battery Power Nap DarkWake — a strong
+inference, not proven; the other three were not examined.
+`./scripts/install-ingest.sh` still works for anyone who wants the mirror scheduled again. What
+follows is the history that made the case for a deployed ingest in the first place.
+
+**The daily pull was installed** (`./scripts/install-ingest.sh`; launchd exit 0 re-verified
+2026-09-14). It fired on wake rather than at 06:00 on a sleeping laptop, and on local time rather
+than ET — so gaps were expected, and `/actuator/health`'s `ingestFreshness` component is what made
 them visible instead of silent.
 
 **It stopped for three days (2026-09-09 → 2026-09-12) and nothing said so.** Three failures
@@ -516,8 +527,8 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   that stack (production itself was not probed): RFC 7239 `Forwarded` (Spring reads it *before* `X-Forwarded-For`; Caddy passed it
   untouched), `X-Forwarded-Prefix` (moved the URI outside the limiter's `startsWith` check), and a
   percent-encoded path `/api/v1/%61uth/login` (raw URI vs decoded routing — no proxy can fix that).
-  Fixed in code in two layers, each proven alone — **production stays exposed until both are
-  deployed; `DEPLOY-STEPS.md` check 4c says whether they are.** Caddy strips the four forwarded headers it does not
+  Fixed in code in two layers, each proven alone — **both deployed 2026-09-29, and check 4c returns
+  `429` for all three on production** (`deploy/acceptance.sh`). Caddy strips the four forwarded headers it does not
   write, and the application both ignores them (`ForwardedHeaderConfig`) and matches the path the
   way routing does (`PathPatternRequestMatcher`). **The lesson: a trust boundary is a list of
   everything that crosses it, not the one thing you thought about.** `X-Forwarded-For` alone
@@ -543,6 +554,16 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   build type-checks it: after moving `app/page.tsx` into `app/(site)/`, the build died on
   `Cannot find module '../../../src/app/page.js'` while the code was correct. CI never sees it,
   because CI never ran `next dev`. Stop the stale dev server and delete `.next/dev`.
+- **A single-file bind mount pins an inode, not a path — so `git pull` does not reach a running
+  container.** `compose.prod.yml` mounts `./Caddyfile:/etc/caddy/Caddyfile:ro`. `git pull` replaces
+  the file with a new inode and the container keeps reading the old one: on 2026-09-29, after the
+  pull, the host's Caddyfile was inode 552587 with four `header_up` lines and the container's was
+  552551 with **none**. `caddy reload` would have reloaded the stale config, succeeded, and left
+  the three 4c bypasses open behind a step that looked done. Recreate the container
+  (`up -d --force-recreate caddy`) and verify by reading the file **inside** it —
+  `deploy/README.md` §7. Predicted from reading `compose.prod.yml` while planning the deploy — and
+  then measured before reloading, which is the part that counts: the prediction alone would have
+  been one more claim nobody executed.
 - **A launchd plist with a placeholder path is not an installed job.** The plist shipped three
   `__REPO__` placeholders and an instruction to "edit the two by hand"; it was never loaded, `logs/`
   stayed empty, and `ingest_runs` recorded three of the seven days before kickoff. `install-ingest.sh`
@@ -630,11 +651,14 @@ cd backend && ./mvnw spring-boot:run \
 # comparing mtimes, which a git checkout is enough to defeat.
 ./scripts/package.sh                      # add --with-tests to run the suite too
 
-# install the daily job (idempotent; needs a current jar)
+# the laptop's scheduled job was uninstalled 2026-09-29 -- production ingests. To schedule the
+# local mirror again anyway (idempotent; needs a current jar):
 ./scripts/install-ingest.sh
 launchctl list | grep fantasykai        # loaded?
-launchctl start com.fantasykai.ingest   # run it now
 tail -f logs/ingest.log
+
+# production: redeploy procedure in deploy/README.md §7, then the acceptance checks
+./deploy/acceptance.sh                  # 1, 2, 4a, 4c, 5, 6, 7, 9 against the live site
 
 # is the pipeline fresh?  (anonymous sees status only -- show-details is when-authorized)
 curl -s localhost:8080/actuator/health | jq .components.ingestFreshness
