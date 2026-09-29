@@ -53,6 +53,15 @@ scoring engine already computes on demand against an arbitrary ruleset.
 
 An account is an email and a password. Nothing else is collected.
 
+**Registration reveals whether an email has an account, and that is accepted for now (owner
+decision, 2026-09-29).** `POST /auth/register` answers `409 that email is already registered`, while
+login deliberately answers the same for a wrong password and an unknown email and spends a dummy
+Argon2 hash so its timing agrees. Register undoes that in one status code. What bounds it: register
+shares login's strict bucket, 5 per minute per IP — at most ~7,200 probes a day from one address.
+It closes when sign-up becomes verify-first (planned after email delivery): register will answer
+"check your email" for every address, and the existing account's owner gets the email instead of
+the prober getting the answer.
+
 **Changed 2026-09-28, by owner decision.** This table used to give a logged-out visitor the top-100
 consensus board. From this change on (`feat/landing`), the website is members-only: `/` is a landing page that explains each part of
 the product and asks for an email, and every other route sits behind sign-in
@@ -608,9 +617,11 @@ the whole existing suite going red, which is what a good suite is for |
 `localhost:6379` | Rate-limit buckets leaked across test classes; unrelated tests failed on the
 sixth login. Test config now points at `redis.invalid` so the dependency has to be declared |
 
-The rate limit is per IP across the whole `/auth` surface rather than per endpoint or per account,
-so register and login share one bucket — an attacker guessing passwords varies the password and one
-enumerating accounts varies the email, and neither resets the count.
+The rate limit is per IP rather than per account, so register and login share one bucket — an
+attacker guessing passwords varies the password and one enumerating accounts varies the email, and
+neither resets the count. **Since 2026-09-29 refresh and logout have a bucket of their own** (30/min):
+every page load spends a refresh, and sharing 5/min with login let a member's own page loads spend
+the attempts signing in needs. Everything else under `/auth` stays in the strict bucket by default.
 
 #### Acceptance — each of these is a test, not a checklist item
 

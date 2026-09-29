@@ -58,8 +58,16 @@ fantasykai:
     # revocable half and carries the session.
     access-token-ttl: 15m
     refresh-token-ttl: 30d
-    # Per IP, across /api/v1/auth/**. Handoff section 8.
+    # Per IP. Login, register, and every other /api/v1/auth path that is not a
+    # session call below -- including ones that do not exist yet. Handoff section 8.
     login-attempts-per-minute: 5
+    # Per IP, refresh and logout only. Every full page load of the web app spends
+    # one refresh, and while they shared login's 5/min a member's own page loads
+    # spent the attempts signing in needs (a 429 was hit while testing on
+    # 2026-09-28). A refresh verifies a 256-bit random
+    # token with a hash lookup -- no Argon2, nothing to guess -- so a looser limit
+    # gives an attacker nothing. AuthRateLimitFilter.
+    session-requests-per-minute: 30
     # Explicit allowlist, never `*`. One comma-separated env var rather than a
     # yml list, because the production origins are not knowable at build time and
     # the previous shape had no mechanism to add them at all -- the comment said

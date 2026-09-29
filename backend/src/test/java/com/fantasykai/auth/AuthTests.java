@@ -58,6 +58,7 @@ class AuthTests {
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
         registry.add("fantasykai.auth.login-attempts-per-minute", () -> 1000);
+        registry.add("fantasykai.auth.session-requests-per-minute", () -> 1000);
     }
 
     private static final String PASSWORD = "correct-horse-battery-staple";
@@ -189,7 +190,7 @@ class AuthTests {
     void rejectsAJwtSignedWithTheWrongSecret() {
         String forged = new JwtService(
                 new AuthProperties("a-different-key-of-at-least-32-bytes!!", props.accessTokenTtl(),
-                        props.refreshTokenTtl(), 5, List.of("http://localhost:3000")),
+                        props.refreshTokenTtl(), 5, 30, List.of("http://localhost:3000")),
                 Clock.systemUTC()).issue(1);
 
         assertThat(getWithToken("/api/v1/scoring-profiles", forged).getStatusCode())
