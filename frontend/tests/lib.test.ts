@@ -9,6 +9,7 @@ import { describe, it } from "node:test";
 import { band, bandFor, formatPoints } from "../src/lib/board.ts";
 import { boardSearch, parseBoardParams } from "../src/lib/boardParams.ts";
 import { headshotUrl } from "../src/lib/headshot.ts";
+import { LANDING_SECTIONS, safeNext } from "../src/lib/landing.ts";
 import { ageOn, matchup, pickSeason, playoffRound } from "../src/lib/player.ts";
 import { COLUMNS, columnsFor, formatCount, type StatSource } from "../src/lib/playerStats.ts";
 import { profileLabel } from "../src/lib/profiles.ts";
@@ -174,5 +175,61 @@ describe("quality bands", () => {
     assert.equal(bandFor(1, "K"), null);
     assert.equal(bandFor(null, "RB"), null);
     assert.equal(bandFor(1, "constructor"), null);
+  });
+});
+
+describe("safeNext", () => {
+  const ORIGIN = "https://fantasykai.invalid";
+  // Whatever comes back must stay on the site when the browser resolves it --
+  // the property the function exists for, asked the way the browser asks it.
+  const staysHome = (raw: string) => {
+    const out = safeNext(raw);
+    return out === null || new URL(out, ORIGIN).origin === ORIGIN;
+  };
+
+  it("follows a path on this site, query and all", () => {
+    assert.equal(safeNext("/rankings?season=2025&position=WR"), "/rankings?season=2025&position=WR");
+    assert.equal(safeNext("/players/344"), "/players/344");
+  });
+  it("refuses anything that leaves the site", () => {
+    for (const raw of [
+      "//evil.example",
+      "//evil.example/rankings",
+      "/\\evil.example",
+      "/\t/evil.example",
+      "/\n/evil.example",
+      "https://evil.example",
+      "javascript:alert(1)",
+      "rankings",
+      "",
+    ]) {
+      assert.equal(safeNext(raw), null, JSON.stringify(raw));
+    }
+    assert.equal(safeNext(null), null);
+  });
+  it("never returns a value that resolves off the site, even after normalising", () => {
+    for (const raw of [
+      "/%2F%2Fevil.example",
+      "/%5Cevil.example",
+      // Each of these resolves on-site to a path that is itself protocol-relative.
+      "/..//evil.example",
+      "/.//evil.example",
+      "/a/..//evil.example",
+      "/./\\evil.example",
+    ]) {
+      assert.ok(staysHome(raw), JSON.stringify(raw));
+    }
+  });
+  it("does not send a member back to a sign-in page", () => {
+    assert.equal(safeNext("/login"), null);
+    assert.equal(safeNext("/register?next=/rankings"), null);
+  });
+});
+
+describe("landing sections", () => {
+  it("have unique ids that are safe as a #fragment", () => {
+    const ids = LANDING_SECTIONS.map((s) => s.id);
+    assert.equal(new Set(ids).size, ids.length);
+    for (const id of ids) assert.match(id, /^[a-z][a-z0-9-]*$/);
   });
 });

@@ -2,23 +2,36 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { ApiError } from "@/lib/api";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { authErrorMessage } from "@/lib/authErrors";
+import { HOME_FOR_MEMBERS } from "@/lib/landing";
+import { useNextParam } from "@/lib/useNextParam";
 
 /**
  * Register and sign in differ by one call and one sentence, so they share a
  * component rather than duplicating a form and drifting apart.
+ *
+ * `next` is where the account gate was sent from (`RequireAccount`). It comes
+ * through `useNextParam`, which reads it without `useSearchParams` (these
+ * routes are prerendered) and only ever through `safeNext`, because anyone can
+ * write it.
  */
 export function AuthForm({ mode }: { mode: "sign-in" | "register" }) {
   const router = useRouter();
-  const { signIn, register } = useAuth();
+  const { status, signIn, register } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const next = useNextParam();
 
   const registering = mode === "register";
+
+  // Already a member: this page has nothing to offer, so go where they were headed.
+  useEffect(() => {
+    if (status === "signed-in" && !busy) router.replace(next ?? HOME_FOR_MEMBERS);
+  }, [status, busy, next, router]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -26,31 +39,24 @@ export function AuthForm({ mode }: { mode: "sign-in" | "register" }) {
     setBusy(true);
     try {
       await (registering ? register(email, password) : signIn(email, password));
-      router.push("/profiles");
+      router.push(next ?? HOME_FOR_MEMBERS);
     } catch (e) {
-      // The API sends RFC 7807 and its `detail` is written for a person, so
-      // show that. 429 is the one case worth rephrasing: "too many requests"
-      // does not tell you the limit is per IP across the whole auth surface.
-      if (e instanceof ApiError && e.status === 429) {
-        setError("Too many attempts from this address. Wait a minute and try again.");
-      } else if (e instanceof ApiError) {
-        setError(e.message);
-      } else {
-        setError("Could not reach the server. Check that the API is running.");
-      }
+      setError(authErrorMessage(e));
       setBusy(false);
     }
   }
 
+  const carry = next ? `?next=${encodeURIComponent(next)}` : "";
+
   return (
     <div className="mx-auto max-w-sm px-4 py-16">
-      <h1 className="font-display text-2xl font-bold tracking-tight">
-        {registering ? "Create an account" : "Sign in"}
+      <h1 className="font-display text-3xl font-bold tracking-tight">
+        {registering ? "Join the Kai" : "Sign in"}
       </h1>
       <p className="mt-2 text-sm leading-relaxed text-mute">
         {registering
-          ? "An account is only needed to save scoring rulesets of your own. Rankings are public."
-          : "Rankings are public — sign in to reach the rulesets you saved."}
+          ? "Free, with no ads and nothing to upgrade to. An email and a password is all it takes."
+          : "Sign in to open the rankings, player pages and the scoring you saved."}
       </p>
 
       <form onSubmit={submit} className="mt-8 space-y-4">
@@ -72,6 +78,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "register" }) {
             type="password"
             required
             minLength={registering ? 12 : undefined}
+            maxLength={128}
             autoComplete={registering ? "new-password" : "current-password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -98,12 +105,12 @@ export function AuthForm({ mode }: { mode: "sign-in" | "register" }) {
       </form>
 
       <p className="mt-6 text-sm text-mute">
-        {registering ? "Already have an account? " : "No account yet? "}
+        {registering ? "Already a member? " : "Not a member yet? "}
         <Link
-          href={registering ? "/login" : "/register"}
+          href={(registering ? "/login" : "/register") + carry}
           className="text-ink underline decoration-line-strong underline-offset-2"
         >
-          {registering ? "Sign in" : "Create one"}
+          {registering ? "Sign in" : "Join the Kai"}
         </Link>
       </p>
     </div>

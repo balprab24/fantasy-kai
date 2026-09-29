@@ -74,17 +74,9 @@ export default function ProfilesPage() {
       <section className="mt-12">
         <h2 className="font-display text-lg font-bold tracking-tight">Yours</h2>
 
-        {status === "signed-out" ? (
-          <p className="mt-3 text-sm leading-relaxed text-mute">
-            <Link
-              href="/login"
-              className="text-ink underline decoration-line-strong underline-offset-2"
-            >
-              Sign in
-            </Link>{" "}
-            to save a ruleset of your own. Presets and every ranking above stay public either way.
-          </p>
-        ) : mine.length === 0 && !building ? (
+        {/* No signed-out branch: this page sits behind the account gate
+            (app/(app)/layout.tsx), so it only ever renders for a member. */}
+        {mine.length === 0 && !building ? (
           <p className="mt-3 text-sm leading-relaxed text-mute">
             Nothing saved yet. Build one and it becomes selectable everywhere a ruleset is.
           </p>

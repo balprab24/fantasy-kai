@@ -23,7 +23,7 @@ and nothing caught it for two days.
 | HTTP endpoints | **13** — 6 public `GET` (the sixth is `/players/{id}/career`, 2026-09-28), 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V6` (`V6`: `players.birth_date`, `teams.logo_url`) |
 | Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
-| Frontend | **Next.js 16 · 46 `.ts`/`.tsx` files** (48 under `frontend/src`) — near-black app shell with a narrow left rail, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (identity, weekly chart, game log, career), auth, ruleset builder, attribution footer. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, 24 tests, no dependency, and in CI since 2026-09-28 |
+| Frontend | **Next.js 16 · 63 `.ts`/`.tsx` files** (65 under `frontend/src`) — a landing page at `/` (hero, a phone drawn from real 2025 rows, email-first sign-up), and behind sign-in since 2026-09-28 the near-black app shell with a narrow left rail, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (identity, weekly chart, game log, career), ruleset builder; attribution footer on both. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, 29 tests, no dependency, and in CI since 2026-09-28 |
 
 | # | Phase | State |
 |---|---|---|
@@ -38,7 +38,7 @@ and nothing caught it for two days.
 | 6 | Projections — `SignalKey`, `ProjectionEngine`, `ExplainedScore`, published MAE | |
 | 7 | League import — `LeagueProvider`, ESPN + Sleeper | |
 | 8 | Roster tools — optimizer, simulator, trade evaluator, waivers | |
-| 9 | Consensus board — FFC ADP + Sleeper rostered% → the logged-out top 100 | |
+| 9 | Consensus board — FFC ADP + Sleeper rostered% → the market board (members-only since 2026-09-28; it was "the logged-out top 100") | |
 | 10 | iOS (Expo) | |
 | 11 | Perf pass — cache → matview → indexes, measuring after each | |
 
@@ -172,6 +172,11 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
   src/lib/player.ts                age, season to open on, playoff round names, matchup text
   src/lib/boardParams.ts           the board's URL state: parse against whitelists, serialize
   src/lib/boardReturn.ts           sessionStorage note of where the board was left, for back
+  src/lib/landing.ts               the landing page's sections (one list for the header and the
+                                   page) and safeNext() -- the sign-in redirect, resolved twice
+                                   so `/..//evil` cannot come out as a host
+  src/lib/useNextParam.ts          ?next= read without useSearchParams (prerendered routes)
+  src/lib/authErrors.ts            one wording for a failed sign-in or sign-up
   src/app/globals.css              the design tokens. Near-black: void rail < paper page <
                                    opaque raised rows; ki orange = brand/best, energy blue =
                                    interactive. Every text pair measured for contrast
@@ -181,16 +186,25 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    tiles, fits 1440x780 unscrolled; wordmark with the
                                    dragon-ball dot on the i), MobileNav (<dialog>, rows),
                                    nav.ts -- one nav
-                                   definition; unbuilt sections render as "soon", never links
+                                   definition; unbuilt sections render as "soon", never links.
+                                   RequireAccount -- the website's sign-in gate
+    landing/                       the / page: SiteHeader (links scroll to sections), EmailStart
+                                   (email, then a password in place), HeroRunner + heroImage
+                                   (a drawn runner until a licensed photo exists), PhonePreview
+                                   (real rows in a phone frame), PointsReceipt (one season taken
+                                   apart; the build fails if it does not add up), ComingNext,
+                                   previewData (captured 2025 rows, with the GETs that make them)
     ui/                            Icon (inline SVG), SegmentedControl (native radios),
                                    SearchField, StatusMessage + Skeleton
-    rankings/                      RankingsWorkspace (what / and /rankings both render),
+    rankings/                      RankingsWorkspace (the /rankings page),
                                    FilterBar, PlayerRow, TierHeader, PositionBadge, PlayerAvatar
                                    (headshot with a monogram fallback)
     player/                        PlayerWorkspace (the /players/[id] page), PlayerIdentity,
                                    WeeklyChart (dependency-free columns), StatTable (game log
                                    and career share it)
-  src/app/                         / rankings /players/[id] /profiles /login /register
+  src/app/                         (site): / /login /register -- site header, no rail
+                                   (app): /rankings /players/[id] /profiles -- rail, and
+                                   behind RequireAccount
   tests/lib.test.ts                node --test over the pure libs (npm test)
 backend/src/test/
   java/com/fantasykai/             18 test classes + ApiFixture, Presets
@@ -284,7 +298,7 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 | Risk | Detail |
 |---|---|
 | **Nothing is deployed** | The end of Phase 5 is "a site you can log into", and HTTPS/HSTS cannot be satisfied locally. **Host changed 2026-09-14: Oracle Cloud Always Free VM + Caddy + Vercel**, because the Fly/Neon/Upstash free tiers this was written against stopped existing — north-star §5d carries the survey and its sources. `deploy/compose.prod.yml`, `deploy/Caddyfile` and `deploy/README.md` now exist and the **whole stack was run and probed on the dev Mac**: all four containers healthy, 3.82s from restart to a 200 on liveness, and 6 of the 10 acceptance checks green. Verifying it found two real defects — HSTS configured but never emitted, and a CORS allowlist with no mechanism to reach production. Waiting on a domain and the accounts |
-| ~~**The attribution footer is still owed**~~ | **Closed.** `frontend/src/components/Attribution.tsx`, in the root layout so it is on every page — nflverse (CC BY 4.0), Sleeper and FFC. Owed since Phase 0 |
+| ~~**The attribution footer is still owed**~~ | **Closed.** `frontend/src/components/Attribution.tsx`, on every page: in the root layout until 2026-09-28, in both route-group layouts since — nflverse (CC BY 4.0), Sleeper and FFC. Owed since Phase 0 |
 | **Nothing watches the pipeline** | `ingestFreshness` was DOWN and correct for three days in September 2026 with no process alive to be asked. The indicator is not the gap; **a host for it is**. Closed by the Fly deploy, whose `auto_stop_machines = false` is load-bearing for the same reason. **Partially mitigated 2026-09-14**: `session-check.sh` reads `ingest_runs` and `launchctl` directly, so a stopped pipeline is visible without a running JVM — and the launchd exit code surfaces it ~36h before the freshness threshold does |
 
 ### Closed since the 2026-09-08 audit
@@ -336,6 +350,18 @@ colour. Recorded, deliberately not fixed in that milestone.
 | A player page costs a position-wide scan | One per (player, ruleset); measured at 23.6–26.0 ms for WR on 2026-09-28 (`perf/baseline.md`). Phase 11's cache covers it with the ranking |
 | Deploy order | The frontend reads `espnId`, `birthDate`, `teamLogo` and `/career`; the backend must reach production first. Missing fields degrade (monogram, no age), but a missing `/career` shows its error state |
 | Production data needs one ingest | `V6` adds empty columns; birth dates and logos fill on the next daily pull after the backend deploys |
+
+### Follow-ups from the landing page and the account gate — **new** 2026-09-28
+
+| Follow-up | Detail |
+|---|---|
+| The API is still public | The gate is the website's. `GET /rankings` and `/players/**` stay `permitAll`, so the numbers behind the sign-in are one `curl` away. north-star §2 records the decision; closing it is a backend change |
+| The hero wants a real player, and has none | `components/landing/heroImage.ts` is `null` until an image clears copyright (an agency's editorial licence does not cover promotion) **and** the player's consent. A drawn runner stands in. An owner call, next to the ESPN one above |
+| Every anonymous page load spends an auth token | `restoreSession()` posts `/auth/refresh` on every full load, and it shares the 5/min/IP bucket with login and register. The landing page is now the front door, so a visitor who opens a few tabs and then signs up can meet a 429, and so can people behind one shared IP. Found while testing on 2026-09-28. A non-secret "was signed in" hint cookie on `www` would let a never-signed-in visitor skip the call |
+| A member can glimpse the landing page | The refresh cookie is host-only on `api.` with `Path=/api/v1/auth`, so the frontend's server cannot tell who is signed in. A member at `/` sees the landing page for one refresh round-trip before being sent to `/rankings`. The same hint cookie, read in `proxy.ts`, would remove it |
+| The preview does not update | `previewData.ts` is captured 2025 data on purpose (the season is over, and the page is static). Re-capture with the GETs in its header if the scoring presets ever change. `PointsReceipt` carries a third copy of the PPR rates, and the build fails if they stop adding up to the captured total |
+| Sign-up on a Vercel preview fails | The landing page renders there, because its data is static, but the API's CORS allowlist is the real domain only, the same as every other call |
+| Magic-link sign-in | Not built. It needs an email provider, SPF/DKIM at Porkbun, and a one-time token table. The landing form asks for the email first and the password second, which keeps north-star §2's "an email and a password" true |
 
 ### Housekeeping
 

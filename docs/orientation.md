@@ -57,14 +57,20 @@ finished work.
 
 | You can actually do this today | Not built yet |
 |---|---|
-| Load 7 seasons of real NFL stats in ~23 seconds | Reach it from anywhere — it runs on this laptop only. The production stack is written and has been run locally; it needs a domain and the hosting accounts ([§5d](north-star.md)) |
-| Ask for rankings under any of 4 preset rulesets, or your own | Project what a player *will* do (Phase 6) |
-| See a player's week-by-week game log, scored | Import your real league from ESPN or Sleeper (Phase 7) |
-| Create an account and save your own scoring rules | Lineup optimizer, trade calculator (Phase 8) |
-| Use all of it from a web UI | A consensus board, an iOS app, the performance pass (9–11) |
+| Load 7 seasons of real NFL stats in ~23 seconds | Project what a player *will* do (Phase 6) |
+| Reach it from anywhere at `www.fantasykai.com` (live since 2026-09-23) | Import your real league from ESPN or Sleeper (Phase 7) |
+| Read a landing page that explains each part, and join with an email and a password | Lineup optimizer, trade calculator (Phase 8) |
+| Once signed in: rankings under any of 4 preset rulesets, or your own | A consensus board, an iOS app, the performance pass (9–11) |
+| Once signed in: a player's week-by-week chart, game log and career, scored | |
+| Save your own scoring rules | |
 
-The honest one-line summary: **the engine is real and measured; nothing is deployed yet, and nothing
-predicts the future.**
+From `feat/landing` (2026-09-28) the website is members-only: a signed-out visitor sees the
+landing page and nothing else. That is the code in this tree; production follows once it merges
+and deploys. The API behind it still answers anyone, which is why north-star §2 calls it the
+website's gate and not the data's.
+
+The honest one-line summary: **the engine is real, measured and deployed; nothing predicts the
+future yet.**
 
 ## 4. How a request actually works
 

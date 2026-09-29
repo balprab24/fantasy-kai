@@ -14,10 +14,14 @@ export interface NavItem {
   icon: IconName;
 }
 
+/**
+ * No "Home": `/` is the landing page, which a member is sent straight past, so
+ * a Home item would be a link that bounces. The board is where the product
+ * starts, and the wordmark goes there too.
+ */
 export const PRIMARY_NAV: NavItem[] = [
-  { label: "Home", href: "/", icon: "home" },
-  { label: "My Teams", href: null, icon: "teams" },
   { label: "Rankings", href: "/rankings", icon: "rankings" },
+  { label: "My Teams", href: null, icon: "teams" },
   { label: "Start/Sit", href: null, icon: "startSit" },
   { label: "Waivers", href: null, icon: "waivers" },
   { label: "Trades", href: null, icon: "trades" },
