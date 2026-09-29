@@ -23,7 +23,7 @@ and nothing caught it for two days.
 | HTTP endpoints | **13** — 6 public `GET` (the sixth is `/players/{id}/career`, 2026-09-28), 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V6` (`V6`: `players.birth_date`, `teams.logo_url`) |
 | Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
-| Frontend | **Next.js 16 · 63 `.ts`/`.tsx` files** (65 under `frontend/src`) — a landing page at `/` (hero, a phone drawn from real 2025 rows, email-first sign-up), and behind sign-in since 2026-09-28 the near-black app shell with a narrow left rail, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (identity, weekly chart, game log, career), ruleset builder; attribution footer on both. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, 29 tests, no dependency, and in CI since 2026-09-28 |
+| Frontend | **Next.js 16 · 66 `.ts`/`.tsx` files** (68 under `frontend/src`) — every page rendered per request since 2026-09-29, under a nonce-based CSP (`src/proxy.ts`) — a landing page at `/` (hero, a phone drawn from real 2025 rows, email-first sign-up), and behind sign-in since 2026-09-28 the near-black app shell with a narrow left rail, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (identity, weekly chart, game log, career), ruleset builder; attribution footer on both. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, 39 tests, no dependency, and in CI since 2026-09-28 |
 
 | # | Phase | State |
 |---|---|---|
@@ -158,6 +158,12 @@ deploy/                            Phase 5d
   acceptance.sh                    the §6 checks as one command, run from the laptop; `?` for a
                                    check it cannot run, never PASS
 frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6, Tailwind 4
+  src/proxy.ts                     runs before every page: mints the CSP nonce and sets the policy
+                                   on the request (Next stamps its scripts from it) and response
+  src/lib/csp.ts                   the Content-Security-Policy as one pure, tested function --
+                                   and why a nonce, and why none in style-src
+  src/lib/apiBase.ts               API_BASE, the one definition api.ts fetches from and the
+                                   policy's connect-src allows
   src/lib/api.ts                   the only place the access token lives, and it is memory-only
   src/lib/auth.tsx                 trades the HttpOnly refresh cookie for a token on load
   src/lib/queries.ts               TanStack Query hooks; useProfiles waits for the session
@@ -365,6 +371,17 @@ colour. Recorded, deliberately not fixed in that milestone.
 | The preview does not update | `previewData.ts` is captured 2025 data on purpose (the season is over, and the page is static). Re-capture with the GETs in its header if the scoring presets ever change. `PointsReceipt` carries a third copy of the PPR rates, and the build fails if they stop adding up to the captured total |
 | Sign-up on a Vercel preview fails | The landing page renders there, because its data is static, but the API's CORS allowlist is the real domain only, the same as every other call |
 | Magic-link sign-in | Not built. It needs an email provider, SPF/DKIM at Porkbun, and a one-time token table. The landing form asks for the email first and the password second, which keeps north-star §2's "an email and a password" true |
+
+### Follow-ups from the security headers — **new** 2026-09-29
+
+| Follow-up | Detail |
+|---|---|
+| Every page renders per request | The nonce has to be minted per request, so no page is static HTML any more and none is cached at Vercel's edge. Measured locally (`next start`, 30 requests): p50 **0.7–1.1 ms static → 2.3–3.8 ms** per request. Production's baseline before the change: p50 **338–401 ms**, cache HITs, handshakes included. Production after the change is measured once it deploys |
+| Injected CSS still applies | `style-src` keeps `'unsafe-inline'`, because React's `style=` attributes (`PlayerRow`, `WeeklyChart`) cannot carry a nonce — and a nonce there would switch `'unsafe-inline'` off. Script is the threat the policy is for |
+| A script that runs can still navigate away | CSP limits where `fetch`, images and forms may go; it has no say over `location = …` with a token in the URL. The nonce is what stops a script from running in the first place |
+| The Vercel toolbar is gone from previews | It injects a script without the nonce. Accepted |
+| SRI is not a static alternative | Tried once, 2026-09-29: `experimental.sri` with `script-src 'self'` keeps pages static, but App Router pages carry inline RSC payload scripts (`self.__next_f.push`) that no integrity hash covers. On a page with no redirect the app did not hydrate. One page (`/`) still ran its client redirect with no violation reported — not explained |
+| F11 still owed | `lib/apiBase.ts` keeps an empty `NEXT_PUBLIC_API_URL` as same-origin, and the policy mirrors it rather than hiding it; the build should refuse it |
 
 ### Housekeeping
 

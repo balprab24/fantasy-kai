@@ -424,6 +424,7 @@ Conventions: cursor or offset pagination everywhere (never unbounded lists), RFC
 | Rate limiting | Bucket4j + Redis. Tight on `/auth/*` (e.g. 5/min/IP), looser on reads. |
 | CORS | Explicit allowlist of your Vercel origin. Not `*`. |
 | Transport | HTTPS only, HSTS on. |
+| Browser (added 2026-09-29) | A **nonce-based Content-Security-Policy** with `'strict-dynamic'` on every page (`frontend/src/proxy.ts`, `lib/csp.ts`), plus `frame-ancestors 'none'`/`X-Frame-Options: DENY`, `nosniff`, `strict-origin-when-cross-origin`. Required, not optional, because the access token lives in page memory by design: any script that runs on the site can act as the member. `'unsafe-inline'` would have kept pages static and let an injected inline script run — proven: a server-rendered nonce-less `<script>` is refused (`script-src-elem`) while the app's own scripts run. |
 | Dependencies | Dependabot on. `mvn dependency-check` in CI. |
 | Secrets | `.env` gitignored, `.env.example` committed. Rotate anything you've ever pasted into a chat window. |
 

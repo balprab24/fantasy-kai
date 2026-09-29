@@ -1,3 +1,4 @@
+import { API_BASE } from "./apiBase";
 import type { Problem } from "./types";
 
 /**
@@ -11,7 +12,7 @@ import type { Problem } from "./types";
  * silently re-earns one from the cookie, which is the intended cost.
  */
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const BASE = API_BASE;
 
 let accessToken: string | null = null;
 let refreshing: Promise<boolean> | null = null;
