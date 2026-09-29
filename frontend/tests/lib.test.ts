@@ -8,6 +8,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { band, bandFor, formatPoints } from "../src/lib/board.ts";
 import { boardSearch, parseBoardParams } from "../src/lib/boardParams.ts";
+import { apiOriginOf, contentSecurityPolicy } from "../src/lib/csp.ts";
 import { headshotUrl } from "../src/lib/headshot.ts";
 import { LANDING_SECTIONS, safeNext } from "../src/lib/landing.ts";
 import { ageOn, matchup, pickSeason, playoffRound } from "../src/lib/player.ts";
@@ -231,5 +232,64 @@ describe("landing sections", () => {
     const ids = LANDING_SECTIONS.map((s) => s.id);
     assert.equal(new Set(ids).size, ids.length);
     for (const id of ids) assert.match(id, /^[a-z][a-z0-9-]*$/);
+  });
+});
+
+describe("contentSecurityPolicy", () => {
+  // One directive's sources, or null when the directive is absent.
+  const directive = (policy: string, name: string) =>
+    policy.split("; ").map((d) => d.split(" ")).find(([n]) => n === name)?.slice(1) ?? null;
+  const prod = contentSecurityPolicy({ nonce: "bm9uY2U=", apiOrigin: "https://api.fantasykai.com", dev: false });
+  const dev = contentSecurityPolicy({ nonce: "bm9uY2U=", apiOrigin: "http://localhost:8080", dev: true });
+
+  it("runs a script only with the nonce, or when a nonced script loaded it", () => {
+    assert.deepEqual(directive(prod, "script-src"), ["'self'", "'nonce-bm9uY2U='", "'strict-dynamic'"]);
+    assert.ok(!prod.includes("'unsafe-eval'"), "production never evals");
+  });
+  it("keeps the nonce out of style-src, where it would switch 'unsafe-inline' off", () => {
+    const style = directive(prod, "style-src")!;
+    assert.ok(style.includes("'unsafe-inline'"));
+    assert.ok(!style.some((source) => source.startsWith("'nonce-")));
+  });
+  it("names exactly two hosts off the site: the API and ESPN's images", () => {
+    const hosts = new Set(prod.split(/[ ;]+/).filter((token) => /^https?:\/\//.test(token)));
+    assert.deepEqual([...hosts].sort(), ["https://a.espncdn.com", "https://api.fantasykai.com"]);
+    assert.deepEqual(directive(prod, "connect-src"), ["'self'", "https://api.fantasykai.com"]);
+    assert.deepEqual(directive(prod, "img-src"), ["'self'", "data:", "blob:", "https://a.espncdn.com"]);
+  });
+  it("has no wildcard or scheme-only source anywhere, which would allow every host", () => {
+    for (const source of prod.split("; ").flatMap((d) => d.split(" ").slice(1))) {
+      assert.ok(!/^(\*|https?:|wss?:)$/.test(source) && !source.includes("*"), source);
+    }
+  });
+  it("cannot be framed, rebased, or post a form off the site", () => {
+    assert.deepEqual(directive(prod, "frame-ancestors"), ["'none'"]);
+    assert.deepEqual(directive(prod, "base-uri"), ["'none'"]);
+    assert.deepEqual(directive(prod, "form-action"), ["'self'"]);
+    assert.deepEqual(directive(prod, "object-src"), ["'none'"]);
+  });
+  it("upgrades insecure requests only when the API itself is https", () => {
+    assert.deepEqual(directive(prod, "upgrade-insecure-requests"), []);
+    assert.equal(directive(dev, "upgrade-insecure-requests"), null);
+  });
+  it("gives dev eval and the reload socket, and production neither", () => {
+    assert.ok(directive(dev, "script-src")!.includes("'unsafe-eval'"));
+    assert.ok(directive(dev, "connect-src")!.includes("ws:"));
+    assert.ok(!directive(prod, "connect-src")!.includes("ws:"));
+  });
+  it("allows only same-origin fetches when there is no API origin (F11's empty URL)", () => {
+    const sameOrigin = contentSecurityPolicy({ nonce: "x", apiOrigin: null, dev: false });
+    assert.deepEqual(directive(sameOrigin, "connect-src"), ["'self'"]);
+  });
+});
+
+describe("apiOriginOf", () => {
+  it("keeps the origin and drops any path", () => {
+    assert.equal(apiOriginOf("https://api.fantasykai.com"), "https://api.fantasykai.com");
+    assert.equal(apiOriginOf("https://api.fantasykai.com/some/prefix/"), "https://api.fantasykai.com");
+    assert.equal(apiOriginOf("http://localhost:8080"), "http://localhost:8080");
+  });
+  it("reads an empty base as same-origin, the way lib/api.ts fetches with it", () => {
+    assert.equal(apiOriginOf(""), null);
   });
 });

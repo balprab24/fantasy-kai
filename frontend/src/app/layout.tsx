@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Saira_Semi_Condensed, Schibsted_Grotesk } from "next/font/google";
+import { connection } from "next/server";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -25,7 +26,13 @@ export const metadata: Metadata = {
     "One season, scored against any league's rules. Rankings recomputed on demand, never stored.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Every page renders per request, never as build-time HTML. The CSP nonce
+  // (proxy.ts, lib/csp.ts) is minted per request and Next.js stamps it on its
+  // scripts while rendering; a page prerendered at build time carries scripts
+  // with no nonce, which the policy then refuses -- the page would not hydrate.
+  // The cost, measured before it shipped, is in docs/map.md §5.
+  await connection();
   return (
     <html lang="en" className={`${saira.variable} ${schibsted.variable}`}>
       <body className="min-h-dvh bg-paper text-ink antialiased">

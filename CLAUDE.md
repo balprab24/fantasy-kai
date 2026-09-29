@@ -94,6 +94,8 @@ frontend/        Phase 5c — Next.js 16 App Router. api.ts holds the only acces
                  2026-09-28 (landing): app/(site) = / + /login + /register under a site
                  header; app/(app) = the product, behind components/shell/RequireAccount.
                  components/landing/*, lib/{landing,useNextParam,authErrors}.ts
+                 2026-09-29 (CSP): src/proxy.ts mints a per-request nonce; lib/csp.ts is the
+                 policy; lib/apiBase.ts the one API_BASE; every page renders per request
 backend/src/test/resources/nflverse/       Real 2024 rows as fixtures — not invented
 docs/map.md                                Front door — status board, class map, pipelines
 docs/orientation.md                        Plain-English door — glossary, real-vs-planned
@@ -126,6 +128,7 @@ scripts/                                   session-check.sh (runs at every sessi
 | 5d — Deploy | ✅ **2026-09-23 — live at `https://www.fantasykai.com`, API `https://api.fantasykai.com`.** Oracle Cloud Always Free A1 VM (2 OCPU / 12 GB, Chicago) running Postgres + Redis + backend + Caddy from `deploy/compose.prod.yml`; Vercel for the frontend; Porkbun domain, $11/yr — the only cost. **10 of 11 acceptance checks pass** (4b owed — needs a second real client); the production ingest **fired unattended at 06:00:00 ET on 2026-09-23** and is the only scheduled ingest since 2026-09-29. Running the runbook for real found five bugs in it, all fixed. **Redeployed 2026-09-29** (`6c2580b` → `366b0ad`: `V6`, the rate-limiter fix, 4c now passes) with a rollback proven first and a restored backup — `deploy/README.md` §7 is the procedure, `deploy/acceptance.sh` the checks. **Progress, findings F1–F13 and what's owed: top of [`DEPLOY-STEPS.md`](DEPLOY-STEPS.md)** |
 | 5c.2 — Player workspace | ✅ 2026-09-28, branch `feat/player-workspace` — `/players/[id]` becomes an identity + weekly chart + game log + career workspace; ESPN headshots **derived** from the stored espn id (never stored); `V6` stores `birth_date` and the team logo; new `GET /players/{id}/career` (regular season, season + weekly positional ranks); board filters in the URL; "Standard" shown as **0 PPR**, "Full PPR" as **PPR** (display only). **165 in the suite** · 24 frontend unit tests (`npm test`, now in CI). Career numbers equal the board's under every profile by test, and Gibbs/Chase 2025 were hand-computed and matched nflverse's own `fantasy_points`/`_ppr` exactly. **Merged as PR #33; its frontend shipped 19h17m before its backend** (2026-09-29, 21:15 UTC) — production player pages showed the career error state until then |
 | 5c.3 — Landing + account gate | ✅ 2026-09-28, branch `feat/landing` (from PR #33's head, `caafea1`, which merged to `main` at 20:57 the same evening), merged as PR #34 at 15:38 UTC on 2026-09-29 — also ahead of the backend — `/` is a landing page (hero with a drawn runner until a licensed photo exists, a phone drawn from **captured** 2025 rows, header links that scroll to each section, email-first sign-up); the product moved behind sign-in. **Website gate only — the read API is still `permitAll`** (north-star §2). `safeNext` guards `?next=` and **its first version was an open redirect** (`/..//evil` normalises to `//evil`), caught by its own test. 29 frontend unit tests |
+| 5c.4 — Browser security headers | ✅ 2026-09-29, branch `feat/security-headers` — **a nonce-based CSP** with `'strict-dynamic'` on every page (owner decision over `'unsafe-inline'`: the access token lives in page memory), `frame-ancestors 'none'`, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`. www sent only HSTS before. **Proven by attack**: a server-rendered nonce-less `<script>` is refused while the app's 12 nonced scripts run; 7 of 7 policy mutations caught by the 10 new tests. Cost: every page renders per request (local p50 0.7–1.1 → 2.3–3.8 ms) |
 | 5d.1 — security pass | ✅ 2026-09-21 — **Boot 3.5 went OSS-EOL on 2026-06-30 and nobody had checked.** Tomcat pinned to 10.1.59 over the parent's CVE-bearing 10.1.55; the auth rate limiter proved **forgeable at the application layer**; four-day ingest outage found and refilled. See "The EOL clock" below |
 | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
@@ -564,6 +567,14 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   `deploy/README.md` §7. Predicted from reading `compose.prod.yml` while planning the deploy — and
   then measured before reloading, which is the part that counts: the prediction alone would have
   been one more claim nobody executed.
+- **A nonce in `style-src` switches `'unsafe-inline'` off.** Next.js's own CSP example puts the
+  nonce in both `script-src` and `style-src`. Copied as written, every React `style={}` attribute
+  here (`PlayerRow`'s bars, `WeeklyChart`'s columns) would silently stop applying, because a
+  browser that sees a nonce or hash in a directive ignores `'unsafe-inline'` in it — and style
+  attributes cannot carry a nonce. `lib/csp.ts` keeps the nonce out of `style-src` and a test
+  pins it. Relatedly, **a CSP header is only half of it in Next.js**: the policy must be set on
+  the *request* too, because that is where Next finds the nonce to stamp on its scripts. On the
+  response alone the browser enforces a nonce no script carries.
 - **A launchd plist with a placeholder path is not an installed job.** The plist shipped three
   `__REPO__` placeholders and an instruction to "edit the two by hand"; it was never loaded, `logs/`
   stayed empty, and `ingest_runs` recorded three of the seven days before kickoff. `install-ingest.sh`
