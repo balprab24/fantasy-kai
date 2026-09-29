@@ -1,5 +1,6 @@
 package com.fantasykai.auth;
 
+import org.springframework.jdbc.core.JdbcTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.redis.testcontainers.RedisContainer;
@@ -111,8 +112,11 @@ class AuthRateLimitTests {
     /** The reads stay loose. Throttling them would be throttling the product. */
     @Test
     void doesNotThrottleTheReadEndpoints() {
+        HttpHeaders headers = memberHeaders();
+
         for (int request = 0; request < LIMIT * 3; request++) {
-            assertThat(rest.getForEntity("/api/v1/scoring-profiles", String.class).getStatusCode())
+            assertThat(rest.exchange("/api/v1/scoring-profiles", HttpMethod.GET, new HttpEntity<>(headers), String.class)
+                            .getStatusCode())
                     .as("read %d", request)
                     .isEqualTo(HttpStatus.OK);
         }
@@ -245,7 +249,9 @@ class AuthRateLimitTests {
      */
     @Test
     void aForgedForwardedPrefixIsNotBelieved() {
-        HttpHeaders headers = new HttpHeaders();
+        // A member's request: the probe is the 404's problem body, and only a
+        // request past the chain reaches the handler that writes `instance`.
+        HttpHeaders headers = memberHeaders();
         headers.set("X-Forwarded-Prefix", "/x");
 
         ResponseEntity<Map> response = rest.exchange("/api/v1/players/999999999", HttpMethod.GET,
@@ -416,6 +422,28 @@ class AuthRateLimitTests {
         URI encoded = URI.create(rest.getRootUri() + "/api/v1/%61uth/refresh");
         assertThat(rest.postForEntity(encoded, new HttpEntity<>(null, jsonHeaders()), String.class).getStatusCode())
                 .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @Autowired
+    private JwtService jwt;
+
+    /**
+     * A member's bearer header, since reads need an account (2026-09-29).
+     * Minted directly: signing in would spend the very buckets these tests
+     * are measuring.
+     */
+    private HttpHeaders memberHeaders() {
+        Long member = jdbc.queryForObject("""
+                INSERT INTO users (email, password_hash) VALUES ('reader@example.com', 'not-a-hash')
+                ON CONFLICT ON CONSTRAINT uq_users_email DO UPDATE SET email = EXCLUDED.email
+                RETURNING id
+                """, Long.class);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(jwt.issue(member));
+        return headers;
     }
 
     private ResponseEntity<String> refresh() {

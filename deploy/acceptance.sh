@@ -8,6 +8,10 @@
 # Exits 1 on any FAIL. A check that cannot run prints "?" and never PASS --
 # "could not check" and "checked, fine" must not look the same (session-check.sh).
 #
+# Check 9 reads rankings, and every read needs an account since 2026-09-29: set
+# PROD_TOKEN and LOCAL_TOKEN to a member's access token on each side (the
+# "accessToken" a sign-in returns; it lives 15 minutes).
+#
 # Not covered, on purpose: 3 needs a real browser and a real account; 4b needs a
 # second real client (a phone off wifi); 8 is the ingest command in §6, which runs
 # on the VM. 4a and 4c spend this machine's auth bucket for up to a minute: wait that
@@ -17,6 +21,8 @@ API=${API:-https://api.fantasykai.com}
 WWW=${WWW:-https://www.fantasykai.com}
 VM=${VM:-163.192.220.190}
 LOCAL_API=${LOCAL_API:-http://localhost:8080}
+PROD_TOKEN=${PROD_TOKEN:-}
+LOCAL_TOKEN=${LOCAL_TOKEN:-}
 fails=0
 pass()    { printf 'PASS  %-4s %s\n' "$1" "$2"; }
 fail()    { printf 'FAIL  %-4s %s\n' "$1" "$2"; fails=$((fails+1)); }
@@ -86,11 +92,15 @@ fi
 if ! curl -sf -m 3 -o /dev/null "$LOCAL_API/actuator/health/liveness"; then
     unknown 9 "no local backend on $LOCAL_API -- start one to compare"
 else
-    out=$(API="$API" LOCAL_API="$LOCAL_API" python3 - 2>&1 <<'PY'
+    out=$(API="$API" LOCAL_API="$LOCAL_API" PROD_TOKEN="$PROD_TOKEN" LOCAL_TOKEN="$LOCAL_TOKEN" python3 - 2>&1 <<'PY'
 import json, os, urllib.request
+TOKENS = {os.environ["API"]: os.environ["PROD_TOKEN"], os.environ["LOCAL_API"]: os.environ["LOCAL_TOKEN"]}
 def top10(base, pid):
     url = f"{base}/api/v1/rankings?profileId={pid}&season=2025&size=10"
-    with urllib.request.urlopen(url, timeout=20) as r:
+    request = urllib.request.Request(url)
+    if TOKENS[base]:
+        request.add_header("Authorization", f"Bearer {TOKENS[base]}")
+    with urllib.request.urlopen(request, timeout=20) as r:
         rows = json.load(r)["content"]
     if len(rows) != 10:
         raise SystemExit(f"{base} returned {len(rows)} rows for profile {pid}")
@@ -102,5 +112,12 @@ PY
     [[ $out == identical ]] && pass 9 "2025 top 10 identical to local under presets 1-4" \
         || fail 9 "production vs local: ${out##*$'\n'}"
 fi
+
+# 10 -- the reads need an account (since 2026-09-29): anonymous is refused with
+# problem+json, on a read and on the scoring profiles alike.
+r10=$(curl -sS -o /dev/null -w '%{http_code} %{content_type}' "$API/api/v1/rankings?profileId=2&season=2025&size=1")
+p10=$(curl -sS -o /dev/null -w '%{http_code}' "$API/api/v1/scoring-profiles")
+[[ $r10 == "401 application/problem+json"* && $p10 == 401 ]] && pass 10 "anonymous rankings=$r10 · profiles=$p10" \
+  || fail 10 "anonymous rankings=$r10 · profiles=$p10 (anything but 401 means an anonymous caller got past the chain)"
 
 exit $((fails > 0))

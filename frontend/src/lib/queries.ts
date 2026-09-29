@@ -27,13 +27,15 @@ export function useProfiles() {
   // to the JWT subject, so this is the one query whose ANSWER depends on being
   // signed in. On a fresh load there is no access token yet -- it is being
   // traded for from the refresh cookie -- and firing now returns the four
-  // presets and none of the user's own, cached for five minutes. Wait for the
-  // session to settle; every other query here is public and does not.
+  // presets and none of the user's own, cached for five minutes. Wait for a
+  // session. Since 2026-09-29 every read needs one, so a signed-out caller would
+  // only cache a 401; the other queries live under RequireAccount, which does not
+  // render them until the session exists.
   const { status } = useAuth();
 
   return useQuery({
     queryKey: ["profiles"],
-    enabled: status !== "restoring",
+    enabled: status === "signed-in",
     queryFn: async () => {
       const profiles = await api<ScoringProfile[]>("/api/v1/scoring-profiles");
       return [...profiles].sort((a, b) => {

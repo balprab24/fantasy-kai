@@ -99,6 +99,7 @@ Each check is an attack or a failure tried against the live site, with the resul
 | 7 | Port-scan 5432 / 6379 / 8080 from the internet | all **time out** — dropped before they reach the VM | ✅ |
 | 8 | Run the ingest on the VM · then wait for 06:00 ET | 5 sources SUCCESS · then an **unattended** run at **06:00:00 ET**, 6 sources SUCCESS | ✅ |
 | 9 | Top 10 for all four scoring presets, production vs local | **identical** — same players, same order, same points | ✅ |
+| 10 | Read `/rankings` and `/scoring-profiles` with **no token** | owed — `401` since `feat/members-only-api`, which is not deployed yet; production still answers `200` (measured 2026-09-29) | ⬜ |
 
 ---
 

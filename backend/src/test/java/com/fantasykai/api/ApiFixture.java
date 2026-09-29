@@ -1,5 +1,9 @@
 package com.fantasykai.api;
 
+import com.fantasykai.auth.JwtService;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -30,6 +34,29 @@ final class ApiFixture {
             """;
 
     private ApiFixture() {}
+
+    /**
+     * A client that calls the API as a signed-in member -- every read needs an
+     * account since 2026-09-29. Same root URI and message converters as the
+     * autowired anonymous client, so responses decode exactly as before.
+     *
+     * <p>The token is minted with the application's own {@link JwtService}
+     * rather than earned through {@code /auth/login}: signing in goes through
+     * the Redis-backed rate limiter, and these classes run without Redis on
+     * purpose. A Redis container would mean another Spring context, and context
+     * teardown is already the largest term in the build (CLAUDE.md).
+     */
+    static TestRestTemplate asMember(TestRestTemplate anonymous, JdbcTemplate jdbc, JwtService jwt) {
+        Long member = jdbc.queryForObject("""
+                INSERT INTO users (email, password_hash) VALUES ('fixture-member@example.com', 'not-a-hash')
+                ON CONFLICT ON CONSTRAINT uq_users_email DO UPDATE SET email = EXCLUDED.email
+                RETURNING id
+                """, Long.class);
+        return new TestRestTemplate(new RestTemplateBuilder()
+                .rootUri(anonymous.getRootUri())
+                .messageConverters(anonymous.getRestTemplate().getMessageConverters())
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + jwt.issue(member)));
+    }
 
     static Seeded seed(JdbcTemplate jdbc) {
         int buf = team(jdbc, "BUF", "Buffalo Bills");

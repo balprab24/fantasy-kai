@@ -137,7 +137,7 @@ CORS stops the request first. Production only.
 
 `QuerySafetyTests` proves the SQL-injection defence by attempting the attack and
 then checking the table survived. Same treatment here. Each of these is a command
-with an expected result, and **`./deploy/acceptance.sh` runs 1, 2, 4a, 4c, 5, 6, 7 and 9** in one
+with an expected result, and **`./deploy/acceptance.sh` runs 1, 2, 4a, 4c, 5, 6, 7, 9 and 10** in one
 go from the laptop — 3 needs a browser and an account, 4b a second real client, 8 the VM.
 
 | # | Check | Expected |
@@ -152,7 +152,8 @@ go from the laptop — 3 needs a browser and an account, 4b a second real client
 | 6 | `curl -sI http://api.D/...` and a `https` response | `308` to https, and `strict-transport-security` present |
 | 7 | `nc -z <vm-ip> 5432` / `6379` | **refused** — neither is on the internet |
 | 8 | Ingest once on the VM (command below), then wait for 06:00 ET | an `ingest_runs` row appears **that nobody triggered** |
-| 9 | `/api/v1/rankings` vs local, same profile and season | identical top 10 |
+| 9 | `/api/v1/rankings` vs local, same profile and season | identical top 10 — as a member on both sides since 2026-09-29 (`PROD_TOKEN`, `LOCAL_TOKEN`) |
+| 10 | `/api/v1/rankings` and `/api/v1/scoring-profiles` with **no token** | `401` + `problem+json` on both — the reads need an account (north-star §2). A `200` means the gate is the website's alone again |
 
 **Check 4 said something false until 2026-09-21, and the correction is the point.**
 

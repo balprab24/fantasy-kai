@@ -1,5 +1,7 @@
 package com.fantasykai.api;
 
+import org.junit.jupiter.api.BeforeEach;
+import com.fantasykai.auth.JwtService;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fantasykai.query.Usage;
@@ -43,7 +45,15 @@ class RankingsTests {
     private static ApiFixture.History history;
 
     @Autowired
+    private TestRestTemplate anonymous;
+
+    /** A member's client: every read needs an account since 2026-09-29 (ApiFixture.asMember). */
     private TestRestTemplate rest;
+
+    @BeforeEach
+    void signIn(@Autowired JdbcTemplate jdbc, @Autowired JwtService jwt) {
+        rest = ApiFixture.asMember(anonymous, jdbc, jwt);
+    }
 
     @BeforeAll
     static void seed(@Autowired JdbcTemplate jdbc) {

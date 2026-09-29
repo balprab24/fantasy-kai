@@ -428,7 +428,7 @@ Conventions: cursor or offset pagination everywhere (never unbounded lists), RFC
 | Dependencies | Dependabot on. `mvn dependency-check` in CI. |
 | Secrets | `.env` gitignored, `.env.example` committed. Rotate anything you've ever pasted into a chat window. |
 
-**Threat model worth writing down (interviewers love this):** the app is read-heavy and public-data-only, so the crown jewels aren't the stats — they're user credentials and custom rulesets. Auth surface and tenant isolation are where the effort goes; the stats endpoints can be public.
+**Threat model worth writing down (interviewers love this):** the app is read-heavy and public-data-only, so the crown jewels aren't the stats — they're user credentials and custom rulesets. Auth surface and tenant isolation are where the effort goes; the stats endpoints can be public. *(They were, until 2026-09-29. They now need an account — not because the stats became secret, but because the product went members-only and an unthrottled `/rankings`, which scores a whole season per call, is a cheap way to saturate a free VM. north-star §2.)*
 
 ---
 

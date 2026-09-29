@@ -144,7 +144,7 @@ class ScoringProfileIsolationTests {
 
     /**
      * And the career, the third endpoint taking a profileId. A logged-out caller
-     * gets the same 404 as Alice: the row filter binds a null owner.
+     * no longer reaches the row filter at all: the chain turns them away first.
      */
     @Test
     void theCareerHonoursTheSameOwnership() {
@@ -158,18 +158,26 @@ class ScoringProfileIsolationTests {
 
         assertThat(get(career, bob).getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(get(career, alice).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(get(career, null).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(get(career, null).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
-    /** Acceptance 3. Reads are public; the presets are what a logged-out caller gets. */
+    /**
+     * Acceptance 3, as it reads since 2026-09-29. It used to say the reads were
+     * public and a logged-out caller got the presets; the owner closed them
+     * (north-star §2). A member still sees the four presets -- and only their
+     * own profiles besides, which the tests above prove.
+     */
     @Test
-    void readsArePublicAndResolvePresetsForALoggedOutCaller() {
+    void readsNeedAnAccount_andAMemberSeesThePresets() {
         assertThat(get("/api/v1/rankings?season=2025&profileId=3", null).getStatusCode())
-                .isEqualTo(HttpStatus.OK);
-        assertThat(get("/api/v1/players?size=1", null).getStatusCode()).isEqualTo(HttpStatus.OK);
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(get("/api/v1/players?size=1", null).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(get("/api/v1/scoring-profiles", null).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
 
-        String anonymousList = get("/api/v1/scoring-profiles", null).getBody();
-        assertThat(anonymousList)
+        String member = tokenFor("presets-reader@example.com");
+        assertThat(get("/api/v1/rankings?season=2025&profileId=3", member).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        assertThat(get("/api/v1/scoring-profiles", member).getBody())
                 .contains("Standard", "Half PPR", "Full PPR", "TE Premium");
     }
 
