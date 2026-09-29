@@ -416,7 +416,7 @@ Conventions: cursor or offset pagination everywhere (never unbounded lists), RFC
 |---|---|
 | Password storage | **Argon2id** (Spring Security `Argon2PasswordEncoder`). Not BCrypt, not SHA-anything. |
 | Access token | JWT, 15-minute expiry, `Authorization: Bearer`. Signed HS256 with a secret from env — never committed, never in `application.yml`. |
-| Refresh token | Opaque random 256-bit value, **hashed** in the DB, delivered as `HttpOnly; Secure; SameSite=Strict` cookie. **Rotate on every use**; detect reuse of a consumed token and revoke the whole family. |
+| Refresh token | Opaque random 256-bit value, **hashed** in the DB, delivered as `HttpOnly; Secure; SameSite=Strict` cookie. **Rotate on every use**; detect reuse of a consumed token and revoke the whole family. **Grace, since 2026-09-29 (owner decision):** a token consumed ≤10 s ago, whose family has not been used since, may be exchanged once more — two tabs opening together, or a reload that aborted a rotation, revoked the family and signed the member out. The browser also serializes refreshes across tabs (Web Locks) and sends them with `keepalive`, so the window is the backstop. A replay after the window, or after the owner moved on, still revokes the family. |
 | Tenant isolation | Every `scoring_profiles` read/write filters on the authenticated `user_id` from the token — **in the repository query, not the service layer**. This is the same invariant you enforced with Clerk `userId` in Aurex; carry the discipline over. |
 | Authorization | Method-level `@PreAuthorize` on mutations. Never trust a client-supplied `userId` in a body or path. |
 | Input validation | Bean Validation on every DTO. Ruleset JSON validated against an explicit allowlist of stat keys (§6). |

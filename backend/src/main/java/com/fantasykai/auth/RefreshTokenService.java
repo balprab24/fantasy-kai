@@ -31,8 +31,21 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>That last step is what turns a stolen refresh token from a permanent
  * silent compromise into one extra session that ends the moment the real user
- * comes back. It costs a legitimate user a re-login in the rare race; the
- * alternative costs them the account.
+ * comes back.
+ *
+ * <p><strong>Except inside a short grace window, since 2026-09-29.</strong> This
+ * class used to say the race cost "a re-login in the rare race". It is not
+ * rare: two tabs opened together both present the one cookie, and a reload that
+ * aborts a refresh after the server rotated leaves the browser holding the
+ * consumed token -- either way the member was signed out, and the race path did
+ * it without logging. So a consumed token is exchanged once more when it was
+ * consumed within {@code refresh-reuse-grace} (10s) <em>and</em> nothing in its
+ * family has been consumed since. A thief replaying inside that window, before
+ * the owner has refreshed again, is indistinguishable from a second tab and is
+ * let through (owner decision); a replay after the window, or after the owner
+ * moved on, still revokes the family. The browser serializes its own refreshes
+ * across tabs ({@code lib/api.ts}), so the window is the backstop, not the
+ * mechanism.
  */
 @Service
 public class RefreshTokenService {
@@ -85,24 +98,30 @@ public class RefreshTokenService {
         if (!stored.notRevoked()) {
             throw new InvalidTokenException("refresh token has been revoked");
         }
-        if (!stored.live()) {
-            // Already consumed. Someone is holding a copy.
-            int killed = tokens.revokeFamily(stored.familyId());
-            log.warn("refresh token replay for user {}: revoked {} tokens in family {}",
-                    stored.userId(), killed, stored.familyId());
-            throw new InvalidTokenException("refresh token has already been used");
-        }
-        if (stored.expiresAt().isBefore(Instant.now(clock))) {
-            throw new InvalidTokenException("refresh token has expired");
-        }
-        if (!tokens.consume(stored.id())) {
-            // Lost the race with a concurrent refresh holding the same value.
-            // Indistinguishable from theft, so treated as theft.
-            tokens.revokeFamily(stored.familyId());
-            throw new InvalidTokenException("refresh token has already been used");
+        if (stored.live()) {
+            if (stored.expiresAt().isBefore(Instant.now(clock))) {
+                throw new InvalidTokenException("refresh token has expired");
+            }
+            if (tokens.consume(stored.id())) {
+                return new Rotation(stored.userId(), issue(stored.userId(), stored.familyId()));
+            }
+            // Lost the race to a concurrent refresh holding the same value. That
+            // is the same situation as presenting it again a moment later, so it
+            // takes the same path below instead of a silent one of its own.
         }
 
-        return new Rotation(stored.userId(), issue(stored.userId(), stored.familyId()));
+        // Consumed: a moment ago by a parallel tab or an aborted reload, or by
+        // whoever else holds a copy.
+        if (tokens.reusableWithinGrace(stored.id(), props.refreshReuseGrace())) {
+            log.info("refresh token reused within the {}s grace for user {} in family {} -- a parallel "
+                            + "tab or an aborted reload, not treated as a replay",
+                    props.refreshReuseGrace().toSeconds(), stored.userId(), stored.familyId());
+            return new Rotation(stored.userId(), issue(stored.userId(), stored.familyId()));
+        }
+        int killed = tokens.revokeFamily(stored.familyId());
+        log.warn("refresh token replay for user {}: revoked {} tokens in family {}",
+                stored.userId(), killed, stored.familyId());
+        throw new InvalidTokenException("refresh token has already been used");
     }
 
     /** Logout. Kills the whole family, so every device on this login is out. */

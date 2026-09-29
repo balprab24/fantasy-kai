@@ -13,6 +13,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param refreshTokenTtl  how long a session survives without a login
  * @param loginAttemptsPerMinute  per IP: login, register, and any other {@code /auth}
  *                         path not named as a session call -- the strict bucket
+ * @param refreshReuseGrace  how soon a just-consumed refresh token may be presented
+ *                         again without counting as a replay; see
+ *                         {@link RefreshTokenService}
  * @param sessionRequestsPerMinute  per IP: refresh and logout -- the loose bucket.
  *                         See {@link AuthRateLimitFilter} for why they are apart
  * @param allowedOrigins   CORS allowlist. Never {@code *}
@@ -22,6 +25,7 @@ public record AuthProperties(
         String jwtSecret,
         Duration accessTokenTtl,
         Duration refreshTokenTtl,
+        Duration refreshReuseGrace,
         int loginAttemptsPerMinute,
         int sessionRequestsPerMinute,
         java.util.List<String> allowedOrigins) {

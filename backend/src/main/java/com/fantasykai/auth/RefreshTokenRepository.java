@@ -1,6 +1,7 @@
 package com.fantasykai.auth;
 
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -62,6 +63,30 @@ public class RefreshTokenRepository {
                 UPDATE refresh_tokens SET consumed_at = now()
                  WHERE id = ? AND consumed_at IS NULL
                 """, tokenId) == 1;
+    }
+
+    /**
+     * Whether a consumed token may be exchanged once more: it was consumed
+     * within {@code grace}, and no token in its family has been consumed since
+     * -- the owner has not moved on, so a second presentation is a parallel tab
+     * or an aborted reload rather than a stolen copy being used later.
+     *
+     * <p>Both comparisons run on the database's clock, the clock that stamped
+     * {@code consumed_at} in {@link #consume}. Mixing in the JVM's would widen
+     * or shut the window by however far the two clocks have drifted.
+     */
+    public boolean reusableWithinGrace(long tokenId, Duration grace) {
+        return jdbc.query("""
+                        SELECT t.consumed_at >= now() - make_interval(secs => ?)
+                               AND NOT EXISTS (SELECT 1 FROM refresh_tokens s
+                                                WHERE s.family_id = t.family_id
+                                                  AND s.consumed_at > t.consumed_at)
+                          FROM refresh_tokens t
+                         WHERE t.id = ? AND t.consumed_at IS NOT NULL AND t.revoked_at IS NULL
+                        """,
+                        (rs, n) -> rs.getBoolean(1),
+                        grace.toMillis() / 1000.0, tokenId)
+                .stream().findFirst().orElse(false);
     }
 
     /** The theft response: kill every token descended from the same login. */
