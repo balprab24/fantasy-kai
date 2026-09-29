@@ -130,6 +130,7 @@ scripts/                                   session-check.sh (runs at every sessi
 | 5c.3 — Landing + account gate | ✅ 2026-09-28, branch `feat/landing` (from PR #33's head, `caafea1`, which merged to `main` at 20:57 the same evening), merged as PR #34 at 15:38 UTC on 2026-09-29 — also ahead of the backend — `/` is a landing page (hero with a drawn runner until a licensed photo exists, a phone drawn from **captured** 2025 rows, header links that scroll to each section, email-first sign-up); the product moved behind sign-in. **Website gate only — the read API is still `permitAll`** (north-star §2). `safeNext` guards `?next=` and **its first version was an open redirect** (`/..//evil` normalises to `//evil`), caught by its own test. 29 frontend unit tests |
 | 5c.4 — Browser security headers | ✅ 2026-09-29, branch `feat/security-headers` — **a nonce-based CSP** with `'strict-dynamic'` on every page (owner decision over `'unsafe-inline'`: the access token lives in page memory), `frame-ancestors 'none'`, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`. www sent only HSTS before. **Proven by attack**: a server-rendered nonce-less `<script>` is refused while the app's 12 nonced scripts run; 7 of 7 policy mutations caught by the 10 new tests. Cost: every page renders per request (local p50 0.7–1.1 → 2.3–3.8 ms) |
 | 5d.2 — Auth bucket split + member hint | ✅ 2026-09-29, branch `fix/auth-bucket-split` — refresh and logout get their own 30/min/IP bucket (an allowlist; login, register and any other `/auth` path stay at 5/min, including paths that do not exist yet), and a non-secret `fk_member` hint on www lets a never-signed-in visitor skip `/auth/refresh` and lets `proxy.ts` route members past the landing page before render. **171 in the suite** · 46 frontend unit tests; 5 of 5 backend and 6 of 6 frontend mutations caught. Testing it in a browser found a pre-existing rotation race that signs members out — map.md §5, fixed next |
+| 5d.3 — Refresh rotation races | ✅ 2026-09-29, branch `fix/refresh-rotation-races` — two tabs refreshing at once, or a reload aborting a rotation, revoked the member's whole token family (the race path silently). The browser now serializes refreshes across tabs with Web Locks and sends them `keepalive`; the server exchanges a token consumed ≤10 s ago once more if its family has not moved on (owner decision — a thief inside that window is let through) and logs every revocation. **174 in the suite**; 3 of 3 grace-condition mutations caught |
 | 5d.1 — security pass | ✅ 2026-09-21 — **Boot 3.5 went OSS-EOL on 2026-06-30 and nobody had checked.** Tomcat pinned to 10.1.59 over the parent's CVE-bearing 10.1.55; the auth rate limiter proved **forgeable at the application layer**; four-day ingest outage found and refilled. See "The EOL clock" below |
 | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
@@ -576,6 +577,15 @@ Raising it without making the query cheaper moves the queue, it does not remove 
   pins it. Relatedly, **a CSP header is only half of it in Next.js**: the policy must be set on
   the *request* too, because that is where Next finds the nonce to stamp on its scripts. On the
   response alone the browser enforces a nonce no script carries.
+- **A one-use token meets a browser that runs in parallel.** Rotation with reuse detection treats
+  a second presentation of a consumed token as theft and revokes the family. A browser presents one
+  twice all the time: two tabs opened together share the cookie jar but not memory, and a reload
+  that lands after the server rotated but before the new cookie was stored leaves the old one in
+  the jar. Both signed the member out, and the concurrent case did it through the `consume()` race
+  branch, which revoked without logging — so production would never have said why. The class's
+  own javadoc called it "the rare race". Reproduced with two curls on one cookie before anything
+  changed; `AuthTests` now pins the reload and the two-tab case, and a replay after the window or
+  after the owner moved on still revokes.
 - **A request that never finished is not an answer.** The first version of the member hint cleared
   itself whenever a session restore returned false — and `refreshOnce()` returned false for a 401
   *and* for a fetch the browser aborted because the member reloaded. Eight fast reloads left a

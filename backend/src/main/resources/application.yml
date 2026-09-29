@@ -58,6 +58,10 @@ fantasykai:
     # revocable half and carries the session.
     access-token-ttl: 15m
     refresh-token-ttl: 30d
+    # A consumed refresh token presented again this soon, before anything else in
+    # its family has been used, is a second tab or an aborted reload -- not a
+    # replay. Owner decision 2026-09-29; RefreshTokenService says what it trades.
+    refresh-reuse-grace: 10s
     # Per IP. Login, register, and every other /api/v1/auth path that is not a
     # session call below -- including ones that do not exist yet. Handoff section 8.
     login-attempts-per-minute: 5

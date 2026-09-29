@@ -56,10 +56,16 @@ async function toProblem(response: Response): Promise<Problem> {
 function refreshOnce(): Promise<RefreshOutcome> {
   refreshing ??= (async () => {
     try {
-      const response = await fetch(`${BASE}/api/v1/auth/refresh`, {
-        method: "POST",
-        credentials: "include",
-      });
+      const response = await acrossTabs(() =>
+        fetch(`${BASE}/api/v1/auth/refresh`, {
+          method: "POST",
+          credentials: "include",
+          // Outlives the page. A reload that lands after the server rotated but
+          // before the new cookie was stored left the browser holding a spent
+          // token; with keepalive the response still arrives and is stored.
+          keepalive: true,
+        }),
+      );
       const outcome = refreshOutcome(response.status);
       if (outcome !== "restored") {
         accessToken = null;
@@ -77,6 +83,20 @@ function refreshOnce(): Promise<RefreshOutcome> {
     }
   })();
   return refreshing;
+}
+
+/**
+ * One refresh at a time across every tab of this browser. `refreshing` above
+ * de-duplicates within a tab; tabs share the cookie jar but not memory, so two
+ * opened together each sent the one cookie and the second counted as a replay.
+ * Under the lock the second tab waits, then sends the cookie the first one
+ * stored. The server's grace window (RefreshTokenService) catches what this
+ * cannot: a browser without Web Locks, or a tab destroyed mid-refresh.
+ */
+function acrossTabs<T>(work: () => Promise<T>): Promise<T> {
+  return typeof navigator !== "undefined" && navigator.locks
+    ? navigator.locks.request("fantasykai-refresh", work)
+    : work();
 }
 
 interface Options {

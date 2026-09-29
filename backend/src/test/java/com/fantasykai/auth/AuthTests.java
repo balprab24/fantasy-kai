@@ -125,28 +125,93 @@ class AuthTests {
      * every token descended from the same login.
      */
     @Test
-    void replayingAConsumedRefreshTokenRevokesTheWholeFamily() {
+    void replayingAConsumedTokenAfterTheOwnerMovedOnRevokesTheWholeFamily() {
         String stolen = refreshCookie(register("replay@example.com"));
 
-        // The legitimate client refreshes once. The thief now holds a consumed token.
-        ResponseEntity<String> honest = refresh(stolen);
-        assertThat(honest.getStatusCode()).isEqualTo(HttpStatus.OK);
-        String rotated = refreshCookie(honest);
+        // The legitimate client refreshes twice: the family has moved on, so a
+        // copy of the first token can only be someone else's.
+        String rotated = refreshCookie(refresh(stolen));
+        String rotatedAgain = refreshCookie(refresh(rotated));
 
-        // The thief replays.
+        // The thief replays -- inside the grace window, which does not save it.
         assertThat(refresh(stolen).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
 
-        // ...and the legitimate client's brand new token is dead too, because
+        // ...and the legitimate client's newest token is dead too, because
         // there is no way to tell which of the two parties was the thief.
-        assertThat(refresh(rotated).getStatusCode())
+        assertThat(refresh(rotatedAgain).getStatusCode())
                 .as("the whole family is revoked, not just the replayed token")
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(liveTokens("replay@example.com")).isZero();
+    }
 
-        Long live = jdbc.queryForObject("""
+    /** Outside the window a consumed token is a replay, even if nothing else was used since. */
+    @Test
+    void replayingAConsumedTokenAfterTheGraceWindowRevokesTheWholeFamily() {
+        String stolen = refreshCookie(register("late-replay@example.com"));
+        String rotated = refreshCookie(refresh(stolen));
+
+        // The honest refresh happened a minute ago, not a moment ago.
+        jdbc.update("""
+                UPDATE refresh_tokens SET consumed_at = consumed_at - interval '60 seconds'
+                 WHERE user_id = (SELECT id FROM users WHERE email = ?) AND consumed_at IS NOT NULL
+                """, "late-replay@example.com");
+
+        assertThat(refresh(stolen).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(refresh(rotated).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(liveTokens("late-replay@example.com")).isZero();
+    }
+
+    /**
+     * The reload that aborts a refresh after the server rotated: the browser
+     * never stored the successor and presents the consumed token again. Before
+     * the grace window that revoked the family and signed the member out.
+     */
+    @Test
+    void presentingAJustConsumedTokenAgainIsAReloadNotAThief() {
+        String cookie = refreshCookie(register("reload@example.com"));
+        assertThat(refresh(cookie).getStatusCode()).isEqualTo(HttpStatus.OK);  // response "lost"
+
+        ResponseEntity<String> again = refresh(cookie);
+
+        assertThat(again.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(refresh(refreshCookie(again)).getStatusCode())
+                .as("the reissued token is a working member of the family")
+                .isEqualTo(HttpStatus.OK);
+    }
+
+    /**
+     * Two tabs opened together present one cookie at the same instant. One
+     * rotates; the other used to lose the race and revoke the family without a
+     * word in the log. Both must come back signed in.
+     */
+    @Test
+    void twoTabsRefreshingAtOnceBothStaySignedIn() throws Exception {
+        String cookie = refreshCookie(register("two-tabs@example.com"));
+
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var start = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.Callable<ResponseEntity<String>> tab = () -> {
+                start.await();
+                return refresh(cookie);
+            };
+            var first = pool.submit(tab);
+            var second = pool.submit(tab);
+            start.countDown();
+
+            assertThat(first.get().getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(second.get().getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(refresh(refreshCookie(second.get())).getStatusCode()).isEqualTo(HttpStatus.OK);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private long liveTokens(String email) {
+        return jdbc.queryForObject("""
                 SELECT count(*) FROM refresh_tokens t JOIN users u ON u.id = t.user_id
                  WHERE u.email = ? AND t.revoked_at IS NULL AND t.consumed_at IS NULL
-                """, Long.class, "replay@example.com");
-        assertThat(live).isZero();
+                """, Long.class, email);
     }
 
     @Test
@@ -190,7 +255,7 @@ class AuthTests {
     void rejectsAJwtSignedWithTheWrongSecret() {
         String forged = new JwtService(
                 new AuthProperties("a-different-key-of-at-least-32-bytes!!", props.accessTokenTtl(),
-                        props.refreshTokenTtl(), 5, 30, List.of("http://localhost:3000")),
+                        props.refreshTokenTtl(), props.refreshReuseGrace(), 5, 30, List.of("http://localhost:3000")),
                 Clock.systemUTC()).issue(1);
 
         assertThat(getWithToken("/api/v1/scoring-profiles", forged).getStatusCode())
