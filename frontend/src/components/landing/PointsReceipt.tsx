@@ -42,9 +42,9 @@ export function PointsReceipt() {
             Season total
           </th>
           <td />
-          {/* The one orange figure on the page after the plate: the total the
-              whole board is built from. Proportional, not tabular -- it stands alone. */}
-          <td className="type-stat pt-4 text-right text-[2.5rem] text-ki">{formatPoints(total)}</td>
+          {/* Orange read as a figure (ki-text): the total the whole board is
+              built from. Proportional, not tabular -- it stands alone. */}
+          <td className="type-stat pt-4 text-right text-[2.5rem] text-ki-text">{formatPoints(total)}</td>
         </tr>
       </tfoot>
     </table>

@@ -31,13 +31,20 @@ const NEXT: { name: string; what: string }[] = [
   },
 ];
 
+/**
+ * One column, beside the last ask: a short spec sheet of what is not built
+ * yet, name then line, rather than a grid of feature tiles.
+ */
 export function ComingNext() {
   return (
-    <dl className="mt-12 grid gap-x-12 sm:grid-cols-2">
+    <dl className="mt-5 border-t border-line">
       {NEXT.map((item) => (
-        <div key={item.name} className="border-t border-line py-5">
-          <dt className="text-[17px] font-semibold text-ink">{item.name}</dt>
-          <dd className="mt-1 max-w-[40ch] text-[15px] leading-relaxed text-mute">{item.what}</dd>
+        <div
+          key={item.name}
+          className="grid gap-x-6 gap-y-0.5 border-b border-line py-3 sm:grid-cols-[10.5rem_minmax(0,1fr)]"
+        >
+          <dt className="text-[15px] font-semibold text-ink">{item.name}</dt>
+          <dd className="text-[14px] leading-relaxed text-mute">{item.what}</dd>
         </div>
       ))}
     </dl>

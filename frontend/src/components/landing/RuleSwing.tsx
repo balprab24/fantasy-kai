@@ -3,7 +3,11 @@ import { PPR_VS_ZERO_2025 } from "./previewData";
 
 /** Ranks on the chart, top to bottom: 1st down to the lowest 0 PPR place among the six. */
 const DEPTH = Math.max(...PPR_VS_ZERO_2025.map((p) => p.zeroPprRank));
-const ROW = 24;
+const ROW = 20;
+
+/** Names, the lines between, names: one grid for the chart and its headings. */
+const COLUMNS =
+  "grid grid-cols-[minmax(0,1fr)_minmax(2.25rem,0.6fr)_minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_minmax(3.5rem,1.1fr)_minmax(0,1fr)]";
 
 /** The story the section tells: the one line in colour, the rest as context. */
 const STORY = 16153; // Puka Nacua
@@ -34,11 +38,21 @@ export function RuleSwing() {
 
   return (
     <figure>
-      <figcaption className="flex items-baseline justify-between gap-4 pb-4 text-[13px] text-mute">
-        <span className="font-semibold text-ink">Without the point per catch</span>
-        <span className="font-semibold text-ink">With it</span>
+      {/* On the same columns as the chart, so each heading stands over its own axis of dots. */}
+      <figcaption className={`${COLUMNS} items-end pb-4 text-[13px] font-semibold text-ink`}>
+        {/* On a phone the column is too narrow for the sentence, and one word
+            would wrap alone; the rulesets' own names say the same thing. */}
+        <span className="pr-3 text-right">
+          <span className="sm:hidden">0 PPR</span>
+          <span className="hidden sm:inline">Without the point per catch</span>
+        </span>
+        <span />
+        <span className="pl-3">
+          <span className="sm:hidden">PPR</span>
+          <span className="hidden sm:inline">With it</span>
+        </span>
       </figcaption>
-      <div aria-hidden className="relative grid grid-cols-[minmax(0,1fr)_minmax(2.25rem,0.6fr)_minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_minmax(3.5rem,1.1fr)_minmax(0,1fr)]" style={{ height }}>
+      <div aria-hidden className={`relative ${COLUMNS}`} style={{ height }}>
         {/* Left: where each finished under 0 PPR. */}
         <div className="relative">
           {players.map((p) => (
@@ -129,11 +143,18 @@ function Label({
   story: boolean;
 }) {
   const hue = positionHue(player.position).text;
-  const figure = <span className={`tabular w-6 shrink-0 ${align === "right" ? "text-right" : ""} ${story ? "text-ink" : "text-mute"}`}>{rank}</span>;
+  const figure = (
+    <span
+      className={`tabular w-6 shrink-0 ${align === "right" ? "text-right" : ""} ${story ? "text-ink" : "text-mute"}`}
+    >
+      {rank}
+    </span>
+  );
   const name = (
     <span className={`min-w-0 truncate ${story ? "font-semibold text-ink" : "text-mute"}`}>
-      <span className="sm:hidden">{player.last}</span>
-      <span className="hidden sm:inline">{player.name}</span>{" "}
+      {/* Surnames until a column is wide enough for "Christian McCaffrey" whole. */}
+      <span className="xl:hidden">{player.last}</span>
+      <span className="hidden xl:inline">{player.name}</span>{" "}
       <span className={`font-label text-[11px] font-semibold ${hue}`}>{player.position}</span>
     </span>
   );
@@ -159,12 +180,12 @@ function Label({
 
 /**
  * An end marker: 10px, centred on the column's edge, with a 2px ring in the
- * section's own `surface` so crossing lines stay legible.
+ * page's own `canvas` so crossing lines stay legible.
  */
 function Dot({ top, side, story }: { top: number; side: "left" | "right"; story: boolean }) {
   return (
     <span
-      className={`absolute size-2.5 -translate-y-1/2 rounded-full ring-2 ring-surface ${story ? "bg-energy" : "bg-chart-rest"} ${side === "left" ? "-left-[5px]" : "-right-[5px]"}`}
+      className={`absolute size-2.5 -translate-y-1/2 rounded-full ring-2 ring-canvas ${story ? "bg-energy" : "bg-chart-rest"} ${side === "left" ? "-left-[5px]" : "-right-[5px]"}`}
       style={{ top }}
     />
   );

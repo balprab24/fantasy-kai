@@ -1,4 +1,4 @@
-import type { CareerSeason, RankingRow, StatKey } from "@/lib/types";
+import type { CareerSeason, Position, RankingRow, StatKey } from "@/lib/types";
 
 /**
  * What the landing page shows -- real rows from the real API, never made up,
@@ -95,10 +95,13 @@ export const PPR_2025: RankingRow[] = [
 ];
 
 /**
- * Where the top twelve of the PPR board above stood on the 0 PPR board, by
- * player id -- the landing's board slice shows the move between the two. From
- * the same two captures (`GET /api/v1/rankings?profileId=1` and `=3`, season
- * 2025, scope season, size 200), 2026-09-29.
+ * Where the top sixteen of the PPR board above stood on the 0 PPR board, by
+ * player id -- the landing's board slice shows the move between the two, and
+ * it shows ranks 6 to 16. From the same two captures (`GET
+ * /api/v1/rankings?profileId=1` and `=3`, season 2025, scope season, size
+ * 200), 2026-09-29. A row missing here would print "was 200+" for a player who
+ * was 41st -- a default claiming an absence -- so `tests/lib.test.ts` holds
+ * every sliced rank to having one.
  */
 export const PPR_FROM_ZERO_2025: Readonly<Record<number, number>> = {
   14480: 7,
@@ -113,6 +116,10 @@ export const PPR_FROM_ZERO_2025: Readonly<Record<number, number>> = {
   13137: 4,
   20925: 35,
   35: 19,
+  23961: 5,
+  14473: 41,
+  17878: 8,
+  3865: 42,
 };
 
 /**
@@ -273,6 +280,79 @@ export const MCCAFFREY_2025_BY_RULESET: HeroSeason[] = [
   MCCAFFREY_2025_ZERO_PPR,
   MCCAFFREY_2025_HALF_PPR,
   MCCAFFREY_2025_FULL_PPR,
+];
+
+/** The three rulesets the landing speaks in, low to high by what a catch is worth. */
+export type Ruleset = HeroSeason["ruleset"];
+
+/** One player on the hero's board, with his place on each of the three 2025 boards. */
+export interface HeroBoardPlayer {
+  playerId: number;
+  name: string;
+  position: Position;
+  team: string;
+  gamesPlayed: number;
+  /** Rank on the whole 2025 board under that ruleset, and that board's figures. */
+  by: Record<Ruleset, { rank: number; points: number; pointsPerGame: number }>;
+}
+
+/**
+ * The hero's board: everyone in the top 8 of the 2025 season board under any
+ * of the three rulesets -- twelve players -- each with his place on all three.
+ * The switch re-sorts the same stat lines three ways: under 0 PPR the top five
+ * are quarterbacks; under PPR, McCaffrey, Nacua, Robinson and Gibbs take over.
+ * A player's place on every board is kept, not just the ones he tops, so a
+ * move is the real distance (Nacua, 20th to 2nd) rather than "new".
+ *
+ * From the same three captures as `PPR_VS_ZERO_2025` and the hero's seasons
+ * (2026-09-29, the backend named at the top of this file):
+ *
+ *   GET /api/v1/rankings?profileId={1,2,3}&season=2025&scope=season&size=200
+ *
+ * `tests/lib.test.ts` holds the PPR column to `PPR_2025`, the 0 PPR ranks to
+ * `PPR_FROM_ZERO_2025`, McCaffrey to `MCCAFFREY_2025_BY_RULESET`, and each
+ * board's top 8 to ranks 1 to 8 with no gaps -- which `lib/heroBoard.ts` needs
+ * to derive a positional rank without guessing.
+ */
+export const HERO_BOARD_2025: HeroBoardPlayer[] = [
+  { playerId: 344, name: "Josh Allen", position: "QB", team: "BUF", gamesPlayed: 16, by: { "0 PPR": { rank: 1, points: 364.62, pointsPerGame: 22.79 }, "Half PPR": { rank: 2, points: 364.62, pointsPerGame: 22.79 }, PPR: { rank: 5, points: 364.62, pointsPerGame: 22.79 } } },
+  { playerId: 14406, name: "Drake Maye", position: "QB", team: "NE", gamesPlayed: 17, by: { "0 PPR": { rank: 2, points: 350.96, pointsPerGame: 20.64 }, "Half PPR": { rank: 3, points: 351.46, pointsPerGame: 20.67 }, PPR: { rank: 8, points: 351.96, pointsPerGame: 20.7 } } },
+  { playerId: 20944, name: "Matthew Stafford", position: "QB", team: "LA", gamesPlayed: 17, by: { "0 PPR": { rank: 3, points: 350.38, pointsPerGame: 20.61 }, "Half PPR": { rank: 4, points: 350.38, pointsPerGame: 20.61 }, PPR: { rank: 9, points: 350.38, pointsPerGame: 20.61 } } },
+  { playerId: 13137, name: "Trevor Lawrence", position: "QB", team: "JAX", gamesPlayed: 17, by: { "0 PPR": { rank: 4, points: 338.18, pointsPerGame: 19.89 }, "Half PPR": { rank: 6, points: 338.18, pointsPerGame: 19.89 }, PPR: { rank: 10, points: 338.18, pointsPerGame: 19.89 } } },
+  { playerId: 23961, name: "Caleb Williams", position: "QB", team: "CHI", gamesPlayed: 17, by: { "0 PPR": { rank: 5, points: 316.68, pointsPerGame: 18.63 }, "Half PPR": { rank: 9, points: 317.68, pointsPerGame: 18.69 }, PPR: { rank: 13, points: 318.68, pointsPerGame: 18.75 } } },
+  { playerId: 21702, name: "Jonathan Taylor", position: "RB", team: "IND", gamesPlayed: 17, by: { "0 PPR": { rank: 6, points: 316.3, pointsPerGame: 18.61 }, "Half PPR": { rank: 5, points: 339.3, pointsPerGame: 19.96 }, PPR: { rank: 6, points: 362.3, pointsPerGame: 21.31 } } },
+  { playerId: 14480, name: "Christian McCaffrey", position: "RB", team: "SF", gamesPlayed: 17, by: { "0 PPR": { rank: 7, points: 314.6, pointsPerGame: 18.51 }, "Half PPR": { rank: 1, points: 365.6, pointsPerGame: 21.51 }, PPR: { rank: 1, points: 416.6, pointsPerGame: 24.51 } } },
+  { playerId: 17878, name: "Dak Prescott", position: "QB", team: "DAL", gamesPlayed: 17, by: { "0 PPR": { rank: 8, points: 313.78, pointsPerGame: 18.46 }, "Half PPR": { rank: 10, points: 313.78, pointsPerGame: 18.46 }, PPR: { rank: 15, points: 313.78, pointsPerGame: 18.46 } } },
+  { playerId: 18803, name: "Bijan Robinson", position: "RB", team: "ATL", gamesPlayed: 17, by: { "0 PPR": { rank: 12, points: 291.8, pointsPerGame: 17.16 }, "Half PPR": { rank: 7, points: 331.3, pointsPerGame: 19.49 }, PPR: { rank: 3, points: 370.8, pointsPerGame: 21.81 } } },
+  { playerId: 7871, name: "Jahmyr Gibbs", position: "RB", team: "DET", gamesPlayed: 17, by: { "0 PPR": { rank: 13, points: 289.9, pointsPerGame: 17.05 }, "Half PPR": { rank: 8, points: 328.4, pointsPerGame: 19.32 }, PPR: { rank: 4, points: 366.9, pointsPerGame: 21.58 } } },
+  { playerId: 16153, name: "Puka Nacua", position: "WR", team: "LA", gamesPlayed: 16, by: { "0 PPR": { rank: 20, points: 246.0, pointsPerGame: 15.37 }, "Half PPR": { rank: 11, points: 310.5, pointsPerGame: 19.41 }, PPR: { rank: 2, points: 375.0, pointsPerGame: 23.44 } } },
+  { playerId: 20739, name: "Jaxon Smith-Njigba", position: "WR", team: "SEA", gamesPlayed: 17, by: { "0 PPR": { rank: 22, points: 240.9, pointsPerGame: 14.17 }, "Half PPR": { rank: 13, points: 300.4, pointsPerGame: 17.67 }, PPR: { rank: 7, points: 359.9, pointsPerGame: 21.17 } } },
+];
+
+/** One finished season on a player's career line. */
+export interface CareerLine {
+  season: number;
+  gamesPlayed: number;
+  points: number;
+  pointsPerGame: number;
+  /** Among his position, by season points under the ruleset. */
+  posRank: number;
+}
+
+/**
+ * Puka Nacua's finished regular seasons under PPR, as `/career` returns them:
+ * WR4 as a rookie, WR26 across eleven games in 2024, WR1 in 2025. Captured
+ * 2026-09-29 (the backend named at the top of this file):
+ *
+ *   GET /api/v1/players/16153/career?profileId=3                           PPR
+ *
+ * The capture also carried 2026, one game old; it is left out, because the
+ * landing only shows seasons that are over and cannot go stale.
+ */
+export const NACUA_SEASONS_PPR: CareerLine[] = [
+  { season: 2023, gamesPlayed: 17, points: 298.5, pointsPerGame: 17.56, posRank: 4 },
+  { season: 2024, gamesPlayed: 11, points: 206.6, pointsPerGame: 18.78, posRank: 26 },
+  { season: 2025, gamesPlayed: 16, points: 375.0, pointsPerGame: 23.44, posRank: 1 },
 ];
 
 /**

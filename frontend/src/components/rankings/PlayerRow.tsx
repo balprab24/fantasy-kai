@@ -50,6 +50,7 @@ export function PlayerRow({
   href,
   onOpen,
   settle = true,
+  avatar = true,
 }: {
   row: BoardRow;
   /** Places moved since the previous ruleset; see `Movement`. */
@@ -62,6 +63,11 @@ export function PlayerRow({
   onOpen?: () => void;
   /** Flash a row that moved (a ruleset switch); off where rows never move, like the landing's slice. */
   settle?: boolean;
+  /**
+   * The face beside the name. Off on the landing, which shows no likeness, and
+   * where a monogram in a circle would say nothing the name does not.
+   */
+  avatar?: boolean;
 }) {
   const other = metric === "points" ? row.pointsPerGame : row.points;
   const moved = delta !== 0;
@@ -70,7 +76,7 @@ export function PlayerRow({
       <td className={`${cell} ${COL.rank} type-rank text-[15px] text-mute`}>{row.rank}</td>
       <th scope="row" className={`${cell} ${COL.player} text-left font-normal`}>
         <div className="flex min-w-0 items-center gap-3">
-          <PlayerAvatar name={row.name} espnId={row.espnId} />
+          {avatar && <PlayerAvatar name={row.name} espnId={row.espnId} />}
           <span className="min-w-0">
             {href ? (
               <Link
@@ -108,7 +114,7 @@ export function PlayerRow({
       <td className={`${cell} ${COL.games} tabular text-[13px] text-mute`}>{row.gamesPlayed}</td>
       <td className={`${cell} ${COL.primary}`}>
         <div className="flex items-center justify-end gap-5 md:pl-8">
-          <span aria-hidden className="hidden h-[3px] flex-1 bg-white/[0.06] md:block">
+          <span aria-hidden className="hidden h-[3px] flex-1 bg-track md:block">
             <span className="block h-full bg-mute/60" style={{ width: `${row.share * 100}%` }} />
           </span>
           {metric === "pointsPerGame" ? (

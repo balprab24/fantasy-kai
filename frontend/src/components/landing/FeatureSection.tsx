@@ -25,7 +25,11 @@ export function FeatureSection({
   );
 }
 
-/** A section's heading, in the display voice. */
+/**
+ * A section's heading, in the display voice at section scale: only the page's
+ * h1 is set at display size. Callers break it by phrase, one `<span
+ * className="block">` per line, so a line never ends mid-thought.
+ */
 export function SectionTitle({
   id,
   className = "",
@@ -38,7 +42,7 @@ export function SectionTitle({
   return (
     <h2
       id={`${id}-title`}
-      className={`type-display text-[clamp(2.75rem,5.4vw,4.75rem)] text-balance text-ink ${className}`}
+      className={`type-display text-[clamp(2.375rem,4.2vw,3.25rem)] text-ink ${className}`}
     >
       {children}
     </h2>

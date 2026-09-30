@@ -12,10 +12,10 @@
  *     endorses the product. That needs the player's consent (NFLPA group
  *     licensing through OneTeam, or the player's representation).
  *
- * Until both exist, the hero shows no one: its focal object is a real season
- * drawn as data (`HeroPlate`), which needs no likeness at all. Supplying one is
+ * Until both exist, the hero shows no one: its focal object is the real 2025
+ * board (`HeroPlate`), which needs no likeness at all. Supplying one is
  * the whole swap: put a cut-out (transparent background) in `public/hero/`,
- * fill this in, and it stands in front of the plate's bars; `credit` is owed
+ * fill this in, and it stands at the edge of the plate's lower-third (`HeroReadout`); `credit` is owed
  * wherever the licence requires it shown. docs/map.md §5 carries the call.
  */
 export interface HeroImage {

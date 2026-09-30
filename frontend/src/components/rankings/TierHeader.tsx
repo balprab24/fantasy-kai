@@ -8,7 +8,7 @@ import { TIER_WINDOW, formatPoints, type TierLetter } from "@/lib/board";
  * and a tier is not something you click.
  */
 const LETTER: Record<TierLetter, string> = {
-  S: "text-ki",
+  S: "text-ki-text",
   A: "text-ink",
   B: "text-mute",
   C: "text-faint",

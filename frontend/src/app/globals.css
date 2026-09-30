@@ -47,9 +47,23 @@
 
   --color-ki: #ff8a3d;
   --color-on-ki: #140a02;
+  /* Orange read as a figure rather than laid down as a fill: the S tier
+     letter, the receipt's total. The same orange here; Daylight deepens it,
+     because #ff8a3d on chalk is 2.1:1. */
+  --color-ki-text: #ff8a3d;
   --color-energy: #3d8bff;
   --color-energy-text: #8ab8ff;
   --color-danger: #f28b8b;
+
+  /* The empty part of a gauge (the board's points bar), and the top edge of a
+     floating piece catching the light (a chip, the landing's switch). */
+  --color-track: rgb(255 255 255 / 0.06);
+  --color-highlight: rgb(255 255 255 / 0.08);
+  /* A bar's see-through ground over the page scrolling under it. A token, not
+     `bg-canvas/85`: Tailwind compiles an opacity modifier to a literal colour
+     first and the variable only inside @supports (color-mix), so a browser
+     without color-mix would paint the Prime time black inside Daylight. */
+  --color-veil: rgb(0 0 0 / 0.8);
 
   /* Positions: QB purple, RB red, WR blue, TE pink. Data colours, text only,
      and never the only cue -- every badge carries its letters. As chart marks
@@ -94,6 +108,120 @@
   /* The only shadow: things that float (chips, popovers, the chart readout).
      Offset and soft, so it reads as height, never as a glow. */
   --shadow-float: 0 18px 40px -16px rgb(0 0 0 / 0.95), 0 2px 8px -2px rgb(0 0 0 / 0.7);
+}
+
+/* ---- Two modes ---------------------------------------------------------------
+   Prime time (the @theme above) is the product: the board under the lights.
+   Daylight is the public pages -- the landing, sign-in, register -- where a
+   visitor decides in daylight whether to trust the tool: the pre-game studio.
+   Same type, same components, same two accents; the tokens change value, so
+   every component under `.daylight` follows without knowing which mode it is
+   in. `.primetime` puts the product's own values back for the one place a
+   daylight page shows the product as it is (the landing's hero plate).
+
+   Daylight's ground is chalk, cool and never cream; white is for what floats
+   or is typed into; blue rises into the hairlines, so the structure itself is
+   faintly electric. Measured (WCAG 2) on canvas / surface / lift, 2026-09-30:
+     ink 16.4 / 18.0 / 14.8 · mute 7.1 / 7.9 / 6.4 · faint 5.1 / 5.7 / 4.65
+     energy 4.2 / 4.7 / 3.8 (marks and large text) · energy-text 6.0 / 6.6 / 5.4
+     ki-text 4.5 / 5.0 / 4.1 · danger 4.9 / 5.4 / 4.5 · q-good 4.9 / 5.4 / 4.4
+     q-mid 4.9 / 5.4 / 4.4 · pos-* 4.8 (wr and rb, the lowest) / 5.3 / 4.4
+     line-strong 3.4 / 3.7 / 3.05 -- the 3:1 edge of every input and button
+   pos-*, q-* and danger fall under 4.5 on lift, so, as with Prime time's faint,
+   none of them sits there: lift holds a selected segment and a tooltip, in ink.
+   ki stays #ff8a3d as a fill (on-ki over it is 8.3:1); as text on chalk it is
+   2.1:1, which is why ki-text exists. Daylight's WR is teal, not Prime time's
+   cyan, so a receiver's letters cannot be read as energy's "you are here".
+
+   In Daylight the brief gives data to blue: a week inside the starter line is
+   blue (#1f5fe0, a step deeper than energy, so a bar never reads as a control)
+   and any other week slate. Validated for chalk with the dataviz validator:
+   CVD dE 17.5, normal-vision dE 19.7, both >= 3:1 -- the slate is low-chroma
+   on purpose, as in Prime time, whose green-and-slate pair is unchanged.
+
+   `tests/lib.test.ts` holds `.primetime` to @theme, value for value, and
+   holds `.daylight` to overriding every colour that must change. */
+.daylight {
+  color-scheme: light;
+  --color-canvas: #f1f4f9;
+  --color-surface: #ffffff;
+  --color-well: #ffffff;
+  --color-lift: #e2e9f6;
+
+  --color-ink: #0b1530;
+  --color-mute: #46526a;
+  --color-faint: #5c6780;
+  --color-line: rgb(36 104 255 / 0.16);
+  --color-line-strong: #7a8599;
+
+  --color-ki-text: #bd4c08;
+  --color-energy: #2468ff;
+  --color-energy-text: #1c52d0;
+  --color-danger: #c2362c;
+
+  --color-track: rgb(11 21 48 / 0.08);
+  --color-highlight: rgb(255 255 255 / 0.9);
+  --color-veil: rgb(241 244 249 / 0.85);
+
+  --color-pos-qb: #6a44d8;
+  --color-pos-rb: #c92d3a;
+  --color-pos-wr: #0a7684;
+  --color-pos-te: #b3237c;
+
+  --color-q-good: #1b7a47;
+  --color-q-mid: #866600;
+
+  --color-chart-starter: #1f5fe0;
+  --color-chart-rest: #7e889f;
+
+  /* Height on a light ground is a soft navy shadow, never black. */
+  --shadow-float: 0 22px 44px -22px rgb(11 21 48 / 0.34), 0 2px 8px -2px rgb(11 21 48 / 0.1);
+}
+
+.primetime {
+  color-scheme: dark;
+  --color-canvas: #000000;
+  --color-surface: #0a0f1c;
+  --color-well: #111a2c;
+  --color-lift: #1a2540;
+
+  --color-ink: #eef2fa;
+  --color-mute: #9aa6bd;
+  --color-faint: #76839c;
+  --color-line: rgb(148 170 210 / 0.13);
+  --color-line-strong: #5b6781;
+
+  --color-ki: #ff8a3d;
+  --color-on-ki: #140a02;
+  --color-ki-text: #ff8a3d;
+  --color-energy: #3d8bff;
+  --color-energy-text: #8ab8ff;
+  --color-danger: #f28b8b;
+
+  --color-track: rgb(255 255 255 / 0.06);
+  --color-highlight: rgb(255 255 255 / 0.08);
+  --color-veil: rgb(0 0 0 / 0.8);
+
+  --color-pos-qb: #c3a6ff;
+  --color-pos-rb: #ff6b6b;
+  --color-pos-wr: #5cc8ff;
+  --color-pos-te: #ff8fd4;
+
+  --color-q-good: #6fcf97;
+  --color-q-mid: #d9c162;
+
+  --color-chart-starter: #3fa877;
+  --color-chart-rest: #5d667c;
+
+  --shadow-float: 0 18px 40px -16px rgb(0 0 0 / 0.95), 0 2px 8px -2px rgb(0 0 0 / 0.7);
+}
+
+/* The parts of the page no component draws: the ground an overscroll shows,
+   the scrollbar, the browser's own controls. The value is Daylight's canvas. */
+html:has(.daylight) {
+  background: #f1f4f9;
+  color-scheme: light;
+  scrollbar-color: #b7c1d4 #f1f4f9;
 }
 
 /* ---- Type roles -------------------------------------------------------------
@@ -307,14 +435,85 @@ a {
   }
 }
 
-@keyframes arrive {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
+/* The landing's re-sort (landing/HeroPlate.tsx), played once: the board stands
+   in 0 PPR order with its 0 PPR figures, holds long enough to be read, then
+   travels into PPR order while each figure turns into its PPR value. Every
+   keyframe set names only its start; the end is the element's own style, the
+   PPR board the server rendered -- so with no animation (reduced motion, no
+   CSS) the page shows the finished board, never a hidden or half-sorted one.
+   Per-row start places, opacities and bar heights come in as custom
+   properties. One timeline for all of it: 200ms in, 1400ms long, the hold is
+   the first 43% (600ms). */
+@keyframes resort {
+  0%,
+  43% {
+    transform: translateY(var(--y0));
+    opacity: var(--o0);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
   }
-  to {
+  /* Rows in flight step back, so a row passing another never prints over it. */
+  72% {
+    opacity: var(--o-mid, 0.45);
+  }
+}
+
+@keyframes thumb-resort {
+  0%,
+  43% {
+    transform: var(--thumb-from);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+}
+
+/* While the thumb still stands on 0 PPR, 0 PPR reads as chosen. */
+@keyframes still-chosen {
+  0%,
+  43% {
+    color: var(--color-ink);
+  }
+}
+
+@keyframes not-chosen-yet {
+  0%,
+  43% {
+    color: var(--color-mute);
+  }
+}
+
+/* A figure from the board being left: shown for the hold, gone as the rows
+   leave. Its resting style is opacity 0, so outside the entrance it is never seen. */
+@keyframes fig-then {
+  0%,
+  43% {
     opacity: 1;
-    transform: translateY(0);
+  }
+  62% {
+    opacity: 0;
+  }
+}
+
+/* A figure from the board being arrived at: in as the rows travel. */
+@keyframes fig-now {
+  0%,
+  62% {
+    opacity: 0;
+  }
+}
+
+/* What only makes sense once the rows have landed: the moves. */
+@keyframes settle-in {
+  0%,
+  88% {
+    opacity: 0;
+  }
+}
+
+/* A week's bar, from its 0 PPR height to its PPR one. */
+@keyframes bar-resort {
+  0%,
+  43% {
+    clip-path: var(--clip0);
+    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
   }
 }
 
@@ -365,5 +564,39 @@ a {
   .arrive {
     animation: arrive 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
     animation-delay: calc(var(--i, 0) * 90ms + 1500ms);
+  }
+
+  /* Backwards fill only: before it starts the row stands at its 0 PPR place,
+     and once it ends nothing of it lingers to fight a visitor's own switch. */
+  .resort {
+    animation: resort 1400ms 200ms backwards;
+  }
+
+  .thumb-entrance {
+    animation: thumb-resort 1400ms 200ms backwards;
+  }
+
+  .still-chosen {
+    animation: still-chosen 1400ms 200ms backwards;
+  }
+
+  .not-chosen-yet {
+    animation: not-chosen-yet 1400ms 200ms backwards;
+  }
+
+  .fig-then {
+    animation: fig-then 1400ms 200ms backwards;
+  }
+
+  .fig-now {
+    animation: fig-now 1400ms 200ms ease-out backwards;
+  }
+
+  .settle-in {
+    animation: settle-in 1400ms 200ms ease-out backwards;
+  }
+
+  .bar-resort {
+    animation: bar-resort 1400ms 200ms backwards;
   }
 }

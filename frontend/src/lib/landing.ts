@@ -15,8 +15,8 @@ export interface LandingSection {
  * link cannot point at a section that is not there. The order is the page's.
  */
 export const LANDING_SECTIONS: readonly LandingSection[] = [
-  { id: "rankings", label: "Rankings" },
   { id: "scoring", label: "Scoring" },
+  { id: "rankings", label: "Rankings" },
   { id: "players", label: "Players" },
   { id: "next", label: "Coming next" },
 ];
