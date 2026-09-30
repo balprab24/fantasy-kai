@@ -1,111 +1,171 @@
 @import "tailwindcss";
 
 /*
- * The product's claim is that one season has several correct answers, and the
- * ruleset decides which. So the palette is instrument-like rather than sporty,
- * and colour is spent only where it carries meaning.
+ * "Prime time": a broadcast graphics package for one idea -- your rules decide
+ * the order. DESIGN.md at the repo root is the rulebook; this file is the
+ * vocabulary it is written in.
  *
- * "Ki in the dark": black is the stage. The page is near-black, the rail is
- * darker still so the frame recedes, and the surfaces are neutral steps off the
- * page rather than slate -- the old `raised` was a blue-grey that covered 63%
- * of the screen (measured, 2026-09-28) and made the whole product read grey.
- * The two accents come from the logo's two strokes, and they never trade jobs:
+ * True black is the stage. Separation, where it is needed at all, comes from
+ * three blue-black steps that each have one job, never from a grey card:
  *
- *   ki (orange)     the brand, the primary action, and the top tier. "The best."
- *   energy (blue)   anything you can act on or just did: selection, focus,
- *                   the active nav item, links. "You are here."
+ *   canvas   the stage: every page background, and the board's rows
+ *   surface  the one separation layer: the control console, the sticky table
+ *            header, chips, popovers, the player plate
+ *   well     things you type into or pick from: inputs, segmented tracks, hover
+ *   lift     the chosen one: a selected segment, a tooltip
  *
- * If both meant "interactive", neither would mean anything.
+ * Blue rises with elevation, so the steps read as depth rather than as grey.
+ * The two accents come from the logo's two strokes and never trade jobs:
  *
- * The original token names are kept and remapped, so every page turns dark
- * without a structural edit: `paper` is still the page, `ink` is still the
- * text, and `field` -- which always meant "active" -- now points at energy.
+ *   ki (orange)     the brand and the one thing to do: the primary action, the
+ *                   wordmark, the top tier, the landing's plate. "The best."
+ *   energy (blue)   you are here, and live: selection, focus, links, the
+ *                   fetching sweep, and the one drawn route. "You are here."
  *
  * Every text/background pair below was measured (WCAG 2 relative luminance),
- * not eyeballed. On void / paper / raised / surface-2 (2026-09-28):
- *   ink 18.1 / 17.9 / 17.1 / 16.1 · mute 8.1 / 8.0 / 7.7 / 7.2
- *   faint 5.8 / 5.7 / 5.5 / 5.1 · energy-text >= 9.9 · ki >= 7.8
- *   every pos-* >= 6.6, every q-* >= 7.5, every stat-* >= 7.2 on all four
- *   on-ki over ki 8.0
- *   line-strong 3.7 / 3.6 / 3.5 / 3.3 -- it bounds every input and control,
- *   and WCAG 1.4.11 wants 3:1 for that. `line` is decoration and is allowed
- *   not to.
+ * not eyeballed, on canvas / surface / well / lift (re-measured 2026-09-30).
+ * Where one figure is given it is the lowest of the four, which is on lift:
+ *   ink 18.7 / 17.1 / 15.5 / 13.5 · mute 8.6 / 7.8 / 7.1 / 6.2
+ *   faint 5.5 / 5.0 / 4.55 / 3.98 -- so faint never sits on lift
+ *   energy-text 7.51 · ki 6.48 · pos-* 5.47 (rb, the lowest) · q-good 7.99
+ *   q-mid 8.50 · danger 6.39 · on-ki over ki 8.34 · black over ki 8.95
+ *   line-strong 3.70 / 3.37 / 3.06 / 2.68 -- it bounds every input and
+ *   secondary button, and WCAG 1.4.11 wants 3:1 for that, so no control's edge
+ *   sits on lift. `line` is structure and is allowed not to.
  */
 @theme {
-  --color-void: #030407; /* the rail: darker than the page, so it frames it */
-  --color-paper: #05060b; /* near-black with a trace of blue, never flat #000 */
-  --color-raised: #0b0d14; /* rows and controls: opaque, so nothing shows through data */
-  --color-surface-2: #12151f;
-  /* The board's column-label band: deep indigo, the one surface that is not a
-     neutral, so the labels read as a header and not as more grey text.
-     ink on it 13.8:1. */
-  --color-head: #1a2240;
-  --color-ink: #eef1f6;
-  --color-mute: #9ba3b4;
-  --color-faint: #7f889b;
-  --color-line: rgb(255 255 255 / 0.06);
-  --color-line-strong: #5f687b;
+  --color-canvas: #000000;
+  --color-surface: #0a0f1c;
+  --color-well: #111a2c;
+  --color-lift: #1a2540;
+
+  --color-ink: #eef2fa;
+  --color-mute: #9aa6bd;
+  --color-faint: #76839c;
+  --color-line: rgb(148 170 210 / 0.13);
+  --color-line-strong: #5b6781;
 
   --color-ki: #ff8a3d;
-  --color-on-ki: #1a0f05;
-  --color-energy: #4da3ff;
-  --color-energy-text: #8cc4ff;
+  --color-on-ki: #140a02;
+  --color-energy: #3d8bff;
+  --color-energy-text: #8ab8ff;
+  --color-danger: #f28b8b;
 
-  --color-field: var(--color-energy);
-  --color-field-soft: rgb(77 163 255 / 0.14);
-
-  /* Positions: QB purple, RB red, WR blue, TE pink. Never the only cue --
-     every badge carries its letters -- and only ever text, border or ring,
-     never a fill or a selected state. Two neighbours were pushed apart on
-     purpose: TE leans magenta (323deg) so it cannot be read as RB's red (0deg),
-     and WR leans cyan (200deg) and darker than energy-text, because blue is
-     already the colour of "you can act on this".
-       contrast on void / paper / raised / surface-2:
-       qb 10.0 / 9.9 / 9.4 / 8.9 · rb 7.4 / 7.3 / 7.0 / 6.6
-       wr 10.9 / 10.8 / 10.3 / 9.7 · te 9.9 / 9.8 / 9.4 / 8.8 */
+  /* Positions: QB purple, RB red, WR blue, TE pink. Data colours, text only,
+     and never the only cue -- every badge carries its letters. As chart marks
+     they fail colour-blind separation outright (WR against QB is dE 0.5 under
+     deuteranopia, dataviz validator, 2026-09-29), so no chart may encode a
+     position by hue alone. TE leans magenta so it cannot be read as RB's red;
+     WR leans cyan, away from energy, which already means "you can act". */
   --color-pos-qb: #c3a6ff;
   --color-pos-rb: #ff6b6b;
   --color-pos-wr: #5cc8ff;
   --color-pos-te: #ff8fd4;
 
   /* Quality of a figure against its position's starter line (lib/board.ts
-     `Quality`): good / mid / poor. Half the saturation of the position hues,
-     so a coloured number reads as a reading on an instrument, not a badge --
-     and q-poor stays visibly quieter than pos-rb, which shares its hue. Text
-     only, on numbers only.
-       good 10.8 / 10.7 / 10.2 / 9.6 · mid 11.5 / 11.3 / 10.9 / 10.2
-       poor 8.4 / 8.3 / 7.9 / 7.5 */
+     `Quality`) takes ONE hue: q-good, "inside a 12-team league's starters".
+     The bench range is plain ink and beyond it faint -- brightness, not a
+     second and third colour, so red never means both "RB" and "bad".
+     q-mid is the notice amber: a roster status, a playoff round. Text only. */
   --color-q-good: #6fcf97;
   --color-q-mid: #d9c162;
-  --color-q-poor: #e58e8e;
 
-  /* The weekly chart's two bar fills (components/player/WeeklyChart.tsx): a
-     week inside the position's starter line, and every other week. Fills, not
-     text -- the q-* pair fails as fills (q-good/q-mid are dE 12.6 apart, under
-     the 15 floor, and too light for the dark band). This pair was run through
-     the dataviz validator against raised (#0b0d14), 2026-09-28: lightness
-     inside 0.48-0.67, CVD dE 16.6, normal-vision dE 20.1, contrast >= 3:1 for
-     both. The grey is deliberately low-chroma -- it is the "not this" colour. */
+  /* The weekly chart's two fills: a week inside the position's starter line,
+     and every other week. An emphasis pair, not a categorical one -- the grey
+     is the "not this" colour and is low-chroma on purpose. Re-validated on
+     the true-black canvas (dataviz validator, 2026-09-29): both inside the
+     lightness band, CVD dE 16.6, normal-vision dE 20.1, both >= 3:1. */
   --color-chart-starter: #3fa877;
   --color-chart-rest: #5d667c;
 
-  /* Stat composition, lightened to hold contrast on a dark surface. Still six
-     hues read as data, not as flair. */
-  --color-stat-pass: #6fa8dc;
-  --color-stat-rush: #4fc08d;
-  --color-stat-rec: #b596e6;
-  --color-stat-td: #e8a15a;
-  --color-stat-ret: #6cc4be;
-  --color-stat-loss: #f28b8b;
+  /* One superfamily in three widths (app/layout.tsx). Hierarchy comes from
+     width, weight, case and slant, not from size alone. */
+  --font-display: var(--font-sofia-extra), ui-sans-serif, system-ui, sans-serif;
+  --font-label: var(--font-sofia-semi), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-sofia), ui-sans-serif, system-ui, sans-serif;
 
-  --font-display: var(--font-saira), ui-sans-serif, system-ui, sans-serif;
-  --font-sans: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+  /* Four radii, each earned: 0 for structure (rows, tables, rules); control
+     for anything you operate; plate for the one focal plate on a page; and
+     full only for chips that float over imagery. A control nested in a
+     control takes the outer radius minus the gap, never a new value. */
+  --radius-control: 4px;
+  --radius-plate: 24px;
+
+  /* The only shadow: things that float (chips, popovers, the chart readout).
+     Offset and soft, so it reads as height, never as a glow. */
+  --shadow-float: 0 18px 40px -16px rgb(0 0 0 / 0.95), 0 2px 8px -2px rgb(0 0 0 / 0.7);
 }
 
+/* ---- Type roles -------------------------------------------------------------
+   Size lives with the role where the role has one size (titles, headings,
+   labels); the display role is sized where it is used, because the landing and
+   the player page need different scales of the same voice. None of these set a
+   colour, so they never fight a text-* utility. */
+
+/* The voice: extra-condensed, heavy, leaning forward like the logo's strokes. */
+@utility type-display {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 850;
+  text-transform: uppercase;
+  line-height: 0.86;
+  letter-spacing: -0.004em;
+}
+
+/* A page's name: RANKINGS, SCORING RULESETS. */
+@utility type-title {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 2.25rem;
+  line-height: 1;
+}
+
+/* A segment inside a page: PERFORMANCE, GAME LOG. */
+@utility type-heading {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+/* Column headers, meta, captions. Sentence case, never tracked capitals:
+   short words in capitals are read letter by letter. */
+@utility type-label {
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+/* A rank in a column: italic like a broadcast call sign, figures aligned. */
+@utility type-rank {
+  font-family: var(--font-label);
+  font-style: italic;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A number standing on its own (the player's season line, the hero's chips).
+   Proportional figures: tabular gives every digit the width of a 0, and a
+   lone "121" at this size looks loose. Tabular is for columns only. */
+@utility type-stat {
+  font-family: var(--font-label);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+/* ---- Browser surfaces: the parts nobody draws still carry the design ---- */
+
 html {
-  background: var(--color-paper);
+  background: var(--color-canvas);
   color: var(--color-ink);
   color-scheme: dark;
+  scrollbar-color: #2a3550 var(--color-canvas);
   -webkit-text-size-adjust: 100%;
 }
 
@@ -113,12 +173,26 @@ body {
   font-family: var(--font-sans);
 }
 
-/* Figures in a ranking must line up vertically or the column stops being
-   scannable, which is the only reason the table exists.
-   Scoped to the class and never set on `body`: `tnum` also substitutes
-   tabular-width punctuation, and Schibsted Grotesk's tabular comma and period
-   carry enough extra sidebearing to read as a space before every one of them
-   in running prose. */
+::selection {
+  background: rgb(61 139 255 / 0.42);
+  color: #fff;
+}
+
+input,
+textarea,
+select {
+  caret-color: var(--color-energy);
+  accent-color: var(--color-energy);
+}
+
+a {
+  text-underline-offset: 0.22em;
+}
+
+/* Figures in a column must line up or the column stops being scannable. Set
+   where numbers stack, never on body: prose and lone numbers stay
+   proportional. Sofia Sans keeps its tabular punctuation tight, so "1,202"
+   reads as one number here. */
 .tabular {
   font-variant-numeric: tabular-nums;
 }
@@ -126,63 +200,15 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-energy);
   outline-offset: 2px;
-  border-radius: 2px;
 }
 
-/* The board's column labels: each one in its own small indigo box, white
-   text, sized to the label -- a box per label rather than a band across the
-   row, so the empty stretch over the score bars stays empty. Normal case at
-   12px rather than tracked capitals at 11px: short words in capitals are read
-   letter by letter, and these are read every time the eye comes back up.
-   ink on head 13.8:1. */
-.colhead {
-  height: 2.25rem;
-  vertical-align: middle;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--color-ink);
-}
-
-.colhead-box {
+/* ---- The orb ---------------------------------------------------------------
+   The dot of the i in kai: an orb of ki, amber glass lit from the upper left;
+   its red star is an SVG inside it (`Orb`). Drawn here, not taken from
+   anywhere. Its placement over the dotless ı is set against Sofia Sans Extra
+   Condensed italic, in `shell/Wordmark.tsx`. */
+.orb {
   display: inline-block;
-  padding: 0.2rem 0.5rem;
-  border-radius: 0.3rem;
-  background: var(--color-head);
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
-/* The small uppercase label every control group and tier carries. */
-.eyebrow {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-mute);
-}
-
-/* The wordmark's i (Sidebar.tsx): a dotless ı -- already in the latin subset,
-   U+0131 -- with the dragon ball set where its dot would be.
-
-   line-height: 1 makes the box a property of the font rather than the page:
-   inherited at 1.5 it put the baseline 20.5px down a 28.5px box and the orb
-   floated well clear of the letter. At 1, measured in Saira Semi Condensed
-   700, the baseline sits 0.83em down and the ı's top 0.51em above it, so an
-   orb 0.42em tall at top -0.16em rests 0.06em above the stem. */
-.dotted-i {
-  position: relative;
-  display: inline-block;
-  line-height: 1;
-}
-
-.dragon-ball {
-  position: absolute;
-  left: 50%;
-  top: -0.16em;
-  width: 0.42em;
-  height: 0.42em;
-  transform: translateX(-50%);
   border-radius: 9999px;
   background: radial-gradient(
     circle at 34% 30%,
@@ -195,52 +221,39 @@ body {
   box-shadow: inset 0 -0.06em 0.12em rgb(0 0 0 / 0.35);
 }
 
-/* The rail's right edge: a 1px hairline that starts in ki and ends in energy,
-   the logo's two strokes stretched the height of the screen. Neutral through
-   the middle, so it reads as an edge first and a colour second. */
-.rail-edge::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 1px;
-  background: linear-gradient(
-    to bottom,
-    rgb(255 138 61 / 0.55),
-    var(--color-line) 30%,
-    var(--color-line) 70%,
-    rgb(77 163 255 / 0.5)
-  );
-  pointer-events: none;
+/* ---- The "Coming" popover (shell/ComingMenu.tsx) ---------------------------
+   Anchored under its button where CSS anchor positioning exists. Elsewhere the
+   browser's own popover placement applies -- a small centred panel -- which
+   is why nothing here touches margin or inset outside the @supports block. */
+.coming-anchor {
+  anchor-name: --coming;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+@supports (position-anchor: --coming) {
+  .coming-popover {
+    position-anchor: --coming;
+    inset: auto;
+    top: anchor(bottom);
+    left: anchor(left);
+    margin: 0;
+    position-try-fallbacks: flip-inline;
   }
 }
 
-/* The one piece of non-user-triggered motion in the product (the landing
-   page's runner, below, is outside it), and it fires only in response to
-   changing the ruleset: a row that moved says so, briefly. Set
-   on the cells, not the row, because in a separated-border table the cells
-   own the background. */
+/* ---- Motion -----------------------------------------------------------------
+   The product moves only to say what changed. Every animation is written for
+   `no-preference` and so simply does not run when someone asked for less
+   motion -- the final state is the default state, never a hidden one. */
+
+/* A row that moved when the ruleset changed says so, briefly. On the cells,
+   not the row: in a separated-border table the cells own the background. */
 @keyframes settle {
   from {
-    background-color: var(--color-field-soft);
+    background-color: rgb(61 139 255 / 0.16);
   }
   to {
-    background-color: var(--color-raised);
+    background-color: transparent;
   }
-}
-
-.settled > td {
-  animation: settle 900ms ease-out;
 }
 
 @keyframes shimmer {
@@ -252,19 +265,8 @@ body {
   }
 }
 
-.skeleton {
-  background: linear-gradient(
-      90deg,
-      var(--color-raised) 25%,
-      var(--color-surface-2) 50%,
-      var(--color-raised) 75%
-    )
-    0 0 / 200% 100%;
-  animation: shimmer 1.4s linear infinite;
-}
-
-/* An indeterminate 2px line along the top of the board while the next answer
-   is being computed. The previous board stays on screen underneath it. */
+/* An indeterminate line along the top of the board while the next answer is
+   being computed. The previous board stays on screen underneath it. */
 @keyframes sweep {
   from {
     transform: translateX(-100%);
@@ -274,90 +276,94 @@ body {
   }
 }
 
-.sweep {
-  animation: sweep 1.1s ease-in-out infinite;
+/* The landing's one orchestrated moment: the season rises, the route is drawn
+   over it, the chips settle. */
+@keyframes rise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
 }
 
-/* ---- The landing page --------------------------------------------------- */
+/* Paths that draw carry pathLength="1", so one dash of length 1 covers any
+   route, however long it is on screen. */
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
 
-/* Anchor links glide to their section -- unless the visitor asked for less
-   motion, in which case they jump, as links always have. */
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+      90deg,
+      var(--color-surface) 25%,
+      var(--color-well) 50%,
+      var(--color-surface) 75%
+    )
+    0 0 / 200% 100%;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   html {
     scroll-behavior: smooth;
   }
-}
 
-/* The hero's ground: a field seen from the press box. Yard lines every tenth
-   of the width, two rows of hash marks, all at a whisper so the headline
-   stays the loudest thing on it. Fades out at the bottom into the page. */
-.field {
-  background:
-    linear-gradient(to bottom, transparent 55%, var(--color-paper)),
-    repeating-linear-gradient(
-        90deg,
-        rgb(255 255 255 / 0.1) 0 1px,
-        transparent 1px 1.25%
-      )
-      0 30% / 100% 10px no-repeat,
-    repeating-linear-gradient(
-        90deg,
-        rgb(255 255 255 / 0.1) 0 1px,
-        transparent 1px 1.25%
-      )
-      0 72% / 100% 10px no-repeat,
-    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.055) 0 1px, transparent 1px 10%);
-}
-
-/* The run: in from off the left edge, fast and then easing into the pose, a
-   stride's bob on the way, speed lines that shorten as it arrives. Once.
-   `both` fill so the reduced-motion rule (0.01ms) lands on the last frame. */
-@keyframes runner-cross {
-  from {
-    transform: translateX(-115vw);
+  .settled > td {
+    animation: settle 900ms ease-out;
   }
-  to {
-    transform: translateX(0);
+
+  .skeleton {
+    animation: shimmer 1.4s linear infinite;
   }
-}
 
-@keyframes runner-bob {
-  0%,
-  100% {
-    transform: translateY(0);
+  .sweep {
+    animation: sweep 1.1s ease-in-out infinite;
   }
-  50% {
-    transform: translateY(-3%);
+
+  .rise {
+    transform-origin: bottom;
+    animation: rise 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--i, 0) * 32ms + 120ms);
   }
-}
 
-@keyframes runner-streaks {
-  from {
-    transform: scaleX(1.8);
-    opacity: 1;
+  .draw {
+    stroke-dasharray: 1;
+    animation: draw var(--draw-duration, 1100ms) cubic-bezier(0.65, 0, 0.35, 1) both;
+    animation-delay: var(--draw-delay, 780ms);
   }
-  to {
-    transform: scaleX(1);
-    opacity: 0.55;
+
+  .appear {
+    animation: appear 280ms ease-out both;
+    animation-delay: var(--appear-delay, 0ms);
   }
-}
 
-.runner-cross {
-  animation: runner-cross 1.35s cubic-bezier(0.16, 0.8, 0.24, 1) 0.15s both;
-}
-
-.runner-bob {
-  animation: runner-bob 0.3s ease-in-out 0.15s 4 both;
-}
-
-.runner-streaks {
-  transform-box: view-box;
-  transform-origin: 110px 0;
-  animation: runner-streaks 1.5s ease-out 0.15s both;
-}
-
-/* The phone's screens cross-fade as the page scrolls through the sections --
-   motion that follows what the reader is doing, not motion for its own sake. */
-.phone-screen {
-  transition: opacity 280ms ease-out;
+  .arrive {
+    animation: arrive 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--i, 0) * 90ms + 1500ms);
+  }
 }

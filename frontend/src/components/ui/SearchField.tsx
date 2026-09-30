@@ -21,7 +21,7 @@ export function SearchField({
       <span className="sr-only">{label}</span>
       <Icon
         name="search"
-        size={18}
+        size={17}
         className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint"
       />
       <input
@@ -32,7 +32,7 @@ export function SearchField({
         autoComplete="off"
         maxLength={maxLength}
         spellCheck={false}
-        className="h-[46px] w-full rounded-lg border border-line-strong bg-raised pr-3 pl-10 text-sm text-ink placeholder:text-faint hover:border-mute md:h-[38px] focus-visible:border-energy"
+        className="h-10 w-full rounded-control border border-line-strong bg-well pr-3 pl-9 text-sm text-ink transition-colors placeholder:text-faint hover:border-mute focus-visible:border-energy md:h-8"
       />
     </label>
   );

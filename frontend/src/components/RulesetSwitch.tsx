@@ -2,7 +2,7 @@
 
 import { profileLabel } from "@/lib/profiles";
 import type { ScoringProfile } from "@/lib/types";
-import { SegmentedControl } from "./ui/SegmentedControl";
+import { SegmentedControl, type SegmentedVariant } from "./ui/SegmentedControl";
 
 /**
  * The hero control, and the product's whole argument in one widget.
@@ -17,11 +17,13 @@ export function RulesetSwitch({
   selected,
   onSelect,
   hideLegend = false,
+  variant = "track",
 }: {
   profiles: ScoringProfile[];
   selected: number | null;
   onSelect: (id: number) => void;
   hideLegend?: boolean;
+  variant?: SegmentedVariant;
 }) {
   return (
     <SegmentedControl
@@ -30,6 +32,7 @@ export function RulesetSwitch({
       value={selected === null ? null : String(selected)}
       onChange={(id) => onSelect(Number(id))}
       hideLegend={hideLegend}
+      variant={variant}
     />
   );
 }

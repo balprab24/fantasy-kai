@@ -87,6 +87,16 @@ export function band(rank: number, position: Position): Quality {
   return rank <= line ? "good" : rank <= 2 * line ? "mid" : "poor";
 }
 
+/**
+ * How many weeks a player finished inside his position's starter line -- a
+ * 12-team league's starters that week (`STARTERS`). Only weeks with a rank
+ * count; a bye has none.
+ */
+export function starterWeeks(weeks: readonly { posRank: number | null }[], position: Position): number {
+  const line = STARTERS[position];
+  return weeks.filter((w) => w.posRank !== null && w.posRank <= line).length;
+}
+
 /** `band` for a position that may be one v1 does not rank (K, OL...): null there. */
 export function bandFor(rank: number | null, position: string): Quality | null {
   // hasOwn, not `in`: "constructor" is `in` every object.

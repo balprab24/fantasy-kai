@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { BUTTON_PRIMARY, LINK_QUIET } from "@/components/ui/buttons";
 import { useAuth } from "@/lib/auth";
 import { authErrorMessage } from "@/lib/authErrors";
 import { HOME_FOR_MEMBERS } from "@/lib/landing";
@@ -49,11 +50,9 @@ export function AuthForm({ mode }: { mode: "sign-in" | "register" }) {
   const carry = next ? `?next=${encodeURIComponent(next)}` : "";
 
   return (
-    <div className="mx-auto max-w-sm px-4 py-16">
-      <h1 className="font-display text-3xl font-bold tracking-tight">
-        {registering ? "Join the Kai" : "Sign in"}
-      </h1>
-      <p className="mt-2 text-sm leading-relaxed text-mute">
+    <div className="mx-auto max-w-sm px-4 pt-16 pb-8 sm:pt-24">
+      <h1 className="type-display text-[3.25rem] text-ink">{registering ? "Join the Kai" : "Sign in"}</h1>
+      <p className="mt-3 text-[15px] leading-relaxed text-mute">
         {registering
           ? "Free, with no ads and nothing to upgrade to. An email and a password is all it takes."
           : "Sign in to open the rankings, player pages and the scoring you saved."}
@@ -68,7 +67,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "register" }) {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded border border-line-strong bg-raised px-3 py-2"
+            className="mt-1.5 h-12 w-full rounded-control border border-line-strong bg-well px-4 text-[15px] text-ink transition-colors hover:border-mute focus-visible:border-energy"
           />
         </label>
 
@@ -82,7 +81,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "register" }) {
             autoComplete={registering ? "new-password" : "current-password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded border border-line-strong bg-raised px-3 py-2"
+            className="mt-1.5 h-12 w-full rounded-control border border-line-strong bg-well px-4 text-[15px] text-ink transition-colors hover:border-mute focus-visible:border-energy"
           />
           {registering && (
             <span className="mt-1 block text-sm text-mute">At least 12 characters.</span>
@@ -90,7 +89,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "register" }) {
         </label>
 
         {error && (
-          <p role="alert" className="rounded border border-stat-loss/30 bg-stat-loss/5 px-3 py-2 text-sm text-stat-loss">
+          <p role="alert" className="rounded-control bg-danger/[0.08] px-3 py-2 text-sm text-danger">
             {error}
           </p>
         )}
@@ -98,7 +97,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "register" }) {
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded bg-ki px-4 py-2.5 font-medium text-on-ki disabled:opacity-60"
+          className={`${BUTTON_PRIMARY} h-12 w-full`}
         >
           {busy ? "Working…" : registering ? "Create account" : "Sign in"}
         </button>
@@ -108,7 +107,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "register" }) {
         {registering ? "Already a member? " : "Not a member yet? "}
         <Link
           href={(registering ? "/login" : "/register") + carry}
-          className="text-ink underline decoration-line-strong underline-offset-2"
+          className={LINK_QUIET}
         >
           {registering ? "Sign in" : "Join the Kai"}
         </Link>

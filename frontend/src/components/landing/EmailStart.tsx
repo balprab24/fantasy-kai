@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState } from "react";
+import { BUTTON_PRIMARY, LINK_QUIET } from "@/components/ui/buttons";
 import { useAuth } from "@/lib/auth";
 import { authErrorMessage, isEmailTaken } from "@/lib/authErrors";
 import { HOME_FOR_MEMBERS } from "@/lib/landing";
@@ -73,16 +74,13 @@ export function EmailStart({ fieldId, tone = "hero" }: { fieldId?: string; tone?
           value={email}
           readOnly={open}
           onChange={(e) => setEmail(e.target.value)}
-          className={`h-12 w-full min-w-0 rounded-md sm:flex-1 border border-line-strong bg-raised px-4 text-[15px] text-ink placeholder:text-faint ${
+          className={`h-12 w-full min-w-0 rounded-control border border-line-strong bg-well px-4 text-[15px] text-ink transition-colors placeholder:text-faint hover:border-mute focus-visible:border-energy sm:flex-1 ${
             open ? "text-mute" : ""
           }`}
         />
         {!open && (
-          <button
-            type="submit"
-            className="h-12 rounded-md bg-ki px-5 font-semibold whitespace-nowrap text-on-ki transition-[filter] hover:brightness-110"
-          >
-            Get started free
+          <button type="submit" className={`${BUTTON_PRIMARY} h-12`}>
+            Join the Kai
           </button>
         )}
       </div>
@@ -91,7 +89,7 @@ export function EmailStart({ fieldId, tone = "hero" }: { fieldId?: string; tone?
           with no measuring. It answers the click, so it is motion that says
           what changed, not decoration. */}
       <div
-        className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+        className={`grid motion-safe:transition-[grid-template-rows] motion-safe:duration-300 motion-safe:ease-out ${
           open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}
       >
@@ -111,14 +109,14 @@ export function EmailStart({ fieldId, tone = "hero" }: { fieldId?: string; tone?
                     setTaken(false);
                     emailRef.current?.focus();
                   }}
-                  className="text-energy-text hover:underline"
+                  className="text-energy-text underline decoration-energy/40 underline-offset-4 hover:decoration-energy-text"
                 >
                   Change email
                 </button>
               </div>
               <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
                 <input
-                  // Only ever mounted by the visitor's own "Get started free",
+                  // Only ever mounted by the visitor's own "Join the Kai",
                   // so taking focus here follows their action; it never
                   // fires on page load.
                   autoFocus
@@ -131,13 +129,9 @@ export function EmailStart({ fieldId, tone = "hero" }: { fieldId?: string; tone?
                   aria-describedby={hintId}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-12 w-full min-w-0 rounded-md sm:flex-1 border border-line-strong bg-raised px-4 text-[15px] text-ink"
+                  className="h-12 w-full min-w-0 rounded-control border border-line-strong bg-well px-4 text-[15px] text-ink transition-colors hover:border-mute focus-visible:border-energy sm:flex-1"
                 />
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="h-12 rounded-md bg-ki px-5 font-semibold whitespace-nowrap text-on-ki transition-[filter] hover:brightness-110 disabled:opacity-60"
-                >
+                <button type="submit" disabled={busy} className={`${BUTTON_PRIMARY} h-12`}>
                   {busy ? "Creating…" : "Create account"}
                 </button>
               </div>
@@ -152,7 +146,7 @@ export function EmailStart({ fieldId, tone = "hero" }: { fieldId?: string; tone?
       {error && (
         <p
           role="alert"
-          className="mt-3 rounded-md border border-stat-loss/30 bg-stat-loss/5 px-3 py-2 text-sm text-stat-loss"
+          className="mt-3 rounded-control bg-danger/[0.08] px-3 py-2 text-sm text-danger"
         >
           {error}
           {taken && (
@@ -170,10 +164,7 @@ export function EmailStart({ fieldId, tone = "hero" }: { fieldId?: string; tone?
         {/* The band at the foot of the page says "free" in its own words. */}
         {tone === "hero" && "Free, with no ads and nothing to upgrade to. "}
         Already a member?{" "}
-        <Link
-          href="/login"
-          className="whitespace-nowrap text-ink underline decoration-line-strong underline-offset-2"
-        >
+        <Link href="/login" className={`whitespace-nowrap ${LINK_QUIET}`}>
           Sign in
         </Link>
       </p>

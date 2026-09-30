@@ -96,11 +96,18 @@ frontend/        Phase 5c — Next.js 16 App Router. api.ts holds the only acces
                  components/landing/*, lib/{landing,useNextParam,authErrors}.ts
                  2026-09-29 (CSP): src/proxy.ts mints a per-request nonce; lib/csp.ts is the
                  policy; lib/apiBase.ts the one API_BASE; every page renders per request
+                 2026-09-30 (identity, "Prime time"; DESIGN.md is the rulebook): Sofia Sans in
+                 three widths; canvas/surface/well/lift tokens; shell/TopBar replaced the rail;
+                 landing/{HeroPlate,BoardSlice,RuleSwing}, SeasonRoute + lib/trace.ts,
+                 player/PlayerCutout, ui/{buttons,Chip,SeasonSelect}
 backend/src/test/resources/nflverse/       Real 2024 rows as fixtures — not invented
 docs/map.md                                Front door — status board, class map, pipelines
 docs/orientation.md                        Plain-English door — glossary, real-vs-planned
 docs/north-star.md                         Scope, roadmap, product invariants
 docs/fantasy-platform-handoff.md           Engineering rationale (§1/§11 superseded)
+DESIGN.md · PRODUCT.md                     The visual system, and a design-facing digest of
+                                           product truth (it owns no facts). Impeccable reads
+                                           both; .impeccable/surfaces/ holds its direction brief
 docs/perf/                                 baseline.md only so far; projection-accuracy.md (Phase 6)
                                            and results.md (Phase 11) are owed
 perf/rankings.js                           k6 load script — pins season=2025 on purpose
@@ -132,6 +139,7 @@ scripts/                                   session-check.sh (runs at every sessi
 | 5d.2 — Auth bucket split + member hint | ✅ 2026-09-29, branch `fix/auth-bucket-split` — refresh and logout get their own 30/min/IP bucket (an allowlist; login, register and any other `/auth` path stay at 5/min, including paths that do not exist yet), and a non-secret `fk_member` hint on www lets a never-signed-in visitor skip `/auth/refresh` and lets `proxy.ts` route members past the landing page before render. **171 in the suite** · 46 frontend unit tests; 5 of 5 backend and 6 of 6 frontend mutations caught. Testing it in a browser found a pre-existing rotation race that signs members out — map.md §5, fixed next |
 | 5d.3 — Refresh rotation races | ✅ 2026-09-29, branch `fix/refresh-rotation-races` — two tabs refreshing at once, or a reload aborting a rotation, revoked the member's whole token family (the race path silently). The browser now serializes refreshes across tabs with Web Locks and sends them `keepalive`; the server exchanges a token consumed ≤10 s ago once more if its family has not moved on (owner decision — a thief inside that window is let through) and logs every revocation. **174 in the suite**; 3 of 3 grace-condition mutations caught |
 | 5d.4 — Members-only API | ✅ 2026-09-29, branch `feat/members-only-api` — every read needs a token; the `permitAll` list is `/api/v1/auth/**` and health, and the empty `/api/v1/public/**` prefix is gone. Tests mint a member token with `JwtService` (`ApiFixture.asMember`) — **Spring contexts stayed at 12** — and `ReadApiTests.everyReadNeedsAnAccount` walks all 6 GETs anonymously; reopening `/players/**` is caught by 3 tests. `perf/rankings.js` signs in once in `setup()` and refuses to run without `K6_EMAIL`/`K6_PASSWORD`. **175 in the suite** |
+| 5c.5 — "Prime time" visual identity | **Branch `feat/kai-identity`, not merged** (2026-09-30) — a full frontend redesign; no backend, route, data or CSP change. True-black stage with blue-black steps; Sofia Sans in three widths replaces Saira + Schibsted (their tabular figures spaced "365 . 6"); a top bar with one "Coming" popover replaces the 104px rail (owner decision); the landing hero is a real 2025 season a visitor re-scores live, no likeness (owner decision); board rows are lines, not cards, and fit 390px with no sideways scroll; the player page stands ESPN's whole cut-out on a plate; one quality hue. Impeccable critique by two isolated reviewers, then a refinement pass. **61 frontend unit tests** (2 of 2 route-geometry mutations caught, and the review pass's two: the hero's rank and the receipt's rate). `DESIGN.md` records the system |
 | 5d.1 — security pass | ✅ 2026-09-21 — **Boot 3.5 went OSS-EOL on 2026-06-30 and nobody had checked.** Tomcat pinned to 10.1.59 over the parent's CVE-bearing 10.1.55; the auth rate limiter proved **forgeable at the application layer**; four-day ingest outage found and refilled. See "The EOL clock" below |
 | 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
 | 9–11 | consensus board · iOS (Expo) · perf pass |

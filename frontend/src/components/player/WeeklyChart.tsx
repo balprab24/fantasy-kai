@@ -5,7 +5,7 @@ import { STARTERS, formatPoints } from "@/lib/board";
 import { matchup } from "@/lib/player";
 import type { CareerSeason, CareerWeek, Position } from "@/lib/types";
 
-const PLOT_HEIGHT = 168;
+const PLOT_HEIGHT = 196;
 
 /** A round axis step: 5, 10, 20, 25, 50... whichever gives three to five lines. */
 function niceStep(span: number) {
@@ -88,10 +88,10 @@ export function WeeklyChart({
     <figure className={`transition-opacity ${stale ? "opacity-60" : ""}`}>
       <figcaption className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <span className="text-sm text-mute">
-          Fantasy points by week · {season.season} regular season · {scoringLabel}
+          Fantasy points by week, {season.season} regular season, {scoringLabel}
         </span>
         {line !== undefined && (
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-mute">
+          <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-mute">
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden className="size-2.5 rounded-[2px] bg-chart-starter" />
               Top-{line} {position} week
@@ -128,7 +128,7 @@ export function WeeklyChart({
               <span
                 key={t}
                 aria-hidden
-                className={`absolute inset-x-0 h-px ${t === 0 ? "bg-line-strong/70" : "bg-line"}`}
+                className={`absolute inset-x-0 h-px ${t === 0 ? "bg-line-strong/60" : "bg-line"}`}
                 style={{ bottom: `${y(t)}%` }}
               />
             ))}
@@ -182,7 +182,7 @@ export function WeeklyChart({
                       }}
                       // The focus ring is the global one, around the whole
                       // slot -- the same target the pointer has.
-                      className="group absolute inset-0 cursor-default rounded-sm"
+                      className="group absolute inset-0 cursor-default rounded-[2px]"
                     >
                       {w ? (
                         <span
@@ -221,26 +221,26 @@ export function WeeklyChart({
               // this in its label, and announcing it twice is noise.
               <div
                 aria-hidden
-                className="pointer-events-none absolute top-0 z-10 w-max max-w-56 -translate-x-1/2 rounded-md border border-line-strong bg-paper px-2.5 py-1.5 text-xs shadow-lg"
+                className="pointer-events-none absolute top-0 z-10 w-max max-w-56 -translate-x-1/2 rounded-control bg-lift px-3 py-2 text-[13px] shadow-float"
                 style={{
                   left: `clamp(4.5rem, calc((100% - 2.5rem) * ${(shown.week - 0.5) / lastWeek}), calc(100% - 4.5rem))`,
                 }}
               >
-                <p className="text-mute">
-                  Week {shown.week} · {matchup(shown.opponent, shown.home)}
-                </p>
-                <p className="tabular mt-0.5 text-ink">
+                {/* Values lead, labels follow: the reader already has the week. */}
+                <p className="tabular text-ink">
                   <span className="font-semibold">{formatPoints(shown.points)}</span> pts
                   {shown.posRank !== null && (
-                    <>
-                      {" "}
-                      · {position}
-                      {shown.posRank}
-                    </>
+                    <span className="text-mute">
+                      , {position}
+                      {shown.posRank} that week
+                    </span>
                   )}
                 </p>
+                <p className="mt-0.5 text-mute">
+                  Week {shown.week}, {matchup(shown.opponent, shown.home)}
+                </p>
                 {shown.posRank !== null && line !== undefined && (
-                  <p className="mt-0.5 text-faint">
+                  <p className="mt-0.5 text-mute">
                     {starter(shown) ? `Inside the top ${line}` : `Outside the top ${line}`}
                   </p>
                 )}

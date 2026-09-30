@@ -7,10 +7,19 @@
 import { strict as assert } from "node:assert";
 import { readdirSync } from "node:fs";
 import { describe, it } from "node:test";
-import { band, bandFor, formatPoints } from "../src/lib/board.ts";
+import {
+  MCCAFFREY_2025_BY_RULESET,
+  MCCAFFREY_2025_PPR,
+  MCCAFFREY_2025_PPR_RECEIPT,
+  NACUA_2025_PPR,
+  PPR_2025,
+  PPR_FROM_ZERO_2025,
+  PPR_VS_ZERO_2025,
+} from "../src/components/landing/previewData.ts";
+import { band, bandFor, formatPoints, starterWeeks, toBoardRows } from "../src/lib/board.ts";
 import { boardSearch, parseBoardParams } from "../src/lib/boardParams.ts";
 import { apiOriginOf, contentSecurityPolicy } from "../src/lib/csp.ts";
-import { headshotUrl } from "../src/lib/headshot.ts";
+import { CUTOUT_ASPECT, headshotCutoutUrl, headshotUrl } from "../src/lib/headshot.ts";
 import { LANDING_SECTIONS, safeNext } from "../src/lib/landing.ts";
 import {
   MEMBER_HINT_MAX_AGE,
@@ -24,6 +33,7 @@ import {
 import { ageOn, matchup, pickSeason, playoffRound } from "../src/lib/player.ts";
 import { COLUMNS, columnsFor, formatCount, type StatSource } from "../src/lib/playerStats.ts";
 import { profileLabel } from "../src/lib/profiles.ts";
+import { routePath, runs, tangents, type Point } from "../src/lib/trace.ts";
 
 const ZERO_STATS = {
   pass_yd: 0, pass_td: 0, pass_int: 0, pass_2pt: 0,
@@ -350,5 +360,171 @@ describe("member hint", () => {
       .map((entry) => `/${entry.name}`);
     assert.ok(routes.length >= 3, `found ${routes.join(", ")}`);
     for (const route of routes) assert.ok(isMemberRoute(route), `${route} is behind RequireAccount but not in MEMBER_ROUTES`);
+  });
+});
+
+describe("headshotCutoutUrl", () => {
+  it("asks for the whole cut-out at its own aspect, not a square crop", () => {
+    assert.equal(
+      headshotCutoutUrl("3117251", 600),
+      "https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/3117251.png&w=600&h=436",
+    );
+    assert.doesNotMatch(headshotCutoutUrl("3117251", 300)!, /scale=crop/);
+    assert.equal(Math.round(300 * CUTOUT_ASPECT), 218);
+  });
+  it("never asks past the native 600px, which would only upscale", () => {
+    assert.match(headshotCutoutUrl("1", 5000)!, /w=600&h=436$/);
+    assert.match(headshotCutoutUrl("1", 10)!, /w=120&h=87$/);
+  });
+  it("gives no URL for a missing or malformed id, so the initials show", () => {
+    for (const bad of [null, undefined, "", "4262921.0", "123abc", "../x"]) {
+      assert.equal(headshotCutoutUrl(bad, 600), null, String(bad));
+    }
+  });
+});
+
+/** Every coordinate pair in path data, in order. */
+function coords(d: string): Point[] {
+  const nums = d.match(/-?\d+(\.\d+)?/g)!.map(Number);
+  const out: Point[] = [];
+  for (let i = 0; i < nums.length; i += 2) out.push({ x: nums[i], y: nums[i + 1] });
+  return out;
+}
+
+/** A cubic from p0 to p3 through controls p1, p2, at t. */
+function cubic(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
+  const u = 1 - t;
+  return {
+    x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
+    y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y,
+  };
+}
+
+describe("routePath", () => {
+  // A real shape: McCaffrey's 2025 PPR weeks, a 39.1 peak beside a 9.8 week.
+  const weeks = MCCAFFREY_2025_PPR.weeks;
+  const pts: (Point | null)[] = Array.from({ length: 18 }, (_, i) => {
+    const w = weeks.find((x) => x.week === i + 1);
+    return w ? { x: i * 10 + 5, y: 100 - w.points } : null;
+  });
+
+  it("passes through every week it draws", () => {
+    const d = routePath(pts);
+    const ends = d.split(/(?=[MC])/).map((seg) => {
+      const c = coords(seg);
+      return c[c.length - 1];
+    });
+    const expected = pts.filter((p): p is Point => p !== null);
+    assert.equal(ends.length, expected.length);
+    ends.forEach((p, i) => {
+      assert.ok(Math.abs(p.x - expected[i].x) < 0.01 && Math.abs(p.y - expected[i].y) < 0.01, `week point ${i}`);
+    });
+  });
+
+  it("breaks at a bye instead of drawing a game nobody played", () => {
+    const d = routePath(pts);
+    assert.equal((d.match(/M/g) ?? []).length, 2, "one line before the week-14 bye, one after");
+    assert.equal(runs(pts).length, 2);
+  });
+
+  it("draws nothing for a lone point or an empty season", () => {
+    assert.equal(routePath([]), "");
+    assert.equal(routePath([{ x: 0, y: 0 }]), "");
+    assert.equal(routePath([{ x: 0, y: 0 }, null, { x: 2, y: 2 }]), "");
+  });
+
+  it("never overshoots between two weeks, so it shows no peak the data lacks", () => {
+    for (const run of runs(pts).filter((r) => r.length >= 2)) {
+      const t = tangents(run);
+      for (let i = 0; i < run.length - 1; i++) {
+        const [a, b] = [run[i], run[i + 1]];
+        const h = (b.x - a.x) / 3;
+        const c1 = { x: a.x + h, y: a.y + t[i] * h };
+        const c2 = { x: b.x - h, y: b.y - t[i + 1] * h };
+        const lo = Math.min(a.y, b.y) - 1e-9;
+        const hi = Math.max(a.y, b.y) + 1e-9;
+        for (let k = 1; k < 20; k++) {
+          const y = cubic(a, c1, c2, b, k / 20).y;
+          assert.ok(y >= lo && y <= hi, `segment ${i} overshoots at t=${k / 20}: ${y} outside ${lo}..${hi}`);
+        }
+      }
+    }
+  });
+});
+
+describe("starterWeeks", () => {
+  it("counts the weeks inside the position's 12-team starter line, and no byes", () => {
+    assert.equal(starterWeeks([{ posRank: 24 }, { posRank: 25 }, { posRank: null }, { posRank: 1 }], "RB"), 2);
+    assert.equal(starterWeeks([{ posRank: 12 }, { posRank: 13 }], "QB"), 1);
+    assert.equal(starterWeeks([], "WR"), 0);
+  });
+});
+
+describe("the landing hero's captured seasons", () => {
+  it("each ruleset's weeks add up to its season total", () => {
+    for (const s of MCCAFFREY_2025_BY_RULESET) {
+      const sum = s.weeks.reduce((n, w) => n + w.points, 0);
+      assert.ok(Math.abs(sum - s.points) < 0.05, `${s.ruleset}: weeks sum to ${sum}, season says ${s.points}`);
+      assert.equal(s.weeks.length, s.gamesPlayed, s.ruleset);
+    }
+  });
+
+  it("agrees with the other captures of the same season", () => {
+    const [zero, half, ppr] = MCCAFFREY_2025_BY_RULESET;
+    assert.deepEqual(
+      ppr.weeks,
+      MCCAFFREY_2025_PPR.weeks.map(({ week, points, posRank }) => ({ week, points, posRank })),
+    );
+    assert.equal(ppr.points, PPR_2025.find((r) => r.playerId === 14480)!.points);
+    // The chip's "RB1" is the board's own derivation over the captured rows,
+    // not a number restated by hand.
+    assert.equal(ppr.posRank, toBoardRows(PPR_2025).find((r) => r.playerId === 14480)!.posRank);
+    assert.equal(half.points, 365.6);
+    assert.equal(zero.overallRank, PPR_VS_ZERO_2025.find((p) => p.row.playerId === 14480)!.zeroPprRank);
+  });
+
+  it("scores the same stat lines three ways: only the value of a catch differs", () => {
+    // 102 catches: 0 PPR + 51 = Half PPR, + 51 again = PPR.
+    const [zero, half, ppr] = MCCAFFREY_2025_BY_RULESET.map((s) => s.points);
+    assert.ok(Math.abs(half - zero - 51) < 0.05 && Math.abs(ppr - half - 51) < 0.05);
+    assert.deepEqual(
+      MCCAFFREY_2025_BY_RULESET.map((s) => starterWeeks(s.weeks, "RB")),
+      [15, 16, 16],
+    );
+  });
+});
+
+describe("the landing page's other captures", () => {
+  it("draws the PPR board from rank 1 with no gaps, the order tiers need", () => {
+    assert.equal(PPR_2025.length, 60);
+    PPR_2025.forEach((r, i) => assert.equal(r.rank, i + 1, r.name));
+    // The rule-change chart's six are the top of this same board.
+    for (const { row } of PPR_VS_ZERO_2025) {
+      assert.deepEqual(PPR_2025[row.rank - 1], row, row.name);
+    }
+  });
+
+  it("gives every sliced row a 0 PPR place, and agrees with the rule-change chart", () => {
+    for (const r of PPR_2025.slice(0, 12)) assert.ok(PPR_FROM_ZERO_2025[r.playerId] > 0, r.name);
+    for (const { row, zeroPprRank } of PPR_VS_ZERO_2025) {
+      assert.equal(PPR_FROM_ZERO_2025[row.playerId], zeroPprRank, row.name);
+    }
+  });
+
+  it("prices the receipt from the preset's rates, and it adds up to the API's total", () => {
+    // previewData throws on import if it does not, so this file failing to
+    // load is the same failure; this names it.
+    const { lines, total } = MCCAFFREY_2025_PPR_RECEIPT;
+    assert.ok(Math.abs(total - MCCAFFREY_2025_PPR.points) < 0.05);
+    const rec = lines.find((l) => l.stat === "rec")!;
+    assert.equal(rec.count * rec.rate, rec.points);
+    assert.equal(rec.rate, 1, "PPR is a point per catch");
+  });
+
+  it("keeps Nacua's weeks and his season total in step, and the board's", () => {
+    const sum = NACUA_2025_PPR.weeks.reduce((n, w) => n + w.points, 0);
+    assert.ok(Math.abs(sum - NACUA_2025_PPR.points) < 0.05);
+    assert.equal(NACUA_2025_PPR.weeks.length, NACUA_2025_PPR.gamesPlayed);
+    assert.equal(NACUA_2025_PPR.points, PPR_2025.find((r) => r.playerId === 16153)!.points);
   });
 });

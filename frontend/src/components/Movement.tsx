@@ -25,14 +25,19 @@ export function Movement({ delta, baseline }: { delta: number | null; baseline: 
     );
   }
   if (delta === 0) {
-    return <span className="text-faint">—</span>;
+    return (
+      <span className="text-faint">
+        <span aria-hidden>—</span>
+        <span className="sr-only">no change</span>
+      </span>
+    );
   }
   const up = delta > 0;
   return (
-    <span className={`whitespace-nowrap ${up ? "text-ink" : "text-mute"}`}>
-      <span aria-hidden className="mr-0.5 text-[10px]">
-        {up ? "▲" : "▼"}
-      </span>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap ${up ? "text-ink" : "text-mute"}`}>
+      <svg aria-hidden width="8" height="8" viewBox="0 0 8 8" className="shrink-0">
+        <path d={up ? "M4 1 7.5 7h-7z" : "M.5 1h7L4 7z"} fill="currentColor" />
+      </svg>
       <span className="sr-only">{up ? "up " : "down "}</span>
       {Math.abs(delta)}
     </span>

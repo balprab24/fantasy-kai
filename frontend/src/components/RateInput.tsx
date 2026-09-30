@@ -29,7 +29,7 @@ export function RateInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onWheel={(e) => e.currentTarget.blur()}
-      className={`tabular rounded border border-line-strong bg-raised px-2 py-1 text-right ${className}`}
+      className={`tabular h-9 rounded-control border border-line-strong bg-well px-2 text-right text-ink transition-colors hover:border-mute focus-visible:border-energy ${className}`}
     />
   );
 }

@@ -39,3 +39,7 @@ build/
 .vscode/
 logs/
 .tmp/
+
+# Impeccable review captures and critique snapshots -- evidence, not source
+.impeccable/review/
+.impeccable/critique/

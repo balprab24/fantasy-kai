@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { RankingsBoard } from "@/components/RankingsBoard";
-import { Icon } from "@/components/ui/Icon";
-import { Skeleton } from "@/components/ui/StatusMessage";
+import { BoardSkeleton, RankingsBoard } from "@/components/RankingsBoard";
+import { BUTTON_SECONDARY } from "@/components/ui/buttons";
 import { boardSearch, parseBoardParams, type BoardState } from "@/lib/boardParams";
 import { clearBoardReturn, readBoardReturn, saveBoardReturn } from "@/lib/boardReturn";
 import { profileLabel } from "@/lib/profiles";
@@ -101,7 +100,7 @@ export function RankingsWorkspace() {
   const rowsLoaded = rows?.length ?? 0;
   const total = board.data?.pages[0]?.total;
   const profile = profiles.data?.find((p) => p.id === profileId);
-  const scopeLabel = SCOPES.find((s) => s.value === scope)?.title;
+  const scopePhrase = SCOPES.find((s) => s.value === scope)?.phrase;
 
   // Leaving for a player: make the URL current (a search still waiting on its
   // debounce would otherwise be lost) and note where on the board we were.
@@ -134,111 +133,130 @@ export function RankingsWorkspace() {
   }, [rowsLoaded]);
 
   return (
-    <div>
-      <div className="mx-auto max-w-[1320px] px-4 pt-5 pb-10 sm:px-6 lg:px-8">
-        <header className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-            <h1 className="font-display text-[22px] leading-7 font-bold tracking-[-0.01em]">
-              Rankings
-            </h1>
-            <p className="tabular text-sm text-mute">
-              {season} season
-              {profile && <> · {profileLabel(profile)}</>} · {scopeLabel}
-              {total !== undefined && total > 0 && <> · {total} players</>}
-            </p>
-          </div>
-          <Link
-            href="/profiles"
-            className="inline-flex items-center gap-1.5 text-sm text-energy-text hover:text-ink"
-          >
-            Edit scoring
-            <Icon name="arrowRight" size={16} />
-          </Link>
-        </header>
-
-        <div className="mt-3">
-          <FilterBar
-            profiles={profiles.data}
-            profileId={profileId}
-            onProfile={(id) => write({ profileId: id })}
-            season={season}
-            onSeason={(s) => write({ season: s })}
-            scope={scope}
-            onScope={(s) => write({ scope: s })}
-            position={position}
-            onPosition={(p) => write({ position: p })}
-            find={find}
-            onFind={onFind}
-          />
-        </div>
-
-        <div className="mt-3">
-          <RankingsBoard
-            rows={rows}
-            comparisonKey={String(profileId)}
-            boardKey={`${season}|${position}|${scope}`}
-            scope={scope}
-            stale={board.isPlaceholderData}
-            season={season}
-            profileId={profileId}
-            loading={board.isLoading}
-            fetching={board.isFetching && !board.isFetchingNextPage && !board.isLoading}
-            error={board.error ?? profiles.error}
-            onRetry={() => void (profiles.error ? profiles.refetch() : board.refetch())}
-            onSeason={(s) => write({ season: s })}
-            find={find}
-            onOpenPlayer={onOpenPlayer}
-          />
-        </div>
-
-        {rows && total !== undefined && rows.length > 0 && (
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm">
-            <span className="tabular text-mute" aria-live="polite">
-              {board.hasNextPage
-                ? `Showing 1–${rows.length} of ${total}`
-                : `All ${total} players shown`}
-            </span>
-            {board.hasNextPage && (
-              <button
-                type="button"
-                onClick={() => void board.fetchNextPage()}
-                disabled={board.isFetchingNextPage}
-                className="h-9 rounded-md border border-line-strong px-4 text-ink hover:bg-surface-2 disabled:opacity-60"
-              >
-                {board.isFetchingNextPage
-                  ? "Scoring…"
-                  : `Show next ${Math.min(BOARD_PAGE_SIZE, total - rows.length)}`}
-              </button>
+    <div className="mx-auto max-w-[1320px] px-4 pt-7 pb-10 sm:px-6 lg:px-8">
+      <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-2">
+        <div className="min-w-0">
+          <h1 className="type-title">Rankings</h1>
+          {/* The board's recipe, said in a sentence: which rules, which
+              season, which window. A ranking without its ruleset is a number
+              with no meaning here. */}
+          <p className="mt-2 text-[15px] text-mute">
+            {profile ? (
+              <>
+                Scored under <span className="font-semibold text-ink">{profileLabel(profile)}</span>{" "}
+                for the {season} season, {scopePhrase}.
+                {total !== undefined && total > 0 && <> {total} {total === 1 ? "player" : "players"}.</>}
+              </>
+            ) : (
+              <>The {season} season, {scopePhrase}.</>
             )}
-          </div>
-        )}
+          </p>
+          {/* The one colour the board gives a figure, keyed where it can be
+              read -- not in a tooltip a phone cannot reach. */}
+          <p className="mt-1.5 flex items-center gap-2 text-[13px] text-mute">
+            <span aria-hidden className="size-2 shrink-0 rounded-full bg-q-good" />
+            Per-game figures in green are inside a 12-team league&rsquo;s starters at that position.
+          </p>
+        </div>
+        <Link
+          href="/profiles"
+          className="pb-0.5 text-sm text-energy-text underline decoration-energy/40 underline-offset-4 transition-colors hover:decoration-energy-text"
+        >
+          Edit scoring
+        </Link>
+      </header>
 
-        <p className="mt-8 text-xs text-faint">
-          No point on this board is stored — every one is computed on request against the ruleset
-          you picked.
-        </p>
+      <div className="mt-6">
+        <FilterBar
+          profiles={profiles.data}
+          profileId={profileId}
+          onProfile={(id) => write({ profileId: id })}
+          season={season}
+          onSeason={(s) => write({ season: s })}
+          scope={scope}
+          onScope={(s) => write({ scope: s })}
+          position={position}
+          onPosition={(p) => write({ position: p })}
+          find={find}
+          onFind={onFind}
+        />
       </div>
+
+      <div className="mt-2">
+        <RankingsBoard
+          rows={rows}
+          comparisonKey={String(profileId)}
+          boardKey={`${season}|${position}|${scope}`}
+          scope={scope}
+          stale={board.isPlaceholderData}
+          season={season}
+          profileId={profileId}
+          loading={board.isLoading}
+          fetching={board.isFetching && !board.isFetchingNextPage && !board.isLoading}
+          error={board.error ?? profiles.error}
+          onRetry={() => void (profiles.error ? profiles.refetch() : board.refetch())}
+          onSeason={(s) => write({ season: s })}
+          find={find}
+          onOpenPlayer={onOpenPlayer}
+        />
+      </div>
+
+      {rows && total !== undefined && rows.length > 0 && (
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <span className="tabular text-mute" aria-live="polite">
+            {board.hasNextPage ? `Showing 1–${rows.length} of ${total}` : `All ${total} players shown`}
+          </span>
+          {board.hasNextPage && (
+            <button
+              type="button"
+              onClick={() => void board.fetchNextPage()}
+              disabled={board.isFetchingNextPage}
+              className={BUTTON_SECONDARY}
+            >
+              {board.isFetchingNextPage
+                ? "Scoring…"
+                : `Show next ${Math.min(BOARD_PAGE_SIZE, total - rows.length)}`}
+            </button>
+          )}
+        </div>
+      )}
+
+      <p className="mt-8 text-[13px] text-faint">
+        No point on this board is stored. Every one is computed on request against the ruleset you
+        picked.
+      </p>
     </div>
   );
 }
 
 /**
- * What `/` and `/rankings` render before the URL can be read. The board reads
- * its filters from `useSearchParams`, which on a prerendered route has no
- * value until the browser runs -- so everything under the Suspense boundary
- * renders client-side, and this stands in for it. Same container, same header
- * height, same control-row height, same row height, so the real board lands
- * without moving anything.
+ * What `/rankings` renders before the URL can be read. The board reads its
+ * filters from `useSearchParams`, which on a prerendered route has no value
+ * until the browser runs -- so everything under the Suspense boundary renders
+ * client-side, and this stands in for it at the real heights.
+ *
+ * Today it never paints: every page renders per request (the CSP nonce), so
+ * there is nothing to wait for -- measured 2026-09-30, full loads at six
+ * widths and client-side arrivals from sign-in and from a player page. It
+ * stays so the page holds still if the route is ever prerendered again.
  */
 export function RankingsWorkspaceFallback() {
   return (
-    <div className="mx-auto max-w-[1320px] px-4 pt-5 pb-10 sm:px-6 lg:px-8" aria-busy>
-      <h1 className="font-display text-[22px] leading-7 font-bold tracking-[-0.01em]">Rankings</h1>
-      <div aria-hidden className="mt-3 h-[46px] md:h-[38px]" />
-      <div role="status" aria-label="Loading" className="mt-3 space-y-0.5">
-        {Array.from({ length: 10 }, (_, i) => (
-          <Skeleton key={i} className="h-11 rounded-md" />
-        ))}
+    <div className="mx-auto max-w-[1320px] px-4 pt-7 pb-10 sm:px-6 lg:px-8" aria-busy>
+      <h1 className="type-title">Rankings</h1>
+      {/* The recipe sentence and the colour key: 56px under the title, 128px
+          on a 390px phone, where both wrap and "Edit scoring" drops below. */}
+      <div aria-hidden className="mt-2 h-30 sm:h-12" />
+      {/* The console as it wraps, measured on the 2025 board with the four
+          presets: 196px at 390, 148px at 640, 84px at 768 and 1024, one 44px
+          row at 1280. A member's own rulesets add segments, so these are the
+          floor. */}
+      <div
+        aria-hidden
+        className="mt-6 h-[12.25rem] rounded-control bg-surface sm:h-[9.25rem] md:h-[5.25rem] xl:h-11"
+      />
+      <div role="status" aria-label="Loading" className="mt-2">
+        <BoardSkeleton />
       </div>
     </div>
   );

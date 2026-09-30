@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { profileLabel } from "@/lib/profiles";
 import { useProfiles } from "@/lib/queries";
 import { RulesetBuilder } from "@/components/RulesetBuilder";
+import { BUTTON_PRIMARY, LINK_QUIET } from "@/components/ui/buttons";
 import type { RulesetDoc } from "@/lib/ruleset";
 import type { ScoringProfile } from "@/lib/types";
 
@@ -46,25 +47,26 @@ export default function ProfilesPage() {
   const mine = profiles.data?.filter((p) => !p.preset) ?? [];
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <h1 className="font-display text-2xl font-bold tracking-tight">Scoring rulesets</h1>
-      <p className="mt-2 max-w-[66ch] text-[15px] leading-relaxed text-mute">
+    <div className="mx-auto max-w-3xl px-4 pt-7 pb-10 sm:px-6">
+      <h1 className="type-title">Scoring rulesets</h1>
+      <p className="mt-3 max-w-[52ch] text-[15px] leading-relaxed text-mute">
         A ruleset is the ruler. Rankings are recomputed against whichever one you pick, so a league
         with unusual settings gets numbers that are right for that league rather than approximately
         right for a generic one.
       </p>
 
       <section className="mt-10">
-        <h2 className="font-display text-lg font-bold tracking-tight">Presets</h2>
-        <ul className="mt-3 divide-y divide-line border-y border-line">
+        <h2 className="type-heading">Presets</h2>
+        <ul className="mt-4 divide-y divide-line border-y border-line">
           {presets.map((profile) => (
-            <li key={profile.id} className="flex items-center justify-between py-3">
-              <span className="font-medium">{profileLabel(profile)}</span>
+            <li key={profile.id} className="flex h-12 items-center justify-between">
+              <span className="font-semibold">{profileLabel(profile)}</span>
               <Link
                 href={`/rankings?profileId=${profile.id}`}
-                className="text-sm text-mute underline decoration-line-strong underline-offset-4 hover:text-ink"
+                aria-label={`Rank with ${profileLabel(profile)}`}
+                className={`text-sm ${LINK_QUIET}`}
               >
-                Use it
+                Rank with it
               </Link>
             </li>
           ))}
@@ -72,26 +74,38 @@ export default function ProfilesPage() {
       </section>
 
       <section className="mt-12">
-        <h2 className="font-display text-lg font-bold tracking-tight">Yours</h2>
+        <h2 className="type-heading">Yours</h2>
 
         {/* No signed-out branch: this page sits behind the account gate
             (app/(app)/layout.tsx), so it only ever renders for a member. */}
         {mine.length === 0 && !building ? (
-          <p className="mt-3 text-sm leading-relaxed text-mute">
+          <p className="mt-4 text-[15px] leading-relaxed text-mute">
             Nothing saved yet. Build one and it becomes selectable everywhere a ruleset is.
           </p>
         ) : (
-          <ul className="mt-3 divide-y divide-line border-y border-line">
+          <ul className="mt-4 divide-y divide-line border-y border-line">
             {mine.map((profile) => (
-              <li key={profile.id} className="flex items-center justify-between py-3">
-                <span className="font-medium">{profile.name}</span>
-                <button
-                  type="button"
-                  onClick={() => remove.mutate(profile.id)}
-                  className="text-sm text-mute underline decoration-line-strong underline-offset-4 hover:text-ink"
-                >
-                  Delete
-                </button>
+              <li key={profile.id} className="flex h-12 items-center justify-between gap-6">
+                <span className="min-w-0 truncate font-semibold">{profile.name}</span>
+                <span className="flex shrink-0 items-center gap-8">
+                  <Link
+                    href={`/rankings?profileId=${profile.id}`}
+                    aria-label={`Rank with ${profile.name}`}
+                    className={`text-sm ${LINK_QUIET}`}
+                  >
+                    Rank with it
+                  </Link>
+                  {/* Destructive, so set apart and quiet: grey until pointed
+                      at or focused, and only then the danger colour. */}
+                  <button
+                    type="button"
+                    onClick={() => remove.mutate(profile.id)}
+                    aria-label={`Delete ${profile.name}`}
+                    className="text-sm text-mute transition-colors hover:text-danger focus-visible:text-danger"
+                  >
+                    Delete
+                  </button>
+                </span>
               </li>
             ))}
           </ul>
@@ -109,11 +123,7 @@ export default function ProfilesPage() {
               onSave={(name, rules) => create.mutate({ name, rules })}
             />
           ) : (
-            <button
-              type="button"
-              onClick={() => setBuilding(true)}
-              className="mt-5 rounded bg-ki px-4 py-2 font-medium text-on-ki"
-            >
+            <button type="button" onClick={() => setBuilding(true)} className={`mt-6 ${BUTTON_PRIMARY}`}>
               Build a ruleset
             </button>
           ))}

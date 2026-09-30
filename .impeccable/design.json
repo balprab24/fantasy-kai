@@ -1,0 +1,553 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-30T14:58:32+00:00",
+  "title": "Design System: fantasy-kai",
+  "extensions": {
+    "colorMeta": {
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Stage Black",
+        "canonical": "#000000",
+        "oklch": "oklch(0.0% 0.000 0.0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Deep Navy Surface",
+        "canonical": "#0a0f1c",
+        "oklch": "oklch(17.1% 0.028 267.4)",
+        "tonalRamp": [
+          "#060b17",
+          "#1f2533",
+          "#3b4252",
+          "#5a6172",
+          "#7b8294",
+          "#9da5b8",
+          "#c1c9dc",
+          "#e6eeff"
+        ]
+      },
+      "well": {
+        "role": "neutral",
+        "displayName": "Well",
+        "canonical": "#111a2c",
+        "oklch": "oklch(21.9% 0.038 263.3)",
+        "tonalRamp": [
+          "#040a1b",
+          "#1b2538",
+          "#374257",
+          "#566177",
+          "#77839a",
+          "#99a5be",
+          "#bccae3",
+          "#e1efff"
+        ]
+      },
+      "lift": {
+        "role": "neutral",
+        "displayName": "Lift",
+        "canonical": "#1a2540",
+        "oklch": "oklch(26.9% 0.053 266.2)",
+        "tonalRamp": [
+          "#030921",
+          "#19243f",
+          "#35415e",
+          "#536180",
+          "#7482a3",
+          "#96a5c7",
+          "#b9c9ed",
+          "#deefff"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#eef2fa",
+        "oklch": "oklch(96.0% 0.012 264.5)",
+        "tonalRamp": [
+          "#090b10",
+          "#22252b",
+          "#3f4248",
+          "#5e6168",
+          "#7f8289",
+          "#a1a5ad",
+          "#c5c9d1",
+          "#ebeff7"
+        ]
+      },
+      "mute": {
+        "role": "neutral",
+        "displayName": "Mute",
+        "canonical": "#9aa6bd",
+        "oklch": "oklch(72.3% 0.036 263.5)",
+        "tonalRamp": [
+          "#040a1a",
+          "#1c2537",
+          "#384256",
+          "#576176",
+          "#778399",
+          "#99a5bc",
+          "#bdcae1",
+          "#e2efff"
+        ]
+      },
+      "faint": {
+        "role": "neutral",
+        "displayName": "Faint",
+        "canonical": "#76839c",
+        "oklch": "oklch(60.8% 0.041 263.5)",
+        "tonalRamp": [
+          "#040a1c",
+          "#1b2539",
+          "#374258",
+          "#556179",
+          "#76839c",
+          "#98a5c0",
+          "#bbcae5",
+          "#e0efff"
+        ]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Edge",
+        "canonical": "#5b6781",
+        "oklch": "oklch(51.4% 0.044 265.5)",
+        "tonalRamp": [
+          "#040a1d",
+          "#1b243b",
+          "#37425a",
+          "#55617b",
+          "#76829d",
+          "#98a5c1",
+          "#bbc9e7",
+          "#e0efff"
+        ]
+      },
+      "ki": {
+        "role": "primary",
+        "displayName": "Ki Orange",
+        "canonical": "#ff8a3d",
+        "oklch": "oklch(75.0% 0.167 50.5)",
+        "tonalRamp": [
+          "#350000",
+          "#5b0000",
+          "#800c00",
+          "#a63800",
+          "#cd5d00",
+          "#f58132",
+          "#ffa65b",
+          "#ffcb81"
+        ]
+      },
+      "on-ki": {
+        "role": "primary",
+        "displayName": "Ki Ink",
+        "canonical": "#140a02",
+        "oklch": "oklch(15.6% 0.027 67.7)",
+        "tonalRamp": [
+          "#130901",
+          "#2e2317",
+          "#4c3f33",
+          "#6c5f51",
+          "#8e8071",
+          "#b1a293",
+          "#d5c6b7",
+          "#fbecdc"
+        ]
+      },
+      "energy": {
+        "role": "secondary",
+        "displayName": "Energy Blue",
+        "canonical": "#3d8bff",
+        "oklch": "oklch(64.8% 0.189 258.5)",
+        "tonalRamp": [
+          "#080059",
+          "#00047d",
+          "#0035a3",
+          "#005ac9",
+          "#2f7ef1",
+          "#54a3ff",
+          "#78c8ff",
+          "#9defff"
+        ]
+      },
+      "energy-text": {
+        "role": "secondary",
+        "displayName": "Energy Text",
+        "canonical": "#8ab8ff",
+        "oklch": "oklch(77.8% 0.114 258.9)",
+        "tonalRamp": [
+          "#000039",
+          "#00205a",
+          "#17407d",
+          "#3760a1",
+          "#5783c6",
+          "#79a6ec",
+          "#9ccbff",
+          "#c0f1ff"
+        ]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Danger",
+        "canonical": "#f28b8b",
+        "oklch": "oklch(74.7% 0.126 20.5)",
+        "tonalRamp": [
+          "#2e0000",
+          "#520007",
+          "#771b24",
+          "#9c3e42",
+          "#c26062",
+          "#e98383",
+          "#ffa7a6",
+          "#ffcccb"
+        ]
+      },
+      "pos-qb": {
+        "role": "tertiary",
+        "displayName": "QB Violet",
+        "canonical": "#c3a6ff",
+        "oklch": "oklch(78.4% 0.127 298.4)",
+        "tonalRamp": [
+          "#160037",
+          "#2f0959",
+          "#4c2d7b",
+          "#6b4e9f",
+          "#8d70c4",
+          "#af92ea",
+          "#d4b7ff",
+          "#f9dcff"
+        ]
+      },
+      "pos-rb": {
+        "role": "tertiary",
+        "displayName": "RB Red",
+        "canonical": "#ff6b6b",
+        "oklch": "oklch(71.2% 0.181 22.8)",
+        "tonalRamp": [
+          "#3b0000",
+          "#620000",
+          "#890008",
+          "#b11d2c",
+          "#d9484c",
+          "#ff6e6e",
+          "#ff9491",
+          "#ffb9b5"
+        ]
+      },
+      "pos-wr": {
+        "role": "tertiary",
+        "displayName": "WR Cyan",
+        "canonical": "#5cc8ff",
+        "oklch": "oklch(79.1% 0.126 233.7)",
+        "tonalRamp": [
+          "#000736",
+          "#002957",
+          "#004979",
+          "#006b9d",
+          "#048dc1",
+          "#42b1e7",
+          "#6bd7ff",
+          "#92fdff"
+        ]
+      },
+      "pos-te": {
+        "role": "tertiary",
+        "displayName": "TE Magenta",
+        "canonical": "#ff8fd4",
+        "oklch": "oklch(79.0% 0.157 343.6)",
+        "tonalRamp": [
+          "#2d001a",
+          "#500037",
+          "#750656",
+          "#9a3377",
+          "#c0569a",
+          "#e779be",
+          "#ff9de3",
+          "#ffc3ff"
+        ]
+      },
+      "q-good": {
+        "role": "tertiary",
+        "displayName": "Starter Green",
+        "canonical": "#6fcf97",
+        "oklch": "oklch(78.1% 0.123 156.5)",
+        "tonalRamp": [
+          "#001600",
+          "#003406",
+          "#005424",
+          "#007543",
+          "#349863",
+          "#5cbc85",
+          "#81e1a8",
+          "#a7ffcd"
+        ]
+      },
+      "q-mid": {
+        "role": "tertiary",
+        "displayName": "Notice Amber",
+        "canonical": "#d9c162",
+        "oklch": "oklch(81.2% 0.119 95.4)",
+        "tonalRamp": [
+          "#1a0500",
+          "#372100",
+          "#563f00",
+          "#765f00",
+          "#988116",
+          "#bca444",
+          "#e1c96a",
+          "#ffee8f"
+        ]
+      },
+      "chart-starter": {
+        "role": "tertiary",
+        "displayName": "Chart Green",
+        "canonical": "#3fa877",
+        "oklch": "oklch(65.8% 0.122 159.8)",
+        "tonalRamp": [
+          "#001700",
+          "#00340c",
+          "#005429",
+          "#007548",
+          "#2b9868",
+          "#55bc8a",
+          "#7ce2ad",
+          "#a2ffd2"
+        ]
+      },
+      "chart-rest": {
+        "role": "tertiary",
+        "displayName": "Chart Slate",
+        "canonical": "#5d667c",
+        "oklch": "oklch(51.1% 0.037 267.6)",
+        "tonalRamp": [
+          "#050a1b",
+          "#1d2437",
+          "#394256",
+          "#586177",
+          "#798299",
+          "#9ba5bd",
+          "#bfc9e2",
+          "#e4eeff"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "rgb(148 170 210 / 0.13)"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Landing headlines and a player's name; extra-condensed heavy italic caps."
+      },
+      "headline": {
+        "displayName": "Page title",
+        "purpose": "A page's name: RANKINGS, SCORING RULESETS."
+      },
+      "title": {
+        "displayName": "Segment",
+        "purpose": "A segment inside a page: PERFORMANCE, GAME LOG."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Prose and UI; 15-17px, measures near 36rem / 52ch."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Column headers, captions and meta; sentence case, never tracked capitals."
+      },
+      "stat": {
+        "displayName": "Stat",
+        "purpose": "A number standing alone, proportional figures, unit small after it."
+      },
+      "rank": {
+        "displayName": "Rank",
+        "purpose": "A rank in a column: italic, tabular."
+      }
+    },
+    "shadows": [
+      {
+        "name": "float",
+        "value": "0 18px 40px -16px rgb(0 0 0 / 0.95), 0 2px 8px -2px rgb(0 0 0 / 0.7)",
+        "purpose": "Chips, popovers and tooltips: the only shadow."
+      },
+      {
+        "name": "route-glow",
+        "value": "drop-shadow(0 0 5px rgb(61 139 255 / 0.75))",
+        "purpose": "The landing's drawn route only -- the one sanctioned glow."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Landing bars rising and chips arriving (once, on load)."
+      },
+      {
+        "name": "ease-in-out-draw",
+        "value": "cubic-bezier(0.65, 0, 0.35, 1)",
+        "purpose": "The route drawing on (1100ms on load, 650ms on a ruleset switch)."
+      },
+      {
+        "name": "state",
+        "value": "150-250ms ease-out",
+        "purpose": "Product state changes; row settle 900ms after a ruleset switch."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      },
+      {
+        "name": "2xl",
+        "value": "1536px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one orange action on a view.",
+      "html": "<button class=\"ds-btn-primary\">Join the Kai</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 20px;border:0;border-radius:var(--radius-control,4px);background:var(--color-ki,#ff8a3d);color:var(--color-on-ki,#140a02);font:600 15px/1 'Sofia Sans',ui-sans-serif,sans-serif;cursor:pointer;transition:filter .15s}.ds-btn-primary:hover{filter:brightness(1.1)}.ds-btn-primary:active{filter:brightness(.95)}.ds-btn-primary:focus-visible{outline:2px solid var(--color-energy,#3d8bff);outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Everything else you press, and the header's join.",
+      "html": "<button class=\"ds-btn-secondary\">Show next 200</button>",
+      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;height:36px;padding:0 16px;border:0;border-radius:var(--radius-control,4px);background:var(--color-well,#111a2c);color:var(--color-ink,#eef2fa);box-shadow:inset 0 0 0 1px var(--color-line-strong,#5b6781);font:600 14px/1 'Sofia Sans',ui-sans-serif,sans-serif;cursor:pointer;transition:box-shadow .15s}.ds-btn-secondary:hover{box-shadow:inset 0 0 0 1px var(--color-mute,#9aa6bd)}.ds-btn-secondary:focus-visible{outline:2px solid var(--color-energy,#3d8bff);outline-offset:2px}"
+    },
+    {
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "A well with one 3:1 edge; blue on focus.",
+      "html": "<input class=\"ds-input\" type=\"email\" placeholder=\"you@example.com\">",
+      "css": ".ds-input{height:48px;width:280px;padding:0 16px;border:1px solid var(--color-line-strong,#5b6781);border-radius:var(--radius-control,4px);background:var(--color-well,#111a2c);color:var(--color-ink,#eef2fa);caret-color:var(--color-energy,#3d8bff);font:400 15px 'Sofia Sans',ui-sans-serif,sans-serif}.ds-input::placeholder{color:var(--color-faint,#76839c)}.ds-input:hover{border-color:var(--color-mute,#9aa6bd)}.ds-input:focus-visible{border-color:var(--color-energy,#3d8bff);outline:2px solid var(--color-energy,#3d8bff);outline-offset:2px}"
+    },
+    {
+      "name": "Console",
+      "kind": "custom",
+      "refersTo": "console",
+      "description": "Every board control on one surface strip; the selected segment on lift with a blue base line.",
+      "html": "<div class=\"ds-console\"><span class=\"ds-seg\">0 PPR</span><span class=\"ds-seg ds-seg-on\">Half PPR</span><span class=\"ds-seg\">PPR</span><span class=\"ds-seam\"></span><span class=\"ds-seg ds-seg-on\">Season</span><span class=\"ds-seg\">Per game</span></div>",
+      "css": ".ds-console{display:inline-flex;align-items:center;gap:2px;padding:6px;border-radius:var(--radius-control,4px);background:var(--color-surface,#0a0f1c);font:400 14px 'Sofia Sans',ui-sans-serif,sans-serif}.ds-seg{display:inline-flex;align-items:center;height:32px;padding:0 12px;border-radius:2px;color:var(--color-mute,#9aa6bd);cursor:pointer}.ds-seg:hover{color:var(--color-ink,#eef2fa)}.ds-seg-on{background:var(--color-lift,#1a2540);color:var(--color-ink,#eef2fa);font-weight:600;box-shadow:inset 0 -2px 0 var(--color-energy,#3d8bff)}.ds-seam{width:1px;height:20px;margin:0 4px;background:rgb(148 170 210 / .13)}"
+    },
+    {
+      "name": "Floating Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "A readout floating over the landing plate's edge.",
+      "html": "<div class=\"ds-chip\"><b class=\"ds-rb\">RB</b><b>1</b> <span>416.6</span> <small>pts</small></div>",
+      "css": ".ds-chip{display:inline-flex;align-items:baseline;gap:8px;padding:10px 20px;border-radius:9999px;background:var(--color-surface,#0a0f1c);color:var(--color-ink,#eef2fa);box-shadow:inset 0 1px 0 rgb(255 255 255 / .08),0 18px 40px -16px rgb(0 0 0 / .95),0 2px 8px -2px rgb(0 0 0 / .7);font:600 15px 'Sofia Sans',ui-sans-serif,sans-serif}.ds-chip b{font:italic 700 26px/1 'Sofia Sans Semi Condensed',sans-serif}.ds-chip .ds-rb{color:var(--color-pos-rb,#ff6b6b)}.ds-chip small{color:var(--color-mute,#9aa6bd);font-weight:400}"
+    },
+    {
+      "name": "Nav Link",
+      "kind": "nav",
+      "refersTo": "nav",
+      "description": "Top-bar item; the active one in ink with a 2px blue bar at the bar's foot.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-a ds-nav-on\">Rankings</a><a class=\"ds-nav-a\">Scoring</a></nav>",
+      "css": ".ds-nav{display:flex;height:56px;background:#000}.ds-nav-a{position:relative;display:flex;align-items:center;padding:0 12px;color:var(--color-mute,#9aa6bd);font:400 14px 'Sofia Sans',ui-sans-serif,sans-serif;text-decoration:none;cursor:pointer}.ds-nav-a:hover{color:var(--color-ink,#eef2fa)}.ds-nav-on{color:var(--color-ink,#eef2fa);font-weight:600}.ds-nav-on::after{content:'';position:absolute;left:12px;right:12px;bottom:0;height:2px;background:var(--color-energy,#3d8bff)}"
+    },
+    {
+      "name": "Tier Divider",
+      "kind": "custom",
+      "refersTo": "tier-header",
+      "description": "A tier letter in the display voice over the rank column, then a hairline; only S is orange.",
+      "html": "<div class=\"ds-tier\"><span class=\"ds-tier-l\">S</span><span class=\"ds-tier-t\">Power tier S</span><span class=\"ds-tier-m\">8 players, 365.6 to 328.4 pts</span><span class=\"ds-tier-r\"></span></div>",
+      "css": ".ds-tier{display:flex;align-items:flex-end;gap:12px;font:400 13px 'Sofia Sans',ui-sans-serif,sans-serif}.ds-tier-l{width:48px;text-align:right;padding-right:12px;font:italic 900 34px/.8 'Sofia Sans Extra Condensed',sans-serif;color:var(--color-ki,#ff8a3d)}.ds-tier-t{color:var(--color-ink,#eef2fa);font-weight:600}.ds-tier-m{color:var(--color-mute,#9aa6bd)}.ds-tier-r{flex:1;height:1px;margin-bottom:6px;background:rgb(148 170 210 / .13)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Prime Time",
+    "overview": "A prime-time broadcast graphics package for one idea: your rules decide the order. True black is the\nstage. Separation comes from three blue-black steps, never from grey cards. Each page earns at most one\nlarge focal plate. The imagery is real: a player's cut-out, a season's weeks, a board's rows. The\nvoice is a heavy extra-condensed italic that leans forward like the logo's two strokes. Hairlines do\nthe structural work that boxes used to do.\n\nTwo registers, one grammar. The landing page is expressive: display type at editorial scale, an\norange plate carrying a real season, readouts floating over its edges. The product is dense: lines\ninstead of cards, a single console of controls, tabular figures in columns. The anime influence is\none drawn route (a season traced over its bars, like an analyst's telestrator stroke) and an orb for\nthe wordmark's dot. Someone who has never watched anime should see a sports product.\n\nRejected on purpose:",
+    "keyCharacteristics": [
+      "True black (#000) canvas; depth from blue-black steps, blue rising with elevation.",
+      "One superfamily in three widths, hierarchy from width, weight, case and slant.",
+      "Four radii, each earned; hairlines instead of containers.",
+      "Orange means \"the one thing to do\". Blue means \"you are here\". They never trade jobs.",
+      "Motion only says what changed. The landing gets one orchestrated entrance."
+    ],
+    "rules": [
+      {
+        "name": "The One Orange Rule",
+        "body": "At most one orange action per view. The header's \"Join the Kai\" is secondary because the page's own form carries the orange. Orange never marks a link, a selection or decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The Letters Carry Position Rule",
+        "body": "A position hue never fills, never marks selection, and never encodes a chart series on its own. As marks the four hues fail colour-blind separation: WR against QB is ΔE 0.5 under deuteranopia (dataviz validator).",
+        "section": "colors"
+      },
+      {
+        "name": "The One Quality Hue Rule",
+        "body": "Quality is green, ink or faint, never red or yellow. Red already means RB, so a red \"RB68\" would mean two things at once.",
+        "section": "colors"
+      },
+      {
+        "name": "The Faint-Never-On-Lift Rule",
+        "body": "Faint text measures 3.98:1 on lift, so it never sits there. Every other text pair is at least 4.5:1, measured and recorded in `frontend/src/app/globals.css`.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular-In-Columns Rule",
+        "body": "Use tabular figures wherever numbers stack in a column, and proportional figures for a number that stands alone. Never set `tnum` on body text.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Eyebrow Rule",
+        "body": "Put no label above a heading. The heading carries its own weight, and a page's recipe is said in a sentence (\"Scored under Half PPR for the 2025 season, by season total\").",
+        "section": "typography"
+      },
+      {
+        "name": "The One Glow Rule",
+        "body": "Only the drawn route glows. The S tier letter is marked by orange alone.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** put every page background on true black (#000000) and separate with Surface, Well and Lift only, rising in that order.",
+      "**Do** set page names and segments in the extra-condensed italic caps, and everything operable in the regular width at fixed sizes.",
+      "**Do** state a board's recipe in a sentence wherever a ranking appears: ruleset, season, window.",
+      "**Do** keep one orange action per view, and make the header's join secondary.",
+      "**Do** colour a position's letters only, and keep quality to green, ink and faint.",
+      "**Do** measure every new text pair against the surface it sits on, and record it in `globals.css`."
+    ],
+    "donts": [
+      "**Don't** put rows, panels or stat tiles in rounded bordered cards. Rows are lines; a page's segments are a heading, a hairline and content.",
+      "**Don't** add a label above a heading, or set labels in tracked capitals.",
+      "**Don't** add a second glow, a gradient wash, glass, or a zero-offset coloured halo.",
+      "**Don't** crop a player's cut-out into a circle at display size, or put any real player's likeness on the landing without a promotional licence and the player's consent.",
+      "**Don't** show a metric the product does not compute.",
+      "**Don't** use orange for links or selection, or blue for fills and headings."
+    ]
+  }
+}

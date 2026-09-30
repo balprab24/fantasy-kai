@@ -48,7 +48,7 @@ scoring engine already computes on demand against an arbitrary ruleset.
 
 | | Logged out | Account |
 |---|---|---|
-| The landing page — what each part does, a phone drawn from real 2025 rows, sign-up | ✅ | sent on to the board |
+| The landing page — what each part does, a real 2025 season a visitor can re-score, a slice of the real board, sign-up | ✅ | sent on to the board |
 | Everything else — the rankings board, player pages, saved scoring, and projections, waivers, trade calculator, league sync when they exist | ❌ | ✅ |
 
 An account is an email and a password. Nothing else is collected.

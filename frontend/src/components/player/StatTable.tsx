@@ -58,8 +58,10 @@ export function StatTable<R>({
     else leadGroups.push({ label: col.group, span: 1 });
   }
 
-  const cellBase = "h-8 px-2 whitespace-nowrap";
-  const pin = "sticky left-0 z-[1] bg-raised";
+  const cellBase = "h-9 px-2 whitespace-nowrap";
+  // Pinned and opaque, so the columns scrolling under it on a phone do not
+  // show through; it follows the row's hover to the same opaque step.
+  const pin = "sticky left-0 z-[1] bg-canvas group-hover:bg-well";
   const renderRow = (row: R, isFoot: boolean) => {
     const stats = source(row);
     return lead
@@ -78,7 +80,7 @@ export function StatTable<R>({
             return (
               <td
                 key={c.key}
-                className={`${cellBase} tabular text-right ${v === 0 ? "text-faint" : "text-ink"} ${ci === 0 ? "border-l border-line" : ""}`}
+                className={`${cellBase} tabular text-right ${v === 0 ? "text-faint" : "text-ink"} ${ci === 0 ? "pl-4" : ""}`}
               >
                 {formatCount(v)}
               </td>
@@ -91,18 +93,18 @@ export function StatTable<R>({
   return (
     <div className="overflow-x-auto">
       {/* Separate borders, drawn on cells: a sticky cell in a collapsed-border
-          table leaves a hairline seam that scrolled columns show through (the
-          board hit the same thing; see PlayerRow's COL). */}
+          table leaves a hairline seam that scrolled columns show through.
+          Groups are told apart by a wider gap, not a vertical rule. */}
       <table className="w-full border-separate border-spacing-0 text-[13px]">
         <caption className="sr-only">{caption}</caption>
         <thead>
-          <tr className="text-[11px] text-faint">
+          <tr className="font-label text-[12px] font-semibold text-faint">
             {leadGroups.map((g, i) => (
               <th
                 key={`${g.label}-${i}`}
                 scope="colgroup"
                 colSpan={g.span}
-                className={`h-6 px-2 text-left font-medium ${i === 0 ? `${pin} pl-3` : ""}`}
+                className={`h-7 px-2 text-left ${i === 0 ? `${pin} pl-3` : ""}`}
               >
                 {g.label}
               </th>
@@ -112,19 +114,19 @@ export function StatTable<R>({
                 key={g.group}
                 scope="colgroup"
                 colSpan={g.columns.length}
-                className="h-6 border-l border-line px-2 text-left font-medium"
+                className="h-7 px-2 pl-4 text-left"
               >
                 {GROUP_LABELS[g.group]}
               </th>
             ))}
           </tr>
-          <tr className="text-xs text-mute [&>th]:border-b [&>th]:border-line-strong/60">
+          <tr className="font-label text-[12px] text-mute [&>th]:border-b [&>th]:border-line">
             {lead.map((col, i) => (
               <th
                 key={col.key}
                 scope="col"
                 title={col.title}
-                className={`h-7 px-2 font-medium whitespace-nowrap ${col.width ?? ""} ${col.align === "left" ? "text-left" : "text-right"} ${i === 0 ? `${pin} pl-3` : ""}`}
+                className={`h-8 px-2 font-semibold whitespace-nowrap ${col.width ?? ""} ${col.align === "left" ? "text-left" : "text-right"} ${i === 0 ? `${pin} pl-3` : ""}`}
               >
                 {col.label}
               </th>
@@ -136,7 +138,7 @@ export function StatTable<R>({
                     key={c.key}
                     scope="col"
                     title={c.title}
-                    className={`h-7 px-2 text-right font-medium whitespace-nowrap ${ci === 0 ? "border-l border-line" : ""}`}
+                    className={`h-8 px-2 text-right font-semibold whitespace-nowrap ${ci === 0 ? "pl-4" : ""}`}
                   >
                     <abbr title={c.title} className="no-underline">
                       {c.label}
@@ -154,7 +156,7 @@ export function StatTable<R>({
               <tr
                 key={rowKey(row)}
                 aria-current={extra["aria-current"] || undefined}
-                className={`group [&>td]:border-b [&>td]:border-line [&>td]:transition-colors hover:[&>td]:bg-surface-2 ${extra.className ?? ""}`}
+                className={`group [&>td]:border-b [&>td]:border-line [&>td]:transition-colors hover:[&>td]:bg-well ${extra.className ?? ""}`}
               >
                 {renderRow(row, false)}
               </tr>
@@ -164,7 +166,7 @@ export function StatTable<R>({
         {foot && (
           <tfoot>
             {/* Opaque, so the pinned first cell hides what scrolls under it. */}
-            <tr className="[&>td]:bg-surface-2">
+            <tr className="[&>td]:bg-surface [&>td]:font-semibold">
               {renderRow(foot.row, true)}
             </tr>
           </tfoot>

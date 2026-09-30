@@ -33,11 +33,11 @@ const NEXT: { name: string; what: string }[] = [
 
 export function ComingNext() {
   return (
-    <dl className="mt-8 divide-y divide-line border-y border-line">
+    <dl className="mt-12 grid gap-x-12 sm:grid-cols-2">
       {NEXT.map((item) => (
-        <div key={item.name} className="grid gap-1 py-4 sm:grid-cols-[12rem_minmax(0,1fr)] sm:gap-6">
-          <dt className="font-medium text-ink">{item.name}</dt>
-          <dd className="text-[16px] text-mute">{item.what}</dd>
+        <div key={item.name} className="border-t border-line py-5">
+          <dt className="text-[17px] font-semibold text-ink">{item.name}</dt>
+          <dd className="mt-1 max-w-[40ch] text-[15px] leading-relaxed text-mute">{item.what}</dd>
         </div>
       ))}
     </dl>

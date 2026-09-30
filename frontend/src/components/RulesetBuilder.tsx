@@ -13,6 +13,10 @@ import {
 } from "@/lib/ruleset";
 import type { StatKey } from "@/lib/types";
 import { RateInput } from "./RateInput";
+import { BUTTON_PRIMARY, BUTTON_SECONDARY } from "./ui/buttons";
+
+/** A native select or text field, in the same well as every other input. */
+const FIELD = "h-9 rounded-control border border-line-strong bg-well px-2 text-ink transition-colors hover:border-mute focus-visible:border-energy";
 
 export function RulesetBuilder({
   onSave,
@@ -60,7 +64,7 @@ export function RulesetBuilder({
         e.preventDefault();
         onSave(name, doc);
       }}
-      className="mt-6 border-t border-line pt-6"
+      className="mt-8 border-t border-line pt-8"
     >
       <label className="block max-w-sm">
         <span className="text-sm text-mute">Ruleset name</span>
@@ -70,16 +74,14 @@ export function RulesetBuilder({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Bob's dynasty league"
-          className="mt-1 w-full rounded border border-line-strong bg-raised px-3 py-2"
+          className="mt-1.5 h-11 w-full rounded-control border border-line-strong bg-well px-3 text-[15px] text-ink transition-colors hover:border-mute focus-visible:border-energy"
         />
       </label>
 
       <div className="mt-8 grid gap-x-10 gap-y-7 sm:grid-cols-2">
         {STAT_GROUPS.map((group) => (
           <fieldset key={group.heading}>
-            <legend className="font-display text-[15px] font-bold tracking-tight">
-              {group.heading}
-            </legend>
+            <legend className="font-label text-[15px] font-bold">{group.heading}</legend>
             <div className="mt-2 space-y-2">
               {group.stats.map(([stat, label]) => (
                 <label key={stat} className="flex items-center justify-between gap-4">
@@ -100,8 +102,8 @@ export function RulesetBuilder({
       </div>
 
       <section className="mt-10">
-        <h3 className="font-display text-[15px] font-bold tracking-tight">By position</h3>
-        <p className="mt-1 max-w-[62ch] text-sm leading-relaxed text-mute">
+        <h3 className="font-label text-[15px] font-bold">By position</h3>
+        <p className="mt-1 max-w-[52ch] text-sm leading-relaxed text-mute">
           Override a rate for one position only. A TE-premium league is this and nothing else: tight
           ends get a higher rate per reception than everyone else.
         </p>
@@ -124,7 +126,7 @@ export function RulesetBuilder({
               <button
                 type="button"
                 onClick={() => dropOverride(position)}
-                className="text-mute underline decoration-line-strong underline-offset-2 hover:text-ink"
+                className="text-mute transition-colors hover:text-danger focus-visible:text-danger"
               >
                 Remove
               </button>
@@ -139,8 +141,8 @@ export function RulesetBuilder({
       </section>
 
       <section className="mt-10">
-        <h3 className="font-display text-[15px] font-bold tracking-tight">Bonuses</h3>
-        <p className="mt-1 max-w-[62ch] text-sm leading-relaxed text-mute">
+        <h3 className="font-label text-[15px] font-bold">Bonuses</h3>
+        <p className="mt-1 max-w-[52ch] text-sm leading-relaxed text-mute">
           Extra points once a stat reaches a threshold in a single game. These are what make scoring
           non-linear, which is why a season total is the sum of scored games and never one score
           over summed stats.
@@ -159,7 +161,7 @@ export function RulesetBuilder({
                     ),
                   }))
                 }
-                className="rounded border border-line-strong bg-raised px-2 py-1"
+                className={FIELD}
               >
                 {ALL_STATS.map((s) => (
                   <option key={s} value={s}>
@@ -201,7 +203,7 @@ export function RulesetBuilder({
                 onClick={() =>
                   setDoc((d) => ({ ...d, bonuses: (d.bonuses ?? []).filter((_, j) => j !== i) }))
                 }
-                className="text-mute underline decoration-line-strong underline-offset-2 hover:text-ink"
+                className="text-mute transition-colors hover:text-danger focus-visible:text-danger"
               >
                 Remove
               </button>
@@ -218,7 +220,7 @@ export function RulesetBuilder({
                 bonuses: [...(d.bonuses ?? []), { stat: "rush_yd", gte: 100, points: 3 }],
               }))
             }
-            className="mt-3 rounded border border-line-strong px-3 py-1.5 text-sm hover:bg-field-soft"
+            className={`mt-3 ${BUTTON_SECONDARY}`}
           >
             Add a bonus
           </button>
@@ -228,7 +230,7 @@ export function RulesetBuilder({
       {(problems.length > 0 || serverError) && (
         <ul
           role="alert"
-          className="mt-8 space-y-1 rounded border border-stat-loss/30 bg-stat-loss/5 px-3 py-2 text-sm text-stat-loss"
+          className="mt-8 space-y-1 rounded-control bg-danger/[0.08] px-3 py-2 text-sm text-danger"
         >
           {serverError && <li>{serverError}</li>}
           {problems.map((p) => (
@@ -241,14 +243,14 @@ export function RulesetBuilder({
         <button
           type="submit"
           disabled={saving || problems.length > 0}
-          className="rounded bg-ki px-4 py-2 font-medium text-on-ki disabled:opacity-60"
+          className={BUTTON_PRIMARY}
         >
           {saving ? "Saving…" : "Save ruleset"}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded border border-line-strong px-4 py-2 hover:bg-field-soft"
+          className={`${BUTTON_SECONDARY} h-11`}
         >
           Cancel
         </button>
@@ -275,7 +277,7 @@ function AddOverride({
       <select
         value={position}
         onChange={(e) => setPosition(e.target.value as OverridePosition)}
-        className="rounded border border-line-strong bg-raised px-2 py-1"
+        className={FIELD}
       >
         {available.map((p) => (
           <option key={p} value={p}>
@@ -286,7 +288,7 @@ function AddOverride({
       <select
         value={stat}
         onChange={(e) => setStat(e.target.value as StatKey)}
-        className="rounded border border-line-strong bg-raised px-2 py-1"
+        className={FIELD}
       >
         {ALL_STATS.map((s) => (
           <option key={s} value={s}>
@@ -297,7 +299,7 @@ function AddOverride({
       <button
         type="button"
         onClick={() => onAdd(position, stat)}
-        className="rounded border border-line-strong px-3 py-1.5 hover:bg-field-soft"
+        className={BUTTON_SECONDARY}
       >
         Add override
       </button>
