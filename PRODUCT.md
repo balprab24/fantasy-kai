@@ -65,9 +65,11 @@ enough to act on it, because every number can be traced to the stat lines that p
 - Position colours are semantic data colours (QB purple, RB red, WR blue/cyan, TE pink/magenta),
   never decoration.
 - Two modes (owner decision 2026-09-30): Daylight on the public pages (the landing, sign-in,
-  register) -- a cool chalk ground and navy ink -- and Prime time in the product: near-black, with
-  deep blue-black where separation is needed. Wherever a public page shows the product, the product
-  keeps its own dark skin; signing in is the moment the whole screen turns dark.
+  register) -- a paper ground with one cool band, and navy ink (owner brief 2026-10-05) -- and Prime
+  time in the product: near-black, with deep blue-black where separation is needed. Wherever a
+  public page shows the product, the product keeps its own dark skin -- on the landing at most twice,
+  the hero's plate and one full-width product band; signing in is the moment the whole screen turns
+  dark.
 - Identity, in this order: premium fantasy analytics, sports broadcast / data terminal, subtle anime
   energy. The anime influence stays subtle enough that someone unfamiliar with anime still reads the
   product as a sports product; no copyrighted characters.

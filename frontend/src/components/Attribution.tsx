@@ -43,10 +43,11 @@ export function Attribution({ variant = "product" }: { variant?: "product" | "si
   );
 
   // The public pages close on the name as well as the credits, in two
-  // columns, so a wide screen does not end on one narrow paragraph.
+  // columns, so a wide screen does not end on one narrow paragraph -- and on
+  // the band, so the page ends on a change of ground rather than a rule.
   if (variant === "site") {
     return (
-      <footer className="border-t border-line">
+      <footer className="bg-band">
         <div className="mx-auto grid max-w-[1320px] gap-x-20 gap-y-8 px-4 pt-10 pb-14 text-[13px] leading-relaxed text-mute sm:px-6 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:px-8">
           <div>
             <Wordmark />

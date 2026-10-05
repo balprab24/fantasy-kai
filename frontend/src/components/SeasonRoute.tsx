@@ -23,7 +23,6 @@ export function SeasonRoute({
   height,
   lead = 0,
   arrow = false,
-  glow = false,
   draw = false,
   drawDelay = 780,
   drawDuration = 1100,
@@ -38,7 +37,6 @@ export function SeasonRoute({
   height: number;
   lead?: number;
   arrow?: boolean;
-  glow?: boolean;
   /** Draw the line on as it mounts (skipped under reduced motion). */
   draw?: boolean;
   drawDelay?: number;
@@ -106,7 +104,8 @@ export function SeasonRoute({
           </linearGradient>
         </defs>
       )}
-      <g style={glow ? { filter: "drop-shadow(0 0 5px rgb(61 139 255 / 0.75))" } : undefined}>
+      {/* No glow: the line is data, and a halo around it is decoration (2026-10-05). */}
+      <g>
         {lead > 0 && (
           <path
             d={`M${leadFrom.x} ${leadFrom.y} L${first.x} ${first.y}`}

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-30T20:11:35+00:00",
+  "generatedAt": "2026-10-05T19:09:16+00:00",
   "title": "Design System: fantasy-kai",
   "extensions": {
     "colorMeta": {
@@ -378,18 +378,34 @@
       },
       "daylight-canvas": {
         "role": "neutral",
-        "displayName": "Chalk",
-        "canonical": "#f1f4f9",
-        "oklch": "oklch(96.6% 0.007 260.7)",
+        "displayName": "Paper",
+        "canonical": "#fbfaf7",
+        "oklch": "oklch(98.5% 0.004 91.4)",
         "tonalRamp": [
-          "#090b0e",
-          "#232529",
-          "#404246",
-          "#5f6166",
-          "#808287",
-          "#a2a5aa",
-          "#c6c9ce",
-          "#eceff4"
+          "#0c0b09",
+          "#22221f",
+          "#3e3d3b",
+          "#5c5b58",
+          "#7b7a78",
+          "#9c9b98",
+          "#bebebb",
+          "#e9e8e5"
+        ]
+      },
+      "daylight-band": {
+        "role": "neutral",
+        "displayName": "Band",
+        "canonical": "#edf1f7",
+        "oklch": "oklch(95.7% 0.009 258.3)",
+        "tonalRamp": [
+          "#090b0f",
+          "#1f2226",
+          "#3a3d42",
+          "#585b60",
+          "#777b80",
+          "#989ca1",
+          "#babec4",
+          "#e4e8ee"
         ]
       },
       "daylight-surface": {
@@ -708,7 +724,7 @@
       },
       "daylight-veil": {
         "role": "neutral",
-        "displayName": "Chalk Veil",
+        "displayName": "Paper Veil",
         "canonical": "rgb(241 244 249 / 0.85)"
       }
     },
@@ -752,11 +768,6 @@
         "name": "float-daylight",
         "value": "0 22px 44px -22px rgb(11 21 48 / 0.34), 0 2px 8px -2px rgb(11 21 48 / 0.1)",
         "purpose": "The same role in Daylight: a soft navy shadow, never black."
-      },
-      {
-        "name": "route-glow",
-        "value": "drop-shadow(0 0 5px rgb(61 139 255 / 0.75))",
-        "purpose": "The landing's drawn route only, in the plate's lower-third -- the one sanctioned glow."
       }
     ],
     "motion": [
@@ -862,7 +873,7 @@
       "refersTo": "input-daylight",
       "description": "Email and password side by side, the password waiting until the email is in, and the orange join as its own 56px block.",
       "html": "<form class=\"ds-join\"><label>Email<input type=\"email\"></label><label>Password <small>after your email</small><input type=\"password\" disabled></label><button type=\"button\">Join the Kai</button></form>",
-      "css": ".ds-join{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:34rem;font:600 13px 'Sofia Sans',ui-sans-serif,sans-serif;color:#0b1530}.ds-join small{float:right;font-weight:400;color:#46526a}.ds-join input{display:block;width:100%;height:48px;margin-top:6px;padding:0 16px;border:1px solid #7a8599;border-radius:4px;background:#fff;font:400 16px 'Sofia Sans',ui-sans-serif,sans-serif;color:#0b1530;transition:border-color .15s}.ds-join input:hover{border-color:#46526a}.ds-join input:focus-visible{outline:2px solid #2468ff;outline-offset:2px;border-color:#2468ff}.ds-join input:disabled{background:#f1f4f9;border-color:rgb(36 104 255 / .16);cursor:not-allowed}.ds-join button{grid-column:1/-1;justify-self:start;height:56px;padding:0 28px;border:0;border-radius:4px;background:#ff8a3d;color:#140a02;font:600 16px 'Sofia Sans',ui-sans-serif,sans-serif;cursor:pointer;transition:filter .15s}.ds-join button:hover{filter:brightness(1.1)}.ds-join button:focus-visible{outline:2px solid #2468ff;outline-offset:2px}"
+      "css": ".ds-join{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:34rem;font:600 13px 'Sofia Sans',ui-sans-serif,sans-serif;color:#0b1530}.ds-join small{float:right;font-weight:400;color:#46526a}.ds-join input{display:block;width:100%;height:48px;margin-top:6px;padding:0 16px;border:1px solid #7a8599;border-radius:4px;background:#fff;font:400 16px 'Sofia Sans',ui-sans-serif,sans-serif;color:#0b1530;transition:border-color .15s}.ds-join input:hover{border-color:#46526a}.ds-join input:focus-visible{outline:2px solid #2468ff;outline-offset:2px;border-color:#2468ff}.ds-join input:disabled{background:#fbfaf7;border-color:rgb(36 104 255 / .16);cursor:not-allowed}.ds-join button{grid-column:1/-1;justify-self:start;height:56px;padding:0 28px;border:0;border-radius:4px;background:#ff8a3d;color:#140a02;font:600 16px 'Sofia Sans',ui-sans-serif,sans-serif;cursor:pointer;transition:filter .15s}.ds-join button:hover{filter:brightness(1.1)}.ds-join button:focus-visible{outline:2px solid #2468ff;outline-offset:2px}"
     }
   ],
   "narrative": {
@@ -870,7 +881,7 @@
     "overview": "A prime-time broadcast graphics package for one idea: your rules decide the order. True black is the\nstage. Separation comes from three blue-black steps, never from grey cards. Each page earns at most one\nlarge focal plate. The imagery is real: a player's cut-out, a season's weeks, a board's rows. The\nvoice is a heavy extra-condensed italic that leans forward like the logo's two strokes. Hairlines do\nthe structural work that boxes used to do.\n\nTwo modes, one grammar. **Prime time** is the product: the board under the lights, true black, dense,\nlines instead of cards, a single console of controls, tabular figures in columns. **Daylight** is the\npublic pages -- the landing, sign-in, register -- where a visitor decides in daylight whether to\ntrust the tool: the pre-game studio. A cool chalk ground, navy ink, white for what floats or is typed\ninto, and blue risen into the hairlines. The type, the components and the two accents are the same;\nonly the tokens change value (`.daylight` in `globals.css`), so the two read as one product. Where a\nDaylight page shows the product, the product keeps its own dark skin (`.primetime`), once: the\nlanding's hero is the real board, re-sorting when the rule changes, and signing in is the moment the\nwhole screen turns to Prime time. The anime influence is\none drawn route (a season traced over its bars, like an analyst's telestrator stroke) and an orb for\nthe wordmark's dot. Someone who has never watched anime should see a sports product.",
     "keyCharacteristics": [
       "Prime time: a true black (#000) canvas; depth from blue-black steps, blue rising with elevation.",
-      "Daylight: a chalk (#f1f4f9) ground, never cream; the product appears on it as a dark island, once.",
+      "Daylight: a paper (#fbfaf7) ground, never cream, and one cool band (#edf1f7); the product appears on it in its own dark skin at most twice -- the hero's plate and one full-width band.",
       "One superfamily in three widths, hierarchy from width, weight, case and slant.",
       "Four radii, each earned; hairlines instead of containers.",
       "Orange means \"the one thing to do\". Blue means \"you are here\". They never trade jobs.",
@@ -879,12 +890,12 @@
     "rules": [
       {
         "name": "The Island Rule",
-        "body": "A Daylight page shows the product in its own Prime time skin (.primetime), once per page, as its focal plate. Everything else on the page speaks Daylight. tests/lib.test.ts holds .primetime equal to @theme, value for value, and .daylight to overriding every colour except the shared orange fill.",
+        "body": "A Daylight page shows the product in its own Prime time skin (.primetime) at most twice: as its focal plate, and once as a full-width band where the page cuts to the product (owner brief, 2026-10-05). Everything else on the page speaks Daylight. tests/lib.test.ts holds .primetime equal to @theme, value for value, and .daylight to overriding every colour except the shared orange fill.",
         "section": "colors"
       },
       {
         "name": "The One Orange Rule",
-        "body": "At most one orange action per view. The header's \"Join the Kai\" is secondary because the page's own form carries the orange. Orange never marks a link, a selection or decoration.",
+        "body": "At most one orange action per view. The header's \"Join the Kai\" is secondary while the page's own ask -- the hero's button, the closing form -- is on screen, and becomes the orange primary once neither is. Orange never marks a link, a selection or decoration.",
         "section": "colors"
       },
       {
@@ -913,14 +924,14 @@
         "section": "typography"
       },
       {
-        "name": "The One Glow Rule",
-        "body": "Only the drawn route glows. The S tier letter is marked by orange alone.",
+        "name": "The No Glow Rule",
+        "body": "Nothing glows. The S tier letter is marked by orange alone, the route by its blue stroke alone.",
         "section": "elevation"
       }
     ],
     "dos": [
-      "Do put every product page on true black (#000000) and separate with Surface, Well and Lift only, rising in that order; put every public page on chalk, in `.daylight`.",
-      "Do show the product on a Daylight page in its own dark skin, once, as the page's plate.",
+      "Do put every product page on true black (#000000) and separate with Surface, Well and Lift only, rising in that order; put every public page on paper, in `.daylight`, with one cool band.",
+      "Do show the product on a Daylight page in its own dark skin, at most twice: the page's plate and one full-width band.",
       "Do set page names and segments in the extra-condensed italic caps, and everything operable in the regular width at fixed sizes.",
       "Do state a board's recipe in a sentence wherever a ranking appears: ruleset, season, window.",
       "Do keep one orange action per view, and make the header's join secondary.",
@@ -930,12 +941,13 @@
     "donts": [
       "Don't put rows, panels or stat tiles in rounded bordered cards. Rows are lines; a page's segments are a heading, a hairline and content.",
       "Don't add a label above a heading, or set labels in tracked capitals.",
-      "Don't add a second glow, a gradient wash, glass, or a zero-offset coloured halo.",
+      "Don't add a glow, a gradient wash, glass, or a zero-offset coloured halo.",
       "Don't crop a player's cut-out into a circle at display size, or put any real player's likeness on the landing without a promotional licence and the player's consent.",
       "Don't show a metric the product does not compute.",
       "Don't use orange for links or selection, or blue for fills and headings -- except Daylight's chart blue, which is data, a step deeper than energy so a bar never reads as a control.",
       "Don't use an opacity modifier (`bg-canvas/85`) for a colour that must be right in both modes on every browser; give it a token.",
-      "Don't float a stat tile over the landing's plate, or put a monogram where a face would be."
+      "Don't float a stat tile over the landing's plate, or put a monogram where a face would be.",
+      "Don't give two sections in a row the same split, or draw a control that cannot be used."
     ]
   }
 }

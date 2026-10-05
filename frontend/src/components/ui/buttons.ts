@@ -9,7 +9,18 @@
 const BASE =
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-control font-semibold transition-[filter,background-color,box-shadow,color] disabled:cursor-not-allowed disabled:opacity-60";
 
-export const BUTTON_PRIMARY = `${BASE} h-11 bg-ki px-5 text-[15px] text-on-ki hover:brightness-110 active:brightness-95`;
+const ORANGE = "bg-ki text-on-ki hover:brightness-110 active:brightness-95";
+
+export const BUTTON_PRIMARY = `${BASE} h-11 px-5 text-[15px] ${ORANGE}`;
+
+/** The public pages' ask, "Join the Kai", at the size of a decision: 56px. */
+export const BUTTON_JOIN = `${BASE} h-14 px-7 text-[16px] ${ORANGE}`;
+
+/**
+ * The primary at the site header's height, for the moment the page's own ask
+ * has scrolled away and the header's join becomes the one orange in view.
+ */
+export const BUTTON_PRIMARY_COMPACT = `${BASE} h-9 px-4 text-sm ${ORANGE}`;
 
 /**
  * Everything else you press: retry, show more, cancel -- and the header's

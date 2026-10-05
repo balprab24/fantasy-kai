@@ -95,6 +95,108 @@ export const PPR_2025: RankingRow[] = [
 ];
 
 /**
+ * The top 60 of the 2025 wide-receiver board under PPR -- the board the
+ * landing's product band shows, filtered the way a member filters it, so it
+ * is the product doing something the hero does not. Sixty, because tiers are
+ * cut over exactly the top 60 (`TIER_WINDOW`). Captured 2026-10-05 from the
+ * local backend named at `MCCAFFREY_2025_WEEK7` below:
+ *
+ *   GET /api/v1/rankings?profileId=3&season=2025&scope=season&position=WR&size=200
+ *
+ * The app loads 200 rows, not 60. Checked on the capture: the shown rows'
+ * per-game ranks and colours, and the tiers, are the same over 60 rows as
+ * over the full first page. `tests/lib.test.ts` holds every receiver here who
+ * is also in `PPR_2025` to the same points, in the same order.
+ */
+export const WR_PPR_2025: RankingRow[] = [
+  { rank: 1, playerId: 16153, name: "Puka Nacua", position: "WR", team: "LA", gamesPlayed: 16, points: 375.0, pointsPerGame: 23.44, espnId: null },
+  { rank: 2, playerId: 20739, name: "Jaxon Smith-Njigba", position: "WR", team: "SEA", gamesPlayed: 17, points: 359.9, pointsPerGame: 21.17, espnId: null },
+  { rank: 3, playerId: 20925, name: "Amon-Ra St. Brown", position: "WR", team: "DET", gamesPlayed: 17, points: 324.0, pointsPerGame: 19.06, espnId: null },
+  { rank: 4, playerId: 3865, name: "Ja'Marr Chase", position: "WR", team: "CIN", gamesPlayed: 16, points: 313.6, pointsPerGame: 19.6, espnId: null },
+  { rank: 5, playerId: 17541, name: "George Pickens", position: "WR", team: "DAL", gamesPlayed: 17, points: 291.9, pointsPerGame: 17.17, espnId: null },
+  { rank: 6, playerId: 16743, name: "Chris Olave", position: "WR", team: "NO", gamesPlayed: 16, points: 268.0, pointsPerGame: 16.75, espnId: null },
+  { rank: 7, playerId: 7100, name: "Zay Flowers", position: "WR", team: "BAL", gamesPlayed: 17, points: 243.3, pointsPerGame: 14.31, espnId: null },
+  { rank: 8, playerId: 4415, name: "Nico Collins", position: "WR", team: "HOU", gamesPlayed: 15, points: 226.2, pointsPerGame: 15.08, espnId: null },
+  { rank: 9, playerId: 63, name: "Davante Adams", position: "WR", team: "LA", gamesPlayed: 14, points: 222.9, pointsPerGame: 15.92, espnId: null },
+  { rank: 10, playerId: 24441, name: "Michael Wilson", position: "WR", team: "ARI", gamesPlayed: 17, points: 220.6, pointsPerGame: 12.98, espnId: null },
+  { rank: 11, playerId: 2624, name: "A.J. Brown", position: "WR", team: "NE", gamesPlayed: 15, points: 220.3, pointsPerGame: 14.69, espnId: null },
+  { rank: 12, playerId: 24092, name: "Jameson Williams", position: "WR", team: "DET", gamesPlayed: 17, points: 219.9, pointsPerGame: 12.94, espnId: null },
+  { rank: 13, playerId: 21435, name: "Courtland Sutton", position: "WR", team: "DEN", gamesPlayed: 17, points: 219.7, pointsPerGame: 12.92, espnId: null },
+  { rank: 14, playerId: 18906, name: "Wan'Dale Robinson", position: "WR", team: "TEN", gamesPlayed: 16, points: 217.9, pointsPerGame: 13.62, espnId: null },
+  { rank: 15, playerId: 9871, name: "Tee Higgins", position: "WR", team: "CIN", gamesPlayed: 15, points: 211.6, pointsPerGame: 14.11, espnId: null },
+  { rank: 16, playerId: 14975, name: "Tetairoa McMillan", position: "WR", team: "CAR", gamesPlayed: 17, points: 211.4, pointsPerGame: 12.44, espnId: null },
+  { rank: 17, playerId: 5703, name: "Stefon Diggs", position: "WR", team: "WAS", gamesPlayed: 17, points: 210.3, pointsPerGame: 12.37, espnId: null },
+  { rank: 18, playerId: 17639, name: "Michael Pittman", position: "WR", team: "PIT", gamesPlayed: 17, points: 202.4, pointsPerGame: 11.91, espnId: null },
+  { rank: 19, playerId: 13617, name: "Drake London", position: "WR", team: "ATL", gamesPlayed: 12, points: 201.9, pointsPerGame: 16.83, espnId: null },
+  { rank: 20, playerId: 20474, name: "DeVonta Smith", position: "WR", team: "PHI", gamesPlayed: 17, points: 201.8, pointsPerGame: 11.87, espnId: null },
+  { rank: 21, playerId: 11174, name: "Justin Jefferson", position: "WR", team: "MIN", gamesPlayed: 17, points: 201.5, pointsPerGame: 11.85, espnId: null },
+  { rank: 22, playerId: 12945, name: "CeeDee Lamb", position: "WR", team: "DAL", gamesPlayed: 13, points: 200.9, pointsPerGame: 15.45, espnId: null },
+  { rank: 23, playerId: 6357, name: "Emeka Egbuka", position: "WR", team: "TB", gamesPlayed: 17, points: 195.7, pointsPerGame: 11.51, espnId: null },
+  { rank: 24, playerId: 22943, name: "Jaylen Waddle", position: "WR", team: "DEN", gamesPlayed: 16, points: 194.12, pointsPerGame: 12.13, espnId: null },
+  { rank: 25, playerId: 19397, name: "Deebo Samuel Sr.", position: "WR", team: "SF", gamesPlayed: 16, points: 188.2, pointsPerGame: 11.76, espnId: null },
+  { rank: 26, playerId: 15163, name: "DK Metcalf", position: "WR", team: "PIT", gamesPlayed: 15, points: 187.2, pointsPerGame: 12.48, espnId: null },
+  { rank: 27, playerId: 23279, name: "Parker Washington", position: "WR", team: "JAX", gamesPlayed: 16, points: 184.7, pointsPerGame: 11.54, espnId: null },
+  { rank: 28, playerId: 17553, name: "Alec Pierce", position: "WR", team: "IND", gamesPlayed: 15, points: 183.3, pointsPerGame: 12.22, espnId: null },
+  { rank: 29, playerId: 347, name: "Keenan Allen", position: "WR", team: "IND", gamesPlayed: 17, points: 182.7, pointsPerGame: 10.75, espnId: null },
+  { rank: 30, playerId: 14576, name: "Ladd McConkey", position: "WR", team: "LAC", gamesPlayed: 16, points: 180.9, pointsPerGame: 11.31, espnId: null },
+  { rank: 31, playerId: 7359, name: "Troy Franklin", position: "WR", team: "DEN", gamesPlayed: 17, points: 177.1, pointsPerGame: 10.42, espnId: null },
+  { rank: 32, playerId: 15181, name: "Jakobi Meyers", position: "WR", team: "JAX", gamesPlayed: 16, points: 175.8, pointsPerGame: 10.99, espnId: null },
+  { rank: 33, playerId: 11256, name: "Jauan Jennings", position: "WR", team: "MIN", gamesPlayed: 15, points: 173.3, pointsPerGame: 11.55, espnId: null },
+  { rank: 34, playerId: 11732, name: "Quentin Johnston", position: "WR", team: "LAC", gamesPlayed: 13, points: 171.2, pointsPerGame: 13.17, espnId: null },
+  { rank: 35, playerId: 15664, name: "DJ Moore", position: "WR", team: "BUF", gamesPlayed: 17, points: 170.18, pointsPerGame: 10.01, espnId: null },
+  { rank: 36, playerId: 19898, name: "Khalil Shakir", position: "WR", team: "BUF", gamesPlayed: 16, points: 166.4, pointsPerGame: 10.4, espnId: null },
+  { rank: 37, playerId: 5920, name: "Romeo Doubs", position: "WR", team: "NE", gamesPlayed: 16, points: 165.4, pointsPerGame: 10.34, espnId: null },
+  { rank: 38, playerId: 22487, name: "Tre Tucker", position: "WR", team: "LV", gamesPlayed: 17, points: 161.7, pointsPerGame: 9.51, espnId: null },
+  { rank: 39, playerId: 19895, name: "Rashid Shaheed", position: "WR", team: "SEA", gamesPlayed: 18, points: 156.6, pointsPerGame: 8.7, espnId: null },
+  { rank: 40, playerId: 18535, name: "Rashee Rice", position: "WR", team: "KC", gamesPlayed: 8, points: 150.1, pointsPerGame: 18.76, espnId: null },
+  { rank: 41, playerId: 16657, name: "Rome Odunze", position: "WR", team: "CHI", gamesPlayed: 12, points: 146.1, pointsPerGame: 12.17, espnId: null },
+  { rank: 42, playerId: 21861, name: "Brian Thomas Jr.", position: "WR", team: "JAX", gamesPlayed: 14, points: 138.8, pointsPerGame: 9.91, espnId: null },
+  { rank: 43, playerId: 2783, name: "Marquise Brown", position: "WR", team: "PHI", gamesPlayed: 16, points: 137.7, pointsPerGame: 8.61, espnId: null },
+  { rank: 44, playerId: 5974, name: "Josh Downs", position: "WR", team: "IND", gamesPlayed: 16, points: 136.4, pointsPerGame: 8.53, espnId: null },
+  { rank: 45, playerId: 118, name: "Jordan Addison", position: "WR", team: "MIN", gamesPlayed: 14, points: 135.1, pointsPerGame: 9.65, espnId: null },
+  { rank: 46, playerId: 23372, name: "Christian Watson", position: "WR", team: "GB", gamesPlayed: 10, points: 132.4, pointsPerGame: 13.24, espnId: null },
+  { rank: 47, playerId: 9867, name: "Jayden Higgins", position: "WR", team: "HOU", gamesPlayed: 17, points: 129.5, pointsPerGame: 7.62, espnId: null },
+  { rank: 48, playerId: 3072, name: "Luther Burden III", position: "WR", team: "CHI", gamesPlayed: 15, points: 127.9, pointsPerGame: 8.53, espnId: null },
+  { rank: 49, playerId: 9316, name: "Marvin Harrison Jr.", position: "WR", team: "ARI", gamesPlayed: 12, points: 127.8, pointsPerGame: 10.65, espnId: null },
+  { rank: 50, playerId: 5705, name: "Chimere Dike", position: "WR", team: "TEN", gamesPlayed: 17, points: 126.1, pointsPerGame: 7.42, espnId: null },
+  { rank: 51, playerId: 2144, name: "Kayshon Boutte", position: "WR", team: "HOU", gamesPlayed: 14, points: 124.1, pointsPerGame: 8.86, espnId: null },
+  { rank: 52, playerId: 11311, name: "Jerry Jeudy", position: "WR", team: "CLE", gamesPlayed: 17, points: 120.7, pointsPerGame: 7.1, espnId: null },
+  { rank: 53, playerId: 23313, name: "Malik Washington", position: "WR", team: "MIA", gamesPlayed: 17, points: 116.7, pointsPerGame: 6.86, espnId: null },
+  { rank: 54, playerId: 829, name: "Elic Ayomanor", position: "WR", team: "TEN", gamesPlayed: 16, points: 116.5, pointsPerGame: 7.28, espnId: null },
+  { rank: 55, playerId: 12862, name: "Cooper Kupp", position: "WR", team: "SEA", gamesPlayed: 16, points: 116.3, pointsPerGame: 7.27, espnId: null },
+  { rank: 56, playerId: 14933, name: "Terry McLaurin", position: "WR", team: "WAS", gamesPlayed: 10, points: 114.2, pointsPerGame: 11.42, espnId: null },
+  { rank: 57, playerId: 7085, name: "Ryan Flournoy", position: "WR", team: "DAL", gamesPlayed: 15, points: 114.0, pointsPerGame: 7.6, espnId: null },
+  { rank: 58, playerId: 10168, name: "Mack Hollins", position: "WR", team: "NE", gamesPlayed: 14, points: 113.4, pointsPerGame: 8.1, espnId: null },
+  { rank: 59, playerId: 24735, name: "Xavier Worthy", position: "WR", team: "KC", gamesPlayed: 14, points: 109.9, pointsPerGame: 7.85, espnId: null },
+  { rank: 60, playerId: 4325, name: "Keon Coleman", position: "WR", team: "BUF", gamesPlayed: 12, points: 102.4, pointsPerGame: 8.53, espnId: null },
+];
+
+/**
+ * Where the top sixteen of the WR board above stood on the 0 PPR WR board,
+ * for its "vs 0 PPR" column. From the same request with `profileId=1`,
+ * 2026-10-05. A missing row would print "was 200+" for a receiver who was
+ * 14th, so `tests/lib.test.ts` holds every shown rank to having one.
+ */
+export const WR_PPR_FROM_ZERO_2025: Readonly<Record<number, number>> = {
+  16153: 1,
+  20739: 2,
+  20925: 3,
+  3865: 5,
+  17541: 4,
+  16743: 6,
+  7100: 8,
+  4415: 9,
+  63: 7,
+  24441: 13,
+  2624: 14,
+  24092: 10,
+  21435: 12,
+  18906: 23,
+  9871: 11,
+  14975: 15,
+};
+
+/**
  * Where the top sixteen of the PPR board above stood on the 0 PPR board, by
  * player id -- the landing's board slice shows the move between the two, and
  * it shows ranks 6 to 16. From the same two captures (`GET
@@ -396,51 +498,107 @@ export const NACUA_2025_PPR: CareerSeason = {
 };
 
 /**
- * The PPR preset's rates for the stats on the landing's receipt, as V3 seeds
- * them (`V3__seed_scoring_presets.sql`, "Full PPR"). Copied, so it is checked
- * below.
+ * The three presets' rates, every scorable stat, as V3 seeds them
+ * (`V3__seed_scoring_presets.sql`, "Standard", "Half PPR", "Full PPR"). Copied,
+ * so everything priced with them below is checked against the API's own
+ * answer. The three differ in one rate, `rec` -- which is the landing's whole
+ * argument, and why it says so.
  */
-const RECEIPT_RATES: Partial<Record<StatKey, number>> = {
+/** In the order a box score reads, so a receipt lists its lines that way. */
+const v3 = (rec: number): Record<StatKey, number> => ({
+  pass_yd: 0.04,
+  pass_td: 4,
+  pass_int: -2,
+  pass_2pt: 2,
   rush_yd: 0.1,
   rush_td: 6,
-  rec: 1,
+  rush_2pt: 2,
+  rec,
   rec_yd: 0.1,
   rec_td: 6,
+  rec_2pt: 2,
+  fum_lost: -2,
+  ret_td: 6,
+});
+
+export const PRESET_RATES: Record<Ruleset, Record<StatKey, number>> = {
+  "0 PPR": v3(0),
+  "Half PPR": v3(0.5),
+  PPR: v3(1),
 };
 
-/**
- * McCaffrey's PPR season taken apart for `PointsReceipt`: each stat, its rate,
- * what it is worth. Checked as this module loads: every stat he recorded must
- * be priced, and the lines must add up to the total the API returned, or it
- * throws -- and `npm test`, which CI runs, imports this file. The check used to
- * sit in the component, on the grounds that the page was prerendered and a
- * throw failed the build; every page renders per request since 2026-09-29, and
- * there the same throw was a 500 on the landing page instead.
- *
- * Summed per stat over the season rather than per game, which is exact here
- * only because the PPR preset has no threshold bonuses -- with bonuses the
- * board scores each game first, which is why it always does.
- */
-export const MCCAFFREY_2025_PPR_RECEIPT = receipt(MCCAFFREY_2025_PPR, RECEIPT_RATES);
+/** A stat line and the points the API gave it, under one ruleset. */
+interface Scored {
+  stats: Record<StatKey, number>;
+  points: number;
+}
 
-function receipt(season: CareerSeason, rates: Partial<Record<StatKey, number>>) {
+/**
+ * A stat line taken apart: each stat it recorded, its rate, what it is worth.
+ * Checked as this module loads: the lines must add up to the total the API
+ * returned, or it throws -- and `npm test`, which CI runs, imports this file.
+ * The check used to sit in a component, on the grounds that the page was
+ * prerendered and a throw failed the build; every page renders per request
+ * since 2026-09-29, and there the same throw was a 500 on the landing page.
+ */
+function receipt({ stats, points }: Scored, rates: Record<StatKey, number>, what: string) {
   const lines = (Object.keys(rates) as StatKey[])
-    .filter((stat) => season.stats[stat] !== 0)
-    .map((stat) => ({
-      stat,
-      count: season.stats[stat],
-      rate: rates[stat]!,
-      points: season.stats[stat] * rates[stat]!,
-    }));
+    .filter((stat) => stats[stat] !== 0)
+    .map((stat) => ({ stat, count: stats[stat], rate: rates[stat], points: stats[stat] * rates[stat] }));
   const total = lines.reduce((sum, l) => sum + l.points, 0);
-  const unpriced = (Object.keys(season.stats) as StatKey[]).filter(
-    (stat) => !(stat in rates) && season.stats[stat] !== 0,
-  );
-  if (unpriced.length > 0 || Math.abs(total - season.points) >= 0.05) {
-    throw new Error(
-      `previewData: the receipt adds up to ${total.toFixed(2)}, the API said ${season.points}` +
-        (unpriced.length ? `; unpriced stats: ${unpriced.join(", ")}` : ""),
-    );
+  if (Math.abs(total - points) >= 0.05) {
+    throw new Error(`previewData: ${what} adds up to ${total.toFixed(2)}, the API said ${points}`);
   }
   return { lines, total };
 }
+
+/**
+ * McCaffrey's PPR season taken apart. Summed per stat over the season rather
+ * than per game, which is exact here only because the presets have no
+ * threshold bonuses -- with bonuses the board scores each game first, which is
+ * why it always does.
+ */
+export const MCCAFFREY_2025_PPR_RECEIPT = receipt(MCCAFFREY_2025_PPR, PRESET_RATES.PPR, "McCaffrey's 2025 PPR season");
+
+/**
+ * One game: Christian McCaffrey's 2025 week 7, at home to Atlanta -- the line
+ * the landing's "every game" section scores. Captured 2026-10-05 from a local
+ * backend running `9afad36`'s source (no commit has touched `backend/src/main`
+ * since), against the local database:
+ *
+ *   GET /api/v1/players/14480/gamelog?profileId={1,2,3}&season=2025
+ *
+ * The stat line is the box score, so it is the same under all three profiles;
+ * the points are each profile's. Below, each preset's V3 rates are applied to
+ * the line and must give that profile's points, and `tests/lib.test.ts` holds
+ * the points to the week 7 already captured in the three seasons above.
+ */
+export const MCCAFFREY_2025_WEEK7 = {
+  season: 2025,
+  week: 7,
+  opponent: "ATL",
+  home: true,
+  usage: { passAtt: 0, passCmp: 0, rushAtt: 24, targets: 8 },
+  stats: { pass_yd: 0, pass_td: 0, pass_int: 0, pass_2pt: 0, rush_yd: 129, rush_td: 2, rush_2pt: 0, rec: 7, rec_yd: 72, rec_td: 0, rec_2pt: 0, fum_lost: 0, ret_td: 0 },
+  points: { "0 PPR": 32.1, "Half PPR": 35.6, PPR: 39.1 } satisfies Record<Ruleset, number>,
+};
+
+/**
+ * The 49ers' bye in 2025: the one week of 1-18 with no SF game, checked against
+ * the 2025 schedule in the local database (2026-10-05). McCaffrey's only week
+ * without a game is this one, which `tests/lib.test.ts` holds -- so a week
+ * missing for any other reason can never be labelled a bye by default.
+ */
+export const SF_2025_BYE_WEEK = 14;
+
+/** The week 7 line priced under each preset, each checked against the API's points as this module loads. */
+export const MCCAFFREY_2025_WEEK7_RECEIPTS = Object.fromEntries(
+  (Object.keys(PRESET_RATES) as Ruleset[]).map((r) => [
+    r,
+    receipt(
+      { stats: MCCAFFREY_2025_WEEK7.stats, points: MCCAFFREY_2025_WEEK7.points[r] },
+      PRESET_RATES[r],
+      `McCaffrey's 2025 week 7 under ${r}`,
+    ),
+  ]),
+) as Record<Ruleset, ReturnType<typeof receipt>>;

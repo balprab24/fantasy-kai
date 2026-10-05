@@ -70,3 +70,22 @@ export function entranceOf<R extends string>(
   const end = slotOf(player, to);
   return { rows: (start ?? HERO_ROWS) - (end ?? HERO_ROWS), shown: start !== null };
 }
+
+/**
+ * The landing's bump chart: the top `HERO_ROWS` on the `final` board, in that
+ * order, each with his rank at every stop -- the same players followed across
+ * every ruleset, so a line is one player and its slope is the rule's effect.
+ * `depth` is the lowest rank any of them reaches, which is how tall the chart
+ * has to be for every line to land on its real place.
+ */
+export function bumpLines<R extends string>(
+  players: readonly RankedEverywhere<R>[],
+  stops: readonly R[],
+  final: R,
+): { lines: { playerId: number; ranks: number[] }[]; depth: number } {
+  const lines = players
+    .filter((p) => slotOf(p, final) !== null)
+    .sort((a, b) => a.by[final].rank - b.by[final].rank)
+    .map((p) => ({ playerId: p.playerId, ranks: stops.map((s) => p.by[s].rank) }));
+  return { lines, depth: Math.max(...lines.flatMap((l) => l.ranks)) };
+}

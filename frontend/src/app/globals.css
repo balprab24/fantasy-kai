@@ -64,6 +64,9 @@
      first and the variable only inside @supports (color-mix), so a browser
      without color-mix would paint the Prime time black inside Daylight. */
   --color-veil: rgb(0 0 0 / 0.8);
+  /* The ground of a public page's alternating section (Daylight). The product
+     has no bands, so here it is only the surface step, and nothing uses it. */
+  --color-band: #0a0f1c;
 
   /* Positions: QB purple, RB red, WR blue, TE pink. Data colours, text only,
      and never the only cue -- every badge carries its letters. As chart marks
@@ -117,20 +120,26 @@
    Same type, same components, same two accents; the tokens change value, so
    every component under `.daylight` follows without knowing which mode it is
    in. `.primetime` puts the product's own values back for the one place a
-   daylight page shows the product as it is (the landing's hero plate).
+   daylight page shows the product as it is (the landing's hero plate and its
+   product band).
 
-   Daylight's ground is chalk, cool and never cream; white is for what floats
-   or is typed into; blue rises into the hairlines, so the structure itself is
-   faintly electric. Measured (WCAG 2) on canvas / surface / lift, 2026-09-30:
-     ink 16.4 / 18.0 / 14.8 · mute 7.1 / 7.9 / 6.4 · faint 5.1 / 5.7 / 4.65
-     energy 4.2 / 4.7 / 3.8 (marks and large text) · energy-text 6.0 / 6.6 / 5.4
-     ki-text 4.5 / 5.0 / 4.1 · danger 4.9 / 5.4 / 4.5 · q-good 4.9 / 5.4 / 4.4
-     q-mid 4.9 / 5.4 / 4.4 · pos-* 4.8 (wr and rb, the lowest) / 5.3 / 4.4
-     line-strong 3.4 / 3.7 / 3.05 -- the 3:1 edge of every input and button
+   Daylight's ground is paper: a white with the faintest warmth, far short of
+   cream. One section at a time may sit on the band, a cool light grey, so the
+   page has a rhythm rather than one long sheet; the product's own band is
+   Prime time (`.primetime`). White is for what floats or is typed into; blue
+   rises into the hairlines, so the structure itself is faintly electric.
+   Measured (WCAG 2) on canvas (paper) / band / surface / lift, 2026-10-05:
+     ink 17.3 / 15.9 / 18.0 / 14.8 · mute 7.5 / 6.9 / 7.9 / 6.4
+     faint 5.4 / 5.0 / 5.7 / 4.65
+     energy 4.5 / 4.1 / 4.7 / 3.8 (marks and large text) · energy-text 6.4 / 5.9 / 6.6 / 5.4
+     ki-text 4.8 / 4.4 / 5.0 / 4.1 (on the band, only at stat size) · danger 5.2 / 4.8 / 5.4 / 4.5
+     q-good 5.1 / 4.7 / 5.4 / 4.4 · q-mid 5.1 / 4.7 / 5.4 / 4.4
+     pos-* 5.1 (wr and rb, the lowest) / 4.7 / 5.3 / 4.4
+     line-strong 3.6 / 3.3 / 3.7 / 3.05 -- the 3:1 edge of every input and button
    pos-*, q-* and danger fall under 4.5 on lift, so, as with Prime time's faint,
    none of them sits there: lift holds a selected segment and a tooltip, in ink.
-   ki stays #ff8a3d as a fill (on-ki over it is 8.3:1); as text on chalk it is
-   2.1:1, which is why ki-text exists. Daylight's WR is teal, not Prime time's
+   ki stays #ff8a3d as a fill (on-ki over it is 8.3:1); as text on paper it is
+   2.25:1, which is why ki-text exists. Daylight's WR is teal, not Prime time's
    cyan, so a receiver's letters cannot be read as energy's "you are here".
 
    In Daylight the brief gives data to blue: a week inside the starter line is
@@ -143,7 +152,8 @@
    holds `.daylight` to overriding every colour that must change. */
 .daylight {
   color-scheme: light;
-  --color-canvas: #f1f4f9;
+  --color-canvas: #fbfaf7;
+  --color-band: #edf1f7;
   --color-surface: #ffffff;
   --color-well: #ffffff;
   --color-lift: #e2e9f6;
@@ -161,7 +171,7 @@
 
   --color-track: rgb(11 21 48 / 0.08);
   --color-highlight: rgb(255 255 255 / 0.9);
-  --color-veil: rgb(241 244 249 / 0.85);
+  --color-veil: rgb(251 250 247 / 0.85);
 
   --color-pos-qb: #6a44d8;
   --color-pos-rb: #c92d3a;
@@ -201,6 +211,7 @@
   --color-track: rgb(255 255 255 / 0.06);
   --color-highlight: rgb(255 255 255 / 0.08);
   --color-veil: rgb(0 0 0 / 0.8);
+  --color-band: #0a0f1c;
 
   --color-pos-qb: #c3a6ff;
   --color-pos-rb: #ff6b6b;
@@ -219,9 +230,9 @@
 /* The parts of the page no component draws: the ground an overscroll shows,
    the scrollbar, the browser's own controls. The value is Daylight's canvas. */
 html:has(.daylight) {
-  background: #f1f4f9;
+  background: #fbfaf7;
   color-scheme: light;
-  scrollbar-color: #b7c1d4 #f1f4f9;
+  scrollbar-color: #b7c1d4 #fbfaf7;
 }
 
 /* ---- Type roles -------------------------------------------------------------

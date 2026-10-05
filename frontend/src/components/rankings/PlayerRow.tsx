@@ -51,6 +51,7 @@ export function PlayerRow({
   onOpen,
   settle = true,
   avatar = true,
+  lit = false,
 }: {
   row: BoardRow;
   /** Places moved since the previous ruleset; see `Movement`. */
@@ -68,11 +69,16 @@ export function PlayerRow({
    * where a monogram in a circle would say nothing the name does not.
    */
   avatar?: boolean;
+  /**
+   * The landing's product band follows one row into the player report beside
+   * it, and lights that row with the "you are here" tint. Never set in the app.
+   */
+  lit?: boolean;
 }) {
   const other = metric === "points" ? row.pointsPerGame : row.points;
   const moved = delta !== 0;
   return (
-    <tr className={`group relative ${settle && delta ? "settled" : ""}`}>
+    <tr className={`group relative ${settle && delta ? "settled" : ""} ${lit ? "[&>*]:bg-energy/15" : ""}`}>
       <td className={`${cell} ${COL.rank} type-rank text-[15px] text-mute`}>{row.rank}</td>
       <th scope="row" className={`${cell} ${COL.player} text-left font-normal`}>
         <div className="flex min-w-0 items-center gap-3">

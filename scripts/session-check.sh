@@ -49,7 +49,7 @@ EXPECT_TESTS=175            # docs/map.md §1
 EXPECT_ENDPOINTS=13         # docs/map.md §1 (6 GET, members only + 4 auth + 3 mutations)
 EXPECT_MIGRATIONS=6         # docs/map.md §1 ("V1 … V6")
 EXPECT_BACKEND_FILES=81     # docs/map.md §1
-EXPECT_FRONTEND_FILES=80    # docs/map.md §1 (.ts/.tsx under frontend/src)
+EXPECT_FRONTEND_FILES=81    # docs/map.md §1 (.ts/.tsx under frontend/src)
 EXPECT_JDK=25               # CLAUDE.md "Commands" · README · pom.xml enforcer
 
 # The deployed API's hostname, and it is deliberately empty until Phase 5d has

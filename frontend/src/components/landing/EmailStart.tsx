@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
-import { BUTTON_PRIMARY, LINK_QUIET } from "@/components/ui/buttons";
+import { BUTTON_JOIN, LINK_QUIET } from "@/components/ui/buttons";
 import { useAuth } from "@/lib/auth";
 import { authErrorMessage, isEmailTaken } from "@/lib/authErrors";
 import { HOME_FOR_MEMBERS } from "@/lib/landing";
@@ -23,7 +23,7 @@ import { HOME_FOR_MEMBERS } from "@/lib/landing";
  * Validation is the browser's own (`type="email"`, `minLength`) and then the
  * server's, whose wording is shown as it is (`authErrorMessage`).
  */
-export function EmailStart({ fieldId, tone = "hero" }: { fieldId?: string; tone?: "hero" | "footer" }) {
+export function EmailStart() {
   const router = useRouter();
   const { register } = useAuth();
   const [email, setEmail] = useState("");
@@ -33,7 +33,7 @@ export function EmailStart({ fieldId, tone = "hero" }: { fieldId?: string; tone?
   const [taken, setTaken] = useState(false);
   const [busy, setBusy] = useState(false);
   const uid = useId();
-  const emailId = fieldId ?? `${uid}-email`;
+  const emailId = `${uid}-email`;
   const passwordId = `${uid}-password`;
   const hintId = `${uid}-hint`;
 
@@ -60,11 +60,12 @@ export function EmailStart({ fieldId, tone = "hero" }: { fieldId?: string; tone?
 
   const open = step === "password";
   const field =
-    "mt-1.5 h-12 w-full min-w-0 rounded-control border border-line-strong bg-well px-4 text-[16px] text-ink transition-colors placeholder:text-faint hover:border-mute focus-visible:border-energy disabled:cursor-not-allowed disabled:border-line disabled:bg-canvas disabled:hover:border-line";
+    "mt-1.5 h-14 w-full min-w-0 rounded-control border border-line-strong bg-well px-4 text-[16px] text-ink transition-colors placeholder:text-faint hover:border-mute focus-visible:border-energy disabled:cursor-not-allowed disabled:border-line disabled:bg-canvas disabled:hover:border-line";
 
   return (
-    <form onSubmit={submit} className="w-full max-w-[34rem]">
-      <div className="grid gap-3 sm:grid-cols-2">
+    <form onSubmit={submit} className="w-full max-w-[60rem]">
+      {/* From lg the two fields and the button share one row: one decision, on one line. */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
         <div>
           {/* The same label row as the password's, so the two fields share a top edge. */}
           <div className="flex items-baseline justify-between gap-3 text-[13px]">
@@ -112,21 +113,21 @@ export function EmailStart({ fieldId, tone = "hero" }: { fieldId?: string; tone?
             className={field}
           />
         </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
-        <button type="submit" disabled={busy} className={`${BUTTON_PRIMARY} h-14 px-7 text-[16px]`}>
+        <button
+          type="submit"
+          disabled={busy}
+          className={`${BUTTON_JOIN} mt-1 w-full sm:w-auto sm:justify-self-start lg:mt-0`}
+        >
           {open ? (busy ? "Creating…" : "Create account") : "Join the Kai"}
         </button>
-        <p className="text-sm text-mute">
-          {/* The band at the foot of the page says "free" in its own words. */}
-          {tone === "hero" && "Free, with no ads. "}
-          Already a member?{" "}
-          <Link href="/login" className={`whitespace-nowrap ${LINK_QUIET}`}>
-            Sign in
-          </Link>
-        </p>
       </div>
+
+      <p className="mt-4 text-sm text-mute">
+        Already a member?{" "}
+        <Link href="/login" className={`whitespace-nowrap ${LINK_QUIET}`}>
+          Sign in
+        </Link>
+      </p>
 
       {error && (
         <p role="alert" className="mt-3 rounded-control bg-danger/[0.08] px-3 py-2 text-sm text-danger">

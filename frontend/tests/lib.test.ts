@@ -12,16 +12,23 @@ import {
   MCCAFFREY_2025_BY_RULESET,
   MCCAFFREY_2025_PPR,
   MCCAFFREY_2025_PPR_RECEIPT,
+  MCCAFFREY_2025_WEEK7,
+  MCCAFFREY_2025_WEEK7_RECEIPTS,
   NACUA_2025_PPR,
   NACUA_SEASONS_PPR,
   PPR_2025,
   PPR_FROM_ZERO_2025,
   PPR_VS_ZERO_2025,
+  PRESET_RATES,
+  SF_2025_BYE_WEEK,
+  WR_PPR_2025,
+  WR_PPR_FROM_ZERO_2025,
+  type Ruleset,
 } from "../src/components/landing/previewData.ts";
 import { band, bandFor, formatPoints, starterWeeks, toBoardRows } from "../src/lib/board.ts";
 import { boardSearch, parseBoardParams } from "../src/lib/boardParams.ts";
 import { apiOriginOf, contentSecurityPolicy } from "../src/lib/csp.ts";
-import { HERO_ROWS, entranceOf, movedBetween, posRankOf, slotOf } from "../src/lib/heroBoard.ts";
+import { HERO_ROWS, bumpLines, entranceOf, movedBetween, posRankOf, slotOf } from "../src/lib/heroBoard.ts";
 import { CUTOUT_ASPECT, headshotCutoutUrl, headshotUrl } from "../src/lib/headshot.ts";
 import { LANDING_SECTIONS, safeNext } from "../src/lib/landing.ts";
 import {
@@ -508,7 +515,7 @@ describe("the landing page's other captures", () => {
   });
 
   it("gives every sliced row a 0 PPR place, and agrees with the rule-change chart", () => {
-    // The slice shows ranks 6 to 16 (BoardSlice.tsx); every one needs its real 0 PPR place.
+    // The product band shows ranks 1 to 12 (ProductBand.tsx); every one needs its real 0 PPR place.
     for (const r of PPR_2025.slice(0, 16)) assert.ok(PPR_FROM_ZERO_2025[r.playerId] > 0, r.name);
     for (const { row, zeroPprRank } of PPR_VS_ZERO_2025) {
       assert.equal(PPR_FROM_ZERO_2025[row.playerId], zeroPprRank, row.name);
@@ -530,6 +537,102 @@ describe("the landing page's other captures", () => {
     assert.ok(Math.abs(sum - NACUA_2025_PPR.points) < 0.05);
     assert.equal(NACUA_2025_PPR.weeks.length, NACUA_2025_PPR.gamesPlayed);
     assert.equal(NACUA_2025_PPR.points, PPR_2025.find((r) => r.playerId === 16153)!.points);
+  });
+});
+
+describe("the landing's one game, and the rates it is priced with", () => {
+  const RULESETS = Object.keys(PRESET_RATES) as Ruleset[];
+
+  it("copies V3's three presets exactly, and they differ in one rate: a catch", () => {
+    // The migration is the source; parse its rule objects rather than trusting the copy.
+    const sql = readFileSync(
+      new URL("../../backend/src/main/resources/db/migration/V3__seed_scoring_presets.sql", import.meta.url),
+      "utf8",
+    );
+    const seeded = new Map(
+      [...sql.matchAll(/\(NULL, '([^']+)', TRUE, '(\{[\s\S]*?\})'::jsonb\)/g)].map((m) => [m[1], JSON.parse(m[2])]),
+    );
+    const source: Record<Ruleset, string> = { "0 PPR": "Standard", "Half PPR": "Half PPR", PPR: "Full PPR" };
+    for (const r of RULESETS) {
+      const rules = seeded.get(source[r]);
+      assert.ok(rules, `${source[r]} is not in V3`);
+      assert.equal(rules.position_overrides, undefined, `${source[r]} has overrides`);
+      assert.deepEqual(PRESET_RATES[r], rules.base, r);
+    }
+    for (const stat of Object.keys(PRESET_RATES.PPR) as (keyof (typeof PRESET_RATES)["PPR"])[]) {
+      const values = new Set(RULESETS.map((r) => PRESET_RATES[r][stat]));
+      assert.equal(values.size, stat === "rec" ? 3 : 1, stat);
+    }
+  });
+
+  it("prices week 7 into each preset's captured points, which are the seasons' own week 7", () => {
+    for (const s of MCCAFFREY_2025_BY_RULESET) {
+      const week = s.weeks.find((w) => w.week === MCCAFFREY_2025_WEEK7.week)!;
+      assert.equal(MCCAFFREY_2025_WEEK7.points[s.ruleset], week.points, s.ruleset);
+      const { total } = MCCAFFREY_2025_WEEK7_RECEIPTS[s.ruleset];
+      assert.ok(Math.abs(total - week.points) < 0.05, `${s.ruleset}: priced ${total}, captured ${week.points}`);
+    }
+    // Seven catches: 0 PPR + 3.5 = Half PPR, + 3.5 again = PPR.
+    assert.equal(MCCAFFREY_2025_WEEK7.stats.rec, 7);
+  });
+
+  it("labels a week a bye only when it is the bye: McCaffrey's one missing week is the 49ers'", () => {
+    // The week strip prints "bye" for this week alone and "no game" for any other gap,
+    // so a game missed for another reason can never read as a bye.
+    for (const s of [...MCCAFFREY_2025_BY_RULESET, MCCAFFREY_2025_PPR]) {
+      const played = new Set(s.weeks.map((w) => w.week));
+      const missing = Array.from({ length: 18 }, (_, i) => i + 1).filter((w) => !played.has(w));
+      assert.deepEqual(missing, [SF_2025_BYE_WEEK], "season" in s ? "career" : s.ruleset);
+    }
+  });
+});
+
+describe("the landing's wide-receiver board", () => {
+  it("is a whole WR board from rank 1, sixty deep, the order tiers need", () => {
+    assert.equal(WR_PPR_2025.length, 60);
+    WR_PPR_2025.forEach((r, i) => {
+      assert.equal(r.rank, i + 1, r.name);
+      assert.equal(r.position, "WR", r.name);
+    });
+  });
+
+  it("agrees with the overall PPR board on every receiver both hold, in the same order", () => {
+    const both = PPR_2025.filter((r) => r.position === "WR");
+    assert.ok(both.length >= 10);
+    let last = 0;
+    for (const r of both) {
+      const w = WR_PPR_2025.find((x) => x.playerId === r.playerId);
+      assert.ok(w, `${r.name} is on the overall board but not the WR board`);
+      assert.deepEqual([w.points, w.pointsPerGame, w.gamesPlayed], [r.points, r.pointsPerGame, r.gamesPlayed], r.name);
+      assert.ok(w.rank > last, `${r.name} is out of order`);
+      last = w.rank;
+    }
+  });
+
+  it("gives every shown receiver his real 0 PPR place, in step with the overall 0 PPR board", () => {
+    // The band shows ranks 1 to 10 (ProductBand.tsx); sixteen are captured.
+    for (const r of WR_PPR_2025.slice(0, 16)) assert.ok(WR_PPR_FROM_ZERO_2025[r.playerId] > 0, r.name);
+    const overall = Object.entries(PPR_FROM_ZERO_2025)
+      .map(([id, rank]) => ({ id: Number(id), rank }))
+      .filter((p) => WR_PPR_FROM_ZERO_2025[p.id] !== undefined)
+      .sort((a, b) => a.rank - b.rank);
+    assert.ok(overall.length >= 4);
+    const wr = overall.map((p) => WR_PPR_FROM_ZERO_2025[p.id]);
+    assert.deepEqual(wr, [...wr].sort((a, b) => a - b), "the two 0 PPR boards disagree on order");
+  });
+});
+
+describe("the landing's bump chart", () => {
+  it("follows the PPR top eight through all three boards, at their real places", () => {
+    const { lines, depth } = bumpLines(HERO_BOARD_2025, ["0 PPR", "Half PPR", "PPR"] as const, "PPR");
+    assert.equal(lines.length, HERO_ROWS);
+    assert.deepEqual(
+      lines.map((l) => l.ranks[2]),
+      Array.from({ length: HERO_ROWS }, (_, i) => i + 1),
+    );
+    assert.deepEqual(lines.find((l) => l.playerId === 16153)!.ranks, [20, 11, 2], "Nacua");
+    assert.deepEqual(lines.find((l) => l.playerId === 14480)!.ranks, [7, 1, 1], "McCaffrey");
+    assert.equal(depth, 22, "Smith-Njigba was 22nd under 0 PPR");
   });
 });
 

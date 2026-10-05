@@ -4,14 +4,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Wordmark } from "@/components/shell/Wordmark";
-import { BUTTON_SECONDARY } from "@/components/ui/buttons";
+import { BUTTON_PRIMARY_COMPACT, BUTTON_SECONDARY } from "@/components/ui/buttons";
 import { useAuth } from "@/lib/auth";
-import { HOME_FOR_MEMBERS, JOIN_FIELD_ID, LANDING_SECTIONS } from "@/lib/landing";
-import { useActiveSection } from "./useActiveSection";
+import { CLOSING_ID, HERO_JOIN_ID, HOME_FOR_MEMBERS, LANDING_SECTIONS } from "@/lib/landing";
+import { useActiveSection, useAnyOnScreen } from "./useActiveSection";
 
 const SECTION_IDS = LANDING_SECTIONS.map((s) => s.id);
-/** Module-level so the observer's effect sees the same array every render. */
+/** Module-level so the observers' effects see the same array every render. */
 const NO_SECTIONS: string[] = [];
+const PAGE_ASKS = [HERO_JOIN_ID, CLOSING_ID];
 
 /**
  * The bar above the landing page and the sign-in pages -- the product's own
@@ -19,10 +20,14 @@ const NO_SECTIONS: string[] = [];
  * product: the wordmark, plain links, one orange action.
  *
  * Its links do not open the features -- they scroll to the part of the page
- * that explains each one, and the one being read is underlined in blue.
- * Opening the feature itself takes an account. They are the landing page's
- * alone: on sign-in and register the page is the task. Below md they step
- * away: the page is one column, and scrolling is the navigation.
+ * that shows each one, and the one being read is underlined in blue. Opening
+ * the feature itself takes an account. They are the landing page's alone: on
+ * sign-in and register the page is the task. Below md they step away: the
+ * page is one column, and scrolling is the navigation.
+ *
+ * "Join the Kai" is secondary while the page's own ask is in view (the hero's
+ * button, the closing form) and becomes the orange primary once neither is:
+ * one orange action on screen at a time, and always one within reach.
  *
  * In Daylight it rests on the page itself, with no edge; once the page scrolls
  * under it, one blue hairline says where the bar ends. Nothing else changes.
@@ -38,6 +43,7 @@ export function SiteHeader() {
   const { status } = useAuth();
   const onLanding = pathname === "/";
   const active = useActiveSection(onLanding ? SECTION_IDS : NO_SECTIONS);
+  const askInView = useAnyOnScreen(onLanding ? PAGE_ASKS : NO_SECTIONS);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -51,26 +57,14 @@ export function SiteHeader() {
     if (onLanding && status === "signed-in") router.replace(HOME_FOR_MEMBERS);
   }, [onLanding, status, router]);
 
-  // Secondary, never orange: the orange is the page's own ask (the hero's
-  // form, a sign-in form's button), and two orange buttons for one action is
-  // one too many. On /register the page IS the ask, so the bar has none.
-  const join = onLanding ? (
-    <button
-      type="button"
-      onClick={() => {
-        const field = document.getElementById(JOIN_FIELD_ID);
-        field?.scrollIntoView({ block: "center" });
-        field?.focus({ preventScroll: true });
-      }}
-      className={BUTTON_SECONDARY}
-    >
-      Join the Kai
-    </button>
-  ) : pathname === "/register" ? null : (
-    <Link href="/register" className={BUTTON_SECONDARY}>
-      Join the Kai
-    </Link>
-  );
+  // On /register the page IS the ask, so the bar has none. Elsewhere off the
+  // landing (sign-in) the form's button is the orange, so the join is quiet.
+  const join =
+    pathname === "/register" ? null : (
+      <Link href="/register" className={onLanding && !askInView ? BUTTON_PRIMARY_COMPACT : BUTTON_SECONDARY}>
+        Join the Kai
+      </Link>
+    );
 
   return (
     <header

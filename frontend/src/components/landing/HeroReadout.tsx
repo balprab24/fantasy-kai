@@ -140,7 +140,6 @@ export function HeroReadout({
             max={SCALE}
             width={BOX.w}
             height={BOX.h}
-            glow
             draw
             drawDelay={switches === 0 ? 1500 : 80}
             drawDuration={600}

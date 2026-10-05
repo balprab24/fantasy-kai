@@ -13,20 +13,23 @@ export interface LandingSection {
 /**
  * One list, read by the header's links and by the page's sections alike, so a
  * link cannot point at a section that is not there. The order is the page's.
+ * Only what is built: what is coming has a section, not a place in the header.
  */
 export const LANDING_SECTIONS: readonly LandingSection[] = [
   { id: "scoring", label: "Scoring" },
   { id: "rankings", label: "Rankings" },
   { id: "players", label: "Players" },
-  { id: "next", label: "Coming next" },
 ];
 
 /**
- * The id of the hero's email field, which the header's "Join the Kai" focuses.
- * Here and not in the header: a constant exported from a "use client" module
- * reaches a server component as a client reference, not as the string.
+ * The page's own asks: the hero's "Join the Kai" and the closing section.
+ * While either is on screen the header's join stays secondary, so one orange
+ * action is in view at a time. Here and not in the header: a constant
+ * exported from a "use client" module reaches a server component as a client
+ * reference, not as the string.
  */
-export const JOIN_FIELD_ID = "join-email";
+export const HERO_JOIN_ID = "hero-join";
+export const CLOSING_ID = "join";
 
 /** Where a member lands when there is nowhere better to send them. */
 export const HOME_FOR_MEMBERS = "/rankings";

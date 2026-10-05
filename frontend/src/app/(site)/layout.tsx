@@ -3,7 +3,7 @@ import { Attribution } from "@/components/Attribution";
 import { SiteHeader } from "@/components/landing/SiteHeader";
 
 /** A phone's browser chrome takes the page's ground, not the product's black. */
-export const viewport: Viewport = { themeColor: "#f1f4f9" };
+export const viewport: Viewport = { themeColor: "#fbfaf7" };
 
 /**
  * The frame outside the product: the landing page and the sign-in pages. No

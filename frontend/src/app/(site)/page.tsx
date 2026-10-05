@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
-import { BoardSlice } from "@/components/landing/BoardSlice";
-import { CareerLine } from "@/components/landing/CareerLine";
+import Link from "next/link";
 import { ComingNext } from "@/components/landing/ComingNext";
 import { EmailStart } from "@/components/landing/EmailStart";
 import { FeatureSection, SectionCopy, SectionTitle } from "@/components/landing/FeatureSection";
+import { GameToSeason } from "@/components/landing/GameToSeason";
 import { HeroPlate } from "@/components/landing/HeroPlate";
-import { PointsReceipt } from "@/components/landing/PointsReceipt";
-import { NACUA_2025_PPR } from "@/components/landing/previewData";
+import { ProductBand } from "@/components/landing/ProductBand";
 import { RuleSwing } from "@/components/landing/RuleSwing";
-import { WeeklyChart } from "@/components/player/WeeklyChart";
-import { JOIN_FIELD_ID } from "@/lib/landing";
+import { BUTTON_JOIN } from "@/components/ui/buttons";
+import { CLOSING_ID, HERO_JOIN_ID } from "@/lib/landing";
 
 export const metadata: Metadata = {
   title: "fantasy-kai",
@@ -21,153 +20,132 @@ export const metadata: Metadata = {
  * The front door, for people deciding whether to join -- in Daylight, the
  * public pages' mode (app/(site)/layout.tsx). The product itself is behind an
  * account (app/(app)/layout.tsx), so this page shows it rather than serving it,
- * and shows it working: the hero is the real 2025 board in the product's own
- * dark skin, re-sorting when the rule changes. Every figure can be re-derived;
- * `previewData.ts` names the requests.
+ * and every figure on it is captured from the real API (`previewData.ts`
+ * names the requests).
  *
- * The order is the argument, run as one: the rule moves the board (hero); the
- * starkest case and the arithmetic behind a total, then what the board is
- * built from and the board itself (scoring, rankings -- one section); one
- * player opened (players); and one last ask, with what is coming beside it.
- * One continuous chalk ground; a single hairline, before the ask.
+ * The order is the argument, and the ground changes with it, so the page has
+ * a rhythm instead of one long sheet:
+ *   - the hero (paper): the real board in its own dark skin, re-sorting when
+ *     the rule changes, beside one ask;
+ *   - one rule, three boards (paper): how far that one rule moves people;
+ *   - the product (the stage: a full-width band of Prime time): the board and
+ *     the player it leads to, as they really look;
+ *   - your rates, every game (the band): how one number is made, with the
+ *     one rate the presets disagree on as a control;
+ *   - what is coming (paper, small), then the last ask at full width.
  *
- * Below lg the hero reads headline, board, then the pitch and the form, so a
- * phone's first screen holds the product and not only a paragraph; the site
- * header's "Join the Kai" is the ask until the form scrolls into view.
+ * Below lg the hero reads headline, pitch, ask, then the board, so a phone's
+ * first screen holds both the action and the product.
  */
 export default function Landing() {
   return (
     <>
       <section className="overflow-x-clip">
-        <div className="mx-auto grid max-w-[1320px] gap-x-12 px-4 pt-8 pb-20 sm:px-6 lg:grid-cols-2 lg:grid-rows-[auto_auto] lg:px-8 lg:pt-14 lg:pb-24 xl:gap-x-20">
-          <h1 className="type-display text-[clamp(4.25rem,8.6vw,8.25rem)] text-ink lg:row-start-1 lg:self-end">
-            <span className="block">Ranked by</span>
-            <span className="block">your rules.</span>
-          </h1>
-          <div className="mt-8 min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0 lg:self-center">
-            <HeroPlate />
-          </div>
-          <div className="mt-10 min-w-0 lg:row-start-2 lg:mt-9 lg:self-start">
-            <p className="max-w-[34rem] border-t border-line pt-5 text-[19px] leading-[1.55] text-mute">
-              Every NFL player&rsquo;s box scores since 2020, scored under the settings your league actually
-              uses and refreshed every morning of the season.
+        <div className="mx-auto grid max-w-[1320px] items-center gap-x-12 px-4 pt-6 pb-16 sm:px-6 sm:pt-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:px-8 lg:pt-14 lg:pb-16 xl:gap-x-16">
+          <div className="min-w-0">
+            <h1 className="type-display text-[clamp(4.25rem,11vw,7rem)] text-ink lg:text-[clamp(5rem,8.2vw,8rem)]">
+              <span className="block">Ranked by</span>
+              <span className="block">your rules.</span>
+            </h1>
+            <p className="mt-5 max-w-[30rem] text-[17px] leading-[1.55] text-pretty text-mute sm:mt-6 sm:text-[19px]">
+              Fantasy football rankings scored by the settings your league actually uses.
+              {/* A phone's first screen is for the board; the rest is said again below. */}
+              <span className="hidden sm:inline">
+                {" "}
+                Every NFL box score since 2020, updated every morning of the season.
+              </span>
             </p>
-            <div className="mt-8">
-              <EmailStart fieldId={JOIN_FIELD_ID} />
+            <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3 sm:mt-8">
+              <Link id={HERO_JOIN_ID} href="/register" className={`${BUTTON_JOIN} w-full sm:w-auto`}>
+                Join the Kai
+              </Link>
+              <p className="text-[15px] text-mute">Free. No ads, no paywall.</p>
             </div>
+          </div>
+          <div className="mt-10 min-w-0 sm:mt-12 lg:mt-0">
+            <HeroPlate />
           </div>
         </div>
       </section>
 
-      {/* One passage: the rule swing and the receipt, then -- under the receipt,
-          where the slope chart leaves room -- what the board is built from, and
-          the board itself across the full width. "Rankings" in the header lands
-          on that heading. */}
-      <FeatureSection id="scoring" className="pt-16 pb-20 lg:pt-20 lg:pb-24">
-        <div className="grid items-start gap-x-20 gap-y-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-          <div>
+      {/* The rule's effect, drawn at the page's full width: the heading and its one
+          line above it, not beside it. */}
+      <FeatureSection id="scoring" className="pb-16 sm:pb-24 lg:pb-28">
+        <div className="border-t border-line pt-14 sm:pt-16 lg:pt-14">
+          <div className="grid items-end gap-x-16 gap-y-5 lg:grid-cols-[minmax(0,6fr)_minmax(0,6fr)]">
             <SectionTitle id="scoring">
-              <span className="block">Change one rule</span>
-              <span className="block">and the order changes.</span>
+              <span className="block">One rule.</span>
+              <span className="block">Three boards.</span>
             </SectionTitle>
-            <SectionCopy className="mt-6">
-              <p>
-                Same season, same stat lines, one setting. Under PPR, Puka Nacua finished{" "}
-                <strong>2nd</strong> in 2025. Take away the point per catch and Nacua finished{" "}
-                <strong>20th</strong>.
-              </p>
-            </SectionCopy>
-            <div className="mt-10">
-              <RuleSwing />
-            </div>
-          </div>
-          <div className="lg:pt-2">
             <SectionCopy>
               <p>
-                Start from PPR, half PPR, 0 PPR or TE premium, or build your own: every rate,
-                overrides for a single position, and bonuses at the thresholds your league pays out
-                on. Save it once and choose it anywhere the site asks which scoring to use.
+                Same 2025 season, same stat lines. The three presets differ in one number, what a catch is
+                worth, and Puka Nacua goes from <strong>20th</strong> to <strong>2nd</strong>.
               </p>
             </SectionCopy>
-            <div className="mt-10">
-              <PointsReceipt />
-            </div>
-            <section id="rankings" aria-labelledby="rankings-title" className="mt-16 scroll-mt-20">
-              <SectionTitle id="rankings">
-                <span className="block">Built from box scores,</span>
-                <span className="block">one game at a time.</span>
-              </SectionTitle>
-              <SectionCopy className="mt-6">
-                <p>
-                  Each game is scored under your league&rsquo;s rules and then the games are added
-                  up, so a yardage bonus lands in the game that earned it rather than on a season
-                  average. The board refreshes at <strong>6 a.m. Eastern</strong> every day of the
-                  season, and tiers are drawn where the points genuinely drop off.
-                </p>
-                <p>
-                  No expert picks go into it, now or later. When a consensus arrives, it will be the
-                  market&rsquo;s: real drafts and real rosters.
-                </p>
-              </SectionCopy>
-            </section>
           </div>
-        </div>
-        <div className="mt-12">
-          <BoardSlice />
+          <div className="mt-12 lg:mt-16">
+            <RuleSwing />
+          </div>
         </div>
       </FeatureSection>
 
-      <FeatureSection id="players" className="pb-20 lg:pb-24">
-        <div className="grid items-start gap-x-16 gap-y-10 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]">
-          <div>
-            <SectionTitle id="players">
-              <span className="block">Every player,</span>
-              <span className="block">week by week.</span>
+      <ProductBand />
+
+      {/* Mirrored: the working part on the left, the words on the right. */}
+      <section aria-labelledby="rates-title" className="bg-band">
+        <div className="mx-auto grid max-w-[1320px] items-start gap-x-20 gap-y-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:px-8 lg:py-28">
+          {/* The words stay in view while the receipt beside them is read. */}
+          <div className="lg:sticky lg:top-24 lg:order-2 lg:self-start lg:pt-1">
+            <SectionTitle id="rates">
+              <span className="block">Your rates.</span>
+              <span className="block">Every game.</span>
             </SectionTitle>
             <SectionCopy className="mt-6">
               <p>
-                Open any player to see each week of a season set against the starter line for their position,
-                the full game log, and every season since 2020 with where they finished, all under the scoring
-                you picked.
+                Start from a preset or set every rate yourself, with overrides for one position and bonuses at
+                the thresholds your league pays. Each game is scored on its own, then added up.
               </p>
             </SectionCopy>
-          </div>
-          <div>
-            <p className="mb-4 text-[15px] text-mute">
-              <span className="font-semibold text-ink">Puka Nacua</span>: the receiver the rule change moved
-              from 20th to 2nd.
+            <p className="mt-8 max-w-[30rem] border-t border-line pt-4 text-[14px] leading-relaxed text-pretty text-mute">
+              Box scores from nflverse for every game since 2020, pulled at 6 a.m. Eastern every morning of the
+              season and scored when you ask, never stored as points. No expert picks go in, now or later.
             </p>
-            <WeeklyChart season={NACUA_2025_PPR} position="WR" scoringLabel="PPR" />
-            <div className="mt-10">
-              <CareerLine />
-            </div>
+          </div>
+          <GameToSeason />
+        </div>
+      </section>
+
+      <section id="next" aria-labelledby="next-title" className="scroll-mt-16">
+        <div className="mx-auto max-w-[1320px] px-4 pt-16 pb-14 sm:px-6 sm:pt-20 lg:px-8 lg:pt-24">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-10 gap-y-2">
+            <h2 id="next-title" className="type-title text-ink">
+              Being built next
+            </h2>
+            <p className="text-[15px] text-pretty text-mute">
+              None of it exists yet. It is here so you know where the product is headed.
+            </p>
+          </div>
+          <div className="mt-6">
+            <ComingNext />
           </div>
         </div>
-      </FeatureSection>
+      </section>
 
-      <section id="join" aria-labelledby="join-title" className="scroll-mt-16 border-t border-line">
-        <div className="mx-auto grid max-w-[1320px] items-start gap-x-20 gap-y-14 px-4 py-20 sm:px-6 lg:grid-cols-[minmax(0,6fr)_minmax(0,6fr)] lg:px-8 lg:py-24">
-          <div>
-            <h2 id="join-title" className="type-display text-[clamp(2.375rem,4.2vw,3.25rem)] text-ink">
+      {/* One last ask, at full width: the headline at the hero's scale, the form on one line under it. */}
+      <section id={CLOSING_ID} aria-labelledby="join-title" className="scroll-mt-16">
+        <div className="mx-auto max-w-[1320px] px-4 sm:px-6 lg:px-8">
+          <div className="border-t border-line pt-14 pb-20 sm:pt-16 sm:pb-24 lg:pt-20 lg:pb-28">
+            <h2 id="join-title" className="type-display text-[clamp(4.25rem,11vw,8rem)] text-ink">
               Join the Kai.
             </h2>
-            <p className="mt-5 max-w-[34rem] text-[17px] leading-[1.6] text-mute">
+            <p className="mt-5 max-w-[36rem] text-[17px] leading-[1.6] text-pretty text-mute sm:text-[19px]">
               Free, and it stays that way: no ads, no paywall, nothing to upgrade to.
             </p>
-            <div className="mt-8">
-              <EmailStart tone="footer" />
+            <div className="mt-10">
+              <EmailStart />
             </div>
           </div>
-          <section id="next" aria-labelledby="next-title" className="scroll-mt-20">
-            <h3 id="next-title" className="type-heading text-ink">
-              What is being built next
-            </h3>
-            <p className="mt-3 max-w-[36rem] text-[15px] leading-relaxed text-mute">
-              None of this exists yet. It is listed so you know where the product is headed, not as a promise
-              of when.
-            </p>
-            <ComingNext />
-          </section>
         </div>
       </section>
     </>

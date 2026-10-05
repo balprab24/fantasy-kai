@@ -28,7 +28,9 @@ colors:
   track: "rgb(255 255 255 / 0.06)"
   highlight: "rgb(255 255 255 / 0.08)"
   veil: "rgb(0 0 0 / 0.8)"
-  daylight-canvas: "#f1f4f9"
+  band: "#0a0f1c"
+  daylight-canvas: "#fbfaf7"
+  daylight-band: "#edf1f7"
   daylight-surface: "#ffffff"
   daylight-well: "#ffffff"
   daylight-lift: "#e2e9f6"
@@ -50,7 +52,7 @@ colors:
   daylight-chart-starter: "#1f5fe0"
   daylight-chart-rest: "#7e889f"
   daylight-track: "rgb(11 21 48 / 0.08)"
-  daylight-veil: "rgb(241 244 249 / 0.85)"
+  daylight-veil: "rgb(251 250 247 / 0.85)"
 typography:
   display:
     fontFamily: "Sofia Sans Extra Condensed, ui-sans-serif, system-ui, sans-serif"
@@ -170,12 +172,15 @@ the structural work that boxes used to do.
 Two modes, one grammar. **Prime time** is the product: the board under the lights, true black, dense,
 lines instead of cards, a single console of controls, tabular figures in columns. **Daylight** is the
 public pages -- the landing, sign-in, register -- where a visitor decides in daylight whether to
-trust the tool: the pre-game studio. A cool chalk ground, navy ink, white for what floats or is typed
-into, and blue risen into the hairlines. The type, the components and the two accents are the same;
-only the tokens change value (`.daylight` in `globals.css`), so the two read as one product. Where a
-Daylight page shows the product, the product keeps its own dark skin (`.primetime`), once: the
-landing's hero is the real board, re-sorting when the rule changes, and signing in is the moment the
-whole screen turns to Prime time. The anime influence is
+trust the tool: the pre-game studio. A paper ground (a white with the faintest warmth, never cream),
+one cool band for the section that alternates, navy ink, white for what floats or is typed into,
+and blue risen into the hairlines. The type, the components and the two accents are the same; only
+the tokens change value (`.daylight` in `globals.css`), so the two read as one product. Where a
+Daylight page shows the product, the product keeps its own dark skin (`.primetime`), at most twice:
+the landing's hero is the real board, re-sorting when the rule changes, and once down the page the
+studio cuts to the game feed -- a full-width band of the product as it looks, the board and a player
+opened -- and comes back. Signing in is the moment the whole screen turns to Prime time. The anime
+influence is
 one drawn route (a season traced over its bars, like an analyst's telestrator stroke) and an orb for
 the wordmark's dot. Someone who has never watched anime should see a sports product.
 
@@ -189,7 +194,8 @@ Rejected on purpose:
 
 **Key Characteristics:**
 - Prime time: a true black (#000) canvas; depth from blue-black steps, blue rising with elevation.
-- Daylight: a chalk (#f1f4f9) ground, never cream; the product appears on it as a dark island, once.
+- Daylight: a paper (#fbfaf7) ground, never cream, and one cool band (#edf1f7); the product
+  appears on it in its own dark skin at most twice -- the hero's plate and one full-width band.
 - One superfamily in three widths, hierarchy from width, weight, case and slant.
 - Four radii, each earned; hairlines instead of containers.
 - Orange means "the one thing to do". Blue means "you are here". They never trade jobs.
@@ -197,7 +203,7 @@ Rejected on purpose:
 
 ## Colors
 
-Two grounds, one black and one chalk, with the same two signal colours from the logo, and data
+Two grounds, one black and one paper, with the same two signal colours from the logo, and data
 colours that only ever colour letters. Everything below is Prime time; Daylight's own values follow
 under "Daylight".
 
@@ -207,7 +213,7 @@ under "Daylight".
   - the primary button (one per view);
   - the wordmark's middle dot and the orb;
   - the S tier letter and a derived season total, as **Ki Text** -- the same #ff8a3d in Prime time,
-    deepened in Daylight, where #ff8a3d as text on chalk is 2.1:1.
+    deepened in Daylight, where #ff8a3d as text on paper is 2.25:1.
 
 ### Secondary
 - **Energy Blue** (#3d8bff), with **Energy Text** (#8ab8ff) for text. "You are here" and "live". It
@@ -243,36 +249,42 @@ under "Daylight".
 - **Edge** (#5b6781): the 3:1 boundary of an input or secondary button.
 
 ### Daylight
-The public pages' values for the same roles, measured (WCAG 2) on canvas / surface / lift and
-recorded in `globals.css`:
+The public pages' values for the same roles, measured (WCAG 2) on canvas (paper) / band / surface /
+lift and recorded in `globals.css` (re-measured 2026-10-05):
 
-- **Chalk** (#f1f4f9) canvas; **White** (#ffffff) surface and well -- what floats and what is typed
-  into; **Lift** (#e2e9f6), the chosen one, a hint of blue.
-- **Navy Ink** (#0b1530) 16.4 / 18.0 / 14.8; **Mute** (#46526a) 7.1 / 7.9 / 6.4; **Faint** (#5c6780)
-  5.1 / 5.7 / 4.65.
+- **Paper** (#fbfaf7) canvas: the page; **Band** (#edf1f7): the one section that alternates, and the
+  footer; **White** (#ffffff) surface and well -- what floats and what is typed into; **Lift**
+  (#e2e9f6), the chosen one, a hint of blue. Paper to band is 1.09:1: a change of ground, not a box.
+- **Navy Ink** (#0b1530) 17.3 / 15.9 / 18.0 / 14.8; **Mute** (#46526a) 7.5 / 6.9 / 7.9 / 6.4;
+  **Faint** (#5c6780) 5.4 / 5.0 / 5.7 / 4.65.
 - **Hairline** is energy blue at 16%, so the structure itself is faintly electric; **Edge**
-  (#7a8599) 3.4 / 3.7 / 3.05.
-- **Energy** (#2468ff) 4.2 / 4.7 / 3.8, marks and large text; **Energy Text** (#1c52d0) 6.0.
-- **Ki Text** (#bd4c08) 4.5 / 5.0 / 4.1. Ki Orange stays #ff8a3d as a fill, with Ki Ink on it (8.3).
+  (#7a8599) 3.6 / 3.3 / 3.7 / 3.05.
+- **Energy** (#2468ff) 4.5 / 4.1 / 4.7 / 3.8, marks and large text; **Energy Text** (#1c52d0) 6.4
+  / 5.9.
+- **Ki Text** (#bd4c08) 4.8 / 4.4 / 5.0 / 4.1 -- on the band only at stat size. Ki Orange stays
+  #ff8a3d as a fill, with Ki Ink on it (8.3).
 - **Positions** QB #6a44d8, RB #c92d3a, WR #0a7684 (teal, so a receiver is never read as energy's
-  "you are here"), TE #b3237c: 4.8 and up on canvas.
+  "you are here"), TE #b3237c: 5.1 and up on paper, 4.7 on the band. On a Daylight chart the letters
+  are faint, not hued: there blue is the story and orange the ask (the landing's bump chart).
 - **Chart pair** Chart Blue (#1f5fe0) for a starter week and Chart Slate (#7e889f) for any other:
-  dataviz validator on chalk, CVD dE 17.5, normal-vision dE 19.7, both >= 3:1. Prime time keeps its
-  green pair; the brief gave the public pages' data to blue.
-- **Veil** (chalk at 85%): the site header's see-through ground, a token rather than `bg-canvas/85`.
+  dataviz validator on chalk, CVD dE 17.5, normal-vision dE 19.7, both >= 3:1 (5.3 and 3.4 on
+  paper). Prime time keeps its green pair; the brief gave the public pages' data to blue.
+- **Veil** (paper at 85%): the site header's see-through ground, a token rather than `bg-canvas/85`.
   Tailwind compiles an opacity modifier to a literal Prime time colour and uses the variable only
   inside `@supports (color-mix)`, so a browser without color-mix (older than about 2023) shows
   Prime time's value for any `/NN` colour in Daylight. The header was fixed; the week chart's
   average line and faded axis labels remain on that fallback, and are minor.
 
 ### Named Rules
-**The Island Rule.** A Daylight page shows the product in its own Prime time skin (`.primetime`),
-once per page, as its focal plate. Everything else on the page speaks Daylight. `tests/lib.test.ts`
+**The Island Rule.** A Daylight page shows the product in its own Prime time skin (`.primetime`) at
+most twice: as its focal plate, and once as a full-width band where the page cuts to the product
+(owner brief, 2026-10-05). Everything else on the page speaks Daylight. `tests/lib.test.ts`
 holds `.primetime` equal to `@theme`, value for value, and `.daylight` to overriding every colour
 except the shared orange fill.
 
 **The One Orange Rule.** At most one orange action per view. The header's "Join the Kai" is secondary
-because the page's own form carries the orange. Orange never marks a link, a selection or decoration.
+while the page's own ask -- the hero's button, the closing form -- is on screen, and becomes the orange
+primary once neither is. Orange never marks a link, a selection or decoration.
 
 **The Letters Carry Position Rule.** A position hue never fills, never marks selection, and never
 encodes a chart series on its own. As marks the four hues fail colour-blind separation: WR against QB
@@ -297,13 +309,13 @@ everything you read and operate. All three are self-hosted through `next/font`, 
 allows fonts from the site only.
 
 ### Hierarchy
-- **Display** (850 italic caps, clamp(4.25rem, 9vw, 8.25rem) on the landing and clamp(2.5rem, 5.2vw,
-  4.5rem) for a player's name, line-height 0.86): headlines and names. The brief's call for large
-  editorial type overrides the craft floor's 6rem cap on the landing only.
+- **Display** (850 italic caps, clamp(5rem, 8.2vw, 8rem) for the landing's h1 from lg and its closing
+  ask, and clamp(2.5rem, 5.2vw, 4.5rem) for a player's name, line-height 0.86): headlines and names.
+  The brief's call for large editorial type overrides the craft floor's 6rem cap on the landing only.
 - **Headline** (800 italic caps, 36px, 1): a page's name, such as RANKINGS or SCORING RULESETS.
 - **Title** (800 italic caps, 24px, 1): a segment inside a page, such as PERFORMANCE or GAME LOG.
-  Section headings on the landing use the display voice at clamp(2.375rem, 4.2vw, 3.25rem), broken
-  by phrase, one line per thought; only the h1 is set at display size.
+  Section headings on the landing use the display voice at clamp(2.75rem, 4.6vw, 3.75rem), broken
+  by phrase, one line per thought; only the h1 and the closing ask are set at display size.
 - **Body** (400, 15-17px, 1.55-1.65): prose, with the landing lead at 19px. Measures stay near 36rem
   or 52ch. `ch` is the width of a zero, which is wider than this face's average letter, so 72ch sets
   96 characters to a line.
@@ -338,13 +350,18 @@ page's recipe is said in a sentence ("Scored under Half PPR for the 2025 season,
 
 **The landing (Daylight)**
 
-- **Pace:** one argument, run as one passage. The hero; the rule swing with the receipt, then the
-  board slice (no rule between them); one player opened; and the last ask with what is coming
-  beside it. One continuous chalk ground: no bands of another colour.
-- **Spacing:** sections are separated by 80px of space (96px from lg); one hairline, before the ask.
-- **Hero:** two equal columns from lg -- the headline over the pitch and the form, the plate
-  spanning both. Below lg it reads headline, plate, pitch, form, so a phone's first screen holds
-  the product; the header's join is the ask until the form scrolls in.
+- **Pace:** the studio show, and the ground changes with the argument (owner brief 2026-10-05):
+  - the hero, on paper;
+  - one rule, three boards, on paper: a heading and its line over a full-width bump chart;
+  - the cut to the product, on the stage: a full-width Prime time band, the board and one player;
+  - your rates, every game, on the band, mirrored -- the working part left, the words right;
+  - what is coming, a six-across strip on paper; the last ask at full width; the footer on the band.
+  The compositions change on purpose: no two sections in a row share the same split.
+- **Spacing:** 64px of section padding on phones, 80px from 640px, 112px from lg; a hairline opens
+  the rule section and the last ask, on the content's edges.
+- **Hero:** 5/12 and 7/12 from lg -- the headline, the lead and one orange "Join the Kai" on the
+  left, the plate, the larger half, on the right. Below lg it reads headline, lead, a full-width
+  button, then the plate, so a phone's first screen holds the action and the board's first rows.
 - **Sign-in and register:** the form on the content edge, and from lg a still five-row plate of the
   real board beside it.
 
@@ -356,8 +373,9 @@ One shadow exists, for things that float (popovers, tooltips). It has an offset 
 it reads as height, never as a glow. Daylight redefines it as a soft navy shadow, never black. The
 landing's plate is flat: it is ground, not a floating card.
 
-One glow exists: the landing's drawn route, a 5px energy-blue drop-shadow, in the plate's
-lower-third. It stands for the ki trail the brief asked for, and it appears nowhere else.
+No glow exists. The landing's drawn route had one (a 5px energy-blue drop-shadow) until 2026-10-05,
+when the brief ruled out glows and a reviewer read it as the one neon-dashboard element on the page:
+the line is data, and a halo around it is decoration.
 
 ### Shadow Vocabulary
 - **Float** (`box-shadow: 0 18px 40px -16px rgb(0 0 0 / 0.95), 0 2px 8px -2px rgb(0 0 0 / 0.7)`):
@@ -365,7 +383,8 @@ lower-third. It stands for the ki trail the brief asked for, and it appears nowh
   -2px rgb(11 21 48 / 0.1)`.
 
 ### Named Rules
-**The One Glow Rule.** Only the drawn route glows. The S tier letter is marked by orange alone.
+**The No Glow Rule.** Nothing glows. The S tier letter is marked by orange alone, the route by its
+blue stroke alone.
 
 ## Shapes
 
@@ -373,7 +392,8 @@ lower-third. It stands for the ki trail the brief asked for, and it appears nowh
   - 0 for structure (rows, tables, sections, rules);
   - 4px for anything you operate (buttons, inputs, the console);
   - 2px for a control nested inside a control;
-  - 24px for the one focal plate on a page (the landing's product plate, the player plate);
+  - 24px for the one focal plate on a page (the landing's product plate, the player plate -- which
+    the landing's product band also shows, as the app does);
   - a full pill only for the landing's ruleset switch and its thumb, and for circular marks
     (avatars, chart end markers).
 - **Chart bars:** 4px rounded data ends, square at the baseline, at most 24px wide.
@@ -390,7 +410,7 @@ lower-third. It stands for the ki trail the brief asked for, and it appears nowh
 - **Primary:** Ki Orange with Ki Ink text, 44px tall with 20px sides, 600 weight. Hover brightens it
   (`filter: brightness(1.1)`). One per view.
 - **Secondary:** a Well fill with a 1px Edge ring, 36px tall. The ring turns Mute on hover. It covers
-  retry, show more, cancel, and the header's join.
+  retry, show more, cancel, and the site header's join while the page's own ask is in view.
 - **Quiet link:** Ink text with an Edge underline 4px below; the underline turns blue on hover.
   Destructive actions stay grey until hovered or focused, and then turn danger red.
 
@@ -409,10 +429,11 @@ tonal status block.
 - **Focus:** the border turns Energy Blue, plus the global 2px blue focus ring with a 2px offset. The
   caret is blue.
 - **Error:** a tonal danger block (7-8% danger over the page) with danger text. There is no border.
-- **Joining (Daylight):** two labelled fields side by side, email and password, the password one
-  disabled until the email is in ("after your email"), and the orange "Join the Kai" as its own 56px
-  block below them. A lone email field beside a button is the shape of a newsletter signup, and this
-  is an account.
+- **Joining (Daylight):** the landing's last ask only (the hero carries a button to `/register`).
+  Two labelled fields, email and password, the password one disabled until the email is in ("after
+  your email"), and the orange "Join the Kai" -- one row from lg, the fields 56px to meet the
+  button, stacked below that with the button full width on a phone. A lone email field beside a
+  button is the shape of a newsletter signup, and this is an account.
 
 ### Navigation
 - **Top bar:** the wordmark, then Rankings and Scoring in 14px Mute (the active item in Ink with a 2px
@@ -420,9 +441,12 @@ tonal status block.
   unbuilt sections; they are never links, and the popover closes on Escape, an outside click, or Tab.
 - **Mobile:** below 768px the bar keeps the wordmark and the two live sections, and a `<dialog>` menu
   holds Coming and the account.
-- **Site header (Daylight):** the wordmark, then links that scroll to the landing's sections (the
-  landing only), Sign in, and a secondary join. It rests on the page with no edge, on the Veil; a
-  blue hairline appears once the page scrolls under it.
+- **Site header (Daylight):** the wordmark, then Scoring, Rankings and Players, links that scroll to
+  the landing's sections (the landing only; what is coming has a section, not a link), Sign in, and
+  the join, which turns orange only while neither of the page's own asks is on screen. The section
+  being read is underlined in blue, and nothing is once the page has gone past the last one named.
+  It rests on the page with no edge, on the Veil; a blue hairline appears once the page scrolls under
+  it.
 
 ### The Console (signature)
 Every board control sits on one Surface strip:
@@ -434,7 +458,7 @@ Segments have no track of their own. The selected one sits on Lift with a 2px bl
 strip wraps rather than scrolls.
 
 ### The Plate (signature)
-- **On the landing:** the product itself in Prime time on the chalk page: the real 2025 board's top
+- **On the landing:** the product itself in Prime time on the paper page: the real 2025 board's top
   eight under 0 PPR, Half PPR or PPR, with a fixed rank column the players travel past, as on a
   broadcast leaderboard. Docked under it, like a lower-third, the followed player: McCaffrey's RB
   rank, total, per game, and each week as a bar (ink inside the RB starter line, slate outside) with
@@ -445,6 +469,22 @@ strip wraps rather than scrolls.
 - **On a player page:** the cut-out stands on a Surface plate, lit from behind by a tight stage light
   in the position's hue (30%). The name is set at display size and the season line as type, not tiles.
 
+### The Product Band (signature)
+Where the landing cuts to the game feed: full width, the stage's black, the app's own parts and
+nothing drawn to look like them -- the real console with WR chosen, the WR board's top ten across
+three tiers with the followed receiver's row lit (energy at 15%), and beside it that player opened
+(the plate without a cut-out, the weekly chart, his finished seasons). It shows the product doing
+something the hero's board does not -- a filter -- rather than the same names again. On a phone it
+stays about one screen (owner decision 2026-10-05): three rows across the first tier break, and the
+plate with the weeks said in one line ("a top-36 receiver in 15 of 16 weeks") and where the rest
+lives; the weekly chart and the finished seasons appear from sm up.
+
+### The Catch Rate (landing)
+The one rate the three presets disagree on, as the app's own segmented control (track) on the band:
+0, 0.5 or 1 a catch re-prices one game's box score, the seventeen weeks and the season, all from
+captured data. The other rates are printed, never drawn as fields: a field that cannot be typed into
+is a lie about the page.
+
 ### The Drawn Route (signature)
 A season traced as a monotone cubic (`lib/trace.ts`):
 
@@ -454,18 +494,20 @@ A season traced as a monotone cubic (`lib/trace.ts`):
 
 It is drawn on once the landing's entrance lands and again on every ruleset switch, and ends at the
 last week, with no head: an arrowhead on a season that ends with a low week reads as "trending down".
-It appears on the landing only.
+It appears on the landing only, as a plain 2.5px energy stroke with no halo.
 
 ## Do's and Don'ts
 
 ### Do:
 - **Do** put every product page on true black (#000000) and separate with Surface, Well and Lift
-  only, rising in that order; put every public page on chalk, in `.daylight`.
-- **Do** show the product on a Daylight page in its own dark skin, once, as the page's plate.
+  only, rising in that order; put every public page on paper, in `.daylight`, with one cool band.
+- **Do** show the product on a Daylight page in its own dark skin, at most twice: the page's plate
+  and one full-width band.
 - **Do** set page names and segments in the extra-condensed italic caps, and everything operable in the
   regular width at fixed sizes.
 - **Do** state a board's recipe in a sentence wherever a ranking appears: ruleset, season, window.
-- **Do** keep one orange action per view, and make the header's join secondary.
+- **Do** keep one orange action per view: the header's join is secondary while the page's own ask is
+  in view.
 - **Do** colour a position's letters only, and keep quality to green, ink and faint.
 - **Do** measure every new text pair against the surface it sits on, and record it in `globals.css`.
 
@@ -473,7 +515,7 @@ It appears on the landing only.
 - **Don't** put rows, panels or stat tiles in rounded bordered cards. Rows are lines; a page's
   segments are a heading, a hairline and content.
 - **Don't** add a label above a heading, or set labels in tracked capitals.
-- **Don't** add a second glow, a gradient wash, glass, or a zero-offset coloured halo.
+- **Don't** add a glow, a gradient wash, glass, or a zero-offset coloured halo.
 - **Don't** crop a player's cut-out into a circle at display size, or put any real player's likeness
   on the landing without a promotional licence and the player's consent.
 - **Don't** show a metric the product does not compute.
@@ -482,3 +524,4 @@ It appears on the landing only.
 - **Don't** use an opacity modifier (`bg-canvas/85`) for a colour that must be right in both modes on
   every browser; give it a token.
 - **Don't** float a stat tile over the landing's plate, or put a monogram where a face would be.
+- **Don't** give two sections in a row the same split, or draw a control that cannot be used.
