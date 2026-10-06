@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { StillPlate } from "@/components/landing/StillPlate";
+import { BUTTON_PRIMARY, LINK_QUIET } from "@/components/ui/buttons";
 import { useAuth } from "@/lib/auth";
 import { authErrorMessage } from "@/lib/authErrors";
 import { HOME_FOR_MEMBERS } from "@/lib/landing";
@@ -13,9 +15,10 @@ import { useNextParam } from "@/lib/useNextParam";
  * component rather than duplicating a form and drifting apart.
  *
  * `next` is where the account gate was sent from (`RequireAccount`). It comes
- * through `useNextParam`, which reads it without `useSearchParams` (these
- * routes are prerendered) and only ever through `safeNext`, because anyone can
- * write it.
+ * through `useNextParam`, which reads it without `useSearchParams` (written
+ * when these routes were prerendered; every page renders per request since
+ * 2026-09-29, and the hook still works either way) and only ever through
+ * `safeNext`, because anyone can write it.
  */
 export function AuthForm({ mode }: { mode: "sign-in" | "register" }) {
   const router = useRouter();
@@ -48,71 +51,67 @@ export function AuthForm({ mode }: { mode: "sign-in" | "register" }) {
 
   const carry = next ? `?next=${encodeURIComponent(next)}` : "";
 
+  // At lg the form stands on the page's content edge with the product beside
+  // it, rather than centred alone in an empty field.
   return (
-    <div className="mx-auto max-w-sm px-4 py-16">
-      <h1 className="font-display text-3xl font-bold tracking-tight">
-        {registering ? "Join the Kai" : "Sign in"}
-      </h1>
-      <p className="mt-2 text-sm leading-relaxed text-mute">
-        {registering
-          ? "Free, with no ads and nothing to upgrade to. An email and a password is all it takes."
-          : "Sign in to open the rankings, player pages and the scoring you saved."}
-      </p>
+    <div className="mx-auto grid max-w-[1320px] items-center gap-x-20 px-4 pt-16 pb-8 sm:px-6 sm:pt-24 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:px-8 lg:pb-24">
+      <div className="w-full max-w-sm">
+        <h1 className="type-display text-[3.25rem] text-ink">{registering ? "Join the Kai" : "Sign in"}</h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-mute">
+          {registering
+            ? "Free, with no ads and nothing to upgrade to. An email and a password is all it takes."
+            : "Sign in to open the rankings, player pages and the scoring you saved."}
+        </p>
 
-      <form onSubmit={submit} className="mt-8 space-y-4">
-        <label className="block">
-          <span className="text-sm text-mute">Email</span>
-          <input
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded border border-line-strong bg-raised px-3 py-2"
-          />
-        </label>
+        <form onSubmit={submit} className="mt-8 space-y-4">
+          <label className="block">
+            <span className="text-sm text-mute">Email</span>
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1.5 h-12 w-full rounded-control border border-line-strong bg-well px-4 text-[15px] text-ink transition-colors hover:border-mute focus-visible:border-energy"
+            />
+          </label>
 
-        <label className="block">
-          <span className="text-sm text-mute">Password</span>
-          <input
-            type="password"
-            required
-            minLength={registering ? 12 : undefined}
-            maxLength={128}
-            autoComplete={registering ? "new-password" : "current-password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded border border-line-strong bg-raised px-3 py-2"
-          />
-          {registering && (
-            <span className="mt-1 block text-sm text-mute">At least 12 characters.</span>
+          <label className="block">
+            <span className="text-sm text-mute">Password</span>
+            <input
+              type="password"
+              required
+              minLength={registering ? 12 : undefined}
+              maxLength={128}
+              autoComplete={registering ? "new-password" : "current-password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1.5 h-12 w-full rounded-control border border-line-strong bg-well px-4 text-[15px] text-ink transition-colors hover:border-mute focus-visible:border-energy"
+            />
+            {registering && <span className="mt-1 block text-sm text-mute">At least 12 characters.</span>}
+          </label>
+
+          {error && (
+            <p role="alert" className="rounded-control bg-danger/[0.08] px-3 py-2 text-sm text-danger">
+              {error}
+            </p>
           )}
-        </label>
 
-        {error && (
-          <p role="alert" className="rounded border border-stat-loss/30 bg-stat-loss/5 px-3 py-2 text-sm text-stat-loss">
-            {error}
-          </p>
-        )}
+          <button type="submit" disabled={busy} className={`${BUTTON_PRIMARY} h-12 w-full`}>
+            {busy ? "Working…" : registering ? "Create account" : "Sign in"}
+          </button>
+        </form>
 
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full rounded bg-ki px-4 py-2.5 font-medium text-on-ki disabled:opacity-60"
-        >
-          {busy ? "Working…" : registering ? "Create account" : "Sign in"}
-        </button>
-      </form>
-
-      <p className="mt-6 text-sm text-mute">
-        {registering ? "Already a member? " : "Not a member yet? "}
-        <Link
-          href={(registering ? "/login" : "/register") + carry}
-          className="text-ink underline decoration-line-strong underline-offset-2"
-        >
-          {registering ? "Sign in" : "Join the Kai"}
-        </Link>
-      </p>
+        <p className="mt-6 text-sm text-mute">
+          {registering ? "Already a member? " : "Not a member yet? "}
+          <Link href={(registering ? "/login" : "/register") + carry} className={LINK_QUIET}>
+            {registering ? "Sign in" : "Join the Kai"}
+          </Link>
+        </p>
+      </div>
+      <div className="hidden lg:block">
+        <StillPlate />
+      </div>
     </div>
   );
 }

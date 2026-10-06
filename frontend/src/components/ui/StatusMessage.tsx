@@ -1,8 +1,13 @@
+import { BUTTON_SECONDARY } from "./buttons";
+
 /**
  * The three things a board can say instead of showing rows: still working,
  * nothing matched, or something failed. They are separate on purpose -- the
  * board this replaced said "pick a ruleset" when the API was down, which is a
  * default hiding an absence.
+ *
+ * A tonal block, not a bordered card: the surface step says "this is a
+ * message", and a failure tints it toward danger rather than drawing a box.
  */
 export function StatusMessage({
   tone,
@@ -19,18 +24,12 @@ export function StatusMessage({
   return (
     <div
       role={error ? "alert" : "status"}
-      className={`rounded-lg border px-5 py-8 text-sm ${
-        error ? "border-stat-loss/40 bg-stat-loss/5" : "border-line bg-raised/60"
-      }`}
+      className={`rounded-control px-5 py-6 text-sm ${error ? "bg-danger/[0.07]" : "bg-surface"}`}
     >
-      <p className={`font-medium ${error ? "text-stat-loss" : "text-ink"}`}>{title}</p>
-      {children && <div className="mt-1 max-w-[62ch] leading-relaxed text-mute">{children}</div>}
+      <p className={`font-semibold ${error ? "text-danger" : "text-ink"}`}>{title}</p>
+      {children && <div className="mt-1 max-w-[52ch] leading-relaxed text-mute">{children}</div>}
       {action && (
-        <button
-          type="button"
-          onClick={action.onClick}
-          className="mt-4 h-9 rounded-md border border-line-strong px-3 text-sm text-ink hover:bg-surface-2"
-        >
+        <button type="button" onClick={action.onClick} className={`mt-4 ${BUTTON_SECONDARY}`}>
           {action.label}
         </button>
       )}
@@ -39,5 +38,5 @@ export function StatusMessage({
 }
 
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div aria-hidden className={`skeleton rounded ${className}`} />;
+  return <div aria-hidden className={`skeleton rounded-control ${className}`} />;
 }

@@ -10,7 +10,7 @@ import { TierHeader } from "./rankings/TierHeader";
 import { Skeleton, StatusMessage } from "./ui/StatusMessage";
 
 const QUALITY_KEY =
-  "Coloured against players at the same position: green inside a 12-team league's starters, yellow up to twice that, red beyond. Players with under half the board's games are not judged.";
+  "Judged against players at the same position: green inside a 12-team league's starters, white up to twice that, dim beyond. Players with under half the board's games are not judged.";
 
 /**
  * Remembers where every player stood under the previously selected ruleset, so
@@ -135,10 +135,8 @@ export function RankingsBoard({
     // one is always chosen by default.
     return (
       failure ?? (
-        <div role="status" aria-label={loading ? "Scoring every game" : "Loading"} className="space-y-0.5">
-          {Array.from({ length: 10 }, (_, i) => (
-            <Skeleton key={i} className="h-11 rounded-md" />
-          ))}
+        <div role="status" aria-label={loading ? "Scoring every game" : "Loading"}>
+          <BoardSkeleton />
         </div>
       )
     );
@@ -187,8 +185,8 @@ export function RankingsBoard({
       {failure && <div className="mb-4">{failure}</div>}
 
       {fetching && (
-        <div aria-hidden className="absolute inset-x-0 -top-2 h-0.5 overflow-hidden rounded-full">
-          <div className="sweep h-full w-2/5 bg-energy/80" />
+        <div aria-hidden className="absolute inset-x-0 top-0 z-20 h-0.5 overflow-hidden">
+          <div className="sweep h-full w-2/5 bg-energy" />
         </div>
       )}
 
@@ -197,97 +195,106 @@ export function RankingsBoard({
           The search covers the {rows.length} players loaded so far, not the whole league.
         </StatusMessage>
       ) : (
-        <div className="max-md:-mx-4 max-md:overflow-x-auto max-md:px-4">
-          <table
-            aria-busy={fetching}
-            className="w-full border-separate border-spacing-y-0.5 text-sm"
-          >
-            <caption className="sr-only">
-              Player rankings for the {season} season under the selected scoring ruleset, grouped
-              into tiers
-            </caption>
-            <thead>
-              <tr className="text-left">
-                {/* Rank and name keep an opaque cell: they are pinned when the
-                    board scrolls sideways on a phone, and the columns sliding
-                    under them must not show through. */}
-                <th scope="col" className={`${COL.rank} colhead bg-paper`}>
-                  <span className="colhead-box">#</span>
-                </th>
-                <th scope="col" className={`${COL.player} colhead bg-paper`}>
-                  <span className="colhead-box">Player</span>
-                </th>
-                <th scope="col" className={`${COL.pos} colhead`}>
-                  <span className="colhead-box">Pos</span>
-                </th>
-                <th scope="col" className={`${COL.team} colhead`}>
-                  {/* Current, on every season's board: team history is not
-                      stored, so a player traded since shows his new team. */}
-                  <span title="Current team" className="colhead-box">
-                    Team
-                  </span>
-                </th>
-                <th scope="col" className={`${COL.games} colhead`}>
-                  <abbr title="Games played" className="colhead-box no-underline">
-                    G
+        <table aria-busy={fetching} className="w-full border-separate border-spacing-0 text-sm">
+          <caption className="sr-only">
+            Player rankings for the {season} season under the selected scoring ruleset, grouped
+            into tiers
+          </caption>
+          {/* The column labels stay in view while the board scrolls, pinned
+              under the bar. Plain labels, not boxes: they are read every time
+              the eye comes back up, and a box around each one was eight more
+              containers between the eye and the names. */}
+          <thead>
+            <tr className="text-left [&>th]:sticky [&>th]:top-14 [&>th]:z-10 [&>th]:h-9 [&>th]:border-b [&>th]:border-line [&>th]:bg-canvas [&>th]:font-label [&>th]:text-[12px] [&>th]:font-semibold [&>th]:text-mute">
+              <th scope="col" className={COL.rank}>
+                #
+              </th>
+              <th scope="col" className={COL.player}>
+                Player
+              </th>
+              <th scope="col" className={COL.pos}>
+                Pos
+              </th>
+              <th scope="col" className={COL.team}>
+                {/* Current, on every season's board: team history is not
+                    stored, so a player traded since shows his new team. */}
+                <span title="Current team">Team</span>
+              </th>
+              <th scope="col" className={COL.games}>
+                <abbr title="Games played" className="no-underline">
+                  G
+                </abbr>
+              </th>
+              {/* The headline column is whatever the board is sorted by; the
+                  other figure steps down beside it. */}
+              <th scope="col" className={COL.primary}>
+                {perGame ? <span title={QUALITY_KEY}>Per game</span> : "Points"}
+              </th>
+              <th scope="col" className={COL.secondary}>
+                {perGame ? (
+                  "Total"
+                ) : (
+                  <abbr title={`Points per game. ${QUALITY_KEY}`} className="no-underline">
+                    Per G
                   </abbr>
-                </th>
-                {/* The headline column is whatever the board is sorted by; the
-                    other figure steps down beside it. */}
-                <th scope="col" className={`${COL.primary} colhead`}>
-                  {perGame ? (
-                    <span title={QUALITY_KEY} className="colhead-box">
-                      Per game
-                    </span>
-                  ) : (
-                    <span className="colhead-box">Points</span>
-                  )}
-                </th>
-                <th scope="col" className={`${COL.secondary} colhead`}>
-                  {perGame ? (
-                    <span className="colhead-box">Total</span>
-                  ) : (
-                    <abbr title={`Points per game. ${QUALITY_KEY}`} className="colhead-box no-underline">
-                      Per G
-                    </abbr>
-                  )}
-                </th>
-                <th scope="col" className={`${COL.move} colhead`}>
-                  <span title="Places moved since the ruleset you were last viewing" className="colhead-box">
-                    Move
-                  </span>
-                </th>
-              </tr>
-            </thead>
-            {groups.map((g) => (
-              <tbody key={g.key}>
-                <TierHeader
-                  letter={g.letter}
-                  count={g.rows.length}
-                  high={g.high}
-                  low={g.low}
-                  unit={perGame ? "pts/game" : "pts"}
-                  colSpan={COLUMN_COUNT}
-                />
-                {g.shown.map((row) => {
-                  const href = `/players/${row.playerId}?season=${season}&profileId=${profileId ?? ""}`;
-                  return (
-                    <PlayerRow
-                      key={row.playerId}
-                      row={row}
-                      delta={delta(row)}
-                      baseline={previous?.size ?? 0}
-                      metric={metric}
-                      href={href}
-                      onOpen={onOpenPlayer ? () => onOpenPlayer(href) : undefined}
-                    />
-                  );
-                })}
-              </tbody>
-            ))}
-          </table>
-        </div>
+                )}
+              </th>
+              <th scope="col" className={COL.move}>
+                <span title="Places moved since the ruleset you were last viewing">Move</span>
+              </th>
+            </tr>
+          </thead>
+          {groups.map((g) => (
+            <tbody key={g.key}>
+              <TierHeader
+                letter={g.letter}
+                count={g.rows.length}
+                high={g.high}
+                low={g.low}
+                unit={perGame ? "pts a game" : "pts"}
+                colSpan={COLUMN_COUNT}
+              />
+              {g.shown.map((row) => {
+                const href = `/players/${row.playerId}?season=${season}&profileId=${profileId ?? ""}`;
+                return (
+                  <PlayerRow
+                    key={row.playerId}
+                    row={row}
+                    delta={delta(row)}
+                    baseline={previous?.size ?? 0}
+                    metric={metric}
+                    href={href}
+                    onOpen={onOpenPlayer ? () => onOpenPlayer(href) : undefined}
+                  />
+                );
+              })}
+            </tbody>
+          ))}
+        </table>
       )}
+    </div>
+  );
+}
+
+/**
+ * The board's shape before it has rows: the column-label band and ten row
+ * lines at the real heights, so the answer lands without moving anything.
+ * The workspace's Suspense fallback draws the same thing.
+ */
+export function BoardSkeleton() {
+  return (
+    <div aria-hidden>
+      <div className="h-9 border-b border-line" />
+      <div className="h-[4.25rem]" />
+      {Array.from({ length: 10 }, (_, i) => (
+        <div key={i} className="flex h-12 items-center gap-3 border-b border-line sm:h-11">
+          <div className="w-10 sm:w-12" />
+          <Skeleton className="size-8 rounded-full" />
+          <Skeleton className="h-3.5 w-40 max-w-[40%]" />
+          <Skeleton className="ml-auto h-3.5 w-12" />
+          <Skeleton className="mr-3 h-3.5 w-10" />
+        </div>
+      ))}
     </div>
   );
 }

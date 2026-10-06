@@ -23,3 +23,20 @@ export function headshotUrl(espnId: string | null | undefined, px: number): stri
     `${espnId}.png&w=${size}&h=${size}&scale=crop&cquality=80`
   );
 }
+
+/** ESPN's full headshot is a 600x436 head-and-shoulders cut-out with a true alpha channel (measured). */
+export const CUTOUT_ASPECT = 436 / 600;
+
+/**
+ * The whole cut-out, not a square crop of it: the player page stands it on
+ * its plate, where the image's flat bottom edge becomes the plate's edge. The
+ * combiner keeps the alpha channel at any size, but asking past the native
+ * 600px only upscales (660px came back 320 KB against the native 260 KB), so
+ * `px` -- device pixels wide -- is capped there.
+ */
+export function headshotCutoutUrl(espnId: string | null | undefined, px: number): string | null {
+  if (!espnId || !ESPN_ID.test(espnId)) return null;
+  const w = Math.max(120, Math.min(600, Math.round(px)));
+  const h = Math.round(w * CUTOUT_ASPECT);
+  return `https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/${espnId}.png&w=${w}&h=${h}`;
+}

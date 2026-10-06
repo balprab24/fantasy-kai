@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { headshotUrl } from "@/lib/headshot";
-import { positionHue } from "./PositionBadge";
 
 /** Name parts that are not a surname: "Marvin Harrison Jr." is MH, not MJ. */
 const SUFFIXES = new Set(["jr", "jr.", "sr", "sr.", "ii", "iii", "iv", "v"]);
@@ -22,12 +21,12 @@ export function initials(name: string) {
  */
 const SIZES = {
   sm: { box: "size-8", px: 64, text: "text-[11px]" },
-  lg: { box: "size-24", px: 192, text: "text-2xl" },
 } as const;
 
 /**
- * A player's headshot, ringed in his position's hue, on a quiet plate -- the
- * source is a cut-out PNG, so the plate is what it sits on.
+ * A player's face on the board: ESPN's cut-out, cropped square, on a quiet
+ * well. No ring in the position's hue any more -- the letters beside it
+ * already say the position, and a ring on every row was colour doing nothing.
  *
  * Falls back to a monogram when there is no ESPN id and when the image fails:
  * a missing headshot is a 404 (measured), so `onError` fires and the same box
@@ -37,20 +36,17 @@ const SIZES = {
  */
 export function PlayerAvatar({
   name,
-  position,
   espnId,
   size = "sm",
 }: {
   name: string;
-  position: string;
   espnId?: string | null;
   size?: keyof typeof SIZES;
 }) {
   const { box, px, text } = SIZES[size];
   const src = headshotUrl(espnId, px);
   const [failed, setFailed] = useState<string | null>(null);
-  const ring = positionHue(position).ring;
-  const shape = `${box} shrink-0 overflow-hidden rounded-full bg-surface-2 ring-1 ${ring}`;
+  const shape = `${box} shrink-0 overflow-hidden rounded-full bg-well`;
 
   if (src && src !== failed) {
     return (
@@ -61,9 +57,8 @@ export function PlayerAvatar({
           alt=""
           width={px / 2}
           height={px / 2}
-          // The workspace's large headshot is above the fold; a board row's
-          // may be 500 rows down.
-          loading={size === "lg" ? "eager" : "lazy"}
+          // A board row may be 500 rows down.
+          loading="lazy"
           decoding="async"
           referrerPolicy="no-referrer"
           onError={() => setFailed(src)}
@@ -75,7 +70,7 @@ export function PlayerAvatar({
   return (
     <span
       aria-hidden
-      className={`${shape} flex items-center justify-center font-semibold tracking-wide text-mute ${text}`}
+      className={`${shape} flex items-center justify-center font-label font-semibold text-mute ${text}`}
     >
       {initials(name)}
     </span>

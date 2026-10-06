@@ -23,7 +23,7 @@ and nothing caught it for two days.
 | HTTP endpoints | **13** — 6 `GET`, members only since 2026-09-29 (the sixth is `/players/{id}/career`, 2026-09-28), 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V6` (`V6`: `players.birth_date`, `teams.logo_url`) |
 | Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
-| Frontend | **Next.js 16 · 67 `.ts`/`.tsx` files** (69 under `frontend/src`) — every page rendered per request since 2026-09-29, under a nonce-based CSP (`src/proxy.ts`) — a landing page at `/` (hero, a phone drawn from real 2025 rows, email-first sign-up), and behind sign-in since 2026-09-28 the near-black app shell with a narrow left rail, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (identity, weekly chart, game log, career), ruleset builder; attribution footer on both. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, 46 tests, no dependency, and in CI since 2026-09-28 |
+| Frontend | **Next.js 16 · 81 `.ts`/`.tsx` files** (83 under `frontend/src`) — every page rendered per request since 2026-09-29, under a nonce-based CSP (`src/proxy.ts`). Visual system "Prime time" since 2026-09-30 (branch `feat/kai-identity`; the rulebook is `DESIGN.md`), in two modes: the public pages in **Daylight** (a paper ground with one cool band, since 2026-10-05) -- a landing page at `/` whose hero is the real 2025 board in the product's dark skin, re-sorting under 0 PPR / Half PPR / PPR, then the same eight followed across the three presets, a full-width band of the product as it looks (the WR board, tiered, and one player opened), one game priced with a live catch rate and its season added up, what is coming, and email-first sign-up -- and behind sign-in, in **Prime time**, a top bar, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (cut-out plate, weekly chart, game log, career), ruleset builder; attribution footer on both. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, the landing's captured data and the two modes' token parity, 78 tests, no dependency, and in CI since 2026-09-28 |
 
 | # | Phase | State |
 |---|---|---|
@@ -178,7 +178,10 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    no page pins a season literal again
   src/lib/profiles.ts              profileLabel(): presets Standard -> "0 PPR", Full PPR -> "PPR"
                                    (display only; stored names unchanged)
-  src/lib/headshot.ts              ESPN headshot URL from the stored espn id -- never stored
+  src/lib/headshot.ts              ESPN headshot URL from the stored espn id -- never stored;
+                                   headshotCutoutUrl() the whole 600x436 alpha cut-out
+  src/lib/trace.ts                 routePath(): a season's weekly points as a monotone cubic
+                                   path -- through every week, no overshoot, broken at a bye
   src/lib/playerStats.ts           the position-aware box-score columns, one definition for
                                    the game log, the career table and the season line
   src/lib/player.ts                age, season to open on, playoff round names, matchup text
@@ -188,34 +191,56 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    page) and safeNext() -- the sign-in redirect, resolved twice
                                    so `/..//evil` cannot come out as a host
   src/lib/useNextParam.ts          ?next= read without useSearchParams (prerendered routes)
+  src/lib/heroBoard.ts             the landing hero's board, derived: places, positional ranks
+                                   (nothing when a player above is missing), moves, entrance
   src/lib/authErrors.ts            one wording for a failed sign-in or sign-up
-  src/app/globals.css              the design tokens. Near-black: void rail < paper page <
-                                   opaque raised rows; ki orange = brand/best, energy blue =
-                                   interactive. Every text pair measured for contrast
+  src/app/globals.css              the design tokens (DESIGN.md): Prime time in @theme -- true-black
+                                   canvas < surface < well < lift, blue rising with elevation;
+                                   ki orange = brand/best/the one action, energy blue = you are
+                                   here -- and .daylight (the public pages: paper, one cool band) / .primetime
+                                   (the product shown on them) redeclaring the same tokens; type
+                                   roles as @utility; motion gated on no-preference, including
+                                   the landing's one re-sort. Every text pair measured for contrast
   src/components/                  RulesetSwitch (the hero), RankingsBoard, RulesetBuilder,
-                                   RateInput, Movement, Attribution, AuthForm
-    shell/                         AppShell, Sidebar (104px rail of stacked icon-over-label
-                                   tiles, fits 1440x780 unscrolled; wordmark with the
-                                   dragon-ball dot on the i), MobileNav (<dialog>, rows),
-                                   nav.ts -- one nav
-                                   definition; unbuilt sections render as "soon", never links.
-                                   RequireAccount -- the website's sign-in gate
-    landing/                       the / page: SiteHeader (links scroll to sections), EmailStart
-                                   (email, then a password in place), HeroRunner + heroImage
-                                   (a drawn runner until a licensed photo exists), PhonePreview
-                                   (real rows in a phone frame), PointsReceipt (one season taken
-                                   apart; the build fails if it does not add up), ComingNext,
-                                   previewData (captured 2025 rows, with the GETs that make them)
-    ui/                            Icon (inline SVG), SegmentedControl (native radios),
-                                   SearchField, StatusMessage + Skeleton
+                                   RateInput, Movement, Attribution, AuthForm, SeasonRoute (a
+                                   season drawn as a route over its bars -- the landing's motif)
+    shell/                         AppShell, TopBar (the product's bar: wordmark, Rankings,
+                                   Scoring, ComingMenu -- a native popover of the six unbuilt
+                                   sections, never links -- and AccountButton), Wordmark (logo
+                                   mark + the orb-dotted i), MobileNav (<dialog> below md),
+                                   nav.ts -- one nav definition. RequireAccount -- the website's
+                                   sign-in gate
+    landing/                       the public pages, in Daylight: SiteHeader (links scroll to
+                                   the landing's sections; its join turns orange only while
+                                   neither of the page's asks is on screen), EmailStart (email
+                                   and password in one row, the password waiting for step two),
+                                   HeroPlate (the real 2025 board's top 8 in Prime time,
+                                   re-sorting under 0 PPR / Half / PPR, played once on load) +
+                                   HeroReadout (its docked lower-third: McCaffrey's season and
+                                   the drawn route) + Crossfade (a figure turning from 0 PPR to
+                                   PPR in the entrance) + heroImage (no likeness until one is
+                                   licensed), RuleSwing (a bump chart: the PPR top 8 through all
+                                   three presets), ProductBand (a full-width Prime time band:
+                                   the real console and the WR board, tiered, one row lit) +
+                                   PlayerReport (that player opened: season line, weeks,
+                                   seasons), GameToSeason (one game priced with a live catch
+                                   rate, then the season added up), CareerLine (a player's
+                                   finished seasons), ComingNext, StillPlate (the board, still,
+                                   beside sign-in and register), previewData (captured 2025
+                                   data, with the GETs that make them; npm test holds it to its
+                                   own totals, to V3's rates, and the receipts to the API's)
+    ui/                            Icon (inline SVG), SegmentedControl (native radios; track /
+                                   bare / pill), SeasonSelect, SearchField, StatusMessage +
+                                   Skeleton, buttons.ts (the shared button looks)
     rankings/                      RankingsWorkspace (the /rankings page),
                                    FilterBar, PlayerRow, TierHeader, PositionBadge, PlayerAvatar
                                    (headshot with a monogram fallback)
-    player/                        PlayerWorkspace (the /players/[id] page), PlayerIdentity,
-                                   WeeklyChart (dependency-free columns), StatTable (game log
-                                   and career share it)
-  src/app/                         (site): / /login /register -- site header, no rail
-                                   (app): /rankings /players/[id] /profiles -- rail, and
+    player/                        PlayerWorkspace (the /players/[id] page), PlayerIdentity
+                                   (the plate), PlayerCutout (ESPN's whole cut-out, initials on
+                                   a 404), WeeklyChart (dependency-free columns), StatTable
+                                   (game log and career share it)
+  src/app/                         (site): / /login /register -- the site header
+                                   (app): /rankings /players/[id] /profiles -- the top bar, and
                                    behind RequireAccount
   tests/lib.test.ts                node --test over the pure libs (npm test)
 backend/src/test/
@@ -368,11 +393,12 @@ colour. Recorded, deliberately not fixed in that milestone.
 | Follow-up | Detail |
 |---|---|
 | ~~The API is still public~~ | **Closed 2026-09-29** (`feat/members-only-api`, owner decision): every read needs a token, proven by `ReadApiTests.everyReadNeedsAnAccount` across all 6 GETs; the signed-in app reads 200 everywhere (measured in a browser). Production is public until the backend redeploys |
-| The hero wants a real player, and has none | `components/landing/heroImage.ts` is `null` until an image clears copyright (an agency's editorial licence does not cover promotion) **and** the player's consent. A drawn runner stands in. An owner call, next to the ESPN one above |
+| The hero wants a real player, and has none | `components/landing/heroImage.ts` is `null` until an image clears copyright (an agency's editorial licence does not cover promotion) **and** the player's consent. Since 2026-09-30 the hero shows no one at all: the real 2025 board (`HeroPlate`) stands in, and a licensed cut-out would stand at the edge of its lower-third (`HeroReadout`). An owner call, next to the ESPN one above |
 | ~~Every anonymous page load spends an auth token~~ | **Closed 2026-09-29, twice over.** A visitor with no `fk_member` hint makes no `/auth/refresh` call at all (measured: 0 on the landing page), and a member's refreshes spend their own 30/min bucket, not login's 5/min (measured: 8 refreshes, then a login still judged on its password) |
 | ~~A member can glimpse the landing page~~ | **Closed 2026-09-29.** `proxy.ts` reads the hint and answers `/` with a 307 to `/rankings` before anything renders (measured: the landing form never mounted). A never-signed-in visitor's deep link likewise goes straight to sign-in. One-time cost: a member who signed in before this shipped has no hint, and signs in once more |
 | ~~Two tabs refreshing at once sign the member out~~ | **Closed 2026-09-29** (`fix/refresh-rotation-races`). Pre-existing, found testing the hint: two refreshes presenting one cookie revoked the whole family — the race path silently — and so did a reload that aborted a rotation. Now: the browser serializes refreshes across tabs (Web Locks) and sends them `keepalive`; the server exchanges a token consumed ≤10 s ago once more if its family has not moved on, and logs every revocation. Measured in a browser: 8 rapid reloads → one clean chain, 0 grace reuses needed; two uncoordinated concurrent refreshes → both 200, 1 grace reuse logged; the same pair under the lock → serialized, none. **The trade:** a thief replaying within 10 s, before the owner refreshes again, is let through |
-| The preview does not update | `previewData.ts` is captured 2025 data on purpose (the season is over, and the page is static). Re-capture with the GETs in its header if the scoring presets ever change. `PointsReceipt` carries a third copy of the PPR rates, and the build fails if they stop adding up to the captured total |
+| Daylight on a browser without `color-mix` | Tailwind compiles an opacity-modified colour (`bg-ink/60`) to a literal Prime time value, and uses the variable only inside `@supports (color-mix)`. A browser older than about 2023 therefore shows Prime time's value for those colours on the public pages. The site header was moved to a token (`--color-veil`); the week chart's average line and faded axis labels still take the fallback. Minor, recorded in `DESIGN.md`, not fixed |
+| The preview does not update | `previewData.ts` is captured 2025 data on purpose (the season is over, so none of it goes stale). Re-capture with the GETs in its header if the scoring presets ever change. It carries a third copy of the PPR rates for the receipt, and `npm test` fails if they stop adding up to the captured total -- a check that moved there from the component once every page rendered per request |
 | Sign-up on a Vercel preview fails | The landing page renders there, because its data is static, but the API's CORS allowlist is the real domain only, the same as every other call |
 | Magic-link sign-in | Not built. It needs an email provider, SPF/DKIM at Porkbun, and a one-time token table. The landing form asks for the email first and the password second, which keeps north-star §2's "an email and a password" true |
 

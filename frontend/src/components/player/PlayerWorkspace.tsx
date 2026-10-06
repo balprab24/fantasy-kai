@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { ApiError } from "@/lib/api";
-import { bandFor, formatPoints, type Quality } from "@/lib/board";
+import { bandFor, formatPoints } from "@/lib/board";
 import { clearBoardReturn, readBoardReturn } from "@/lib/boardReturn";
 import { matchup, pickSeason, playoffRound } from "@/lib/player";
 import { columnsFor } from "@/lib/playerStats";
@@ -13,7 +13,9 @@ import { useCareer, useGamelog, usePlayer, useSelectedProfile } from "@/lib/quer
 import { FIRST_SEASON, currentSeason } from "@/lib/season";
 import type { CareerSeason, GamelogWeek } from "@/lib/types";
 import { RulesetSwitch } from "../RulesetSwitch";
-import { SegmentedControl } from "../ui/SegmentedControl";
+import { QUALITY_TEXT } from "../rankings/PlayerRow";
+import { Icon } from "../ui/Icon";
+import { SeasonSelect } from "../ui/SeasonSelect";
 import { Skeleton, StatusMessage } from "../ui/StatusMessage";
 import { PlayerIdentity } from "./PlayerIdentity";
 import { StatTable, type LeadColumn } from "./StatTable";
@@ -21,11 +23,6 @@ import { WeeklyChart } from "./WeeklyChart";
 
 const RANKED = ["QB", "RB", "WR", "TE"];
 
-const QUALITY_TEXT: Record<Quality, string> = {
-  good: "text-q-good",
-  mid: "text-q-mid",
-  poor: "text-q-poor",
-};
 
 function games(n: number) {
   return `${n} ${n === 1 ? "game" : "games"}`;
@@ -79,7 +76,7 @@ export function PlayerWorkspace({ playerId }: { playerId: number }) {
 
   // Leaving the site from here (another origin, a closed tab, a reload) means
   // the board is no longer the page before this one, so its "come back to me"
-  // note is dropped -- or "← Rankings" would go back to wherever that was.
+  // note is dropped -- or the back link would go back to wherever that was.
   // In-app navigation never fires pagehide, so the board's own return survives.
   useEffect(() => {
     window.addEventListener("pagehide", clearBoardReturn);
@@ -141,113 +138,115 @@ export function PlayerWorkspace({ playerId }: { playerId: number }) {
   const careerStale = career.isPlaceholderData;
 
   return (
-    <div className="mx-auto max-w-[1320px] px-4 pt-4 pb-10 sm:px-6 lg:px-8">
-      <BackToBoard season={validSeason} profileId={profileId} now={now} />
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {played.length > 0 && season !== null && (
-          <SegmentedControl
-            legend="Season"
-            hideLegend
-            options={played.map((s) => ({ value: String(s), label: String(s) }))}
-            value={String(season)}
-            onChange={(v) => write({ season: v })}
-          />
-        )}
-        {profiles.data && (
-          <RulesetSwitch
-            profiles={profiles.data}
-            selected={profileId}
-            onSelect={(id) => write({ profileId: String(id) })}
-            hideLegend
-          />
+    <div className="mx-auto max-w-[1320px] px-4 pt-5 pb-10 sm:px-6 lg:px-8">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <BackToBoard season={validSeason} profileId={profileId} now={now} />
+        {/* The page's two choices on one console strip, as on the board. */}
+        {(played.length > 0 || profiles.data) && (
+          <div className="flex max-w-full flex-wrap items-center gap-x-1 gap-y-2 rounded-control bg-surface p-1.5">
+            {played.length > 0 && season !== null && (
+              <SeasonSelect
+                value={season}
+                options={played}
+                onChange={(v) => write({ season: String(v) })}
+              />
+            )}
+            {played.length > 0 && season !== null && profiles.data && (
+              <span aria-hidden className="mx-1 hidden h-5 w-px bg-line md:block" />
+            )}
+            {profiles.data && (
+              <RulesetSwitch
+                profiles={profiles.data}
+                selected={profileId}
+                onSelect={(id) => write({ profileId: String(id) })}
+                hideLegend
+                variant="bare"
+              />
+            )}
+          </div>
         )}
       </div>
 
-      <div className="mt-3 grid items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="min-w-0 xl:sticky xl:top-4">
-          {player.data ? (
-            <PlayerIdentity
-              player={player.data}
-              season={season}
-              selected={selected}
-              careerLoading={career.isLoading || (profileId === null && !career.data)}
-              scoringLabel={scoringLabel}
-              stale={careerStale}
-              scored={ranked}
-            />
-          ) : (
-            <Skeleton className="h-[248px] rounded-xl" />
-          )}
-        </aside>
-
-        <div className="min-w-0 space-y-4">
-          <Panel title="Performance" meta={selected ? games(selected.gamesPlayed) : undefined}>
-            {!ranked && player.data && (
-              <p className="mb-3 text-sm text-mute">
-                fantasy-kai scores and ranks QB, RB, WR and TE. {position} lines are shown as recorded,
-                without positional ranks.
-              </p>
-            )}
-            {career.error ? (
-              <CareerError error={career.error} onRetry={() => void career.refetch()} />
-            ) : !career.data ? (
-              <Skeleton className="h-[214px] rounded-lg" />
-            ) : selected && !ranked ? null : selected ? (
-              <WeeklyChart
-                key={`${selected.season}-${profileId}`}
-                season={selected}
-                position={position}
-                scoringLabel={scoringLabel}
-                stale={careerStale}
-              />
-            ) : (
-              <p className="py-8 text-center text-sm text-mute">
-                {seasons.length === 0
-                  ? "No regular-season games on record."
-                  : `No regular-season games in ${season}. Pick another season above.`}
-              </p>
-            )}
-          </Panel>
-
-          <Panel
-            title="Game log"
-            meta={season !== null ? `${season} · every game, playoffs included` : undefined}
-          >
-            <GameLog
-              position={position}
-              scored={ranked}
-              // No season to show once the career is back means no games at all:
-              // an empty log, not a skeleton waiting on a request never sent.
-              weeks={season === null && career.data ? [] : gamelog.data?.weeks}
-              loading={gamelog.isLoading}
-              error={gamelog.error}
-              onRetry={() => void gamelog.refetch()}
-              season={selected}
-              stale={gamelog.isPlaceholderData}
-            />
-          </Panel>
-
-          <Panel title="Career" meta="Regular season · newest first">
-            {career.error ? (
-              <CareerError error={career.error} onRetry={() => void career.refetch()} />
-            ) : !career.data ? (
-              <TableSkeleton rows={4} />
-            ) : seasons.length === 0 ? (
-              <p className="py-6 text-center text-sm text-mute">No regular-season games on record.</p>
-            ) : (
-              <CareerTable
-                position={position}
-                scored={ranked}
-                seasons={seasons}
-                selected={season}
-                onSelect={(s) => write({ season: String(s) })}
-                stale={careerStale}
-              />
-            )}
-          </Panel>
-        </div>
+      <div className="mt-4">
+        {player.data ? (
+          <PlayerIdentity
+            player={player.data}
+            season={season}
+            selected={selected}
+            careerLoading={career.isLoading || (profileId === null && !career.data)}
+            scoringLabel={scoringLabel}
+            stale={careerStale}
+            scored={ranked}
+          />
+        ) : (
+          <Skeleton className="h-[300px] rounded-plate" />
+        )}
       </div>
+
+      <Section title="Performance" meta={selected ? games(selected.gamesPlayed) : undefined}>
+        {!ranked && player.data && (
+          <p className="mb-3 text-sm text-mute">
+            fantasy-kai scores and ranks QB, RB, WR and TE. {position} lines are shown as recorded,
+            without positional ranks.
+          </p>
+        )}
+        {career.error ? (
+          <CareerError error={career.error} onRetry={() => void career.refetch()} />
+        ) : !career.data ? (
+          <Skeleton className="h-[248px]" />
+        ) : selected && !ranked ? null : selected ? (
+          <WeeklyChart
+            key={`${selected.season}-${profileId}`}
+            season={selected}
+            position={position}
+            scoringLabel={scoringLabel}
+            stale={careerStale}
+          />
+        ) : (
+          <p className="py-8 text-sm text-mute">
+            {seasons.length === 0
+              ? "No regular-season games on record."
+              : `No regular-season games in ${season}. Pick another season above.`}
+          </p>
+        )}
+      </Section>
+
+      <Section
+        title="Game log"
+        meta={season !== null ? `${season}, every game, playoffs included` : undefined}
+      >
+        <GameLog
+          position={position}
+          scored={ranked}
+          // No season to show once the career is back means no games at all:
+          // an empty log, not a skeleton waiting on a request never sent.
+          weeks={season === null && career.data ? [] : gamelog.data?.weeks}
+          loading={gamelog.isLoading}
+          error={gamelog.error}
+          onRetry={() => void gamelog.refetch()}
+          season={selected}
+          stale={gamelog.isPlaceholderData}
+        />
+      </Section>
+
+      <Section title="Career" meta="Regular season, newest first">
+        {career.error ? (
+          <CareerError error={career.error} onRetry={() => void career.refetch()} />
+        ) : !career.data ? (
+          <TableSkeleton rows={4} />
+        ) : seasons.length === 0 ? (
+          <p className="py-6 text-sm text-mute">No regular-season games on record.</p>
+        ) : (
+          <CareerTable
+            position={position}
+            scored={ranked}
+            seasons={seasons}
+            selected={season}
+            onSelect={(s) => write({ season: String(s) })}
+            stale={careerStale}
+          />
+        )}
+      </Section>
     </div>
   );
 }
@@ -285,14 +284,19 @@ function BackToBoard({
           router.back();
         }
       }}
-      className="inline-flex items-center gap-1.5 text-sm text-mute hover:text-ink"
+      className="inline-flex h-9 items-center gap-2 text-sm text-mute transition-colors hover:text-ink"
     >
-      <span aria-hidden>←</span> Rankings
+      <Icon name="arrowLeft" size={16} /> Rankings
     </Link>
   );
 }
 
-function Panel({
+/**
+ * A segment of the report: its name in the display voice, what it covers, and
+ * one hairline -- then the content straight on the page. No card: the heading
+ * and the rule are the structure, the way a broadcast cuts to a new segment.
+ */
+function Section({
   title,
   meta,
   children,
@@ -302,14 +306,13 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section aria-label={title} className="rounded-xl border border-line bg-raised">
-      <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 border-b border-line px-4 py-2.5">
-        <h2 className="font-display text-[15px] font-bold tracking-[-0.01em]">{title}</h2>
-        {/* Not tabular: this is prose, and the tabular comma reads as a space
-            before it (see globals.css). */}
-        {meta && <p className="text-xs text-faint">{meta}</p>}
+    <section aria-label={title} className="mt-14">
+      <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line pb-3">
+        <h2 className="type-heading text-ink">{title}</h2>
+        {/* Not tabular: this is prose. */}
+        {meta && <p className="text-[13px] text-mute">{meta}</p>}
       </header>
-      <div className="p-4">{children}</div>
+      <div className="pt-5">{children}</div>
     </section>
   );
 }
@@ -329,9 +332,9 @@ function CareerError({ error, onRetry }: { error: unknown; onRetry: () => void }
 function TableSkeleton({ rows }: { rows: number }) {
   return (
     <div role="status" aria-label="Loading" className="space-y-1">
-      <Skeleton className="h-12 rounded" />
+      <Skeleton className="h-12" />
       {Array.from({ length: rows }, (_, i) => (
-        <Skeleton key={i} className="h-8 rounded" />
+        <Skeleton key={i} className="h-8" />
       ))}
     </div>
   );
@@ -370,7 +373,7 @@ function GameLog({
   }
   if (loading || !weeks) return <TableSkeleton rows={6} />;
   if (weeks.length === 0) {
-    return <p className="py-6 text-center text-sm text-mute">No games recorded this season.</p>;
+    return <p className="py-6 text-sm text-mute">No games recorded this season.</p>;
   }
 
   const weeklyRank = new Map(season?.weeks.map((w) => [w.week, w.posRank]) ?? []);
@@ -513,7 +516,7 @@ function CareerTable({
           onClick={() => onSelect(s.season)}
           aria-pressed={s.season === selected}
           title={`Show ${s.season} above`}
-          className={`tabular rounded px-1 -mx-1 underline-offset-4 hover:text-energy-text hover:underline ${
+          className={`tabular rounded-[2px] px-1 -mx-1 underline-offset-4 hover:text-energy-text hover:underline ${
             s.season === selected ? "font-semibold text-energy-text" : "text-ink"
           }`}
         >
@@ -588,9 +591,9 @@ function CareerTable({
         rowProps={(s) =>
           s.season === selected
             ? {
-                // An edge, not a fill: a translucent fill on the pinned first
-                // cell would let the columns scrolling under it show through.
-                className: "[&>td:first-child]:shadow-[inset_3px_0_0_var(--color-energy)]",
+                // The whole row on the opaque `well` step -- opaque, so the
+                // pinned first cell still hides what scrolls under it.
+                className: "[&>td]:bg-well",
                 "aria-current": true,
               }
             : {}
@@ -602,7 +605,7 @@ function CareerTable({
 
 /**
  * "RB3", coloured by where it falls against the position's starter line --
- * the board's quality colours, on the same 12-team assumption -- with the
+ * the board's one quality hue, on the same 12-team assumption -- with the
  * words in the tooltip so the colour is never the only cue.
  */
 function RankCell({ position, rank }: { position: string; rank: number | null }) {
