@@ -779,7 +779,7 @@
       {
         "name": "ease-in-out-draw",
         "value": "cubic-bezier(0.65, 0, 0.35, 1)",
-        "purpose": "The landing's one entrance -- 200ms in, 1400ms long, a 600ms hold on the 0 PPR board, then the re-sort -- and the route drawing on (600ms)."
+        "purpose": "The landing's one entrance -- 200ms in, 1400ms long, a 600ms hold on the 0 PPR board, then the re-sort, while the chosen format's thumb slides from 0 PPR to PPR."
       },
       {
         "name": "state",
@@ -860,12 +860,12 @@
       "css": ".ds-tier{display:flex;align-items:flex-end;gap:12px;font:400 13px 'Sofia Sans',ui-sans-serif,sans-serif}.ds-tier-l{width:48px;text-align:right;padding-right:12px;font:italic 900 34px/.8 'Sofia Sans Extra Condensed',sans-serif;color:var(--color-ki,#ff8a3d)}.ds-tier-t{color:var(--color-ink,#eef2fa);font-weight:600}.ds-tier-m{color:var(--color-mute,#9aa6bd)}.ds-tier-r{flex:1;height:1px;margin-bottom:6px;background:rgb(148 170 210 / .13)}"
     },
     {
-      "name": "Ruleset Switch",
+      "name": "The Stops",
       "kind": "custom",
-      "refersTo": "switch-thumb",
-      "description": "The landing plate's scoring switch: a flat pill radio group whose Lift thumb, carrying the blue dot, slides to the chosen ruleset.",
-      "html": "<div class=\"ds-switch\" role=\"radiogroup\"><span class=\"ds-switch-thumb\"></span><label>0 PPR</label><label>Half PPR</label><label class=\"on\">PPR</label></div>",
-      "css": ".ds-switch{position:relative;display:inline-grid;grid-auto-flow:column;grid-auto-columns:1fr;padding:4px;border-radius:9999px;background:var(--color-well,#111a2c);font:600 13px 'Sofia Sans',ui-sans-serif,sans-serif}.ds-switch label{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;height:32px;padding:0 14px 0 24px;color:var(--color-mute,#9aa6bd);cursor:pointer;transition:color .15s}.ds-switch label:hover,.ds-switch label.on{color:var(--color-ink,#eef2fa)}.ds-switch-thumb{position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 8px)/3);transform:translateX(200%);border-radius:9999px;background:var(--color-lift,#1a2540);transition:transform .3s ease-out}.ds-switch-thumb::before{content:'';position:absolute;top:50%;left:12px;width:6px;height:6px;margin-top:-3px;border-radius:9999px;background:var(--color-energy,#3d8bff)}"
+      "refersTo": "stops-thumb",
+      "description": "The landing's switch (SegmentedControl, variant stops): equal columns on the Well step, each option a whole figure, every option in ink; the chosen one sits on a Lift thumb with the 2px energy base line, which slides.",
+      "html": "<div class=\"ds-stops\" role=\"radiogroup\"><span class=\"ds-stops-thumb\"></span><label><b>0 PPR</b><small>0 per catch</small><em>#7</em></label><label><b>Half PPR</b><small>0.5 per catch</small><em>#1</em></label><label class=\"on\"><b>PPR</b><small>1 per catch</small><em>#1</em></label></div>",
+      "css": ".ds-stops{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;padding:4px;border-radius:4px;background:var(--color-well,#111a2c);font:400 12px 'Sofia Sans',ui-sans-serif,sans-serif;color:var(--color-ink,#eef2fa)}.ds-stops label{position:relative;z-index:1;display:flex;flex-direction:column;padding:12px 16px;cursor:pointer}.ds-stops b{font-weight:600;font-size:15px}.ds-stops small{color:var(--color-mute,#9aa6bd)}.ds-stops em{margin-top:12px;font:italic 850 48px/.8 'Sofia Sans Extra Condensed',ui-sans-serif,sans-serif}.ds-stops-thumb{position:absolute;top:4px;bottom:4px;left:calc(4px + 2 * (100% - 8px) / 3);width:calc((100% - 8px)/3);border-radius:2px;background:var(--color-lift,#1a2540);box-shadow:inset 0 -2px 0 var(--color-energy,#3d8bff);transition:left .3s ease-out}"
     },
     {
       "name": "Join Form (Daylight)",
@@ -878,7 +878,7 @@
   ],
   "narrative": {
     "northStar": "Prime Time",
-    "overview": "A prime-time broadcast graphics package for one idea: your rules decide the order. True black is the\nstage. Separation comes from three blue-black steps, never from grey cards. Each page earns at most one\nlarge focal plate. The imagery is real: a player's cut-out, a season's weeks, a board's rows. The\nvoice is a heavy extra-condensed italic that leans forward like the logo's two strokes. Hairlines do\nthe structural work that boxes used to do.\n\nTwo modes, one grammar. **Prime time** is the product: the board under the lights, true black, dense,\nlines instead of cards, a single console of controls, tabular figures in columns. **Daylight** is the\npublic pages -- the landing, sign-in, register -- where a visitor decides in daylight whether to\ntrust the tool: the pre-game studio. A cool chalk ground, navy ink, white for what floats or is typed\ninto, and blue risen into the hairlines. The type, the components and the two accents are the same;\nonly the tokens change value (`.daylight` in `globals.css`), so the two read as one product. Where a\nDaylight page shows the product, the product keeps its own dark skin (`.primetime`), once: the\nlanding's hero is the real board, re-sorting when the rule changes, and signing in is the moment the\nwhole screen turns to Prime time. The anime influence is\none drawn route (a season traced over its bars, like an analyst's telestrator stroke) and an orb for\nthe wordmark's dot. Someone who has never watched anime should see a sports product.",
+    "overview": "A prime-time broadcast graphics package for one idea: your rules decide the order. True black is the\nstage. Separation comes from three blue-black steps, never from grey cards. Each page earns at most one\nlarge focal plate. The imagery is real: a player's cut-out, a season's weeks, a board's rows. The\nvoice is a heavy extra-condensed italic that leans forward like the logo's two strokes. Hairlines do\nthe structural work that boxes used to do.\n\nTwo modes, one grammar. **Prime time** is the product: the board under the lights, true black, dense,\nlines instead of cards, a single console of controls, tabular figures in columns. **Daylight** is the\npublic pages -- the landing, sign-in, register -- where a visitor decides in daylight whether to\ntrust the tool: the pre-game studio. A cool chalk ground, navy ink, white for what floats or is typed\ninto, and blue risen into the hairlines. The type, the components and the two accents are the same;\nonly the tokens change value (`.daylight` in `globals.css`), so the two read as one product. Where a\nDaylight page shows the product, the product keeps its own dark skin (`.primetime`), once: the\nlanding's hero is the real board, re-sorting when the rule changes, and signing in is the moment the\nwhole screen turns to Prime time. The anime influence is\nthe orb for the wordmark's dot and the lean of the italic. Someone who has never watched anime should see a sports product.",
     "keyCharacteristics": [
       "Prime time: a true black (#000) canvas; depth from blue-black steps, blue rising with elevation.",
       "Daylight: a paper (#fbfaf7) ground, never cream, and one cool band (#edf1f7); the product appears on it in its own dark skin at most twice -- the hero's plate and one full-width band.",
@@ -925,7 +925,7 @@
       },
       {
         "name": "The No Glow Rule",
-        "body": "Nothing glows. The S tier letter is marked by orange alone, the route by its blue stroke alone.",
+        "body": "Nothing glows. The S tier letter is marked by orange alone, the story line by its blue stroke alone.",
         "section": "elevation"
       }
     ],

@@ -20,7 +20,7 @@
  *   ki (orange)     the brand and the one thing to do: the primary action, the
  *                   wordmark, the top tier, the landing's plate. "The best."
  *   energy (blue)   you are here, and live: selection, focus, links, the
- *                   fetching sweep, and the one drawn route. "You are here."
+ *                   fetching sweep, and the landing's story line. "You are here."
  *
  * Every text/background pair below was measured (WCAG 2 relative luminance),
  * not eyeballed, on canvas / surface / well / lift (re-measured 2026-09-30).
@@ -426,17 +426,6 @@ a {
   }
 }
 
-/* Paths that draw carry pathLength="1", so one dash of length 1 covers any
-   route, however long it is on screen. */
-@keyframes draw {
-  from {
-    stroke-dashoffset: 1;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
 @keyframes appear {
   from {
     opacity: 0;
@@ -452,9 +441,9 @@ a {
    keyframe set names only its start; the end is the element's own style, the
    PPR board the server rendered -- so with no animation (reduced motion, no
    CSS) the page shows the finished board, never a hidden or half-sorted one.
-   Per-row start places, opacities and bar heights come in as custom
-   properties. One timeline for all of it: 200ms in, 1400ms long, the hold is
-   the first 43% (600ms). */
+   Per-row start places and opacities, and the chosen format's starting
+   step, come in as custom properties. One timeline for all of it: 200ms in,
+   1400ms long, the hold is the first 43% (600ms). */
 @keyframes resort {
   0%,
   43% {
@@ -473,21 +462,6 @@ a {
   43% {
     transform: var(--thumb-from);
     animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
-  }
-}
-
-/* While the thumb still stands on 0 PPR, 0 PPR reads as chosen. */
-@keyframes still-chosen {
-  0%,
-  43% {
-    color: var(--color-ink);
-  }
-}
-
-@keyframes not-chosen-yet {
-  0%,
-  43% {
-    color: var(--color-mute);
   }
 }
 
@@ -516,15 +490,6 @@ a {
   0%,
   88% {
     opacity: 0;
-  }
-}
-
-/* A week's bar, from its 0 PPR height to its PPR one. */
-@keyframes bar-resort {
-  0%,
-  43% {
-    clip-path: var(--clip0);
-    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
   }
 }
 
@@ -561,12 +526,6 @@ a {
     animation-delay: calc(var(--i, 0) * 32ms + 120ms);
   }
 
-  .draw {
-    stroke-dasharray: 1;
-    animation: draw var(--draw-duration, 1100ms) cubic-bezier(0.65, 0, 0.35, 1) both;
-    animation-delay: var(--draw-delay, 780ms);
-  }
-
   .appear {
     animation: appear 280ms ease-out both;
     animation-delay: var(--appear-delay, 0ms);
@@ -587,14 +546,6 @@ a {
     animation: thumb-resort 1400ms 200ms backwards;
   }
 
-  .still-chosen {
-    animation: still-chosen 1400ms 200ms backwards;
-  }
-
-  .not-chosen-yet {
-    animation: not-chosen-yet 1400ms 200ms backwards;
-  }
-
   .fig-then {
     animation: fig-then 1400ms 200ms backwards;
   }
@@ -605,9 +556,5 @@ a {
 
   .settle-in {
     animation: settle-in 1400ms 200ms ease-out backwards;
-  }
-
-  .bar-resort {
-    animation: bar-resort 1400ms 200ms backwards;
   }
 }

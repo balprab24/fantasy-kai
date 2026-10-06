@@ -32,18 +32,22 @@ the lit row; ki orange only for the one action in view, and as ki-text for a sea
 Sans in three widths; the extra-condensed italic caps as the voice. Radii 0 / 2 / 4 / 24 / pill.
 
 STORY: A visitor reads RANKED BY YOUR RULES and "fantasy football rankings scored by the settings
-your league actually uses", watches the board beside it re-sort from a quarterback board (0 PPR)
-into McCaffrey, Nacua, Robinson (PPR), and can flip it themselves. One rule, three boards: Nacua
-20th, 11th, 2nd. Then the cut to the product: the tiered board with Nacua's row lit, and his season
-opened beside it. Then how McCaffrey's 416.6 is made: one game's box score times the rates, 39.1,
-then seventeen games added up. What is coming, in a short rundown. Join.
+your league actually uses", and beside it one player's season scored three ways, big enough to read
+in a glance: McCaffrey #7 / #1 / #1, 314.6 / 365.6 / 416.6 under 0 PPR / Half PPR / PPR. The three
+formats are also the switch, and the top of the board under them turns from five quarterbacks (0
+PPR) into McCaffrey, Nacua, Robinson (PPR). One rule, three boards: the three boards side by side,
+and one blue line carrying Nacua from 20th to 11th to 2nd. Then the cut to the product: the tiered
+board with Nacua's row lit, and his season opened beside it. Then "your league pays [0 | 0.5 | 1] a
+catch": week 7 as 32.1 + 7 x the rate, and the season as seventeen bars whose blue caps grow and
+shrink with it, 416.6. What is coming, in a short rundown. Join.
 
 FIRST VIEWPORT: 1440x900. Header 64px on the paper veil: wordmark, Scoring, Rankings, Players,
 Sign in, a secondary Join. Left 5/12: the headline in two lines at ~7.5rem navy italic caps; a 19px
 lead naming fantasy football; a 56px orange "Join the Kai" and "Free. No ads, no paywall." Right
-7/12: the black 24px-radius plate, ~700x600 -- console with the 0 PPR / Half PPR / PPR pill switch,
-eight 44px rows with movement, McCaffrey's lower-third with the drawn route. At 390: headline, lead,
-full-width CTA, then the plate's console and five rows.
+7/12: the black 24px-radius plate, 695x643 measured -- McCaffrey's name in the display voice, the three
+stops (format, rate, overall rank at display size, points, RB rank, the gain), and six 40px rows of
+the board with movement. At 390: headline, lead, full-width CTA, then the plate's name and its
+three stops inside the first screen.
 
 FORM: Brief-pinned by the owner's 2026-10-05 brief (light, product-led, rhythm through bands, one or
 two dark product moments, both accents in the identity), so no concept seed was rolled: a

@@ -23,7 +23,7 @@ and nothing caught it for two days.
 | HTTP endpoints | **13** — 6 `GET`, members only since 2026-09-29 (the sixth is `/players/{id}/career`, 2026-09-28), 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V6` (`V6`: `players.birth_date`, `teams.logo_url`) |
 | Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
-| Frontend | **Next.js 16 · 81 `.ts`/`.tsx` files** (83 under `frontend/src`) — every page rendered per request since 2026-09-29, under a nonce-based CSP (`src/proxy.ts`). Visual system "Prime time" since 2026-09-30 (branch `feat/kai-identity`; the rulebook is `DESIGN.md`), in two modes: the public pages in **Daylight** (a paper ground with one cool band, since 2026-10-05) -- a landing page at `/` whose hero is the real 2025 board in the product's dark skin, re-sorting under 0 PPR / Half PPR / PPR, then the same eight followed across the three presets, a full-width band of the product as it looks (the WR board, tiered, and one player opened), one game priced with a live catch rate and its season added up, what is coming, and email-first sign-up -- and behind sign-in, in **Prime time**, a top bar, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (cut-out plate, weekly chart, game log, career), ruleset builder; attribution footer on both. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, the landing's captured data and the two modes' token parity, 78 tests, no dependency, and in CI since 2026-09-28 |
+| Frontend | **Next.js 16 · 78 `.ts`/`.tsx` files** (80 under `frontend/src`) — every page rendered per request since 2026-09-29, under a nonce-based CSP (`src/proxy.ts`). Visual system "Prime time" since 2026-09-30 (branch `feat/kai-identity`; the rulebook is `DESIGN.md`), in two modes: the public pages in **Daylight** (a paper ground with one cool band, since 2026-10-05) -- a landing page at `/` whose hero is one player's 2025 season under 0 PPR / Half PPR / PPR in the product's dark skin, the three formats also the switch for the top of the board under them (since 2026-10-06), then the three boards side by side with one player's climb drawn across them, a full-width band of the product as it looks (the WR board, tiered, and one player opened), one game priced as an equation by a live catch rate and its season as weekly bars that re-price with it, what is coming, and email-first sign-up -- and behind sign-in, in **Prime time**, a top bar, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (cut-out plate, weekly chart, game log, career), ruleset builder; attribution footer on both. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, the landing's captured data and the two modes' token parity, 81 tests, no dependency, and in CI since 2026-09-28 |
 
 | # | Phase | State |
 |---|---|---|
@@ -180,8 +180,6 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    (display only; stored names unchanged)
   src/lib/headshot.ts              ESPN headshot URL from the stored espn id -- never stored;
                                    headshotCutoutUrl() the whole 600x436 alpha cut-out
-  src/lib/trace.ts                 routePath(): a season's weekly points as a monotone cubic
-                                   path -- through every week, no overshoot, broken at a bye
   src/lib/playerStats.ts           the position-aware box-score columns, one definition for
                                    the game log, the career table and the season line
   src/lib/player.ts                age, season to open on, playoff round names, matchup text
@@ -191,8 +189,10 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    page) and safeNext() -- the sign-in redirect, resolved twice
                                    so `/..//evil` cannot come out as a host
   src/lib/useNextParam.ts          ?next= read without useSearchParams (prerendered routes)
-  src/lib/heroBoard.ts             the landing hero's board, derived: places, positional ranks
-                                   (nothing when a player above is missing), moves, entrance
+  src/lib/heroBoard.ts             the landing's boards, derived: a board's top n (nothing when a
+                                   place is missing), the hero's slots (top five + the followed
+                                   player), positional ranks, moves, entrance, and catchCaps() --
+                                   each week split into its 0 PPR base and what the catch rate adds
   src/lib/authErrors.ts            one wording for a failed sign-in or sign-up
   src/app/globals.css              the design tokens (DESIGN.md): Prime time in @theme -- true-black
                                    canvas < surface < well < lift, blue rising with elevation;
@@ -202,8 +202,7 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    roles as @utility; motion gated on no-preference, including
                                    the landing's one re-sort. Every text pair measured for contrast
   src/components/                  RulesetSwitch (the hero), RankingsBoard, RulesetBuilder,
-                                   RateInput, Movement, Attribution, AuthForm, SeasonRoute (a
-                                   season drawn as a route over its bars -- the landing's motif)
+                                   RateInput, Movement, Attribution, AuthForm
     shell/                         AppShell, TopBar (the product's bar: wordmark, Rankings,
                                    Scoring, ComingMenu -- a native popover of the six unbuilt
                                    sections, never links -- and AccountButton), Wordmark (logo
@@ -214,17 +213,17 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    the landing's sections; its join turns orange only while
                                    neither of the page's asks is on screen), EmailStart (email
                                    and password in one row, the password waiting for step two),
-                                   HeroPlate (the real 2025 board's top 8 in Prime time,
-                                   re-sorting under 0 PPR / Half / PPR, played once on load) +
-                                   HeroReadout (its docked lower-third: McCaffrey's season and
-                                   the drawn route) + Crossfade (a figure turning from 0 PPR to
-                                   PPR in the entrance) + heroImage (no likeness until one is
-                                   licensed), RuleSwing (a bump chart: the PPR top 8 through all
-                                   three presets), ProductBand (a full-width Prime time band:
+                                   HeroPlate (McCaffrey's 2025 season as three stops -- 0 PPR /
+                                   Half / PPR, rank, points -- that are also the switch, and the
+                                   top of the board each produces, played once on load) +
+                                   Crossfade (a figure turning from 0 PPR to PPR in the entrance)
+                                   + heroImage (no likeness until one is licensed), ThreeBoards
+                                   (the three boards side by side, Nacua's 20th -> 11th -> 2nd
+                                   drawn across them), ProductBand (a full-width Prime time band:
                                    the real console and the WR board, tiered, one row lit) +
                                    PlayerReport (that player opened: season line, weeks,
-                                   seasons), GameToSeason (one game priced with a live catch
-                                   rate, then the season added up), CareerLine (a player's
+                                   seasons), GameToSeason (a live catch rate: one game as
+                                   an equation, the season as weekly bars that re-price with it), CareerLine (a player's
                                    finished seasons), ComingNext, StillPlate (the board, still,
                                    beside sign-in and register), previewData (captured 2025
                                    data, with the GETs that make them; npm test holds it to its
@@ -393,7 +392,7 @@ colour. Recorded, deliberately not fixed in that milestone.
 | Follow-up | Detail |
 |---|---|
 | ~~The API is still public~~ | **Closed 2026-09-29** (`feat/members-only-api`, owner decision): every read needs a token, proven by `ReadApiTests.everyReadNeedsAnAccount` across all 6 GETs; the signed-in app reads 200 everywhere (measured in a browser). Production is public until the backend redeploys |
-| The hero wants a real player, and has none | `components/landing/heroImage.ts` is `null` until an image clears copyright (an agency's editorial licence does not cover promotion) **and** the player's consent. Since 2026-09-30 the hero shows no one at all: the real 2025 board (`HeroPlate`) stands in, and a licensed cut-out would stand at the edge of its lower-third (`HeroReadout`). An owner call, next to the ESPN one above |
+| The hero wants a real player, and has none | `components/landing/heroImage.ts` is `null` until an image clears copyright (an agency's editorial licence does not cover promotion) **and** the player's consent. Since 2026-09-30 the hero shows no one at all: the real 2025 numbers stand in (`HeroPlate`, since 2026-10-06 McCaffrey's season as three stops over the board), and a licensed cut-out would stand at the right edge of the plate's head, beside his name. An owner call, next to the ESPN one above |
 | ~~Every anonymous page load spends an auth token~~ | **Closed 2026-09-29, twice over.** A visitor with no `fk_member` hint makes no `/auth/refresh` call at all (measured: 0 on the landing page), and a member's refreshes spend their own 30/min bucket, not login's 5/min (measured: 8 refreshes, then a login still judged on its password) |
 | ~~A member can glimpse the landing page~~ | **Closed 2026-09-29.** `proxy.ts` reads the hint and answers `/` with a 307 to `/rankings` before anything renders (measured: the landing form never mounted). A never-signed-in visitor's deep link likewise goes straight to sign-in. One-time cost: a member who signed in before this shipped has no hint, and signs in once more |
 | ~~Two tabs refreshing at once sign the member out~~ | **Closed 2026-09-29** (`fix/refresh-rotation-races`). Pre-existing, found testing the hint: two refreshes presenting one cookie revoked the whole family — the race path silently — and so did a reload that aborted a rotation. Now: the browser serializes refreshes across tabs (Web Locks) and sends them `keepalive`; the server exchanges a token consumed ≤10 s ago once more if its family has not moved on, and logs every revocation. Measured in a browser: 8 rapid reloads → one clean chain, 0 grace reuses needed; two uncoordinated concurrent refreshes → both 200, 1 grace reuse logged; the same pair under the lock → serialized, none. **The trade:** a thief replaying within 10 s, before the owner refreshes again, is let through |

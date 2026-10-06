@@ -14,26 +14,33 @@ export interface Segment {
  * Where the control sits, which decides what draws its edge:
  * - `track`: on its own, in a well of its own.
  * - `bare`: inside the rankings console, whose strip is already the track.
- * - `pill`: the landing hero's ruleset switch, a well of its own in the
- *   plate's console, whose chosen step is a thumb that slides.
+ * - `stops`: the landing's big switch -- the hero's three scoring formats and
+ *   the catch rate -- where each option is a whole figure, not a word. Equal
+ *   columns on a well of their own, filling the width they are given; the
+ *   chosen step is a thumb that slides between them, so a change is seen
+ *   moving rather than blinking.
  */
-export type SegmentedVariant = "track" | "bare" | "pill";
+export type SegmentedVariant = "track" | "bare" | "stops";
 
 const TRACK: Record<SegmentedVariant, string> = {
-  track: "gap-0.5 rounded-control bg-well p-0.5",
-  bare: "gap-0.5",
-  pill: "relative grid auto-cols-fr grid-flow-col rounded-full bg-well p-1",
+  track: "flex w-fit flex-wrap gap-0.5 rounded-control bg-well p-0.5",
+  bare: "flex w-fit flex-wrap gap-0.5",
+  stops: "relative grid w-full auto-cols-fr grid-flow-col rounded-control bg-well p-1",
 };
 
 // Selected: the chosen step (lift), full ink, and a 2px energy base line --
 // blue is "you are here". Inner radius is the track's minus its padding. The
-// pill's chosen step is not the option's own background but a thumb that
-// slides between options (below), carrying the blue dot with it.
+// stops' chosen step is not the option's own background but a thumb that
+// slides between options (below), carrying the base line with it, and every
+// option stays in full ink: there the options are figures to compare, and
+// the thumb alone says which is chosen. A face's own layout and height come
+// from the caller (`Segment.className`; a height as `min-h-*`, which the
+// face's `h-full` cannot override): a figure is laid out by what it says.
 const OPTION: Record<SegmentedVariant, string> = {
   track:
-    "h-10 rounded-[2px] px-3 text-sm md:h-8 peer-checked:bg-lift peer-checked:font-semibold peer-checked:shadow-[inset_0_-2px_0_var(--color-energy)]",
-  bare: "h-10 rounded-[2px] px-3 text-sm md:h-8 peer-checked:bg-lift peer-checked:font-semibold peer-checked:shadow-[inset_0_-2px_0_var(--color-energy)]",
-  pill: "relative z-[1] h-8 justify-center rounded-full pr-3.5 pl-6 text-[13px] font-semibold",
+    "h-10 items-center whitespace-nowrap rounded-[2px] px-3 text-sm text-mute hover:text-ink md:h-8 peer-checked:bg-lift peer-checked:font-semibold peer-checked:text-ink peer-checked:shadow-[inset_0_-2px_0_var(--color-energy)]",
+  bare: "h-10 items-center whitespace-nowrap rounded-[2px] px-3 text-sm text-mute hover:text-ink md:h-8 peer-checked:bg-lift peer-checked:font-semibold peer-checked:text-ink peer-checked:shadow-[inset_0_-2px_0_var(--color-energy)]",
+  stops: "relative z-[1] h-full flex-col rounded-[2px] text-ink peer-[:not(:checked)]:hover:bg-track",
 };
 
 /**
@@ -67,7 +74,7 @@ export function SegmentedControl({
   hideLegend?: boolean;
   variant?: SegmentedVariant;
   /**
-   * Pill only: the option the thumb stands on before the landing's one-time
+   * Stops only: the option the thumb stands on before the landing's one-time
    * entrance slides it to the chosen one (`.thumb-entrance` in globals.css).
    * Omitted, the thumb is simply where the value is.
    */
@@ -82,18 +89,23 @@ export function SegmentedControl({
       {/* Wraps rather than scrolls: a clipped option behind a hidden
           scrollbar is an option nobody knows is there -- and a signed-in
           user's own rulesets are exactly the ones that would fall off. */}
-      <div className={`${variant === "pill" ? "" : "flex flex-wrap"} w-fit max-w-full ${TRACK[variant]}`}>
-        {variant === "pill" && chosen >= 0 && (
+      <div className={`max-w-full ${TRACK[variant]}`}>
+        {variant === "stops" && chosen >= 0 && (
+          // Placed by `left`, not a transform: at rest on a fractional
+          // translateX it showed a 1px seam partway down its left edge in
+          // Chrome captures (tile rasterisation, most likely -- not proven),
+          // and placed by `left` it does not. A transform is only the
+          // entrance's, which moves and then is gone.
           <span
             aria-hidden
-            className={`pointer-events-none absolute inset-y-1 left-1 rounded-full bg-lift before:absolute before:top-1/2 before:left-3 before:size-1.5 before:-translate-y-1/2 before:rounded-full before:bg-energy motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out ${
+            className={`pointer-events-none absolute inset-y-1 rounded-[2px] bg-lift shadow-[inset_0_-2px_0_var(--color-energy)] motion-safe:transition-[left] motion-safe:duration-300 motion-safe:ease-out ${
               thumbFrom !== undefined ? "thumb-entrance" : ""
             }`}
             style={
               {
                 width: `calc((100% - 0.5rem) / ${options.length})`,
-                transform: `translateX(${chosen * 100}%)`,
-                "--thumb-from": `translateX(${(thumbFrom ?? chosen) * 100}%)`,
+                left: `calc(0.25rem + ${chosen} * (100% - 0.5rem) / ${options.length})`,
+                "--thumb-from": `translateX(${((thumbFrom ?? chosen) - chosen) * 100}%)`,
               } as React.CSSProperties
             }
           />
@@ -109,7 +121,7 @@ export function SegmentedControl({
               className="peer sr-only"
             />
             <span
-              className={`flex cursor-pointer items-center whitespace-nowrap text-mute transition-[color,background-color,box-shadow] select-none hover:text-ink peer-checked:text-ink peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-energy ${OPTION[variant]} ${option.className ?? ""}`}
+              className={`flex cursor-pointer transition-[color,background-color,box-shadow] select-none peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-energy ${OPTION[variant]} ${option.className ?? ""}`}
             >
               {option.label}
             </span>
