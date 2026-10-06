@@ -6,7 +6,7 @@ import { FeatureSection, SectionCopy, SectionTitle } from "@/components/landing/
 import { GameToSeason } from "@/components/landing/GameToSeason";
 import { HeroPlate } from "@/components/landing/HeroPlate";
 import { ProductBand } from "@/components/landing/ProductBand";
-import { RuleSwing } from "@/components/landing/RuleSwing";
+import { ThreeBoards } from "@/components/landing/ThreeBoards";
 import { BUTTON_JOIN } from "@/components/ui/buttons";
 import { CLOSING_ID, HERO_JOIN_ID } from "@/lib/landing";
 
@@ -25,13 +25,16 @@ export const metadata: Metadata = {
  *
  * The order is the argument, and the ground changes with it, so the page has
  * a rhythm instead of one long sheet:
- *   - the hero (paper): the real board in its own dark skin, re-sorting when
- *     the rule changes, beside one ask;
- *   - one rule, three boards (paper): how far that one rule moves people;
+ *   - the hero (paper): one player's season under each of the three
+ *     presets, in the product's own dark skin, and the top of the board each
+ *     one produces, beside one ask;
+ *   - one rule, three boards (paper): the three boards side by side, and how
+ *     far that one rule moves one player across them;
  *   - the product (the stage: a full-width band of Prime time): the board and
  *     the player it leads to, as they really look;
- *   - your rates, every game (the band): how one number is made, with the
- *     one rate the presets disagree on as a control;
+ *   - your rates, every game (the band): how one number is made -- one game
+ *     as an equation, the season as its weeks -- with the one rate the
+ *     presets disagree on as the control;
  *   - what is coming (paper, small), then the last ask at full width.
  *
  * Below lg the hero reads headline, pitch, ask, then the board, so a phone's
@@ -62,7 +65,7 @@ export default function Landing() {
               <p className="text-[15px] text-mute">Free. No ads, no paywall.</p>
             </div>
           </div>
-          <div className="mt-10 min-w-0 sm:mt-12 lg:mt-0">
+          <div className="mt-8 min-w-0 sm:mt-12 lg:mt-0">
             <HeroPlate />
           </div>
         </div>
@@ -80,12 +83,12 @@ export default function Landing() {
             <SectionCopy>
               <p>
                 Same 2025 season, same stat lines. The three presets differ in one number, what a catch is
-                worth, and Puka Nacua goes from <strong>20th</strong> to <strong>2nd</strong>.
+                worth, and Puka Nacua goes from <strong>20th</strong> to <strong>11th</strong> to <strong>2nd</strong>.
               </p>
             </SectionCopy>
           </div>
           <div className="mt-12 lg:mt-16">
-            <RuleSwing />
+            <ThreeBoards />
           </div>
         </div>
       </FeatureSection>
@@ -107,12 +110,11 @@ export default function Landing() {
                 the thresholds your league pays. Each game is scored on its own, then added up.
               </p>
             </SectionCopy>
-            <p className="mt-8 max-w-[30rem] border-t border-line pt-4 text-[14px] leading-relaxed text-pretty text-mute">
-              Box scores from nflverse for every game since 2020, pulled at 6 a.m. Eastern every morning of the
-              season and scored when you ask, never stored as points. No expert picks go in, now or later.
-            </p>
+            <Provenance className="mt-8 hidden lg:block" />
           </div>
           <GameToSeason />
+          {/* Below lg the demo comes straight after its heading, and where its numbers come from follows it. */}
+          <Provenance className="lg:hidden" />
         </div>
       </section>
 
@@ -149,5 +151,17 @@ export default function Landing() {
         </div>
       </section>
     </>
+  );
+}
+
+/** Where the rates section's numbers come from: beside the words from lg, after the demo below it. */
+function Provenance({ className }: { className: string }) {
+  return (
+    <p
+      className={`max-w-[30rem] border-t border-line pt-4 text-[14px] leading-relaxed text-pretty text-mute ${className}`}
+    >
+      Box scores from nflverse for every game since 2020, pulled at 6 a.m. Eastern every morning of the season and
+      scored when you ask, never stored as points. No expert picks go in, now or later.
+    </p>
   );
 }

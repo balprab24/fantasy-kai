@@ -142,11 +142,10 @@ components:
     rounded: "{rounded.control}"
     padding: "0 16px"
     height: "48px"
-  switch-thumb:
+  stops-thumb:
     backgroundColor: "{colors.lift}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.pill}"
-    height: "32px"
+    rounded: "{rounded.nested}"
   plate-hero:
     backgroundColor: "{colors.canvas}"
     textColor: "{colors.ink}"
@@ -177,12 +176,13 @@ one cool band for the section that alternates, navy ink, white for what floats o
 and blue risen into the hairlines. The type, the components and the two accents are the same; only
 the tokens change value (`.daylight` in `globals.css`), so the two read as one product. Where a
 Daylight page shows the product, the product keeps its own dark skin (`.primetime`), at most twice:
-the landing's hero is the real board, re-sorting when the rule changes, and once down the page the
-studio cuts to the game feed -- a full-width band of the product as it looks, the board and a player
-opened -- and comes back. Signing in is the moment the whole screen turns to Prime time. The anime
-influence is
-one drawn route (a season traced over its bars, like an analyst's telestrator stroke) and an orb for
-the wordmark's dot. Someone who has never watched anime should see a sports product.
+the landing's hero is one player's season under each of the three presets, with the top of the
+board each one produces re-sorting under it, and once down the page the studio cuts to the game
+feed -- a full-width band of the product as it looks, the board and a player opened -- and comes
+back. Signing in is the moment the whole screen turns to Prime time. The anime influence is the
+orb for the wordmark's dot, and the lean of the italic; the drawn route that was its other half
+left with the hero's lower-third on 2026-10-06. Someone who has never watched anime should see a
+sports product.
 
 Rejected on purpose:
 
@@ -222,7 +222,8 @@ under "Daylight".
   - the focus ring;
   - links;
   - the board's fetching sweep;
-  - the landing's drawn route, and the followed row on its board (a full-row 15% tint);
+  - the story line across the landing's three boards, and the followed row on its hero board (a
+    full-row 15% tint);
   - in Daylight, the data: a chart's key series (a starter week) is blue.
 
 ### Tertiary
@@ -264,11 +265,15 @@ lift and recorded in `globals.css` (re-measured 2026-10-05):
 - **Ki Text** (#bd4c08) 4.8 / 4.4 / 5.0 / 4.1 -- on the band only at stat size. Ki Orange stays
   #ff8a3d as a fill, with Ki Ink on it (8.3).
 - **Positions** QB #6a44d8, RB #c92d3a, WR #0a7684 (teal, so a receiver is never read as energy's
-  "you are here"), TE #b3237c: 5.1 and up on paper, 4.7 on the band. On a Daylight chart the letters
-  are faint, not hued: there blue is the story and orange the ask (the landing's bump chart).
+  "you are here"), TE #b3237c: 5.1 and up on paper, 4.7 on the band. Letters only, as everywhere:
+  on the landing's three boards they carry the story's other half (quarterbacks fill the 0 PPR top
+  and drain out of the PPR one) while blue carries the one player followed.
 - **Chart pair** Chart Blue (#1f5fe0) for a starter week and Chart Slate (#7e889f) for any other:
   dataviz validator on chalk, CVD dE 17.5, normal-vision dE 19.7, both >= 3:1 (5.3 and 3.4 on
-  paper). Prime time keeps its green pair; the brief gave the public pages' data to blue.
+  paper). Prime time keeps its green pair; the brief gave the public pages' data to blue. On the
+  landing's season bars the same pair says what a catch adds (blue) against everything else (slate),
+  re-validated on the band 2026-10-06: CVD dE 17.5, normal-vision dE 19.7, both >= 3:1; the slate's
+  low chroma is the "not this" colour, as before.
 - **Veil** (paper at 85%): the site header's see-through ground, a token rather than `bg-canvas/85`.
   Tailwind compiles an opacity modifier to a literal Prime time colour and uses the variable only
   inside `@supports (color-mix)`, so a browser without color-mix (older than about 2023) shows
@@ -352,7 +357,7 @@ page's recipe is said in a sentence ("Scored under Half PPR for the 2025 season,
 
 - **Pace:** the studio show, and the ground changes with the argument (owner brief 2026-10-05):
   - the hero, on paper;
-  - one rule, three boards, on paper: a heading and its line over a full-width bump chart;
+  - one rule, three boards, on paper: a heading and its line over the three boards side by side;
   - the cut to the product, on the stage: a full-width Prime time band, the board and one player;
   - your rates, every game, on the band, mirrored -- the working part left, the words right;
   - what is coming, a six-across strip on paper; the last ask at full width; the footer on the band.
@@ -361,7 +366,7 @@ page's recipe is said in a sentence ("Scored under Half PPR for the 2025 season,
   the rule section and the last ask, on the content's edges.
 - **Hero:** 5/12 and 7/12 from lg -- the headline, the lead and one orange "Join the Kai" on the
   left, the plate, the larger half, on the right. Below lg it reads headline, lead, a full-width
-  button, then the plate, so a phone's first screen holds the action and the board's first rows.
+  button, then the plate, so a phone's first screen holds the action and the three formats.
 - **Sign-in and register:** the form on the content edge, and from lg a still five-row plate of the
   real board beside it.
 
@@ -375,7 +380,8 @@ landing's plate is flat: it is ground, not a floating card.
 
 No glow exists. The landing's drawn route had one (a 5px energy-blue drop-shadow) until 2026-10-05,
 when the brief ruled out glows and a reviewer read it as the one neon-dashboard element on the page:
-the line is data, and a halo around it is decoration.
+the line is data, and a halo around it is decoration. The route itself left the landing on
+2026-10-06; the three boards' story line keeps the rule.
 
 ### Shadow Vocabulary
 - **Float** (`box-shadow: 0 18px 40px -16px rgb(0 0 0 / 0.95), 0 2px 8px -2px rgb(0 0 0 / 0.7)`):
@@ -383,8 +389,8 @@ the line is data, and a halo around it is decoration.
   -2px rgb(11 21 48 / 0.1)`.
 
 ### Named Rules
-**The No Glow Rule.** Nothing glows. The S tier letter is marked by orange alone, the route by its
-blue stroke alone.
+**The No Glow Rule.** Nothing glows. The S tier letter is marked by orange alone, the story line by
+its blue stroke alone.
 
 ## Shapes
 
@@ -394,8 +400,7 @@ blue stroke alone.
   - 2px for a control nested inside a control;
   - 24px for the one focal plate on a page (the landing's product plate, the player plate -- which
     the landing's product band also shows, as the app does);
-  - a full pill only for the landing's ruleset switch and its thumb, and for circular marks
-    (avatars, chart end markers).
+  - a full pill only for circular marks (avatars, chart end markers).
 - **Chart bars:** 4px rounded data ends, square at the baseline, at most 24px wide.
 - **Borders:** hairlines only where they are structure (row separators, a segment's rule, the sticky
   header's base). An input keeps one 3:1 edge.
@@ -414,10 +419,17 @@ blue stroke alone.
 - **Quiet link:** Ink text with an Edge underline 4px below; the underline turns blue on hover.
   Destructive actions stay grey until hovered or focused, and then turn danger red.
 
-### The Ruleset Switch
-- **Style:** the landing plate's console holds a pill-shaped radio group on the Well step, flat.
-- **State:** the chosen option sits on a Lift thumb carrying an energy-blue dot, and the thumb slides
-  to the next choice; options are equal width so it can.
+### The Stops (the landing's switch)
+- **Style:** `SegmentedControl`'s `stops` variant: a radio group of equal columns on the Well step
+  (4px), filling the width it is given, each option a whole figure rather than a word -- the hero's
+  three formats, the catch rate's three values.
+- **State:** the chosen option sits on a Lift thumb (2px) with the 2px energy base line, the
+  console's selected-segment grammar at landing scale, and the thumb slides to the next choice. It
+  rests by `left`, not a transform: resting on a fractional translateX it showed a 1px seam partway
+  down its edge in Chrome captures (tile rasterisation, most likely; not proven), and by `left` it
+  does not. Every option stays in full ink -- the options are figures to compare, and the thumb
+  alone says which is chosen. A face's height comes from the caller as `min-h-*`, which the face's
+  own `h-full` cannot override (an `h-12` lost to it and rendered a 30px control, 2026-10-06).
 
 ### Cards / Containers
 None. The product has no cards. The only containers are the console strip, the focal plates and the
@@ -458,14 +470,21 @@ Segments have no track of their own. The selected one sits on Lift with a 2px bl
 strip wraps rather than scrolls.
 
 ### The Plate (signature)
-- **On the landing:** the product itself in Prime time on the paper page: the real 2025 board's top
-  eight under 0 PPR, Half PPR or PPR, with a fixed rank column the players travel past, as on a
-  broadcast leaderboard. Docked under it, like a lower-third, the followed player: McCaffrey's RB
-  rank, total, per game, and each week as a bar (ink inside the RB starter line, slate outside) with
-  the route drawn through them. On load it plays the rule change once: the board stands in 0 PPR
-  order with 0 PPR figures, holds 600ms, and travels into PPR order as every figure turns into its
-  PPR value; rows in flight dim; the moves land last. The server renders the finished board, so
-  reduced motion or no script shows it at once.
+- **On the landing:** the product in Prime time on the paper page, as a broadcast graphic of one
+  player: CHRISTIAN McCAFFREY in the display voice, then his 2025 season under 0 PPR, Half PPR and
+  PPR as three stops -- each a format, its rate per catch, the overall rank at display size (#7, #1,
+  #1), the points at stat size (314.6, 365.6, 416.6), the RB rank and what the step bought ("+51.0
+  from catches") -- which are also the switch, and the line under his name says so. Under them, the
+  top of the board the chosen format produces: the top five and a sixth slot that follows McCaffrey
+  (7th under 0 PPR, under a dashed rule that says places were skipped), with a fixed rank column the
+  players travel past, as on a broadcast leaderboard, and each move counted from 0 PPR -- the same
+  board always shows the same moves, and the 0 PPR board shows none. Under 0 PPR the five are
+  quarterbacks; under PPR the letters turn RB, WR, RB, RB, QB. In flight every row but McCaffrey's
+  steps back to 20%, so his climb is the move that reads.
+  On load it plays the rule change once: the chosen step stands on 0 PPR and the board in 0 PPR
+  order with 0 PPR figures, holds 600ms, and travels into PPR as the step slides across and every
+  figure turns into its PPR value; rows in flight dim; the moves land last. The server renders the
+  finished board, so reduced motion or no script shows it at once.
 - **On a player page:** the cut-out stands on a Surface plate, lit from behind by a tight stage light
   in the position's hue (30%). The name is set at display size and the season line as type, not tiles.
 
@@ -479,22 +498,35 @@ stays about one screen (owner decision 2026-10-05): three rows across the first 
 plate with the weeks said in one line ("a top-36 receiver in 15 of 16 weeks") and where the rest
 lives; the weekly chart and the finished seasons appear from sm up.
 
+### The Three Boards (landing)
+One rule, three boards, side by side on paper: the 0 PPR, Half PPR and PPR boards under a 2px ink
+rule, each running to 20th -- the depth the story starts from. The top eight in ink (rank, name,
+position letters, points from md), 9th to 20th named in Faint, so the reader sees who the story
+passes rather than an empty ruler (a reviewer read the first, unnamed version as a half-loaded
+table). Every row is one place, the same height on all three, so how high a row stands is its rank.
+The story is one player -- Puka Nacua, 20th, 11th, 2nd -- lit on each board (Lift; his rank in Energy
+Text and his letters in ink, since no position hue reaches 4.5:1 on Lift) and carried across the
+gaps by one 3px energy line. No other lines and no dots: the other players' moves are in the boards
+themselves. Lists in Daylight, not the product's table, under the Island Rule. Below sm (three ~105px
+columns) a board names only its top five and the story's row -- sixty names there read as a report --
+and keeps the rest of its depth as a rail ticked at 10, 15 and 20, so the climb is still drawn true.
+
 ### The Catch Rate (landing)
-The one rate the three presets disagree on, as the app's own segmented control (track) on the band:
-0, 0.5 or 1 a catch re-prices one game's box score, the seventeen weeks and the season, all from
-captured data. The other rates are printed, never drawn as fields: a field that cannot be typed into
-is a lie about the page.
-
-### The Drawn Route (signature)
-A season traced as a monotone cubic (`lib/trace.ts`):
-
-- it passes through every week;
-- it never overshoots between two weeks;
-- it breaks at a bye.
-
-It is drawn on once the landing's entrance lands and again on every ruleset switch, and ends at the
-last week, with no head: an arrowhead on a season that ends with a low week reads as "trending down".
-It appears on the landing only, as a plain 2.5px energy stroke with no halo.
+The one rate the three presets disagree on, as a sentence with a control in it -- "Your league pays
+[0 | 0.5 | 1] a catch", the stops at 48px -- on the band. It re-prices three things together:
+- one game as an equation, 32.1 (yards and TDs, which every preset scores alike) + 7 × the rate =
+  the week, the rate in Energy Text and the result at display size. From sm it is one line, the
+  captions under the terms carrying the two chart colours and no width of their own, so a long
+  caption never spreads the terms; on a phone it is written as a column sum, each term beside its
+  name. The 32.1's own parts are printed small under it;
+- the season as 18 week bars, each a slate base (the week under 0 PPR) and a blue cap (what catches
+  add at the chosen rate, `catchCaps`), on one fixed scale so 0 shrinks every week and 1 grows them
+  back. No legend: the equation's captions are the key. Week 7 is labelled with its two parts
+  ("32.1 + 7.0") and the rest on hover. A cap is laid out at its PPR height and scaled from its foot,
+  so a switch moves the bars by transform, never by re-laying them out;
+- the season total at display size in Ki Text, with how much of it came from catches.
+All from captured data. The other rates are printed, never drawn as fields: a field that cannot be
+typed into is a lie about the page.
 
 ## Do's and Don'ts
 

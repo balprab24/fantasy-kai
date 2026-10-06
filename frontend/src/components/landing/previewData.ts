@@ -431,6 +431,68 @@ export const HERO_BOARD_2025: HeroBoardPlayer[] = [
   { playerId: 20739, name: "Jaxon Smith-Njigba", position: "WR", team: "SEA", gamesPlayed: 17, by: { "0 PPR": { rank: 22, points: 240.9, pointsPerGame: 14.17 }, "Half PPR": { rank: 13, points: 300.4, pointsPerGame: 17.67 }, PPR: { rank: 7, points: 359.9, pointsPerGame: 21.17 } } },
 ];
 
+/**
+ * The top twenty of the 2025 season board under 0 PPR and under Half PPR --
+ * the landing's three boards name every place down to 20th, the depth Puka
+ * Nacua starts from, so the reader sees who he passes rather than an empty
+ * ruler. (Under PPR the same twenty are `PPR_2025`'s first rows.) Captured
+ * 2026-10-06 from the local backend on :8080 -- the `spring-boot:run` process
+ * started 2026-09-29 17:46 that `MCCAFFREY_2025_WEEK7` was captured from --
+ * against the local database:
+ *
+ *   GET /api/v1/rankings?profileId=1&season=2025&scope=season&size=200    0 PPR
+ *   GET /api/v1/rankings?profileId=2&season=2025&scope=season&size=200    Half PPR
+ *
+ * `tests/lib.test.ts` holds both to ranks 1 to 20 with no gaps, to
+ * `HERO_BOARD_2025` for every player the two share, and to
+ * `PPR_FROM_ZERO_2025`.
+ */
+export const ZERO_PPR_TOP20_2025: RankingRow[] = [
+  { rank: 1, playerId: 344, name: "Josh Allen", position: "QB", team: "BUF", gamesPlayed: 16, points: 364.62, pointsPerGame: 22.79, espnId: null },
+  { rank: 2, playerId: 14406, name: "Drake Maye", position: "QB", team: "NE", gamesPlayed: 17, points: 350.96, pointsPerGame: 20.64, espnId: null },
+  { rank: 3, playerId: 20944, name: "Matthew Stafford", position: "QB", team: "LA", gamesPlayed: 17, points: 350.38, pointsPerGame: 20.61, espnId: null },
+  { rank: 4, playerId: 13137, name: "Trevor Lawrence", position: "QB", team: "JAX", gamesPlayed: 17, points: 338.18, pointsPerGame: 19.89, espnId: null },
+  { rank: 5, playerId: 23961, name: "Caleb Williams", position: "QB", team: "CHI", gamesPlayed: 17, points: 316.68, pointsPerGame: 18.63, espnId: null },
+  { rank: 6, playerId: 21702, name: "Jonathan Taylor", position: "RB", team: "IND", gamesPlayed: 17, points: 316.3, pointsPerGame: 18.61, espnId: null },
+  { rank: 7, playerId: 14480, name: "Christian McCaffrey", position: "RB", team: "SF", gamesPlayed: 17, points: 314.6, pointsPerGame: 18.51, espnId: null },
+  { rank: 8, playerId: 17878, name: "Dak Prescott", position: "QB", team: "DAL", gamesPlayed: 17, points: 313.78, pointsPerGame: 18.46, espnId: null },
+  { rank: 9, playerId: 16418, name: "Bo Nix", position: "QB", team: "DEN", gamesPlayed: 17, points: 304.84, pointsPerGame: 17.93, espnId: null },
+  { rank: 10, playerId: 10644, name: "Jalen Hurts", position: "QB", team: "PHI", gamesPlayed: 16, points: 299.06, pointsPerGame: 18.69, espnId: null },
+  { rank: 11, playerId: 8050, name: "Jared Goff", position: "QB", team: "DET", gamesPlayed: 17, points: 297.06, pointsPerGame: 17.47, espnId: null },
+  { rank: 12, playerId: 18803, name: "Bijan Robinson", position: "RB", team: "ATL", gamesPlayed: 17, points: 291.8, pointsPerGame: 17.16, espnId: null },
+  { rank: 13, playerId: 7871, name: "Jahmyr Gibbs", position: "RB", team: "DET", gamesPlayed: 17, points: 289.9, pointsPerGame: 17.05, espnId: null },
+  { rank: 14, playerId: 9744, name: "Justin Herbert", position: "QB", team: "LAC", gamesPlayed: 16, points: 286.88, pointsPerGame: 17.93, espnId: null },
+  { rank: 15, playerId: 13961, name: "Patrick Mahomes", position: "QB", team: "KC", gamesPlayed: 14, points: 284.68, pointsPerGame: 20.33, espnId: null },
+  { rank: 16, playerId: 14420, name: "Baker Mayfield", position: "QB", team: "TB", gamesPlayed: 17, points: 271.92, pointsPerGame: 16.0, espnId: null },
+  { rank: 17, playerId: 4536, name: "James Cook", position: "RB", team: "BUF", gamesPlayed: 17, points: 269.2, pointsPerGame: 15.84, espnId: null },
+  { rank: 18, playerId: 9715, name: "Derrick Henry", position: "RB", team: "BAL", gamesPlayed: 17, points: 264.5, pointsPerGame: 15.56, espnId: null },
+  { rank: 19, playerId: 35, name: "De'Von Achane", position: "RB", team: "MIA", gamesPlayed: 16, points: 255.8, pointsPerGame: 15.99, espnId: null },
+  { rank: 20, playerId: 16153, name: "Puka Nacua", position: "WR", team: "LA", gamesPlayed: 16, points: 246.0, pointsPerGame: 15.37, espnId: null },
+];
+
+export const HALF_PPR_TOP20_2025: RankingRow[] = [
+  { rank: 1, playerId: 14480, name: "Christian McCaffrey", position: "RB", team: "SF", gamesPlayed: 17, points: 365.6, pointsPerGame: 21.51, espnId: null },
+  { rank: 2, playerId: 344, name: "Josh Allen", position: "QB", team: "BUF", gamesPlayed: 16, points: 364.62, pointsPerGame: 22.79, espnId: null },
+  { rank: 3, playerId: 14406, name: "Drake Maye", position: "QB", team: "NE", gamesPlayed: 17, points: 351.46, pointsPerGame: 20.67, espnId: null },
+  { rank: 4, playerId: 20944, name: "Matthew Stafford", position: "QB", team: "LA", gamesPlayed: 17, points: 350.38, pointsPerGame: 20.61, espnId: null },
+  { rank: 5, playerId: 21702, name: "Jonathan Taylor", position: "RB", team: "IND", gamesPlayed: 17, points: 339.3, pointsPerGame: 19.96, espnId: null },
+  { rank: 6, playerId: 13137, name: "Trevor Lawrence", position: "QB", team: "JAX", gamesPlayed: 17, points: 338.18, pointsPerGame: 19.89, espnId: null },
+  { rank: 7, playerId: 18803, name: "Bijan Robinson", position: "RB", team: "ATL", gamesPlayed: 17, points: 331.3, pointsPerGame: 19.49, espnId: null },
+  { rank: 8, playerId: 7871, name: "Jahmyr Gibbs", position: "RB", team: "DET", gamesPlayed: 17, points: 328.4, pointsPerGame: 19.32, espnId: null },
+  { rank: 9, playerId: 23961, name: "Caleb Williams", position: "QB", team: "CHI", gamesPlayed: 17, points: 317.68, pointsPerGame: 18.69, espnId: null },
+  { rank: 10, playerId: 17878, name: "Dak Prescott", position: "QB", team: "DAL", gamesPlayed: 17, points: 313.78, pointsPerGame: 18.46, espnId: null },
+  { rank: 11, playerId: 16153, name: "Puka Nacua", position: "WR", team: "LA", gamesPlayed: 16, points: 310.5, pointsPerGame: 19.41, espnId: null },
+  { rank: 12, playerId: 16418, name: "Bo Nix", position: "QB", team: "DEN", gamesPlayed: 17, points: 304.84, pointsPerGame: 17.93, espnId: null },
+  { rank: 13, playerId: 20739, name: "Jaxon Smith-Njigba", position: "WR", team: "SEA", gamesPlayed: 17, points: 300.4, pointsPerGame: 17.67, espnId: null },
+  { rank: 14, playerId: 10644, name: "Jalen Hurts", position: "QB", team: "PHI", gamesPlayed: 16, points: 299.06, pointsPerGame: 18.69, espnId: null },
+  { rank: 15, playerId: 8050, name: "Jared Goff", position: "QB", team: "DET", gamesPlayed: 17, points: 297.06, pointsPerGame: 17.47, espnId: null },
+  { rank: 16, playerId: 35, name: "De'Von Achane", position: "RB", team: "MIA", gamesPlayed: 16, points: 289.3, pointsPerGame: 18.08, espnId: null },
+  { rank: 17, playerId: 9744, name: "Justin Herbert", position: "QB", team: "LAC", gamesPlayed: 16, points: 286.88, pointsPerGame: 17.93, espnId: null },
+  { rank: 18, playerId: 4536, name: "James Cook", position: "RB", team: "BUF", gamesPlayed: 17, points: 285.7, pointsPerGame: 16.81, espnId: null },
+  { rank: 19, playerId: 13961, name: "Patrick Mahomes", position: "QB", team: "KC", gamesPlayed: 14, points: 285.18, pointsPerGame: 20.37, espnId: null },
+  { rank: 20, playerId: 9715, name: "Derrick Henry", position: "RB", team: "BAL", gamesPlayed: 17, points: 272.0, pointsPerGame: 16.0, espnId: null },
+];
+
 /** One finished season on a player's career line. */
 export interface CareerLine {
   season: number;
