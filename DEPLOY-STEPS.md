@@ -1,10 +1,12 @@
 # Phase 5d — Deploy
 
-> ## ▶ Status — last updated 2026-09-29
+> ## ▶ Status — last updated 2026-10-08
 >
 > **Live: https://www.fantasykai.com** (the apex 308s to `www`) · API **https://api.fantasykai.com**
 >
-> **10 of 11 acceptance checks pass.** Owed: **4b** only (needs a phone on cellular — see below).
+> **11 of 12 acceptance checks pass.** Owed: **4b** only (needs a phone on cellular — see below).
+> Check **10** passes since the 2026-10-08 redeploy; the "10 of 11" this line said before did not
+> count it, though the table carried it as owed.
 > The 2026-09-29 redeploy re-ran 1, 2, 4a, 4c, 5, 6, 7 and 9 on the new image. **3 and 8 carry over
 > from 2026-09-23**: 3 was only half re-exercised (a full page load restored an existing session;
 > nobody registered or signed in), and 8's unattended half is re-proven on the new image by the
@@ -13,7 +15,25 @@
 > production, each answering `429` with the bucket full.
 > The production daily ingest **fired on its own at 06:00:00 ET on 2026-09-23**, and it is now the
 > **only** scheduled ingest: the laptop's launchd job was uninstalled on 2026-09-29.
-> Next phase: **11.5 — Spring Boot 3.5 → 4** (overdue security work), then **6 — Projections**.
+> Next phase: **6 — Projections**, then **11.5 — Spring Boot 3.5 → 4** — reordered by owner decision
+> on 2026-10-08 (north-star §10), with 11.5's end-of-life risk unchanged and still accruing.
+>
+> **2026-10-08 redeploy — backend `366b0ad` → `7e58530`.** It carried #37 (refresh and logout get
+> their own bucket), #38 (the refresh-rotation races) and **#39 (every read needs an account)** —
+> all three merged on 2026-09-29 and **not deployed for nine days**: until this redeploy, production
+> answered an anonymous `GET /api/v1/rankings` and `/scoring-profiles` with **200** (measured
+> 2026-10-08 before the deploy), so north-star §2's members-only data and the two-tab sign-out fix
+> were true of `main` and not of the site. Plus Dependabot's bucket4j 8.20.0 → 8.21.0 and the
+> Maven wrapper 3.9.16 → 3.10.0. No migration, so §7 step 1 was not needed.
+>
+> | Step | Result |
+> |---|---|
+> | Backup, off-box, **restored** | `pg_dump -Fc` 2,388,859 bytes, sha256 `5586c843…`, the same on the laptop; restored into a scratch local database, all 9 table counts matched production (116,764 stats · 25,069 players · 1,965 games · 36 teams · 2 users · 4 profiles · 8 refresh tokens · 227 ingest runs · 6 migrations), scratch database dropped |
+> | Rollback tag | `fantasykai-backend:366b0ad` → image `0a6e2c678ef1`, the one that was running |
+> | Build · swap to healthy | **65 s** (Maven 3.10.0 fetched on the VM) · **18 s**; started in 10.1 s. In the image: `tomcat-embed-core-10.1.59`, `bucket4j_jdk17-*-8.21.0` |
+> | Acceptance | 1, 2, 4a, 4c, 5, 6, 7 pass on the new image; **10 passes** — anonymous `/rankings` and `/scoring-profiles` both `401`, `application/problem+json`. 9 **not run**: both sides now need a member's token, and production's must be the owner's. The script printed FAIL for that until this change made it `?` |
+> | Owed to the owner | a member's sign-in and board on production (the signed-in half of check 3), and check 9 with `PROD_TOKEN`/`LOCAL_TOKEN`. The first 06:00 ET ingest on this image is 2026-10-09 |
+> | Found | after `git pull` the VM's checkout reports `M backend/mvnw.cmd` with no content change: #47 committed the file's CRLF into the index, against `.gitattributes`' `*.cmd text eol=crlf`. **The next redeploy's step 4 ("`git status --short` must print nothing") stops on it** until a commit renormalizes the file |
 >
 > **2026-09-29 redeploy — backend `6c2580b` → `366b0ad`.** The frontend had shipped *first*, twice:
 > PR #33's player workspace went live at 01:58 UTC on 09-29 against a backend with no `/career`, and
@@ -99,7 +119,7 @@ Each check is an attack or a failure tried against the live site, with the resul
 | 7 | Port-scan 5432 / 6379 / 8080 from the internet | all **time out** — dropped before they reach the VM | ✅ |
 | 8 | Run the ingest on the VM · then wait for 06:00 ET | 5 sources SUCCESS · then an **unattended** run at **06:00:00 ET**, 6 sources SUCCESS | ✅ |
 | 9 | Top 10 for all four scoring presets, production vs local | **identical** — same players, same order, same points | ✅ |
-| 10 | Read `/rankings` and `/scoring-profiles` with **no token** | owed — `401` since `feat/members-only-api`, which is not deployed yet; production still answers `200` (measured 2026-09-29) | ⬜ |
+| 10 | Read `/rankings` and `/scoring-profiles` with **no token** | **`401` both**, `application/problem+json`, since the 2026-10-08 redeploy. Before it production answered `200` — `feat/members-only-api` merged 2026-09-29 and went undeployed for nine days | ✅ |
 
 ---
 

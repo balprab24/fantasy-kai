@@ -72,7 +72,9 @@ returned to it afterwards.
 the website was members-only while `GET /api/v1/rankings`, `/api/v1/players/**` and
 `/api/v1/scoring-profiles` stayed `permitAll`, so anyone with `curl` read what a member saw — and
 each unthrottled `/rankings` call scores a full season on a free VM whose measured ceiling is
-~256 req/s. Now every read needs a token (`SecurityConfig`). This reverses §5b's "the read endpoints
+~256 req/s. Now every read needs a token (`SecurityConfig`) — true of `main` from 2026-09-29 and of
+production only from the 2026-10-08 redeploy; in between, the merged change sat undeployed and the
+site still answered anonymous reads. This reverses §5b's "the read endpoints
 are public" and Phase 5 acceptance test 3, both kept below as history. The landing page lost
 nothing: its preview is captured, not fetched. The data itself is still nflverse's, CC BY 4.0 —
 "members-only" describes this service, not a claim that the numbers are secret.

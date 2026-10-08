@@ -91,6 +91,10 @@ fi
 # FAIL, never a match: two identical errors once compared equal here (F12).
 if ! curl -sf -m 3 -o /dev/null "$LOCAL_API/actuator/health/liveness"; then
     unknown 9 "no local backend on $LOCAL_API -- start one to compare"
+elif [[ -z $PROD_TOKEN || -z $LOCAL_TOKEN ]]; then
+    # Both sides answer 401 to an anonymous read, so without both tokens this
+    # check cannot run -- and it printed FAIL that way on 2026-10-08.
+    unknown 9 "set PROD_TOKEN and LOCAL_TOKEN -- every read needs an account on both sides"
 else
     out=$(API="$API" LOCAL_API="$LOCAL_API" PROD_TOKEN="$PROD_TOKEN" LOCAL_TOKEN="$LOCAL_TOKEN" python3 - 2>&1 <<'PY'
 import json, os, urllib.request
