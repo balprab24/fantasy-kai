@@ -315,7 +315,7 @@ everything you read and operate. All three are self-hosted through `next/font`, 
 allows fonts from the site only.
 
 ### Hierarchy
-- **Display** (850 italic caps, clamp(5rem, 7.4vw, 7.25rem) for the landing's h1 from xl, where it
+- **Display** (850 italic caps, clamp(5rem, 7.4vw, 6.6rem) for the landing's h1 from lg, where it
   shares the row with the product window, clamp(4.25rem, 11vw, 8rem) for its closing ask, and clamp(2.5rem, 5.2vw, 4.5rem) for a player's name, line-height 0.86): headlines and names.
   The brief's call for large editorial type overrides the craft floor's 6rem cap on the landing only.
 - **Headline** (800 italic caps, 36px, 1): a page's name, such as RANKINGS or SCORING RULESETS.

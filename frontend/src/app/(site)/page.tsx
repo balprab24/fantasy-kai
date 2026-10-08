@@ -43,7 +43,7 @@ export default function Landing() {
       <section className="overflow-x-clip">
         <div className="mx-auto grid max-w-[1320px] items-center gap-x-14 px-4 pt-6 pb-16 sm:px-6 sm:pt-10 lg:px-8 lg:pt-14 lg:grid-cols-[minmax(0,37fr)_minmax(0,63fr)] lg:pb-20">
           <div className="min-w-0">
-            <h1 className="type-display text-[clamp(4.25rem,11vw,7rem)] text-ink lg:text-[clamp(5rem,7.4vw,7.25rem)]">
+            <h1 className="type-display text-[clamp(4.25rem,11vw,7rem)] text-ink lg:text-[clamp(5rem,7.4vw,6.6rem)]">
               <span className="block">Ranked by</span>
               <span className="block">your rules.</span>
             </h1>
