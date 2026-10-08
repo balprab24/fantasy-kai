@@ -417,6 +417,8 @@ check_data() {
         unknown "ingest" "database unreachable"
     fi
 
+    check_hero
+
     local ld status
     ld="$(launchctl list 2>/dev/null | grep -E '[[:space:]]com\.fantasykai\.ingest$')"
     if [[ -z "$ld" ]]; then
@@ -442,6 +444,65 @@ check_data() {
         stale)   fail "jar" "$FK_JAR_REASON -- the daily ingest will refuse to run" ;;
         missing) fail "jar" "$FK_JAR_REASON" ;;
     esac
+}
+
+# The landing hero is a capture: real boards, frozen in heroData.ts, and the page
+# says "through Week N" -- read off the rows (HERO_THROUGH_WEEK is the highest
+# gamesPlayed), so it is never wrong, only old. Nothing refreshes it; re-capturing
+# is by hand (docs/map.md §4, "Re-capturing the landing hero"), and this row is
+# what stops that being forgotten. A warn, never a FAIL: an old capture still
+# names its own week truthfully.
+#
+# "Finished" is read off the schedule, not the stats -- every game of the week
+# has a kickoff and the last is four hours gone -- so a stale mirror cannot hide
+# a new week. Whether the mirror holds that week, which a re-capture needs, is
+# the third number: the last week every one of whose games has stat rows.
+check_hero() {
+    local file="${FK_HERO_DATA:-$repo/frontend/src/components/landing/heroData.ts}"
+    local season week
+    season="$(sed -n 's/^export const HERO_SEASON = \([0-9]\{4\}\);.*/\1/p' "$file" 2>/dev/null | head -1)"
+    week="$(grep -oE 'gamesPlayed: [0-9]+' "$file" 2>/dev/null | awk '{print $2}' | sort -n | tail -1)"
+    if [[ -z "$season" || -z "$week" ]]; then
+        unknown "hero" "could not read HERO_SEASON and gamesPlayed from ${file#"$repo"/}"
+        return
+    fi
+    if (( ! db_up )); then
+        unknown "hero" "landing hero shows $season through Week $week -- database unreachable, not compared"
+        return
+    fi
+
+    # $season is four digits by the sed above, so it is safe to place in the query.
+    local row finished last_day mirror
+    row="$(psql_q "
+        WITH finished AS (
+            SELECT week, max(kickoff_at) AS last_kick FROM games
+            WHERE season = $season AND season_type = 'REG'
+            GROUP BY week
+            HAVING count(kickoff_at) = count(*) AND max(kickoff_at) < now() - interval '4 hours'),
+        mirrored AS (
+            SELECT g.week FROM games g
+            LEFT JOIN (SELECT DISTINCT game_id FROM player_game_stats) s ON s.game_id = g.id
+            WHERE g.season = $season AND g.season_type = 'REG'
+            GROUP BY g.week HAVING count(s.game_id) = count(*))
+        SELECT coalesce(max(week), 0)
+            || '|' || coalesce(to_char(max(last_kick) AT TIME ZONE 'America/New_York', 'YYYY-MM-DD'), '')
+            || '|' || (SELECT coalesce(max(week), 0) FROM mirrored)
+        FROM finished;")"
+    if [[ -z "$row" ]]; then
+        unknown "hero" "landing hero shows $season through Week $week -- could not read the $season schedule"
+        return
+    fi
+    IFS='|' read -r finished last_day mirror <<<"$row"
+
+    if (( finished == 0 )); then
+        unknown "hero" "landing hero shows $season through Week $week -- no finished $season regular-season week in games (schedule not loaded?)"
+    elif (( finished > week )); then
+        local next="re-capture it (docs/map.md §4)"
+        (( mirror < finished )) && next="the mirror is complete only through Week $mirror: ./scripts/ingest-once.sh, then $next"
+        warn "hero" "landing hero shows $season through Week $week, but Week $finished finished $last_day -- $next"
+    else
+        ok "hero" "landing hero shows $season through Week $week, the latest finished week"
+    fi
 }
 
 check_deploy() {
