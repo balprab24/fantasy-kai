@@ -273,13 +273,16 @@ lift and recorded in `globals.css` (re-measured 2026-10-05):
   dataviz validator on chalk, CVD dE 17.5, normal-vision dE 19.7, both >= 3:1 (5.3 and 3.4 on
   paper). Prime time keeps its green pair; the brief gave the public pages' data to blue. No
   Daylight chart is on the landing since 2026-10-07 (the season's stacked bars left with the catch
-  rate); the pair stays defined for the next one. Known and not the landing's: the app's
-  `WeeklyChart` sets its no-game week labels (7 and 8 on the band's chart) at about 1.8-2:1.
+  rate); the pair stays defined for the next one. The app's `WeeklyChart` set its no-game week
+  labels at faint/50 -- 2.08:1, measured in the browser -- until 2026-10-08; every axis label is
+  full faint now (5.5:1), and `tests/lib.test.ts` refuses an opacity modifier on a text-colour
+  token utility (`text-faint/50`). It cannot see `opacity-*` on an ancestor, which fades text
+  just the same.
 - **Veil** (paper at 85%): the site header's see-through ground, a token rather than `bg-canvas/85`.
   Tailwind compiles an opacity modifier to a literal Prime time colour and uses the variable only
   inside `@supports (color-mix)`, so a browser without color-mix (older than about 2023) shows
   Prime time's value for any `/NN` colour in Daylight. The header was fixed; the week chart's
-  average line and faded axis labels remain on that fallback, and are minor.
+  average line remains on that fallback, and is minor.
 
 ### Named Rules
 **The Island Rule.** A Daylight page shows the product in its own Prime time skin (`.primetime`) at

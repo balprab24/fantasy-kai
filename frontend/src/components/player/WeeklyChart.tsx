@@ -248,14 +248,17 @@ export function WeeklyChart({
             )}
           </div>
 
-          {/* X axis: week numbers, the one label every slot carries. */}
+          {/* X axis: week numbers, the one label every slot carries -- at full
+              faint, played or not. A week without a game is already said by its
+              empty slot and its button's label; a faded number on top (faint at
+              50% measured 2.08:1) only made it unreadable. */}
           <ol aria-hidden className="mt-1.5 mr-10 flex">
             {slots.map((week) => (
               <li
                 key={week}
                 // On a phone eighteen two-digit labels run into each other, so
                 // every other one steps back; the slots themselves all stay.
-                className={`tabular flex-1 text-center text-[11px] ${byWeek.has(week) ? "text-faint" : "text-faint/50"} ${week % 2 === 0 && lastWeek > 10 ? "max-sm:invisible" : ""}`}
+                className={`tabular flex-1 text-center text-[11px] text-faint ${week % 2 === 0 && lastWeek > 10 ? "max-sm:invisible" : ""}`}
               >
                 {week}
               </li>
