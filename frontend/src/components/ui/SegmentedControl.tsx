@@ -25,7 +25,8 @@ export type SegmentedVariant = "track" | "bare" | "stops";
 const TRACK: Record<SegmentedVariant, string> = {
   track: "flex w-fit flex-wrap gap-0.5 rounded-control bg-well p-0.5",
   bare: "flex w-fit flex-wrap gap-0.5",
-  stops: "relative grid w-full auto-cols-fr grid-flow-col rounded-control bg-well p-1",
+  // An edge of its own (Edge, 3:1 on its ground), so the track reads as a control even where the well matches the page.
+  stops: "relative grid w-full auto-cols-fr grid-flow-col rounded-control bg-well p-1 shadow-[inset_0_0_0_1px_var(--color-line-strong)]",
 };
 
 // Selected: the chosen step (lift), full ink, and a 2px energy base line --

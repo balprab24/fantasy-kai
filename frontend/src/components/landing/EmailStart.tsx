@@ -60,7 +60,7 @@ export function EmailStart() {
 
   const open = step === "password";
   const field =
-    "mt-1.5 h-14 w-full min-w-0 rounded-control border border-line-strong bg-well px-4 text-[16px] text-ink transition-colors placeholder:text-faint hover:border-mute focus-visible:border-energy disabled:cursor-not-allowed disabled:border-line disabled:bg-canvas disabled:hover:border-line";
+    "mt-1.5 h-14 w-full min-w-0 rounded-control border border-line-strong bg-well px-4 text-[16px] text-ink transition-colors placeholder:text-faint hover:border-mute focus-visible:border-energy disabled:cursor-not-allowed disabled:bg-canvas disabled:hover:border-line-strong";
 
   return (
     <form onSubmit={submit} className="w-full max-w-[60rem]">

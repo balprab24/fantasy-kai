@@ -1,143 +1,108 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ComingNext } from "@/components/landing/ComingNext";
 import { EmailStart } from "@/components/landing/EmailStart";
 import { FeatureSection, SectionCopy, SectionTitle } from "@/components/landing/FeatureSection";
-import { GameToSeason } from "@/components/landing/GameToSeason";
-import { HeroPlate } from "@/components/landing/HeroPlate";
-import { ProductBand } from "@/components/landing/ProductBand";
-import { ThreeBoards } from "@/components/landing/ThreeBoards";
+import { HeroDemo } from "@/components/landing/HeroDemo";
+import { OneBoard } from "@/components/landing/OneBoard";
+import { PlayersBand } from "@/components/landing/PlayersBand";
 import { BUTTON_JOIN } from "@/components/ui/buttons";
 import { CLOSING_ID, HERO_JOIN_ID } from "@/lib/landing";
 
 export const metadata: Metadata = {
   title: "fantasy-kai",
   description:
-    "Fantasy football rankings scored by your league's own rules, game by game, refreshed every morning of the season. Free, with no ads.",
+    "Fantasy football rankings and player pages, scored by your league's exact settings: PPR, half PPR, 0 PPR or your own. Free, with no ads.",
 };
 
 /**
  * The front door, for people deciding whether to join -- in Daylight, the
  * public pages' mode (app/(site)/layout.tsx). The product itself is behind an
- * account (app/(app)/layout.tsx), so this page shows it rather than serving it,
- * and every figure on it is captured from the real API (`previewData.ts`
- * names the requests).
+ * account (app/(app)/layout.tsx), so this page shows it rather than serving
+ * it, and every figure on it is captured from the real API (`heroData.ts` and
+ * `previewData.ts` name the requests).
  *
- * The order is the argument, and the ground changes with it, so the page has
- * a rhythm instead of one long sheet:
- *   - the hero (paper): one player's season under each of the three
- *     presets, in the product's own dark skin, and the top of the board each
- *     one produces, beside one ask;
- *   - one rule, three boards (paper): the three boards side by side, and how
- *     far that one rule moves one player across them;
- *   - the product (the stage: a full-width band of Prime time): the board and
- *     the player it leads to, as they really look;
- *   - your rates, every game (the band): how one number is made -- one game
- *     as an equation, the season as its weeks -- with the one rate the
- *     presets disagree on as the control;
- *   - what is coming (paper, small), then the last ask at full width.
+ * The order is hook, product, difference, depth, ask -- recognition first,
+ * then understanding:
+ *   - the hero (paper): what this is, in words, beside the product itself --
+ *     the rankings page for the season being played, in its own dark skin,
+ *     running off the page's edge, under a member's own ruleset ("My league"):
+ *     its scoring switch works, and a short loop shows the rows re-sorting
+ *     between PPR and My league -- your league's rules rewrite the board;
+ *   - one board, three rulesets (paper): what a catch is worth, alone --
+ *     2025's board, which waits for the visitor, following one player;
+ *   - every player, every game (the stage: a full-width band of Prime time):
+ *     that player opened, with the player page's own scoring switch live;
+ *   - the last ask at full width, with what is coming said in one line.
  *
- * Below lg the hero reads headline, pitch, ask, then the board, so a phone's
- * first screen holds both the action and the product.
+ * Each section has its own composition, so the page changes pace instead of
+ * repeating one heading-paragraph-chart template down the scroll.
  */
 export default function Landing() {
   return (
     <>
       <section className="overflow-x-clip">
-        <div className="mx-auto grid max-w-[1320px] items-center gap-x-12 px-4 pt-6 pb-16 sm:px-6 sm:pt-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:px-8 lg:pt-14 lg:pb-16 xl:gap-x-16">
+        <div className="mx-auto grid max-w-[1320px] items-center gap-x-14 px-4 pt-6 pb-16 sm:px-6 sm:pt-10 lg:px-8 lg:pt-14 lg:grid-cols-[minmax(0,37fr)_minmax(0,63fr)] lg:pb-20">
           <div className="min-w-0">
-            <h1 className="type-display text-[clamp(4.25rem,11vw,7rem)] text-ink lg:text-[clamp(5rem,8.2vw,8rem)]">
+            <h1 className="type-display text-[clamp(4.25rem,11vw,7rem)] text-ink lg:text-[clamp(5rem,7.4vw,6.6rem)]">
               <span className="block">Ranked by</span>
               <span className="block">your rules.</span>
             </h1>
             <p className="mt-5 max-w-[30rem] text-[17px] leading-[1.55] text-pretty text-mute sm:mt-6 sm:text-[19px]">
-              Fantasy football rankings scored by the settings your league actually uses.
-              {/* A phone's first screen is for the board; the rest is said again below. */}
-              <span className="hidden sm:inline">
-                {" "}
-                Every NFL box score since 2020, updated every morning of the season.
-              </span>
+              <span className="text-ink">Fantasy football rankings and player pages, scored by your league&rsquo;s exact
+              settings</span>: PPR, half PPR, 0 PPR or your own.
+              {/* A phone's first screen is for the ask; the rest is said again below. */}
+              <span className="hidden sm:inline"> Every NFL game since 2020, updated every morning of the season.</span>
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3 sm:mt-8">
               <Link id={HERO_JOIN_ID} href="/register" className={`${BUTTON_JOIN} w-full sm:w-auto`}>
                 Join the Kai
               </Link>
-              <p className="text-[15px] text-mute">Free. No ads, no paywall.</p>
+              <p className="text-[15px] text-mute">Free account. No ads, no paywall.</p>
             </div>
+            <a
+              href="#rankings"
+              className="mt-6 hidden text-[15px] text-ink underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-energy sm:inline-block"
+            >
+              See how scoring changes the board <span aria-hidden>&darr;</span>
+            </a>
           </div>
-          <div className="mt-8 min-w-0 sm:mt-12 lg:mt-0">
-            <HeroPlate />
+          {/* The product runs off the page: full width on a phone, to the browser's right edge from lg. */}
+          <div className="-mx-4 mt-10 min-w-0 sm:mx-0 sm:mt-12 lg:mt-0 lg:-mr-[max(2rem,calc((100vw-1320px)/2+2rem))]">
+            <HeroDemo />
           </div>
         </div>
       </section>
 
-      {/* The rule's effect, drawn at the page's full width: the heading and its one
-          line above it, not beside it. */}
-      <FeatureSection id="scoring" className="pb-16 sm:pb-24 lg:pb-28">
-        <div className="border-t border-line pt-14 sm:pt-16 lg:pt-14">
-          <div className="grid items-end gap-x-16 gap-y-5 lg:grid-cols-[minmax(0,6fr)_minmax(0,6fr)]">
-            <SectionTitle id="scoring">
-              <span className="block">One rule.</span>
-              <span className="block">Three boards.</span>
-            </SectionTitle>
-            <SectionCopy>
-              <p>
-                Same 2025 season, same stat lines. The three presets differ in one number, what a catch is
-                worth, and Puka Nacua goes from <strong>20th</strong> to <strong>11th</strong> to <strong>2nd</strong>.
-              </p>
-            </SectionCopy>
-          </div>
-          <div className="mt-12 lg:mt-16">
-            <ThreeBoards />
-          </div>
-        </div>
-      </FeatureSection>
-
-      <ProductBand />
-
-      {/* Mirrored: the working part on the left, the words on the right. */}
-      <section aria-labelledby="rates-title" className="bg-band">
-        <div className="mx-auto grid max-w-[1320px] items-start gap-x-20 gap-y-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:px-8 lg:py-28">
-          {/* The words stay in view while the receipt beside them is read. */}
-          <div className="lg:sticky lg:top-24 lg:order-2 lg:self-start lg:pt-1">
-            <SectionTitle id="rates">
-              <span className="block">Your rates.</span>
-              <span className="block">Every game.</span>
+      {/* Mirrored against the hero: the working part on the left, the words on the right. */}
+      <FeatureSection id="rankings" className="pb-16 sm:pb-24 lg:pb-28">
+        <div className="grid items-start gap-x-16 gap-y-10 border-t border-line pt-14 sm:pt-16 lg:grid-cols-[minmax(0,8fr)_minmax(0,4fr)] lg:pt-20">
+          <div className="min-w-0 lg:order-2">
+            <SectionTitle id="rankings">
+              <span className="block">One board.</span>
+              <span className="block">Three rulesets.</span>
             </SectionTitle>
             <SectionCopy className="mt-6">
               <p>
-                Start from a preset or set every rate yourself, with overrides for one position and bonuses at
-                the thresholds your league pays. Each game is scored on its own, then added up.
+                2025, the last full season. The three presets differ in one number, what a catch is worth, and Puka
+                Nacua goes from <strong>20th</strong> to <strong>11th</strong> to <strong>2nd</strong>.
               </p>
             </SectionCopy>
             <Provenance className="mt-8 hidden lg:block" />
           </div>
-          <GameToSeason />
-          {/* Below lg the demo comes straight after its heading, and where its numbers come from follows it. */}
+          <div className="min-w-0 lg:order-1">
+            <OneBoard />
+          </div>
+          {/* Below lg the board comes straight after its heading, and where its numbers come from follows it. */}
           <Provenance className="lg:hidden" />
         </div>
-      </section>
+      </FeatureSection>
 
-      <section id="next" aria-labelledby="next-title" className="scroll-mt-16">
-        <div className="mx-auto max-w-[1320px] px-4 pt-16 pb-14 sm:px-6 sm:pt-20 lg:px-8 lg:pt-24">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-10 gap-y-2">
-            <h2 id="next-title" className="type-title text-ink">
-              Being built next
-            </h2>
-            <p className="text-[15px] text-pretty text-mute">
-              None of it exists yet. It is here so you know where the product is headed.
-            </p>
-          </div>
-          <div className="mt-6">
-            <ComingNext />
-          </div>
-        </div>
-      </section>
+      <PlayersBand />
 
       {/* One last ask, at full width: the headline at the hero's scale, the form on one line under it. */}
       <section id={CLOSING_ID} aria-labelledby="join-title" className="scroll-mt-16">
         <div className="mx-auto max-w-[1320px] px-4 sm:px-6 lg:px-8">
-          <div className="border-t border-line pt-14 pb-20 sm:pt-16 sm:pb-24 lg:pt-20 lg:pb-28">
+          <div className="pt-16 pb-20 sm:pt-20 sm:pb-24 lg:pt-24 lg:pb-28">
             <h2 id="join-title" className="type-display text-[clamp(4.25rem,11vw,8rem)] text-ink">
               Join the Kai.
             </h2>
@@ -147,6 +112,11 @@ export default function Landing() {
             <div className="mt-10">
               <EmailStart />
             </div>
+            {/* What is coming, as a footnote to the ask rather than a pitch of its own. */}
+            <p className="mt-12 max-w-[44rem] text-[14px] leading-relaxed text-pretty text-mute">
+              Coming next: projections, ESPN and Sleeper league import, start/sit and waivers, trades. None of it is
+              built yet.
+            </p>
           </div>
         </div>
       </section>
@@ -154,14 +124,12 @@ export default function Landing() {
   );
 }
 
-/** Where the rates section's numbers come from: beside the words from lg, after the demo below it. */
+/** Where the board's numbers come from: beside the words from lg, after the board below it. */
 function Provenance({ className }: { className: string }) {
   return (
-    <p
-      className={`max-w-[30rem] border-t border-line pt-4 text-[14px] leading-relaxed text-pretty text-mute ${className}`}
-    >
-      Box scores from nflverse for every game since 2020, pulled at 6 a.m. Eastern every morning of the season and
-      scored when you ask, never stored as points. No expert picks go in, now or later.
+    <p className={`max-w-[30rem] border-t border-line pt-4 text-[14px] leading-relaxed text-pretty text-mute ${className}`}>
+      Box scores from nflverse for every game since 2020, scored when you ask and never stored as points. No expert
+      picks go in, now or later.
     </p>
   );
 }

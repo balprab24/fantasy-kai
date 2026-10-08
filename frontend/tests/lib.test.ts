@@ -8,37 +8,34 @@ import { strict as assert } from "node:assert";
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
+  HERO_BOARDS_2026,
+  HERO_LEAGUE_DETAIL,
+  HERO_PROFILES,
+  HERO_RULESETS,
+  HERO_SEASON,
+  HERO_THROUGH_WEEK,
+  HERO_TOTAL,
+} from "../src/components/landing/heroData.ts";
+import {
   HALF_PPR_TOP20_2025,
-  HERO_BOARD_2025,
-  MCCAFFREY_2025_BY_RULESET,
-  MCCAFFREY_2025_PPR,
-  MCCAFFREY_2025_PPR_RECEIPT,
-  MCCAFFREY_2025_WEEK7,
-  MCCAFFREY_2025_WEEK7_RECEIPTS,
-  NACUA_2025_PPR,
-  NACUA_SEASONS_PPR,
+  MY_LEAGUE_RATES,
+  NACUA_2025_BY_RULESET,
+  NACUA_2025_LOG,
+  NACUA_2025_LOG_RECEIPTS,
+  NACUA_LIT_WEEK,
+  ONE_BOARD_2025,
   PPR_2025,
   PPR_FROM_ZERO_2025,
-  PPR_VS_ZERO_2025,
   PRESET_RATES,
-  SF_2025_BYE_WEEK,
-  WR_PPR_2025,
-  WR_PPR_FROM_ZERO_2025,
+  RULESETS,
   ZERO_PPR_TOP20_2025,
   type Ruleset,
 } from "../src/components/landing/previewData.ts";
-import { band, bandFor, formatPoints, starterWeeks, toBoardRows } from "../src/lib/board.ts";
+import { assignTiers, band, bandFor, formatPoints, starterWeeks, toBoardRows } from "../src/lib/board.ts";
 import { boardSearch, parseBoardParams } from "../src/lib/boardParams.ts";
 import { apiOriginOf, contentSecurityPolicy } from "../src/lib/csp.ts";
-import {
-  HERO_SLOTS,
-  catchCaps,
-  entranceOf,
-  heroSkips,
-  heroSlotOf,
-  movedBetween,
-  posRankOf,
-} from "../src/lib/heroBoard.ts";
+import { lastPlace, movedBetween, skipsTo, slotOf } from "../src/lib/oneBoard.ts";
+import { HERO_BEATS, HERO_LOOP_MS, HERO_MAX_LOOPS, HERO_POSTER, boardLayout, castOf, rulesetAfter } from "../src/lib/heroDemo.ts";
 import { CUTOUT_ASPECT, headshotCutoutUrl, headshotUrl } from "../src/lib/headshot.ts";
 import { LANDING_SECTIONS, safeNext } from "../src/lib/landing.ts";
 import {
@@ -410,254 +407,6 @@ describe("starterWeeks", () => {
   });
 });
 
-describe("the landing hero's captured seasons", () => {
-  it("each ruleset's weeks add up to its season total", () => {
-    for (const s of MCCAFFREY_2025_BY_RULESET) {
-      const sum = s.weeks.reduce((n, w) => n + w.points, 0);
-      assert.ok(Math.abs(sum - s.points) < 0.05, `${s.ruleset}: weeks sum to ${sum}, season says ${s.points}`);
-      assert.equal(s.weeks.length, s.gamesPlayed, s.ruleset);
-    }
-  });
-
-  it("agrees with the other captures of the same season", () => {
-    const [zero, half, ppr] = MCCAFFREY_2025_BY_RULESET;
-    assert.deepEqual(
-      ppr.weeks,
-      MCCAFFREY_2025_PPR.weeks.map(({ week, points, posRank }) => ({ week, points, posRank })),
-    );
-    assert.equal(ppr.points, PPR_2025.find((r) => r.playerId === 14480)!.points);
-    // The chip's "RB1" is the board's own derivation over the captured rows,
-    // not a number restated by hand.
-    assert.equal(ppr.posRank, toBoardRows(PPR_2025).find((r) => r.playerId === 14480)!.posRank);
-    assert.equal(half.points, 365.6);
-    assert.equal(zero.overallRank, PPR_VS_ZERO_2025.find((p) => p.row.playerId === 14480)!.zeroPprRank);
-  });
-
-  it("scores the same stat lines three ways: only the value of a catch differs", () => {
-    // 102 catches: 0 PPR + 51 = Half PPR, + 51 again = PPR.
-    const [zero, half, ppr] = MCCAFFREY_2025_BY_RULESET.map((s) => s.points);
-    assert.ok(Math.abs(half - zero - 51) < 0.05 && Math.abs(ppr - half - 51) < 0.05);
-    assert.deepEqual(
-      MCCAFFREY_2025_BY_RULESET.map((s) => starterWeeks(s.weeks, "RB")),
-      [15, 16, 16],
-    );
-  });
-});
-
-describe("the landing page's other captures", () => {
-  it("draws the PPR board from rank 1 with no gaps, the order tiers need", () => {
-    assert.equal(PPR_2025.length, 60);
-    PPR_2025.forEach((r, i) => assert.equal(r.rank, i + 1, r.name));
-    // The rule-change chart's six are the top of this same board.
-    for (const { row } of PPR_VS_ZERO_2025) {
-      assert.deepEqual(PPR_2025[row.rank - 1], row, row.name);
-    }
-  });
-
-  it("gives every sliced row a 0 PPR place, and agrees with the rule-change chart", () => {
-    // The product band shows ranks 1 to 12 (ProductBand.tsx); every one needs its real 0 PPR place.
-    for (const r of PPR_2025.slice(0, 16)) assert.ok(PPR_FROM_ZERO_2025[r.playerId] > 0, r.name);
-    for (const { row, zeroPprRank } of PPR_VS_ZERO_2025) {
-      assert.equal(PPR_FROM_ZERO_2025[row.playerId], zeroPprRank, row.name);
-    }
-  });
-
-  it("prices the receipt from the preset's rates, and it adds up to the API's total", () => {
-    // previewData throws on import if it does not, so this file failing to
-    // load is the same failure; this names it.
-    const { lines, total } = MCCAFFREY_2025_PPR_RECEIPT;
-    assert.ok(Math.abs(total - MCCAFFREY_2025_PPR.points) < 0.05);
-    const rec = lines.find((l) => l.stat === "rec")!;
-    assert.equal(rec.count * rec.rate, rec.points);
-    assert.equal(rec.rate, 1, "PPR is a point per catch");
-  });
-
-  it("keeps Nacua's weeks and his season total in step, and the board's", () => {
-    const sum = NACUA_2025_PPR.weeks.reduce((n, w) => n + w.points, 0);
-    assert.ok(Math.abs(sum - NACUA_2025_PPR.points) < 0.05);
-    assert.equal(NACUA_2025_PPR.weeks.length, NACUA_2025_PPR.gamesPlayed);
-    assert.equal(NACUA_2025_PPR.points, PPR_2025.find((r) => r.playerId === 16153)!.points);
-  });
-});
-
-describe("the landing's one game, and the rates it is priced with", () => {
-  const RULESETS = Object.keys(PRESET_RATES) as Ruleset[];
-
-  it("copies V3's three presets exactly, and they differ in one rate: a catch", () => {
-    // The migration is the source; parse its rule objects rather than trusting the copy.
-    const sql = readFileSync(
-      new URL("../../backend/src/main/resources/db/migration/V3__seed_scoring_presets.sql", import.meta.url),
-      "utf8",
-    );
-    const seeded = new Map(
-      [...sql.matchAll(/\(NULL, '([^']+)', TRUE, '(\{[\s\S]*?\})'::jsonb\)/g)].map((m) => [m[1], JSON.parse(m[2])]),
-    );
-    const source: Record<Ruleset, string> = { "0 PPR": "Standard", "Half PPR": "Half PPR", PPR: "Full PPR" };
-    for (const r of RULESETS) {
-      const rules = seeded.get(source[r]);
-      assert.ok(rules, `${source[r]} is not in V3`);
-      assert.equal(rules.position_overrides, undefined, `${source[r]} has overrides`);
-      assert.deepEqual(PRESET_RATES[r], rules.base, r);
-    }
-    for (const stat of Object.keys(PRESET_RATES.PPR) as (keyof (typeof PRESET_RATES)["PPR"])[]) {
-      const values = new Set(RULESETS.map((r) => PRESET_RATES[r][stat]));
-      assert.equal(values.size, stat === "rec" ? 3 : 1, stat);
-    }
-  });
-
-  it("prices week 7 into each preset's captured points, which are the seasons' own week 7", () => {
-    for (const s of MCCAFFREY_2025_BY_RULESET) {
-      const week = s.weeks.find((w) => w.week === MCCAFFREY_2025_WEEK7.week)!;
-      assert.equal(MCCAFFREY_2025_WEEK7.points[s.ruleset], week.points, s.ruleset);
-      const { total } = MCCAFFREY_2025_WEEK7_RECEIPTS[s.ruleset];
-      assert.ok(Math.abs(total - week.points) < 0.05, `${s.ruleset}: priced ${total}, captured ${week.points}`);
-    }
-    // Seven catches: 0 PPR + 3.5 = Half PPR, + 3.5 again = PPR.
-    assert.equal(MCCAFFREY_2025_WEEK7.stats.rec, 7);
-  });
-
-  it("splits week 7 into what the rate does not touch, plus its catches times the rate", () => {
-    const base = MCCAFFREY_2025_WEEK7.points["0 PPR"];
-    for (const r of RULESETS) {
-      const { lines } = MCCAFFREY_2025_WEEK7_RECEIPTS[r];
-      const rec = lines.find((l) => l.stat === "rec")!;
-      assert.equal(rec.count, MCCAFFREY_2025_WEEK7.stats.rec, r);
-      assert.equal(rec.rate, PRESET_RATES[r].rec, r);
-      // The equation the page prints: 32.1 + 7 x rate = this preset's captured week.
-      assert.ok(Math.abs(base + rec.count * rec.rate - MCCAFFREY_2025_WEEK7.points[r]) < 1e-9, r);
-      // ...and the 32.1 is the receipt's other lines, which no preset prices differently.
-      const fixed = lines.filter((l) => l.stat !== "rec").reduce((n, l) => n + l.points, 0);
-      assert.ok(Math.abs(fixed - base) < 1e-9, r);
-    }
-  });
-
-  it("caps every week with what its catches add, and the caps add up to the season's difference", () => {
-    const [zero, half, ppr] = MCCAFFREY_2025_BY_RULESET;
-    const full = catchCaps(zero.weeks, ppr.weeks);
-    const halves = catchCaps(zero.weeks, half.weeks);
-    full.forEach((w, i) => {
-      // A point a catch makes the cap a whole number of catches...
-      assert.ok(w.cap >= 0 && Math.abs(w.cap - Math.round(w.cap)) < 1e-9, `week ${w.week}: ${w.cap}`);
-      // ...and the captures agree that only a catch's value differs: half the rate, half the cap.
-      assert.ok(Math.abs(w.cap - 2 * halves[i].cap) < 1e-9, `week ${w.week}`);
-      assert.equal(w.base, zero.weeks[i].points);
-    });
-    assert.ok(Math.abs(full.find((w) => w.week === MCCAFFREY_2025_WEEK7.week)!.cap - 7) < 1e-9);
-    const sum = (caps: { cap: number }[]) => caps.reduce((n, w) => n + w.cap, 0);
-    assert.ok(Math.abs(sum(full) - (ppr.points - zero.points)) < 0.05, "PPR: 102.0 from catches");
-    assert.ok(Math.abs(sum(halves) - (half.points - zero.points)) < 0.05, "Half PPR: 51.0");
-    assert.ok(catchCaps(zero.weeks, zero.weeks).every((w) => w.cap === 0));
-  });
-
-  it("refuses two seasons that disagree on which weeks were played", () => {
-    const [zero, , ppr] = MCCAFFREY_2025_BY_RULESET;
-    assert.throws(() => catchCaps(zero.weeks, ppr.weeks.slice(1)));
-    assert.throws(() =>
-      catchCaps(zero.weeks, ppr.weeks.map((w) => (w.week === 18 ? { ...w, week: 14 } : w))),
-    );
-  });
-
-  it("labels a week a bye only when it is the bye: McCaffrey's one missing week is the 49ers'", () => {
-    // The week strip prints "bye" for this week alone and "no game" for any other gap,
-    // so a game missed for another reason can never read as a bye.
-    for (const s of [...MCCAFFREY_2025_BY_RULESET, MCCAFFREY_2025_PPR]) {
-      const played = new Set(s.weeks.map((w) => w.week));
-      const missing = Array.from({ length: 18 }, (_, i) => i + 1).filter((w) => !played.has(w));
-      assert.deepEqual(missing, [SF_2025_BYE_WEEK], "season" in s ? "career" : s.ruleset);
-    }
-  });
-});
-
-describe("the landing's wide-receiver board", () => {
-  it("is a whole WR board from rank 1, sixty deep, the order tiers need", () => {
-    assert.equal(WR_PPR_2025.length, 60);
-    WR_PPR_2025.forEach((r, i) => {
-      assert.equal(r.rank, i + 1, r.name);
-      assert.equal(r.position, "WR", r.name);
-    });
-  });
-
-  it("agrees with the overall PPR board on every receiver both hold, in the same order", () => {
-    const both = PPR_2025.filter((r) => r.position === "WR");
-    assert.ok(both.length >= 10);
-    let last = 0;
-    for (const r of both) {
-      const w = WR_PPR_2025.find((x) => x.playerId === r.playerId);
-      assert.ok(w, `${r.name} is on the overall board but not the WR board`);
-      assert.deepEqual([w.points, w.pointsPerGame, w.gamesPlayed], [r.points, r.pointsPerGame, r.gamesPlayed], r.name);
-      assert.ok(w.rank > last, `${r.name} is out of order`);
-      last = w.rank;
-    }
-  });
-
-  it("gives every shown receiver his real 0 PPR place, in step with the overall 0 PPR board", () => {
-    // The band shows ranks 1 to 10 (ProductBand.tsx); sixteen are captured.
-    for (const r of WR_PPR_2025.slice(0, 16)) assert.ok(WR_PPR_FROM_ZERO_2025[r.playerId] > 0, r.name);
-    const overall = Object.entries(PPR_FROM_ZERO_2025)
-      .map(([id, rank]) => ({ id: Number(id), rank }))
-      .filter((p) => WR_PPR_FROM_ZERO_2025[p.id] !== undefined)
-      .sort((a, b) => a.rank - b.rank);
-    assert.ok(overall.length >= 4);
-    const wr = overall.map((p) => WR_PPR_FROM_ZERO_2025[p.id]);
-    assert.deepEqual(wr, [...wr].sort((a, b) => a - b), "the two 0 PPR boards disagree on order");
-  });
-});
-
-describe("the landing's three boards", () => {
-  const BOARDS = {
-    "0 PPR": ZERO_PPR_TOP20_2025,
-    "Half PPR": HALF_PPR_TOP20_2025,
-    PPR: PPR_2025.slice(0, 20),
-  } as const;
-  const RULESETS = Object.keys(BOARDS) as (keyof typeof BOARDS)[];
-  const byId = (id: number) => HERO_BOARD_2025.find((p) => p.playerId === id)!;
-
-  it("runs every board from 1st to 20th, no gaps, best first", () => {
-    for (const r of RULESETS) {
-      assert.deepEqual(
-        BOARDS[r].map((row) => row.rank),
-        Array.from({ length: 20 }, (_, i) => i + 1),
-        r,
-      );
-      BOARDS[r].slice(1).forEach((row, i) => assert.ok(row.points <= BOARDS[r][i].points, `${r}: ${row.name}`));
-      assert.equal(new Set(BOARDS[r].map((row) => row.playerId)).size, 20, `${r}: a player twice`);
-    }
-  });
-
-  it("agrees with every other capture of the same three boards", () => {
-    for (const r of RULESETS) {
-      for (const p of HERO_BOARD_2025.filter((q) => q.by[r].rank <= 20)) {
-        const row = BOARDS[r][p.by[r].rank - 1];
-        assert.equal(row.playerId, p.playerId, `${r}: ${p.name}`);
-        assert.equal(row.points, p.by[r].points, `${r}: ${p.name}`);
-      }
-    }
-    for (const row of ZERO_PPR_TOP20_2025) {
-      const zero = PPR_FROM_ZERO_2025[row.playerId];
-      if (zero !== undefined) assert.equal(row.rank, zero, row.name);
-    }
-  });
-
-  it("follows Nacua from 20th to 11th to 2nd -- the depth each board runs to", () => {
-    const nacua = byId(16153);
-    assert.deepEqual(
-      RULESETS.map((r) => nacua.by[r].rank),
-      [20, 11, 2],
-    );
-    assert.deepEqual(
-      RULESETS.map((r) => nacua.by[r].points),
-      [246.0, 310.5, 375.0],
-    );
-    assert.equal(Math.max(...RULESETS.map((r) => nacua.by[r].rank)), BOARDS["0 PPR"].length);
-  });
-
-  it("tells the quarterbacks' story in its letters: all of the 0 PPR top five, one of the PPR's", () => {
-    const qbs = (r: (typeof RULESETS)[number]) => BOARDS[r].slice(0, 5).filter((p) => p.position === "QB").length;
-    assert.equal(qbs("0 PPR"), 5);
-    assert.equal(qbs("PPR"), 1);
-  });
-});
-
 describe("the two modes' tokens (globals.css)", () => {
   const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
   // The declarations inside the first block that opens with `selector {`.
@@ -695,81 +444,361 @@ describe("the two modes' tokens (globals.css)", () => {
   });
 });
 
-describe("the landing hero's board", () => {
-  const RULESETS = ["0 PPR", "Half PPR", "PPR"] as const;
-  const byId = (id: number) => HERO_BOARD_2025.find((p) => p.playerId === id)!;
+describe("the landing's captured boards", () => {
+  it("draws the 2025 PPR board from rank 1 with no gaps, the order tiers need", () => {
+    assert.equal(PPR_2025.length, 60);
+    PPR_2025.forEach((r, i) => assert.equal(r.rank, i + 1, r.name));
+  });
+
+  it("gives the top of the PPR board its real 0 PPR places", () => {
+    for (const r of PPR_2025.slice(0, 16)) assert.ok(PPR_FROM_ZERO_2025[r.playerId] > 0, r.name);
+  });
+
+  it("shows no likeness: every captured row's ESPN id is blanked", () => {
+    // The board would draw a headshot from it; the landing draws none (owner decision 2026-09-28).
+    const rows = [
+      ...PPR_2025,
+      ...ZERO_PPR_TOP20_2025,
+      ...HALF_PPR_TOP20_2025,
+      ...HERO_RULESETS.flatMap((r) => HERO_BOARDS_2026[r]),
+    ];
+    for (const r of rows) assert.equal(r.espnId, null, r.name);
+  });
+});
+
+describe("the hero's 2026 boards", () => {
+  const TOP = 10;
+  const cast = castOf(
+    HERO_RULESETS.map((r) => HERO_BOARDS_2026[r]),
+    TOP,
+  );
+  const rankIn = (r: (typeof HERO_RULESETS)[number], id: number) => HERO_BOARDS_2026[r].find((x) => x.playerId === id)?.rank;
+  const name = (n: string) => HERO_BOARDS_2026.PPR.find((r) => r.name === n)!.playerId;
+
+  it("are four whole boards from rank 1, sixty deep, best first, the order tiers need", () => {
+    for (const r of HERO_RULESETS) {
+      const board = HERO_BOARDS_2026[r];
+      assert.equal(board.length, 60, r);
+      board.forEach((row, i) => assert.equal(row.rank, i + 1, `${r}: ${row.name}`));
+      board.slice(1).forEach((row, i) => assert.ok(row.points <= board[i].points, `${r}: ${row.name}`));
+      assert.ok(HERO_TOTAL >= board.length);
+    }
+  });
+
+  it("place everyone the hero can show inside every board's sixty, so a move is always the real distance", () => {
+    for (const id of cast) for (const r of HERO_RULESETS) assert.ok(rankIn(r, id)! <= 60, `${id} under ${r}`);
+    assert.equal(cast.length, 14);
+  });
+
+  it("offer exactly the scorings captured, in the switch's order, named as the console names them", () => {
+    assert.deepEqual(
+      HERO_PROFILES.map((p) => p.ruleset),
+      [...HERO_RULESETS],
+    );
+    assert.deepEqual(HERO_PROFILES.map(profileLabel), ["0 PPR", "Half PPR", "PPR", "My league"]);
+  });
+
+  it("score the same games four ways: the same games played, and a catch's rate the only preset difference", () => {
+    for (const row of HERO_BOARDS_2026.PPR.slice(0, 20)) {
+      const zero = HERO_BOARDS_2026["0 PPR"].find((z) => z.playerId === row.playerId);
+      const half = HERO_BOARDS_2026["Half PPR"].find((h) => h.playerId === row.playerId);
+      if (!zero || !half) continue;
+      assert.equal(zero.gamesPlayed, row.gamesPlayed, row.name);
+      // Half PPR sits exactly halfway between 0 PPR and PPR: half a point a catch.
+      assert.ok(Math.abs(half.points - (zero.points + row.points) / 2) < 0.011, row.name);
+    }
+  });
+
+  it("say the week they run through from the rows themselves", () => {
+    assert.equal(HERO_SEASON, 2026);
+    assert.equal(HERO_THROUGH_WEEK, Math.max(...HERO_BOARDS_2026.PPR.map((r) => r.gamesPlayed)));
+    for (const r of HERO_RULESETS) for (const row of HERO_BOARDS_2026[r]) assert.ok(row.gamesPlayed <= HERO_THROUGH_WEEK);
+    assert.equal(HERO_THROUGH_WEEK, 4);
+  });
+
+  it("carry Smith-Njigba from 9th under 0 PPR to 1st under PPR, and Lamb from 17th to 4th", () => {
+    assert.deepEqual([rankIn("0 PPR", name("Jaxon Smith-Njigba")), rankIn("PPR", name("Jaxon Smith-Njigba"))], [9, 1]);
+    assert.deepEqual([rankIn("0 PPR", name("CeeDee Lamb")), rankIn("PPR", name("CeeDee Lamb"))], [17, 4]);
+  });
+});
+
+describe("the hero's board layout", () => {
+  const TOP = 10;
+  const cast = castOf(
+    HERO_RULESETS.map((r) => HERO_BOARDS_2026[r]),
+    TOP,
+  );
+  const tiersOf = (board: (typeof HERO_BOARDS_2026)["PPR"]) =>
+    assignTiers(toBoardRows(board)).tiers.map((t) => ({ letter: t.letter, first: t.rows[0].rank }));
+  const layout = Object.fromEntries(
+    HERO_RULESETS.map((r) => [r, boardLayout(HERO_BOARDS_2026[r], tiersOf(HERO_BOARDS_2026[r]), cast, TOP)]),
+  ) as Record<(typeof HERO_RULESETS)[number], ReturnType<typeof boardLayout>>;
+  const id = (n: string) => HERO_BOARDS_2026.PPR.find((r) => r.name === n)!.playerId;
+
+  it("opens tier S at the top, and moves the A divider with the S tier's size", () => {
+    for (const r of HERO_RULESETS) assert.deepEqual(layout[r].dividers.get("S"), { rows: 0, dividers: 0, shown: true }, r);
+    assert.deepEqual(layout["0 PPR"].dividers.get("A"), { rows: 6, dividers: 1, shown: true });
+    assert.deepEqual(layout.PPR.dividers.get("A"), { rows: 7, dividers: 1, shown: true });
+  });
+
+  it("carries Smith-Njigba from 9th, under the A divider, to 1st", () => {
+    assert.deepEqual(layout["0 PPR"].rows.get(id("Jaxon Smith-Njigba")), { rows: 8, dividers: 2, shown: true });
+    assert.deepEqual(layout.PPR.rows.get(id("Jaxon Smith-Njigba")), { rows: 0, dividers: 1, shown: true });
+  });
+
+  it("fills every place in each board's top ten once, and parks the rest just below them", () => {
+    for (const r of HERO_RULESETS) {
+      const shown = [...layout[r].rows.values()].filter((p) => p.shown).map((p) => p.rows);
+      assert.deepEqual(
+        shown.sort((a, b) => a - b),
+        Array.from({ length: TOP }, (_, i) => i),
+        r,
+      );
+      for (const p of layout[r].rows.values()) if (!p.shown) assert.equal(p.rows, TOP, r);
+    }
+    for (const n of ["CeeDee Lamb", "Amon-Ra St. Brown"]) {
+      assert.equal(layout["0 PPR"].rows.get(id(n))!.shown, false, n);
+      assert.equal(layout.PPR.rows.get(id(n))!.shown, true, n);
+    }
+  });
+
+  it("casts everyone in any board's top, down to its last place, and no one else", () => {
+    // Synthetic, because on the real boards the top nines happen to cover the top tens.
+    const a = [{ playerId: 1, rank: 1 }, { playerId: 2, rank: 2 }, { playerId: 3, rank: 3 }];
+    const b = [{ playerId: 2, rank: 1 }, { playerId: 4, rank: 2 }, { playerId: 1, rank: 3 }];
+    assert.deepEqual(castOf([a, b], 2).sort(), [1, 2, 4]);
+    for (const r of HERO_RULESETS) {
+      for (const row of HERO_BOARDS_2026[r].filter((x) => x.rank <= TOP)) assert.ok(cast.includes(row.playerId), row.name);
+    }
+  });
+});
+
+describe("the hero's loop", () => {
+  const rank = (r: (typeof HERO_RULESETS)[number], n: string) => HERO_BOARDS_2026[r].find((x) => x.name === n)!.rank;
+
+  it("opens and rests on My league, the board the server renders and reduced motion keeps", () => {
+    assert.equal(HERO_POSTER, "My league");
+    assert.equal(HERO_BEATS[0].beat, "poster");
+    assert.equal(HERO_BEATS[0].at, 0);
+    assert.equal(HERO_BEATS[0].picks, null);
+    assert.equal(rulesetAfter(HERO_BEATS.length - 1), "My league");
+  });
+
+  it("switches to PPR, the baseline, and back to My league -- and nothing else", () => {
+    assert.deepEqual(
+      HERO_BEATS.filter((s) => s.picks).map((s) => s.picks),
+      ["PPR", "My league"],
+    );
+    assert.equal(rulesetAfter(HERO_BEATS.findIndex((s) => s.picks === "PPR")), "PPR");
+  });
+
+  it("holds the board it lands on long enough to read, and stops after a few loops", () => {
+    HERO_BEATS.slice(1).forEach((b, i) => assert.ok(b.at > HERO_BEATS[i].at, b.beat));
+    const last = Math.max(...HERO_BEATS.filter((s) => s.picks).map((s) => s.at));
+    // The rows travel for 850ms; what is left of the loop is the hold.
+    assert.ok(HERO_LOOP_MS - last - 850 >= 3000, "the hold on My league is under three seconds");
+    assert.ok(HERO_MAX_LOOPS >= 1 && HERO_MAX_LOOPS <= 3);
+  });
+
+  it("moves the story's three rows the way the copy says, counted from PPR", () => {
+    // Δ vs PPR under My league: positive is up the board.
+    const delta = (n: string) => rank("PPR", n) - rank("My league", n);
+    assert.deepEqual(
+      ["Josh Allen", "Brock Purdy", "Jaxon Smith-Njigba"].map((n) => [rank("PPR", n), rank("My league", n), delta(n)]),
+      [
+        [3, 1, 2],
+        [7, 2, 5],
+        [1, 10, -9],
+      ],
+    );
+  });
+
+  it("says what My league is, and the words are the rules it was saved with", () => {
+    // Half PPR (a catch at 0.5) with six points a passing touchdown, everything else V3's.
+    assert.equal(HERO_LEAGUE_DETAIL, `Half PPR · ${MY_LEAGUE_RATES.pass_td}-pt passing TDs`);
+    assert.equal(MY_LEAGUE_RATES.rec, PRESET_RATES["Half PPR"].rec);
+    assert.equal(MY_LEAGUE_RATES.pass_td, 6);
+  });
+});
+
+describe("Nacua's 2025 season, scored three ways", () => {
+  it("adds each preset's weeks up to its season total", () => {
+    for (const r of RULESETS) {
+      const s = NACUA_2025_BY_RULESET[r];
+      const sum = s.weeks.reduce((n, w) => n + w.points, 0);
+      assert.ok(Math.abs(sum - s.points) < 0.05, `${r}: weeks sum to ${sum}, season says ${s.points}`);
+      assert.equal(s.weeks.length, s.gamesPlayed, r);
+    }
+  });
+
+  it("agrees with the boards: the same points, and WR1 by the board's own count", () => {
+    const nacua = ONE_BOARD_2025.find((p) => p.playerId === 16153)!;
+    const boards = { "0 PPR": ZERO_PPR_TOP20_2025, "Half PPR": HALF_PPR_TOP20_2025, PPR: PPR_2025 } as const;
+    for (const r of RULESETS) {
+      const s = NACUA_2025_BY_RULESET[r];
+      assert.equal(s.points, nacua.by[r].points, r);
+      assert.equal(s.pointsPerGame, nacua.by[r].pointsPerGame, r);
+      assert.equal(s.posRank, toBoardRows(boards[r]).find((row) => row.playerId === 16153)!.posRank, r);
+      assert.equal(s.posRank, 1, r);
+    }
+  });
+
+  it("differs only in what his catches are worth: 129 of them, half a point each step", () => {
+    const [zero, half, ppr] = RULESETS.map((r) => NACUA_2025_BY_RULESET[r]);
+    assert.equal(ppr.stats.rec, 129);
+    assert.ok(Math.abs(half.points - zero.points - 64.5) < 0.05 && Math.abs(ppr.points - half.points - 64.5) < 0.05);
+    assert.deepEqual(zero.stats, ppr.stats);
+    assert.deepEqual(
+      zero.weeks.map((w) => w.week),
+      ppr.weeks.map((w) => w.week),
+    );
+  });
+});
+
+describe("the landing's game log, and the rates it is priced with", () => {
+  it("copies V3's three presets exactly, and they differ in one rate: a catch", () => {
+    // The migration is the source; parse its rule objects rather than trusting the copy.
+    const sql = readFileSync(
+      new URL("../../backend/src/main/resources/db/migration/V3__seed_scoring_presets.sql", import.meta.url),
+      "utf8",
+    );
+    const seeded = new Map(
+      [...sql.matchAll(/\(NULL, '([^']+)', TRUE, '(\{[\s\S]*?\})'::jsonb\)/g)].map((m) => [m[1], JSON.parse(m[2])]),
+    );
+    const source: Record<Ruleset, string> = { "0 PPR": "Standard", "Half PPR": "Half PPR", PPR: "Full PPR" };
+    for (const r of RULESETS) {
+      const rules = seeded.get(source[r]);
+      assert.ok(rules, `${source[r]} is not in V3`);
+      assert.equal(rules.position_overrides, undefined, `${source[r]} has overrides`);
+      assert.deepEqual(PRESET_RATES[r], rules.base, r);
+    }
+    for (const stat of Object.keys(PRESET_RATES.PPR) as (keyof (typeof PRESET_RATES)["PPR"])[]) {
+      const values = new Set(RULESETS.map((r) => PRESET_RATES[r][stat]));
+      assert.equal(values.size, stat === "rec" ? 3 : 1, stat);
+    }
+  });
+
+  it("holds every game to the career's own week, under every preset", () => {
+    for (const r of RULESETS) {
+      const weeks = NACUA_2025_BY_RULESET[r].weeks;
+      assert.deepEqual(
+        NACUA_2025_LOG.map((g) => [g.week, g.opponent, g.home, g.points[r]]),
+        weeks.map((w) => [w.week, w.opponent, w.home, w.points]),
+        r,
+      );
+    }
+  });
+
+  it("prices every game from the preset's rates into the API's points", () => {
+    // previewData throws on import if one does not add up; this names the failure.
+    NACUA_2025_LOG.forEach((game, i) => {
+      for (const r of RULESETS) {
+        const { total, lines } = NACUA_2025_LOG_RECEIPTS[i][r];
+        assert.ok(Math.abs(total - game.points[r]) < 0.05, `week ${game.week} under ${r}`);
+        const rec = lines.find((l) => l.stat === "rec");
+        assert.equal(rec?.rate ?? PRESET_RATES[r].rec, PRESET_RATES[r].rec);
+      }
+      // One rate apart: each step adds half a point a catch.
+      assert.ok(Math.abs(game.points["Half PPR"] - game.points["0 PPR"] - game.stats.rec / 2) < 0.05, `week ${game.week}`);
+    });
+  });
+
+  it("lights his biggest game for catches, the one the band names: 13, at home to Indianapolis", () => {
+    const lit = NACUA_2025_LOG.find((g) => g.week === NACUA_LIT_WEEK)!;
+    assert.equal(lit.stats.rec, Math.max(...NACUA_2025_LOG.map((g) => g.stats.rec)));
+    assert.equal(NACUA_2025_LOG.filter((g) => g.stats.rec === lit.stats.rec).length, 1, "a tie for most catches");
+    assert.deepEqual([lit.stats.rec, lit.opponent, lit.home], [13, "IND", true]);
+    assert.deepEqual(
+      RULESETS.map((r) => lit.points[r]),
+      [23.0, 29.5, 36.0],
+    );
+  });
+});
+
+describe("the landing's \"My league\"", () => {
+  it("is Half PPR with six points a passing touchdown, and nothing else changed", () => {
+    for (const stat of Object.keys(MY_LEAGUE_RATES) as (keyof typeof MY_LEAGUE_RATES)[]) {
+      assert.equal(MY_LEAGUE_RATES[stat], stat === "pass_td" ? 6 : PRESET_RATES["Half PPR"][stat], stat);
+    }
+  });
+});
+
+describe("the landing's one board", () => {
+  const TOP = 8;
+  const byId = (id: number) => ONE_BOARD_2025.find((p) => p.playerId === id)!;
   const surname = (p: { name: string }) => p.name.split(" ").slice(1).join(" ");
-  const order = (r: (typeof RULESETS)[number]) =>
-    HERO_BOARD_2025.filter((p) => p.by[r].rank <= 8)
-      .sort((a, b) => a.by[r].rank - b.by[r].rank)
-      .map(surname);
-  const cmc = byId(14480);
-  const slotted = (r: (typeof RULESETS)[number]) =>
-    HERO_BOARD_2025.filter((p) => heroSlotOf(p, r, cmc) !== null)
-      .sort((a, b) => heroSlotOf(a, r, cmc)! - heroSlotOf(b, r, cmc)!)
+  const nacua = byId(16153);
+  const slotted = (r: Ruleset) =>
+    ONE_BOARD_2025.filter((p) => slotOf(p, r, nacua, TOP) !== null)
+      .sort((a, b) => slotOf(a, r, nacua, TOP)! - slotOf(b, r, nacua, TOP)!)
       .map((p) => [surname(p), p.by[r].rank]);
 
   it("holds every ruleset's whole top 8, ranks 1 to 8 with no gaps or repeats", () => {
     for (const r of RULESETS) {
-      const ranks = HERO_BOARD_2025.map((p) => p.by[r].rank);
+      const ranks = ONE_BOARD_2025.map((p) => p.by[r].rank);
       assert.equal(new Set(ranks).size, ranks.length, `${r}: a rank repeats`);
-      for (let n = 1; n <= 8; n++) assert.ok(ranks.includes(n), `${r}: nobody at ${n}`);
+      for (let n = 1; n <= TOP; n++) assert.ok(ranks.includes(n), `${r}: nobody at ${n}`);
     }
-    assert.deepEqual(order("0 PPR"), ["Allen", "Maye", "Stafford", "Lawrence", "Williams", "Taylor", "McCaffrey", "Prescott"]);
-    assert.deepEqual(order("PPR"), ["McCaffrey", "Nacua", "Robinson", "Gibbs", "Allen", "Taylor", "Smith-Njigba", "Maye"]);
   });
 
-  it("agrees with the other captures of the same three boards", () => {
-    for (const p of HERO_BOARD_2025) {
-      assert.equal(HERO_BOARD_2025.filter((q) => q.playerId === p.playerId).length, 1, p.name);
-      const ppr = PPR_2025[p.by.PPR.rank - 1];
-      assert.equal(ppr.playerId, p.playerId, p.name);
-      assert.equal(ppr.points, p.by.PPR.points, p.name);
-      assert.equal(ppr.pointsPerGame, p.by.PPR.pointsPerGame, p.name);
-      assert.equal(ppr.gamesPlayed, p.gamesPlayed, p.name);
+  it("agrees with every other capture of the same three boards", () => {
+    const boards = { "0 PPR": ZERO_PPR_TOP20_2025, "Half PPR": HALF_PPR_TOP20_2025, PPR: PPR_2025 } as const;
+    for (const p of ONE_BOARD_2025) {
+      assert.equal(ONE_BOARD_2025.filter((q) => q.playerId === p.playerId).length, 1, p.name);
+      for (const r of RULESETS) {
+        const row = boards[r][p.by[r].rank - 1];
+        if (!row) continue; // deeper than the capture: only Smith-Njigba, 22nd under 0 PPR
+        assert.equal(row.playerId, p.playerId, `${r}: ${p.name}`);
+        assert.equal(row.points, p.by[r].points, `${r}: ${p.name}`);
+      }
       const zero = PPR_FROM_ZERO_2025[p.playerId];
       if (zero !== undefined) assert.equal(p.by["0 PPR"].rank, zero, p.name);
     }
-    const cmc = byId(14480);
-    for (const s of MCCAFFREY_2025_BY_RULESET) {
-      assert.equal(cmc.by[s.ruleset].rank, s.overallRank, s.ruleset);
-      assert.equal(cmc.by[s.ruleset].points, s.points, s.ruleset);
-      assert.equal(cmc.by[s.ruleset].pointsPerGame, s.pointsPerGame, s.ruleset);
+    for (const r of RULESETS) {
+      assert.deepEqual(
+        boards[r].slice(0, 20).map((row) => row.rank),
+        Array.from({ length: 20 }, (_, i) => i + 1),
+        r,
+      );
     }
   });
 
-  it("derives the positional ranks the board would, and McCaffrey's the career says", () => {
-    const board = toBoardRows(PPR_2025);
-    for (const p of HERO_BOARD_2025.filter((q) => q.by.PPR.rank <= 8)) {
-      assert.equal(posRankOf(HERO_BOARD_2025, p, "PPR"), board[p.by.PPR.rank - 1].posRank, p.name);
-    }
-    for (const s of MCCAFFREY_2025_BY_RULESET) {
-      assert.equal(posRankOf(HERO_BOARD_2025, byId(14480), s.ruleset), s.posRank, s.ruleset);
-    }
-  });
-
-  it("says nothing, not a wrong number, when someone ranked above is missing", () => {
-    const withoutAllen = HERO_BOARD_2025.filter((p) => p.playerId !== 344);
-    assert.equal(posRankOf(withoutAllen, byId(14406), "PPR"), null);
-    // Nacua is 20th under 0 PPR, and most of the nineteen above him are not in the set.
-    assert.equal(posRankOf(HERO_BOARD_2025, byId(16153), "0 PPR"), null);
-  });
-
-  it("measures a move as the real distance, from off the board included", () => {
-    assert.equal(movedBetween(byId(16153), "0 PPR", "PPR"), 18);
-    assert.equal(movedBetween(byId(14480), "0 PPR", "PPR"), 6);
+  it("follows Nacua from 20th to 11th to 2nd, and every place it names is captured", () => {
+    assert.deepEqual(
+      RULESETS.map((r) => nacua.by[r].rank),
+      [20, 11, 2],
+    );
+    assert.deepEqual(
+      RULESETS.map((r) => nacua.by[r].points),
+      [246.0, 310.5, 375.0],
+    );
+    assert.equal(movedBetween(nacua, "0 PPR", "Half PPR"), 9);
+    assert.equal(movedBetween(nacua, "0 PPR", "PPR"), 18);
     assert.equal(movedBetween(byId(344), "0 PPR", "PPR"), -4);
-    assert.equal(movedBetween(byId(21702), "0 PPR", "PPR"), 0);
   });
 
-  it("shows the top five, and keeps McCaffrey on the board when he is outside them", () => {
+  it("shows the top eight, and keeps Nacua on the board when he is outside them", () => {
     assert.deepEqual(slotted("0 PPR"), [
       ["Allen", 1],
       ["Maye", 2],
       ["Stafford", 3],
       ["Lawrence", 4],
       ["Williams", 5],
+      ["Taylor", 6],
       ["McCaffrey", 7],
+      ["Prescott", 8],
+      ["Nacua", 20],
+    ]);
+    assert.deepEqual(slotted("Half PPR"), [
+      ["McCaffrey", 1],
+      ["Allen", 2],
+      ["Maye", 3],
+      ["Stafford", 4],
+      ["Taylor", 5],
+      ["Lawrence", 6],
+      ["Robinson", 7],
+      ["Gibbs", 8],
+      ["Nacua", 11],
     ]);
     assert.deepEqual(slotted("PPR"), [
       ["McCaffrey", 1],
@@ -778,51 +807,45 @@ describe("the landing hero's board", () => {
       ["Gibbs", 4],
       ["Allen", 5],
       ["Taylor", 6],
+      ["Smith-Njigba", 7],
+      ["Maye", 8],
+      ["Stafford", 9],
     ]);
-    assert.deepEqual(
-      slotted("Half PPR").map(([, rank]) => rank),
-      [1, 2, 3, 4, 5, 6],
-    );
     for (const r of RULESETS) {
-      const slots = HERO_BOARD_2025.map((p) => heroSlotOf(p, r, cmc)).filter((x) => x !== null);
+      const slots = ONE_BOARD_2025.map((p) => slotOf(p, r, nacua, TOP)).filter((x) => x !== null);
       assert.deepEqual(
         slots.sort((a, b) => a - b),
-        Array.from({ length: HERO_SLOTS }, (_, i) => i),
+        Array.from({ length: TOP + 1 }, (_, i) => i),
         `${r}: every slot filled once`,
       );
     }
-    // The dashed rule: only where the last slot jumps a place to reach him.
+  });
+
+  it("draws the dashed rule only where the last slot jumps places, and names the place it lands on", () => {
     assert.deepEqual(
-      RULESETS.map((r) => heroSkips(cmc, r)),
-      [true, false, false],
+      RULESETS.map((r) => skipsTo(nacua, r, TOP)),
+      [true, true, false],
     );
-    // The boundary: a followed player who is exactly sixth takes the last slot with nothing skipped.
-    const taylor = byId(21702);
-    assert.equal(taylor.by["0 PPR"].rank, 6);
-    assert.equal(heroSkips(taylor, "0 PPR"), false);
-    assert.equal(heroSlotOf(taylor, "0 PPR", taylor), HERO_SLOTS - 1);
+    assert.deepEqual(
+      RULESETS.map((r) => lastPlace(nacua, r, TOP)),
+      [20, 11, 9],
+    );
+    // The boundaries: followed at exactly 9th is the next place, not a skip; at 10th it is.
+    const williams = byId(23961);
+    assert.equal(williams.by["Half PPR"].rank, 9);
+    assert.equal(skipsTo(williams, "Half PPR", TOP), false);
+    assert.equal(slotOf(williams, "Half PPR", williams, TOP), TOP);
+    assert.equal(lastPlace(williams, "Half PPR", TOP), 9);
+    const prescott = byId(17878);
+    assert.equal(prescott.by["Half PPR"].rank, 10);
+    assert.equal(skipsTo(prescott, "Half PPR", TOP), true);
+    assert.equal(lastPlace(prescott, "Half PPR", TOP), 10);
   });
 
-  it("starts the entrance from the 0 PPR board: two stay, four arrive, four leave", () => {
-    const e = (id: number) =>
-      entranceOf(heroSlotOf(byId(id), "0 PPR", cmc), heroSlotOf(byId(id), "PPR", cmc), HERO_SLOTS);
-    assert.deepEqual(e(14480), { rows: 5, shown: true }); // the pinned slot -> 1st: starts five rows lower
-    assert.deepEqual(e(344), { rows: -4, shown: true }); // 1st -> 5th
-    assert.deepEqual(e(16153), { rows: 5, shown: false }); // off the board -> 2nd, rising from below
-    assert.deepEqual(e(14406), { rows: -5, shown: true }); // 2nd -> off the board, sinking out
-    const arrive = HERO_BOARD_2025.filter((p) => !e(p.playerId).shown && heroSlotOf(p, "PPR", cmc) !== null);
-    const leave = HERO_BOARD_2025.filter((p) => e(p.playerId).shown && heroSlotOf(p, "PPR", cmc) === null);
-    assert.deepEqual(arrive.map(surname), ["Taylor", "Robinson", "Gibbs", "Nacua"]);
-    assert.deepEqual(leave.map(surname), ["Maye", "Stafford", "Lawrence", "Williams"]);
-  });
-
-  it("keeps Nacua's career line to his 2025 capture, and to finished seasons only", () => {
-    const last = NACUA_SEASONS_PPR[NACUA_SEASONS_PPR.length - 1];
-    assert.equal(last.season, NACUA_2025_PPR.season);
-    assert.equal(last.points, NACUA_2025_PPR.points);
-    assert.equal(last.pointsPerGame, NACUA_2025_PPR.pointsPerGame);
-    assert.equal(last.gamesPlayed, NACUA_2025_PPR.gamesPlayed);
-    assert.equal(last.posRank, NACUA_2025_PPR.posRank);
-    assert.deepEqual(NACUA_SEASONS_PPR.map((s) => s.season), [2023, 2024, 2025]);
+  it("tells the quarterbacks' story in its letters: all of the 0 PPR top five, one of the PPR's", () => {
+    const qbs = (r: Ruleset) =>
+      ONE_BOARD_2025.filter((p) => p.by[r].rank <= 5 && p.position === "QB").length;
+    assert.equal(qbs("0 PPR"), 5);
+    assert.equal(qbs("PPR"), 1);
   });
 });

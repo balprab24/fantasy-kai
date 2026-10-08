@@ -16,7 +16,6 @@ export interface LandingSection {
  * Only what is built: what is coming has a section, not a place in the header.
  */
 export const LANDING_SECTIONS: readonly LandingSection[] = [
-  { id: "scoring", label: "Scoring" },
   { id: "rankings", label: "Rankings" },
   { id: "players", label: "Players" },
 ];

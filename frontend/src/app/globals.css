@@ -137,7 +137,8 @@
      pos-* 5.1 (wr and rb, the lowest) / 4.7 / 5.3 / 4.4
      line-strong 3.6 / 3.3 / 3.7 / 3.05 -- the 3:1 edge of every input and button
    pos-*, q-* and danger fall under 4.5 on lift, so, as with Prime time's faint,
-   none of them sits there: lift holds a selected segment and a tooltip, in ink.
+   none of them sits there: lift holds a selected segment, a tooltip and the
+   landing's followed row (OneBoard), in ink -- energy-text, 5.4, for that row's place.
    ki stays #ff8a3d as a fill (on-ki over it is 8.3:1); as text on paper it is
    2.25:1, which is why ki-text exists. Daylight's WR is teal, not Prime time's
    cyan, so a receiver's letters cannot be read as energy's "you are here".
@@ -435,7 +436,8 @@ a {
   }
 }
 
-/* The landing's re-sort (landing/HeroPlate.tsx), played once: the board stands
+/* A board's one-time re-sort -- the landing hero's entrance until 2026-10-07, and
+   unused since (the hero's rows now travel by transition): played once, the board stands
    in 0 PPR order with its 0 PPR figures, holds long enough to be read, then
    travels into PPR order while each figure turns into its PPR value. Every
    keyframe set names only its start; the end is the element's own style, the
