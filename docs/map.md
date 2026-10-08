@@ -23,7 +23,7 @@ and nothing caught it for two days.
 | HTTP endpoints | **13** — 6 `GET`, members only since 2026-09-29 (the sixth is `/players/{id}/career`, 2026-09-28), 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V6` (`V6`: `players.birth_date`, `teams.logo_url`) |
 | Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
-| Frontend | **Next.js 16 · 78 `.ts`/`.tsx` files** (80 under `frontend/src`) — every page rendered per request since 2026-09-29, under a nonce-based CSP (`src/proxy.ts`). Visual system "Prime time" since 2026-09-30 (branch `feat/kai-identity`; the rulebook is `DESIGN.md`), in two modes: the public pages in **Daylight** (a paper ground with one cool band, since 2026-10-05) -- a landing page at `/` whose hero is one player's 2025 season under 0 PPR / Half PPR / PPR in the product's dark skin, the three formats also the switch for the top of the board under them (since 2026-10-06), then the three boards side by side with one player's climb drawn across them, a full-width band of the product as it looks (the WR board, tiered, and one player opened), one game priced as an equation by a live catch rate and its season as weekly bars that re-price with it, what is coming, and email-first sign-up -- and behind sign-in, in **Prime time**, a top bar, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (cut-out plate, weekly chart, game log, career), ruleset builder; attribution footer on both. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, the landing's captured data and the two modes' token parity, 81 tests, no dependency, and in CI since 2026-09-28 |
+| Frontend | **Next.js 16 · 76 `.ts`/`.tsx` files** (78 under `frontend/src`) — every page rendered per request since 2026-09-29, under a nonce-based CSP (`src/proxy.ts`). Visual system "Prime time" since 2026-09-30 (branch `feat/kai-identity`; the rulebook is `DESIGN.md`), in two modes: the public pages in **Daylight** (a paper ground with one cool band, since 2026-10-05) -- a landing page at `/` (recomposed 2026-10-07, product first) whose hero is the real rankings board for the season being played, in the product's dark skin, running off the page's right edge, opening on a member's own ruleset, with a live scoring switch, re-sorting itself between PPR and that ruleset in a short loop (still under reduced motion), then one board the visitor drives through 0 PPR / Half PPR / PPR as its rows travel, a full-width band of one player opened with the player page's own scoring switch live, and email-first sign-up -- and behind sign-in, in **Prime time**, a top bar, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (cut-out plate, weekly chart, game log, career), ruleset builder; attribution footer on both. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, the landing's captured data and the two modes' token parity, 85 tests, no dependency, and in CI since 2026-09-28 |
 
 | # | Phase | State |
 |---|---|---|
@@ -189,10 +189,13 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    page) and safeNext() -- the sign-in redirect, resolved twice
                                    so `/..//evil` cannot come out as a host
   src/lib/useNextParam.ts          ?next= read without useSearchParams (prerendered routes)
-  src/lib/heroBoard.ts             the landing's boards, derived: a board's top n (nothing when a
-                                   place is missing), the hero's slots (top five + the followed
-                                   player), positional ranks, moves, entrance, and catchCaps() --
-                                   each week split into its 0 PPR base and what the catch rate adds
+  src/lib/heroDemo.ts              the hero board as data: boardLayout() (each row's and tier
+                                   divider's place, in rows and dividers, under a scoring; the
+                                   rest parked below), castOf(), and the loop's beats
+  src/lib/oneBoard.ts              the landing's one board, derived: each player's slot (the top
+                                   eight + one more that follows a player when he is outside
+                                   them), whether that slot skips places, the place it names,
+                                   and how far a player moved
   src/lib/authErrors.ts            one wording for a failed sign-in or sign-up
   src/app/globals.css              the design tokens (DESIGN.md): Prime time in @theme -- true-black
                                    canvas < surface < well < lift, blue rising with elevation;
@@ -213,23 +216,25 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    the landing's sections; its join turns orange only while
                                    neither of the page's asks is on screen), EmailStart (email
                                    and password in one row, the password waiting for step two),
-                                   HeroPlate (McCaffrey's 2025 season as three stops -- 0 PPR /
-                                   Half / PPR, rank, points -- that are also the switch, and the
-                                   top of the board each produces, played once on load) +
-                                   Crossfade (a figure turning from 0 PPR to PPR in the entrance)
-                                   + heroImage (no likeness until one is licensed), ThreeBoards
-                                   (the three boards side by side, Nacua's 20th -> 11th -> 2nd
-                                   drawn across them), ProductBand (a full-width Prime time band:
-                                   the real console and the WR board, tiered, one row lit) +
-                                   PlayerReport (that player opened: season line, weeks,
-                                   seasons), GameToSeason (a live catch rate: one game as
-                                   an equation, the season as weekly bars that re-price with it), CareerLine (a player's
-                                   finished seasons), ComingNext, StillPlate (the board, still,
-                                   beside sign-in and register), previewData (captured 2025
-                                   data, with the GETs that make them; npm test holds it to its
-                                   own totals, to V3's rates, and the receipts to the API's)
+                                   HeroDemo (the hero: a member's own ruleset, "My league", its
+                                   live switch, a loop to PPR and back, Pause/Play under it, still
+                                   under reduced motion) over HeroBoard (the 2026 rankings page cut
+                                   to its scoring switch and rows that travel between four
+                                   captured states, moves counted vs PPR; no avatars), OneBoard (the
+                                   2025 top eight under the chosen preset, rows travelling on a
+                                   switch, Nacua followed 20th -> 11th -> 2nd; waits for the
+                                   visitor), PlayersBand
+                                   (a full-width Prime time band: Nacua's plate, WeeklyChart and
+                                   game log through StatTable, the page's RulesetSwitch live),
+                                   heroImage (no likeness until one
+                                   is licensed), StillPlate (the board, still, beside sign-in and
+                                   register), heroData (the 2026 capture, its week derived from its
+                                   rows) and previewData
+                                   (captured 2025 data), each with the GETs that make them; npm
+                                   test holds them to their own totals, to V3's rates, and every
+                                   game's receipt to the API's)
     ui/                            Icon (inline SVG), SegmentedControl (native radios; track /
-                                   bare / pill), SeasonSelect, SearchField, StatusMessage +
+                                   bare / stops), SeasonSelect, SearchField, StatusMessage +
                                    Skeleton, buttons.ts (the shared button looks)
     rankings/                      RankingsWorkspace (the /rankings page),
                                    FilterBar, PlayerRow, TierHeader, PositionBadge, PlayerAvatar

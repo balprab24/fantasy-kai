@@ -27,27 +27,27 @@ card grids, social proof, cream-and-serif editorial, and one long undifferentiat
 
 OWN-WORLD: Paper ground (#fbfaf7, a white with the faintest warmth, never cream); one cool band
 (#edf1f7) for the alternating section and the footer; the stage (#000) for the product band and the
-hero plate. Navy ink, energy-blue hairlines at low alpha, blue for state, data, the story line and
-the lit row; ki orange only for the one action in view, and as ki-text for a season total. Sofia
+hero's product window. Navy ink, energy-blue hairlines at low alpha, blue for state, data and the lit row; ki orange only for the one action in view, and as ki-text for a season total. Sofia
 Sans in three widths; the extra-condensed italic caps as the voice. Radii 0 / 2 / 4 / 24 / pill.
 
-STORY: A visitor reads RANKED BY YOUR RULES and "fantasy football rankings scored by the settings
-your league actually uses", and beside it one player's season scored three ways, big enough to read
-in a glance: McCaffrey #7 / #1 / #1, 314.6 / 365.6 / 416.6 under 0 PPR / Half PPR / PPR. The three
-formats are also the switch, and the top of the board under them turns from five quarterbacks (0
-PPR) into McCaffrey, Nacua, Robinson (PPR). One rule, three boards: the three boards side by side,
-and one blue line carrying Nacua from 20th to 11th to 2nd. Then the cut to the product: the tiered
-board with Nacua's row lit, and his season opened beside it. Then "your league pays [0 | 0.5 | 1] a
-catch": week 7 as 32.1 + 7 x the rate, and the season as seventeen bars whose blue caps grow and
-shrink with it, 416.6. What is coming, in a short rundown. Join.
+STORY (owner brief 2026-10-07: each section a different part of the product story): a visitor
+reads RANKED BY YOUR RULES and "fantasy football rankings and player pages, scored by your league's
+exact settings", and beside it the product itself -- the 2026 rankings board under a member's own
+ruleset, "My league · Half PPR · 6-pt passing TDs", its moves counted vs PPR, its scoring switch
+live, re-sorting itself to PPR and back (still under reduced motion): your league's rules rewrite
+the rankings. One board, three rulesets: what a catch is worth, alone -- the 2025 board, which the
+visitor switches 0 PPR / Half PPR / PPR, Nacua followed from 20th to 11th to 2nd. Then the cut to
+the product: Nacua opened -- plate, weekly chart, game log -- with the player page's own scoring
+switch live and week 4 (13 catches) lit. Join, with what is coming in one line.
 
-FIRST VIEWPORT: 1440x900. Header 64px on the paper veil: wordmark, Scoring, Rankings, Players,
-Sign in, a secondary Join. Left 5/12: the headline in two lines at ~7.5rem navy italic caps; a 19px
-lead naming fantasy football; a 56px orange "Join the Kai" and "Free. No ads, no paywall." Right
-7/12: the black 24px-radius plate, 695x643 measured -- McCaffrey's name in the display voice, the three
-stops (format, rate, overall rank at display size, points, RB rank, the gain), and six 40px rows of
-the board with movement. At 390: headline, lead, full-width CTA, then the plate's name and its
-three stops inside the first screen.
+FIRST VIEWPORT: 1440x900. Header 64px on the paper veil: wordmark, Rankings, Players,
+Sign in, a secondary Join. Left 37%: the headline in two lines at ~6.6rem navy italic caps; a 19px
+lead that names the product; a 56px orange "Join the Kai" with "Free account. No ads, no paywall.";
+a quiet anchor to the board. Right 63%: the black product window, 624px tall, its ground to the
+browser's edge and its content on the page's right edge -- RANKINGS, "Scored under My league · Half PPR · 6-pt passing TDs", the live scoring switch,
+tier S (Allen, Purdy) and the A tier with their moves vs PPR, which is the poster -- and "2026 rankings · through Week 4"
+under it, from the rows, with the Pause / Play control at its end. At 1024 the same split, five
+rows in view and a sixth under the fade. At 390: headline, lead, full-width CTA, then the window with its first two rows in view.
 
 FORM: Brief-pinned by the owner's 2026-10-05 brief (light, product-led, rhythm through bands, one or
 two dark product moments, both accents in the identity), so no concept seed was rolled: a

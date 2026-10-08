@@ -81,7 +81,9 @@ enough to act on it, because every number can be traced to the stat lines that p
 ## Evidence on Hand
 
 - Real captured API rows for the landing page, 2025 regular season:
-  `frontend/src/components/landing/previewData.ts` (request lines documented there).
+  `frontend/src/components/landing/previewData.ts` (request lines documented there); the hero's
+  2026 boards, captured 2026-10-07 and labelled on the page by the week they run through, in
+  `heroData.ts`.
 - ESPN headshots (600×436 transparent cut-outs) and team logos, hotlinked and never stored, inside
   the member area only. Whether that use is acceptable is an open owner call (docs/map.md §5).
 - No licensed player photography, no testimonials, no customer logos, no usage numbers. None may be
