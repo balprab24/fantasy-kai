@@ -301,12 +301,12 @@ a product you can't open is not one you'll use, and this only gets built if it g
 | **4** | **Vegas in the schema** | `V4` widened `games` with the score, betting and weather columns; `GameIngestor` now reads 18 of the source's 46. No new HTTP source. Measurement corrected the brief three times — moneylines never overflow `SMALLINT`, and `result`/`total` are derived, not stored. **Brief below.** | ✅ |
 | **4.75** | **Toolchain recovery** | Unplanned. The Java 25 bump's JDK lived in `~/.jdk`, which `java_home` does not scan, so the build stopped working and took the daily ingest with it. Enforcer rule added; jjwt, bucket4j and bcprov brought current; **a headless-context bug 130 green tests could not see** fixed. Corrected two measured claims in the docs. | ✅ |
 | **5** | **Auth + web shell** | **5a/5b shipped.** Handoff §8 in full, all twelve rows — Argon2id, JWT, rotating refresh, Bucket4j, `@PreAuthorize`, `@Valid`, HSTS, Dependabot. First write endpoints (`POST/PUT/DELETE /scoring-profiles`). Next.js 16 (see 5c): login, rankings table, player detail, profile switcher, public landing page. Attribution footer. **End of phase = a deployed site you can log into. Brief below.** | ✅ **5a–5d done — live at `www.fantasykai.com` 2026-09-23.** 10/11 acceptance checks since the 2026-09-29 redeploy closed 4c; 4b owed. See `DEPLOY-STEPS.md` |
-| 6 | Projections | `SignalKey`, `player_week_projection`, `ProjectionEngine`, `ExplainedScore`, backtest + published MAE. The heart of "valid reasons for ranking." | |
+| 6 | Projections | `player_week_projection`, `ProjectionEngine`, `ExplainedScore`, backtest + published MAE. The heart of "valid reasons for ranking." **V1 is next week only, with expected bonuses; `SignalKey` moved to Phase 9** — brief below | ⬅ **next** — owner decision 2026-10-08, ahead of 11.5 |
 | 7 | League import | `LeagueProvider` interface. ESPN first (cookie paste, encrypted at rest), **Sleeper in the same phase** to prove the seam is real. ESPN `mSettings.scoringItems` → `Ruleset`, auto-creating your profile. Manual ruleset builder as the fallback for when ESPN breaks — because it will. | |
 | 8 | Roster tools | `LineupOptimizer`, `SeasonSimulator`, `TradeEvaluator`, `WaiverBoard`. §7 made real. | |
 | 9 | Consensus board | FFC ADP ingest + `player_adp` + Sleeper `owned%`/trending → the market board (a members' board since 2026-09-28, §2; it was "the logged-out top 100"). In-season it's rest-of-season; **August 2027 it becomes the draft board** with no rework. | |
 | 10 | iOS (Expo) | ~Nov. Same REST API. Native navigation + push — a webview wrapper fails Apple guideline 4.2 (minimum functionality). | |
-| 11.5 | **Spring Boot 3.5 → 4** | **Now a security obligation with a date on it, not a nicety.** This row said "3.5.16 is the head of its line and current" until 2026-09-21. It is the head of its line **because the line ended**: per [Spring's support policy](https://spring.io/support-policy/), **3.5's OSS support ended 2026-06-30 and 3.5.16 (2026-06-25) was the last OSS release**. Commercial support runs to 2032; free patches do not exist. Consequence already felt — the parent manages Tomcat **10.1.55**, which sits inside the affected range of **all 19 CVEs** fixed in 10.1.56/57/59, four rated Important, and there will never be a 3.5.17 to bump it. `pom.xml` now pins `<tomcat.version>10.1.59</tomcat.version>` as a **stopgap**: it works only for dependencies the parent exposes as a property, and it does nothing about Spring Framework or Spring Security themselves. **The first build blocker is still the one measured twice** — PR #11 and PR #21 both die before a test runs, because Boot 4's `spring-boot-dependencies` no longer manages `org.testcontainers:postgresql` or `:junit-jupiter`, which `pom.xml` declares version-less, so the POM does not parse. Testcontainers BOM or explicit versions, and that is only the error the build reaches *first*. **Do not let 5d slip behind this, and do not let this slip behind the perf pass.** | ⬅ **overdue** |
+| 11.5 | **Spring Boot 3.5 → 4** | **Now a security obligation with a date on it, not a nicety.** This row said "3.5.16 is the head of its line and current" until 2026-09-21. It is the head of its line **because the line ended**: per [Spring's support policy](https://spring.io/support-policy/), **3.5's OSS support ended 2026-06-30 and 3.5.16 (2026-06-25) was the last OSS release**. Commercial support runs to 2032; free patches do not exist. Consequence already felt — the parent manages Tomcat **10.1.55**, which sits inside the affected range of **all 19 CVEs** fixed in 10.1.56/57/59, four rated Important, and there will never be a 3.5.17 to bump it. `pom.xml` now pins `<tomcat.version>10.1.59</tomcat.version>` as a **stopgap**: it works only for dependencies the parent exposes as a property, and it does nothing about Spring Framework or Spring Security themselves. **The first build blocker is still the one measured twice** — PR #11 and PR #21 both die before a test runs, because Boot 4's `spring-boot-dependencies` no longer manages `org.testcontainers:postgresql` or `:junit-jupiter`, which `pom.xml` declares version-less, so the POM does not parse. Testcontainers BOM or explicit versions, and that is only the error the build reaches *first*. **Do not let 5d slip behind this, and do not let this slip behind the perf pass.** | ⬅ **overdue** — and sequenced **after Phase 6** by owner decision on 2026-10-08. The end-of-life risk above is unchanged and keeps accruing while it waits |
 | 11 | Perf pass | Cache → matview → indexes, measuring after each. **Order survives Phase 3.5's finding, expected magnitudes do not** — the matview and index attack the dominant cost (the scan), so they should beat §9's prediction rather than trail it. Sample Postgres CPU, not just the JVM's. Plus the trade simulator as a second endpoint for the ruleset-hash cache. | |
 
 ### What Phase 3.5 found — and why it was worth doing first
@@ -648,6 +648,143 @@ the attack* and then checking the table survived. Auth gets the same treatment:
 
 Prove the constraint by trying to violate it. That is the working agreement, and it is what makes
 these numbers defensible out loud.
+
+### Phase 6 — brief (V1)
+
+Written 2026-10-08 from a read-only inventory of the code, the database and the candidate sources,
+and four owner decisions taken the same day. **No code exists yet; 6a starts when the owner
+approves this section.** Every weight below is a hypothesis for 6a and 6b to measure, per §6's
+credibility requirement.
+
+**The shape is §3.1, unchanged:**
+
+```
+our model -> projected raw stat line (13 StatKey columns + usage)    stored, never points
+          -> ScoringEngine, unmodified                               the code every board uses
+          -> the member's ResolvedRuleset                            their league, their rates
+          -> expected points for that league -> the projected board and the player page
+```
+
+**What already exists to build on** (measured 2026-10-08):
+
+- `player_game_stats` already stores the model's inputs: `pass_att`, `rush_att`, `targets` and
+  `snap_pct` sit beside the 13 `StatKey` columns. **The frozen table needs no change.**
+- `StatLine(position, double[13])` takes fractional values, so a projected line scores through
+  `ScoringEngine.score` as it is. `ScoringProfiles.byId` (ownership + cache), the `ScoringPosition`
+  whitelist and `PointsTally` (for ROS later) are reusable; `StatColumns` needs its hard-coded
+  `s.` alias made a parameter.
+- Vegas: every 2020–2025 regular-season game has a spread and a total (0 of 1,615 missing), so
+  the backtest has lines everywhere. 2026 has them for weeks 1–5 only (79 games): they land about
+  a week ahead. `spread_line` correlates +0.45 with the home margin over 2020–25 — positive means
+  the home side is favoured, measured rather than read from a data dictionary.
+- No preset uses a threshold bonus (V3, on purpose).
+- No projection code, table, branch or TODO exists anywhere — only these docs.
+
+**The source is an internal model, because nothing else qualifies.**
+
+| Candidate | Raw components? | Verdict |
+|---|---|---|
+| Sleeper `GET /projections/nfl/{season}/{week}` | yes — pass/rush/rec yards and TDs, `fum_lost`, 2-pt | **No.** All 3,117 rows for 2026 week 5 say `"company": "rotowire"` (probed 2026-10-08): a licensed provider's expert projections behind an undocumented endpoint. §4 (no expert content, ever) and §9 forbid it |
+| FantasyPros, ESPN projections, ffanalytics-style scrapes | varies | **No.** Same reason; ESPN is league import only (§4, §5) |
+| nflverse `injuries/injuries_{season}.csv` | — | **Yes, as the availability input.** CC BY 4.0, keyed by `gsis_id`; 2024 and 2025 exist for the backtest, 2026 is current through week 5 (probed 2026-10-08) |
+| nflverse ffopportunity (expected fantasy points) | — | Not for V1: it explains a game already played, it does not forecast one. A candidate efficiency input later |
+
+**Owner decisions, 2026-10-08.**
+
+1. **Bonuses are expected, not stepped.** A threshold bonus is non-linear, so scoring the *mean*
+   line would give a back projected for 95 rushing yards nothing and one projected for 101 the whole
+   bonus. Expected points = `ScoringEngine.score(meanLine, rules without bonuses)` + Σ bonus ×
+   P(stat ≥ threshold), with P from per-position residual distributions measured on 2020–25 — the
+   same σ §7 needs for win probability. `ScoringEngine` is not modified, and for a ruleset with no
+   bonuses (every preset) the result is bit-identical to `ScoringEngine.score(meanLine, rules)`.
+2. **V1 is the next unplayed week only.** Rest-of-season needs lines for weeks that have none yet,
+   so it would run on a fallback nothing has validated. ROS is weekly projections scored per week
+   and summed — the score-then-sum invariant — so it is V1.1, and it must exist before Phase 8.
+3. **Phase 6 goes ahead of 11.5.** See row 11.5: the end-of-life risk is unchanged and accruing.
+4. **The backend was redeployed first** (`DEPLOY-STEPS.md`, 2026-10-08), so the projection
+   endpoints land on a members-only API that production actually enforces.
+
+**V1 scope.** QB/RB/WR/TE (the `ScoringPosition` whitelist); the next unplayed regular-season week;
+overall and by position, which the existing filter gives for free; a "Week N projection" section on
+the player page under its existing ruleset switch; a "Projected · Week N" scope on the board.
+Labelled as fantasy-kai's model, with its backtest error beside it.
+
+**The model** — §6's formula, each factor a candidate for the backtest to reject:
+
+| Factor | V1 hypothesis |
+|---|---|
+| `team_volume` | the team's trailing plays and pass/rush split, moved by the implied team total (`total/2 ± spread/2`, derived on read) and by the spread as game script |
+| `player_share` | exponentially weighted target share, carry share and snap share |
+| `efficiency` | yards per target, catch rate, yards per carry, TD and INT rates — each regressed to the positional mean |
+| `availability` | the week's injury report status as a multiplier (Out = 0); no report = 1, said in the explanation |
+| rare stats | 2-pt, `fum_lost`, `ret_td`: a positional rate per touch |
+
+Each of the 13 stats has an explicit rule. **Nothing is silently zero-filled** — the
+`CsvValues.shortValue` trap one layer up.
+
+**Storage — `V7`.**
+
+- `player_week_projection`, keyed `(player_id, season, week, model_version)`, with `game_id`,
+  `team_id`, `generated_at` and the last week of data it used. The 13 `StatKey` columns as `REAL`,
+  generated from `StatKey`; projected usage (`pass_att`, `rush_att`, `targets`); the inputs it used —
+  the `spread_line`/`total_line` snapshot, the shares and efficiencies — which are the explanation's
+  parts; and the injury status. **No points column**, held by a schema test. An index on
+  `(season, week)` is allowed: only `player_game_stats` is frozen.
+- `injury_report`: the nflverse rows, raw (§3.2).
+- Rows are upserted daily and **frozen at kickoff**, so the record of what was projected stays
+  honest and the accuracy file can be re-checked against it.
+
+**Ingest and the job.** An `InjuryIngestor` on `StatIngestor`'s `List<Field>` pattern, header
+verified; optional, so a 404 is `SKIPPED`. A `ProjectionJob` after the 06:00 ET ingest, recorded in
+`ingest_runs` as `fantasykai.projections` so `ingestFreshness` covers it — and runnable headless
+(`OneShotContextTests`; the servlet-bean trap).
+
+**API, members-only by the default-deny chain.**
+
+- `GET /api/v1/projections?profileId&season&week&position&page&size` — the projected board.
+- `GET /api/v1/players/{id}/projection?profileId&week` — the `ExplainedScore`: per stat, value ×
+  rate = points; each bonus's probability and expected points; the factors.
+- A separate endpoint on purpose: `/rankings` and the §9 baseline it carries stay untouched.
+  Scored per request — at most one row per skill player active that season, 578–633 in each of
+  2020–25 (CLAUDE.md) — and no Redis: caching is Phase 11's.
+
+**Missing data degrades the explanation, never the endpoint:** a bye, too little history, Out or
+IR, no line yet (trailing team volume, said so), no injury report (availability 1, said so).
+
+**Deviations from row 6, recorded rather than drifted into.**
+
+- **`SignalKey` and `RankingRecipe` move to Phase 9.** V1's inputs are model features derived from
+  stored stats, not signals blended into a rank; the first real blend is the consensus board.
+- **`ExplainedScore` arrives for projections only.** The existing board still returns bare
+  doubles, so §4's "every ranked number carries its parts" stays untrue of it — written down here
+  rather than discovered later.
+
+**Slices, each its own PR.**
+
+| | Ships | Done when |
+|---|---|---|
+| 6a | Backtest harness + naive baselines (season-to-date and exponentially weighted means): projects week N from weeks < N across 2024–25 | `docs/perf/projection-accuracy.md` has MAE and bias by position under PPR, Half PPR and 0 PPR, MAE per stat, a pinned population, and a leakage test that a mutation breaks |
+| 6b | Model v1 in the harness | it beats the best baseline on overall PPR MAE — **or the baseline ships, labelled as one** |
+| 6c | `V7`, `InjuryIngestor`, `ProjectionJob` | a daily run fills next week's rows and freezes them at kickoff |
+| 6d | Expected-bonus scoring, `ExplainedScore`, the two endpoints | the acceptance tests below |
+| 6e | The player-page section and the board scope | browser-verified at phone and desktop widths |
+
+**Acceptance — each a test, not a checklist item.**
+
+1. `ScoringEngine` is unchanged and its tests pass.
+2. With no bonuses, a projection's expected points are bit-identical to `ScoringEngine.score`.
+3. The same projection under PPR and 0 PPR differs by exactly `rec × 1.0` — proof the projection is
+   a stat line, not points.
+4. Every `StatKey` has a projection column; no column holds points.
+5. Projecting week N reads no row from week N or later — and fails when that filter is mutated.
+6. The parts of an `ExplainedScore` sum to its total.
+7. `QuerySafetyTests` cover every new string parameter; an anonymous call is 401; another member's
+   `profileId` is 404, warm cache included.
+
+**Measure first, in 6a:** the population the MAE is over (it moves MAE more than any weight
+does); how optimistic the stored line is (nflverse keeps one line per game, likely the closing one,
+while a live projection sees Wednesday's); and the injury reports' coverage of skill-position
+player-weeks in 2024–25.
 
 ### Why the draft board is Phase 9 and not Phase 1
 
