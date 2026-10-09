@@ -21,8 +21,10 @@ import java.util.function.Predicate;
  *       opportunity, scaled by the teams playing, among players who have at least one prior
  *       game and a stored row that week. Conditional on playing.</li>
  *   <li><b>P0</b> -- the same ranking among players who appeared in their team's previous
- *       game and whose team plays; a player who then did not play counts as a zero line. The
- *       gap from P is what availability costs, and so the most an injury input could fix.</li>
+ *       game and whose team plays; a player who then did not play counts as a zero line. Every
+ *       point projected for him is error that knowing he was out would remove: that, not the
+ *       gap from P (a different set of players), is what availability costs. Week 1 also
+ *       counts offseason retirements and releases.</li>
  *   <li><b>P-all</b> -- every player with history and a stored row: the board's
  *       population.</li>
  * </ul>

@@ -246,7 +246,7 @@ public final class Backtest {
         md.append("# Projection backtest -- validation (").append(VALIDATION).append(")\n\n");
         md.append("Every choice below was made on this season. Its numbers are optimistic by "
                 + "construction; the test season is the one that counts.\n\n");
-        header(md, data, "");
+        header(md, data, VALIDATION);
 
         md.append("## Baseline grid (").append(VALIDATION).append(", P, PPR)\n\n");
         List<String[]> rows = new ArrayList<>();
@@ -306,7 +306,7 @@ public final class Backtest {
                 .append("; refit on ").append(trainSeasons.get(0)).append("–")
                 .append(trainSeasons.get(trainSeasons.size() - 1)).append(" and evaluated on ")
                 .append(evalSeason).append(".\n\n");
-        header(md, data, frozenCommit);
+        header(md, data, evalSeason);
         body(md, run, "test".equals(stage));
         Files.writeString(OUT.resolve(stage + "-results.md"), md.toString());
         writePredictions(run, stage);
@@ -424,18 +424,34 @@ public final class Backtest {
 
     // ---- the report ------------------------------------------------------------------
 
-    private static void header(StringBuilder md, BacktestData data, String frozenCommit) {
+    /**
+     * The data fingerprint, with every season after {@code throughSeason} withheld. The first
+     * version printed all seasons, so the 2024 validation report showed 2025's league totals
+     * -- a stage must not display the season it is not allowed to see. The sha256 still covers
+     * every row, so the fingerprint stays complete without being readable.
+     */
+    private static void header(StringBuilder md, BacktestData data, int throughSeason) {
         md.append("## Data\n\n");
-        md.append("Local database, regular season only, QB/RB/WR/TE rows. Fingerprint:\n\n");
+        md.append("Local database, regular season only, QB/RB/WR/TE rows. Fingerprint (totals for "
+                + "seasons after ").append(throughSeason).append(" withheld):\n\n");
         for (String line : data.fingerprint()) {
-            md.append("- ").append(line).append('\n');
+            boolean season = line.length() > 4 && line.charAt(4) == ':'
+                    && line.substring(0, 4).chars().allMatch(Character::isDigit);
+            if (!season || Integer.parseInt(line.substring(0, 4)) <= throughSeason) {
+                md.append("- ").append(line).append('\n');
+            }
         }
         String head = System.getenv("BACKTEST_HEAD");
         if (head != null && !head.isBlank()) {
-            md.append("- code: `").append(head).append("`\n");
+            md.append("- code: ").append(head).append('\n');
+        }
+        String since = System.getenv("BACKTEST_SINCE_FREEZE");
+        if (since != null && !since.isBlank()) {
+            md.append("- harness commits since the freeze: ").append(since).append('\n');
         }
         md.append('\n');
     }
+
 
     private static void body(StringBuilder md, Run run, boolean binding) {
         Evaluation e = run.eval();
@@ -571,8 +587,36 @@ public final class Backtest {
         }
         table(md, new String[] {"Population", "n", "Baseline MAE", "Model MAE", "Baseline bias",
             "Model bias"}, rows);
-        md.append("\nP0 − P is roughly what not knowing who is active costs; an injury report is "
-                + "the input that could recover some of it.\n\n");
+        md.append('\n');
+        // What availability costs, measured directly: a P0 player who then sat scores 0, so
+        // every point projected for him is error that knowing he was out would remove. (P0
+        // minus P is not this number -- the two are different sets of players.)
+        int n0 = 0;
+        int sat = 0;
+        int satWeek1 = 0;
+        double satBase = 0;
+        double satModel = 0;
+        for (int i = 0; i < e.cases.size(); i++) {
+            Case c = e.cases.get(i);
+            if (!c.inP0) {
+                continue;
+            }
+            n0++;
+            if (c.actual == null) {
+                sat++;
+                satWeek1 += c.week == 1 ? 1 : 0;
+                satBase += Math.abs(e.points(best, ppr)[i]);
+                satModel += Math.abs(e.points(model, ppr)[i]);
+            }
+        }
+        md.append("In P0, ").append(n(sat)).append(" of ").append(n(n0))
+                .append(" players then did not play (").append(n(satWeek1))
+                .append(" of them in week 1, which includes offseason retirements and releases -- "
+                        + "roster news, not injury news). They were projected ")
+                .append(f3(satModel / Math.max(1, sat))).append(" PPR points each by the model, so "
+                        + "**knowing who is active would remove ").append(f3(satModel / n0))
+                .append(" points of MAE per P0 player-week** (").append(f3(satBase / n0))
+                .append(" for the baseline).\n\n");
 
         bonusSection(md, run);
 

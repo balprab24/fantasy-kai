@@ -3,14 +3,25 @@
 **The question.** Can fantasy-kai project next week's *raw stat lines* well enough to beat simple
 baselines, and are the fantasy points those lines score accurate under real rulesets?
 
-**Status.** Validation (2024) is complete and its choices are frozen in
-[`frozen-config.json`](../../backend/src/test/resources/projection/frozen-config.json). The test
-season (2025) **has not been read**: `scripts/backtest.sh test` refuses to run until that file is
-committed and unmodified. The commit that freezes it is the pre-registration; the test results
-and the verdict land in a later commit.
+**Answer.** Yes, it beats them, but not by enough to ship. Model v1 beats every baseline:
 
-North-star calls the projection model "a hypothesis until this file exists". This file now
-exists, and the hypothesis is still untested on data it did not choose against.
+- at every position;
+- under every ruleset;
+- in every part of the season;
+- on 2025, which it was never tuned on, and on 2026 so far.
+
+Against the best baseline (an exponentially weighted mean, EWMA) the margin is **0.149 PPR points
+per player-week, 2.7%**. That clears zero with room to spare (95% CI [−0.202, −0.097]) and
+misses the **pre-registered 3% materiality bar**. **By the rule fixed before 2025 was read, model
+v1 does not ship.** The likeliest reason, and the next experiment, are at the end.
+
+**Status.**
+
+- The choices were frozen on 2024 in commit `9342065`
+  ([`frozen-config.json`](../../backend/src/test/resources/projection/frozen-config.json)).
+- 2025 was read once, after that commit, through `scripts/backtest.sh test`, which refuses to run
+  until the file is committed and unmodified.
+- The generated reports are in [`projection-backtest/`](projection-backtest/).
 
 ## Reproduce
 
@@ -19,7 +30,7 @@ docker compose up -d                  # the local Postgres on :5433
 ./scripts/backtest.sh validate        # ~6 s; writes backend/target/backtest/validate-results.md
 ./scripts/backtest.sh test            # only once frozen-config.json is committed
 ./scripts/backtest.sh prospective     # 2026 so far, same frozen choices
-cd backend && ./mvnw -B verify        # the 21 unit tests, including the leakage mutation targets
+cd backend && ./mvnw -B verify        # the 22 unit tests, including the leakage mutation targets
 ```
 
 Generated reports are copied into [`projection-backtest/`](projection-backtest/). Two runs on
@@ -62,8 +73,10 @@ Because that ranking is not any candidate's projection, no method can tilt its o
   player needs at least one prior game and a stored row that week. **P is conditional on
   playing.**
 - **P0 (availability).** The same ranking among players who appeared in their team's previous
-  game. Someone who then sits counts as a zero line. P0 − P is roughly what not knowing who is
-  active costs, which is the most an injury input could ever recover.
+  game. Someone who then sits counts as a zero line, so every point projected for him is error
+  that knowing he was out would remove. That sum is what availability costs. It is not P0 − P,
+  because P0 and P are different sets of players. Week 1 also counts offseason retirements and
+  releases.
 - **P-all.** Every player with history and a stored row: the board's population. Headline
   numbers only.
 
@@ -73,7 +86,7 @@ Because that ranking is not any candidate's projection, no method can tilt its o
 | Played for a new team (offseason or trade) | History follows the player. Team features use the week-N team: a roster fact, public before kickoff | 173 |
 | Did not play, in P0 | Zero line | 398 |
 | Bye, or the cancelled 2022 W17 BUF–CIN game | No projection. History is counted in games, not weeks | — |
-| Active, zero stats (snap-only) | **Not stored by our ingest.** Measured on 2024: 849 skill player-games had snaps and no stat row (13%, mostly blocking TEs). Among players averaging ≥3 or ≥5 opportunities per game it is 3.1% or 1.2%. The bias is optimistic, so every MAE here is a little flattering, and it is the same for every method | — |
+| Active, zero stats (snap-only) | **Not stored by our ingest.** Measured on 2024: 849 skill player-games had snaps and no stat row (13%; 466 of them TEs). Among players averaging ≥3 or ≥5 opportunities per game it is 3.1% or 1.2%. The bias is optimistic, so every MAE here is a little flattering, and it is the same for every method | — |
 | Missing `snap_pct` | Left out of the snap EWMA, never read as 0. Positional mean if a player has none | ≤13 rows/season |
 | Partial games (left injured) | Kept as they are. A down-weighting experiment is a candidate | — |
 
@@ -213,7 +226,16 @@ and 4 (bias −0.253). Expect 2025 to land near that line.
 
 ### Every validate run, and what changed between them
 
-The test season was never read during any of these runs.
+**Disclosure: the test season was not fully hidden.** Every validate report's data fingerprint
+printed 2025's league totals (rows, pass yards, rush yards, receptions, receiving yards,
+targets), and I read them. While diagnosing 2024's bias in run 1, I computed 2025's receiving
+yards per target from them. No per-player 2025 row, prediction or error was seen.
+
+The choices made after that are G4, the wider shrinkage grid and the CI-gated rule. None uses
+league-level totals, so none could have been tuned to them. Still, "2025 was never read" would
+not be true. Since the review, a stage withholds every season after the one it evaluates. The
+committed [`validate-2024.md`](projection-backtest/validate-2024.md) is left as it was produced,
+2025 line included, as the record of what was visible.
 
 | Run | Change | What it showed |
 |---|---|---|
@@ -223,6 +245,179 @@ The test season was never read during any of these runs.
 | 4, 5 | No model change. `games` loaded into an ordered map | Byte-identical to each other and to run 3: the result is deterministic |
 | 6 | Report text only: a `\|Bias\|` cell broke a Markdown table | One line differs |
 
-## Test, 2025
+## Test, 2025: the frozen choices, read once
 
-*Not yet run. It lands in the commit after the freeze.*
+Refit on 2021–24. Full report:
+[`projection-backtest/test-2025.md`](projection-backtest/test-2025.md). Population P: 3,807
+player-weeks over 18 weeks, 123 debuts excluded, 179 player-weeks for a new team, 0 games
+without a line.
+
+| 2025, P | MAE 0 PPR | MAE Half | MAE PPR | MAE My league | RMSE PPR | Bias PPR | Spearman PPR |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| A, previous game | 5.923 | 6.443 | 7.026 | 6.750 | 9.444 | +0.460 | 0.313 |
+| B, last 5 games | 4.831 | 5.239 | 5.700 | 5.490 | 7.414 | +0.572 | 0.436 |
+| C, season to date | 4.744 | 5.140 | 5.592 | 5.386 | 7.368 | +0.147 | 0.451 |
+| **D, EWMA h=4 (best baseline)** | 4.682 | 5.069 | 5.512 | 5.312 | 7.121 | +0.544 | 0.470 |
+| Model G1, own history only | 4.572 | 4.948 | 5.387 | 5.182 | 6.958 | +0.195 | 0.486 |
+| Model G2, + team | 4.574 | 4.952 | 5.390 | 5.185 | 6.953 | +0.230 | 0.489 |
+| **Model G3, + the line (chosen)** | **4.547** | **4.925** | **5.363** | **5.153** | **6.907** | +0.375 | **0.499** |
+| Model G4, + opponent | 4.540 | 4.915 | 5.353 | 5.143 | 6.901 | +0.331 | 0.500 |
+
+| Model G3 against D, paired, week-resampled | n | D MAE | G3 MAE | Diff [95% CI] | Improvement |
+|---|---:|---:|---:|---:|---:|
+| **PPR, all** | 3,807 | 5.512 | 5.363 | **−0.149 [−0.202, −0.097]** | **+2.7%** |
+| QB | 543 | 6.763 | 6.523 | −0.240 [−0.394, −0.058] | +3.5% |
+| RB | 1,088 | 5.481 | 5.306 | −0.175 [−0.269, −0.084] | +3.2% |
+| WR | 1,632 | 5.223 | 5.132 | −0.091 [−0.184, −0.004] | +1.7% |
+| TE | 544 | 5.194 | 5.012 | −0.182 [−0.284, −0.080] | +3.5% |
+| Weeks 1–3 | 671 | 5.490 | 5.178 | −0.311 [−0.377, −0.215] | +5.7% |
+| Weeks 4–9 | 1,218 | 5.584 | 5.424 | −0.160 [−0.209, −0.112] | +2.9% |
+| Weeks 10–18 | 1,918 | 5.474 | 5.389 | −0.085 [−0.135, −0.029] | +1.6% |
+| 0 PPR · Half PPR · My league | 3,807 | | | all CIs below 0 | +2.9% · +2.8% · +3.0% |
+
+**The pre-registered rule:**
+
+| # | Criterion | Measured | |
+|---|---|---|---|
+| 1 | PPR CI entirely below 0 | [−0.202, −0.097] | pass |
+| 2 | Improvement ≥ 3% | **+2.7%** (CI on the relative gain ≈ [1.8%, 3.7%]) | **fail** |
+| 3 | No position's CI entirely above 0 | all four entirely *below* 0 | pass |
+| 4 | Absolute bias ≤ 0.5 | +0.375 | pass |
+
+### Prospective, 2026 weeks 1–4 (a footnote: n = 882)
+
+Frozen choices, refit on 2021–25: PPR **+2.9%**, −0.165 [−0.276, −0.057]. 0 PPR +3.6%, Half +3.4%,
+My league +3.2%. QB −0.9% with a CI of [−0.361, 0.591], so no signal either way. Week 4 alone is
+a single resampling cluster, so its interval is degenerate. Full report:
+[`projection-backtest/prospective-2026.md`](projection-backtest/prospective-2026.md).
+
+## The five questions
+
+**1. Does the model beat the simple baselines?** Yes, every one of them, on a season it never
+chose against.
+
+- Against A (previous game) by 1.66 PPR points per player-week.
+- Against C by 0.229 and B by 0.337.
+- Against D, the best and a tuned EWMA, by 0.149 (2.7%), 95% CI [−0.202, −0.097].
+- On 2026 so far, by 0.165 (2.9%).
+
+**2. Where does it beat them?**
+
+- **Early season.** +5.7% in weeks 1–3, where blending last season with shrinkage toward the
+  positional rate matters most.
+- **QB, RB and TE**, by +3.2 to +3.5% each.
+- **Every raw stat on RMSE.** All 28 (position, stat) rows in the test report are better,
+  +0.8% to +6.7%. The largest gains are in the noisy, rare stats the model shrinks: QB pass_td
+  and pass_int +5.1%, fumbles +4.6 to +6.7%, RB rush_att +4.3%.
+- **Ordering.** Rank correlation within a position-week is 0.499 against 0.470.
+
+**3. Where does it fail?**
+
+- **Late season.** +1.6% in weeks 10–18. Once the EWMA has half a season of the player, the model
+  adds little.
+- **WR.** +1.7%, CI only just below 0.
+- **The added context earns almost nothing.**
+  - Team shares and team volume (G2) add nothing in either season; a player's own volume already
+    carries them.
+  - The opponent (G4) was rejected on 2024 and was 0.010 better on 2025: noise.
+  - The line (G3) is worth 0.024 of the 0.149. **84% of the gain is the player's own history,
+    modelled better.** That also bounds the closing-line worry: whatever optimism the stored line
+    carries, it can account for at most about 0.02 points.
+- **Bias swings with the season.** The overall bias is −0.25 in 2024, +0.375 in 2025 and −0.37 in
+  2026. In 2025 passing fell league-wide, and QB pass_yd was over-projected by 12.8 yards a game.
+  The baseline swings too (+0.54 in 2025), so this is a missing league-environment term, not a
+  defect peculiar to the model.
+- **MAE on rare stats.** QB rushing, fumbles, WR rush and rec_td get slightly worse on MAE while
+  improving on RMSE. That is the mean-versus-median effect: MAE rewards predicting the 0.
+- **Expected-value bonuses are not a free win.** The bonus probabilities beat the step on Brier
+  for every bonus with a hit rate above 5% (RB 100 rushing, WR 100 receiving, QB 300 passing) in
+  all three seasons. But they ran high in 2025 (300 passing: 17.5% predicted, 11.8% observed), so
+  in 2025 the expected bonus scored worse than ignoring the bonus (RMSE 6.819 against 6.813, bias
+  +0.36 against +0.06). In 2024 and 2026 it is better on RMSE and bias, and slightly worse on MAE.
+  Keep the decision, because it is the correct estimate, but the probabilities inherit any
+  season-level bias in the mean.
+
+**4. Are raw-stat projections accurate enough after scoring?**
+
+- **They are consistent.** One trained model, four rulesets: the gain is +2.7% to +3.0% under
+  every one. My league (6-point passing TDs) gains most, and PPR minus 0 PPR moves exactly with
+  projected receptions. That is the architecture working: one stat line, every league.
+- **They are not precise.** A single player-week misses by 4.5 (0 PPR) to 5.4 (PPR) points on
+  average, RMSE 6.9 in PPR. Any projected number the product shows needs that error printed
+  beside it, as the brief already says.
+- **Availability costs about six times what the model gains.** In P0, 406 of 3,808 players
+  then sat, and the model projected them 8.24 PPR points each. Knowing who is active would remove
+  **0.879 points of MAE per P0 player-week** (0.915 for the baseline), against the model's whole
+  edge of 0.149.
+  - 65 of the 406 are week 1, which includes offseason retirements and releases (roster news, not
+    injury news). Excluding week 1 the cost is still 0.819.
+  - Week 18 has 40, mostly starters rested.
+  - Measured from that run's `test-predictions.csv`; see "Corrections found in review".
+
+**5. Is the improvement large enough to justify productionizing?** **Not model v1.** It fails
+criterion 2, and the rule was fixed before the test season was read. The gap is small (2.7% against
+3%), so this is "not yet", not "never". That bar exists because the model costs real machinery:
+24 regressions, positional priors, and lines that arrive late. All of it buys 0.15 points per
+player-week.
+
+## Corrections found in review
+
+The review pass (CLAUDE.md, definition of done) ran after the test season was read. It found
+three things wrong in what the committed reports or the first draft of this file say. None of
+them changes a model, a choice or a test-season number.
+
+1. **The availability claim was wrong.** The reports' sentence "P0 − P is roughly what not knowing
+   who is active costs" (0.34 in 2025) mixes two different sets of players. Measured directly, the
+   points projected for P0 players who sat are:
+   - **0.879** per P0 player-week in 2025 (model) and 0.915 (baseline);
+   - 0.858 and 0.899 in 2024.
+
+   The harness now prints that number. The committed
+   [`test-2025.md`](projection-backtest/test-2025.md) and
+   [`prospective-2026.md`](projection-backtest/prospective-2026.md) still carry the old
+   sentence, because they are the single test run and the single prospective run, kept as
+   produced.
+2. **The fingerprint showed the test season during validation** (see the disclosure under "Every
+   validate run"). Now withheld per stage.
+3. **The run label was ambiguous.** "`9342065 + uncommitted changes`" in `test-2025.md` referred
+   to one file: `RulesetJson.java`, a whitespace-only edit left uncommitted on purpose and
+   unrelated to this work. `git status` immediately before that run showed nothing else. The
+   label now names every uncommitted path, and the test stage also prints every harness commit
+   made since the freeze.
+
+Re-running validate after these fixes reproduces every 2024 number byte for byte. Only the
+fingerprint, the code label and the availability sentence differ.
+
+## Why it falls short, and the next experiment
+
+**The most likely reason is an information ceiling.** Every input the model has is a transform
+of the box-score history the EWMA already summarizes. The evidence:
+
+- team shares (G2) and the opponent (G4) add nothing;
+- own-history modelling (G1) carries 84% of the gain;
+- the gain fades from 5.7% to 1.6% as the season gives the EWMA more of the same data.
+
+To beat a well-tuned average materially, the model needs information the average does not have.
+
+**The next experiment.** One model change and two process changes:
+
+1. **Opportunity quality, from data we already download.**
+   - Add `receiving_air_yards`, `target_share` and `air_yards_share` / `wopr`. They are in the
+     same `stats_player_week` file `StatIngestor` reads and drops, so the new-source risk is
+     zero.
+   - Add a league-environment term: trailing league-wide per-team passing and rushing per game,
+     for the season swing in bias.
+   - Red-zone opportunities (play-by-play) are the larger, costlier step after that, because
+     touchdowns carry much of weekly variance.
+2. **Judge it on data no one has seen.** 2025 has now been read. The next model's choices are
+   frozen first and then scored on 2026 weeks as they arrive, under the same rule.
+3. **Measure availability separately.** Score the nflverse injury report's Out/Doubtful
+   designations against P0. Availability, not the stat model, is the largest fixable error, and
+   6c needs it whichever projector ships.
+
+**Owner decision.** The brief's 6b rule allows the alternative: **ship the baseline, labelled as
+one.** 6c's infrastructure is needed whichever projector ships: `V7`, the injury ingest, the
+job, and frozen-at-kickoff rows. So that path is legitimate. It would launch an EWMA projection
+with its measured error (PPR MAE ≈ 5.5) beside it. **My recommendation is to run the experiment
+above first.** It is harness work only, with no table, job or endpoint, and its result decides what the
+infrastructure serves.

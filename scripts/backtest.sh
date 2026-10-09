@@ -62,11 +62,20 @@ export DB_URL="${DB_URL:-jdbc:postgresql://localhost:5433/fantasykai}"
 export DB_USERNAME="${DB_USERNAME:-fantasykai}"
 export DB_PASSWORD="${DB_PASSWORD:-fantasykai}"
 
-head="$(git -C "$repo" rev-parse --short HEAD)"
-if ! git -C "$repo" diff --quiet HEAD -- backend/src scripts/backtest.sh; then
-    head="$head + uncommitted changes"
+# Name exactly what is uncommitted rather than flagging "changes": a whitespace edit to an
+# unrelated file and an edit to the model are not the same claim, and the report is evidence.
+head="\`$(git -C "$repo" rev-parse --short HEAD)\`"
+dirty="$(git -C "$repo" status --porcelain -- backend/src backend/pom.xml scripts/backtest.sh \
+    | awk '{print $2}' | paste -sd ',' - | sed 's/,/, /g')"
+if [[ -n "$dirty" ]]; then
+    head="$head + uncommitted: $dirty"
 fi
 export BACKTEST_HEAD="$head"
+if [[ -n "$frozen_commit" ]]; then
+    since="$(git -C "$repo" log --format=%h "$frozen_commit"..HEAD -- \
+        backend/src/test/java/com/fantasykai/projection scripts/backtest.sh | paste -sd ' ' -)"
+    export BACKTEST_SINCE_FREEZE="${since:-none}"
+fi
 
 cd "$repo/backend"
 ./mvnw -q -B -DskipTests test-compile dependency:build-classpath \
