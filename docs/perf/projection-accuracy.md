@@ -719,3 +719,35 @@ Both stages were run once against the frozen `24d16d1`, with no harness commit s
      nflverse publishes `injuries` and `weekly_rosters`; neither is ingested yet.
   4. **Settle the metric first.** Before any further model experiment, decide whether acceptance
      should stay MAE or move to a mean-calibrated metric, and pre-register it.
+
+## Research backlog and the frozen candidate (owner decision C, 2026-10-09)
+
+**The learned model is not currently justified for production.** Ship the transparent
+weighted-average baseline, and keep evaluating the frozen model prospectively, separately.
+
+**The frozen candidate is research-only.**
+
+- v1′ as frozen at `24d16d1` is not retuned. Its hyperparameter grids are not widened, its
+  features are not reselected, and its threshold and MAE criterion are not changed after the fact.
+- `scripts/backtest.sh v2-prospective` stays as the way to score it as 2026 weeks finish.
+- No production code depends on it. Only a durable advantage beyond the early-season window can
+  reopen the production decision.
+
+**Before learned-model research resumes:**
+
+1. **Pre-register a projection quality metric suited to expected-value forecasting.** v2 found
+   that MAE rewards projecting about a point below the expected value that threshold bonuses and
+   future trade values need: every method's median error is +1.0 to +1.7 PPR while its mean is
+   near 0. Candidates are researched separately. v1 and v2 are **never** re-scored under a new
+   metric and declared successful.
+2. **Availability as its own research question.** Can nflverse `injuries` and `weekly_rosters`
+   materially improve the "will this player actually play?" part, separately from the stat
+   projection?
+
+   ```
+   AVAILABILITY  ×  CONDITIONAL PLAYER PRODUCTION  =  USEFUL WEEKLY PROJECTION
+   ```
+
+   Known pre-game status alone, Out or a reserve list, flagged 153 of 2025's 406
+   projected-but-absent player-weeks, with no player who played flagged. That is the starting
+   point. Predicting whether Questionable players play is out of scope for production V1.
