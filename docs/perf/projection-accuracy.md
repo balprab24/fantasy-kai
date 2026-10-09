@@ -480,7 +480,13 @@ v1's freeze.
 - The v2 stages read `stats_player_week` and `snap_counts` for each season from a gitignored
   `.cache/nflverse/`. Each file is downloaded once, and the reports print its sha256.
 - Every stored skill row from 2020–2024 matched its nflverse row. 0 rows lack air yards.
-- **Zero-stat appearances are added as zero lines**: 730 / 796 / 806 / 851 / 818 in 2020–2024.
+- **Zero-stat appearances are added as zero lines**: 730 / 796 / 806 / 851 / 818 in 2020–2024
+  (687 in 2025, 158 in 2026 weeks 1–4). An independent count made before the harness existed
+  (pfr id to stored rows, without the skill-player filter) found 746 / 816 / 812 / 854 / 823 /
+  689. The harness's extra filter accounts for the small gap.
+- **"Inactive" means no stat row and no offensive snap.** A skill player who only covered kicks
+  counts as inactive here. For fantasy purposes he produced nothing, but the word is broader than
+  the injury report's.
 - Snap rows that couldn't be placed are counted and dropped: 29–46 a season, for a pfr id our
   table lacks or a player who isn't a skill player there. No team mismatches.
 - The week's position replaced today's on 1 / 0 / 11 / 13 / 2 rows.
@@ -568,9 +574,10 @@ These numbers are optimistic by construction.
 - **The environment term fixes bias and costs MAE.**
   - It halves the 2024 bias (−0.30 → −0.10 PPR; WR −0.49 → −0.12), yet MAE rises by 0.028. Two
     reasons:
-    - **The term is under-identified.** Three training seasons give the regression three league
-      levels to learn from, and it fit a negative weight on `env:pass_yd` (QB pass_yd bias
-      went +1.2 → +7.2 in a lower-passing year).
+    - **The term is very likely under-identified.** Three training seasons give the regression
+      three league levels to learn from. The frozen QB pass_yd model (λ = 0.1) put a negative
+      standardized weight on `env:pass_yd` (−4.7), and QB pass_yd bias went +1.2 → +7.2 in a
+      lower-passing year. That is an inference from the fitted weights, not a proof.
     - **MAE is not the mean's metric.** Every method's *median* error is about +1 PPR while
       its mean is near 0. Fantasy points are right-skewed, so the projection that minimizes MAE
       sits about a point below the expected value. Moving a projection toward the true mean, as
@@ -589,6 +596,126 @@ These numbers are optimistic by construction.
 | 2 | Temporary prints of feature distributions and fitted weights, a bug check; removed after | Identical |
 | 3, 4 | Report only: a median-error column, and one duplicated row removed | Choices and the frozen config identical to run 1. Runs 3 and 4 are byte-identical |
 
-## Results (2025 diagnostic, 2026 prospective)
+## Results: 2026 prospective (the acceptance test) and 2025 diagnostic
 
-*Not yet run. They land in the commit after this freeze.*
+Both stages were run once against the frozen `24d16d1`, with no harness commit since the freeze
+(each report says so). Full reports:
+[`v2-prospective-2026.md`](projection-backtest/v2-prospective-2026.md) and
+[`v2-diagnostic-2025.md`](projection-backtest/v2-diagnostic-2025.md).
+
+- **2026 data.** Every stored row matched nflverse. 158 zero-stat appearances were added. 24 snap
+  rows from week 5, still unfinished in the mirror, were left out. ATL–NO counts toward week 4,
+  so all 16 of week 4's games are scored.
+- **The re-run.** After reading the result I added a report-only fragility section: a
+  small-sample t interval, leave-one-week-out, and weeks 1–4 alone. Re-running all three stages
+  reproduces every earlier number. Only that section and the code label differ, and the frozen
+  config is unchanged. That is why the committed `v2-validate-2024.md` gained a section after
+  commit A.
+
+### 2026 weeks 1–4, official population P (896 player-weeks, 33 of them zero-stat appearances)
+
+| PPR | EWMA h=4 | v1 (frozen λ) | **v1′ (candidate)** | v2a | v2b |
+|---|---:|---:|---:|---:|---:|
+| MAE | 5.688 | 5.503 | **5.501** | 5.500 | 5.497 |
+| Improvement | — | +3.2% | **+3.3%**, 95% CI [−0.303, −0.097] | +3.3% | +3.4% |
+| Bias | +0.300 | −0.283 | −0.284 | −0.271 | −0.297 |
+
+**The candidate under every league:**
+
+| | 0 PPR | Half PPR | PPR | My league |
+|---|---:|---:|---:|---:|
+| Improvement | +3.9% | +3.8% | +3.3% | +3.5% |
+
+**By position:**
+
+| | QB | RB | WR | TE |
+|---|---:|---:|---:|---:|
+| Improvement | **−1.8%** | +3.2% | +4.1% | +6.6% |
+| 95% CI | [−0.418, 0.725] | [−0.507, 0.154] | [−0.431, −0.064] | [−0.654, −0.125] |
+
+**By week:**
+
+| | Week 1 | Week 2 | Week 3 | Week 4 |
+|---|---:|---:|---:|---:|
+| Improvement | +2.1% | **+6.5%** | +1.3% | +3.3% |
+
+**The pre-registered rule, binding, on v1′: all four criteria pass.**
+
+| # | Criterion | Measured |
+|---|---|---|
+| 1 | CI entirely below 0 | [−0.303, −0.097] |
+| 2 | Improvement ≥ 3% | **+3.3%** |
+| 3 | No position's CI entirely above 0 | none is |
+| 4 | Absolute bias ≤ 0.5 | −0.284 |
+
+### Is that pass convincing? No.
+
+| Check | 2024 (validation, 18 weeks) | 2025 (diagnostic, 18 weeks) | 2026 (prospective, 4 weeks) |
+|---|---:|---:|---:|
+| Improvement, small-sample t interval | +2.6% [+1.0%, +4.2%] | +2.9% [+1.9%, +3.8%] | +3.3% **[−0.3%, +6.9%]** |
+| Leave one week out | +2.1% to +2.8% | +2.7% to +3.1% | **+2.2% (without week 2)** to +3.9% |
+| Weeks 1–4 only | **+5.1%** | **+5.6%** | +3.3% |
+
+1. **Four clusters cannot carry the interval.**
+   - A percentile bootstrap over 4 weeks has only 256 possible resamples, and it is known to run
+     narrow.
+   - The conventional small-sample interval over the same four weekly differences includes 0.
+   - Under it, criterion 1 would fail.
+2. **One week decides the pass.** Without week 2 the improvement is 2.2%.
+3. **The window is the model's best part of the calendar.** In the same weeks 1–4 the model beat
+   the baseline by 5.1% in 2024 and 5.6% in 2025, then finished those seasons at 2.6% and 2.9%,
+   both short of 3%. Its early edge comes from blending last season and shrinking toward
+   positional rates, and it fades as the weighted average fills with the current season. 2026's
+   +3.3% is *below* the historical pace for this window, which suggests a full season under 3%,
+   not over. That is an inference from two seasons, not a measurement of 2026.
+4. **It is not consistent by position.** QB is worse than the baseline. RB's interval includes 0.
+   WR and TE carry the gain.
+5. **What does hold up:** every one of the four rulesets clears 3% (+3.3% to +3.9%). The edge
+   over the baseline is real in both full seasons, where every t interval excludes 0; in 2026 the
+   bootstrap interval excludes 0 and the t interval does not. It is just not material over a
+   season.
+
+### What the experiment answered
+
+| Question | Answer | Evidence |
+|---|---|---|
+| Do air yards help? | **No** | v2a against v1′: +0.003 in 2024 (CI includes 0) and ±0.1 pp of improvement in 2025 and 2026. Receiving RMSE moves by 0.1% or less in 2024 and by −0.3% to +0.6% in 2026 |
+| Does the league environment help? | **No** | It cut the bias in 2024 (−0.30 → −0.10), raised it in 2025 (+0.345 → +0.402) and left it unchanged in 2026, while MAE got worse in 2024 and 2025. QB passing in low-passing 2025: +11.7 → +13.0 yards over-projected. Three training seasons are too few to learn a league level from |
+| Is the stat model poor, or does availability dominate? | **Availability** | Inactive players, projected and then absent, cost **0.704 / 0.737 / 0.828** PPR MAE per projected player-week in 2024 / 2025 / 2026. The model's whole edge is 0.140 / 0.161 / 0.187, so availability costs 4.4–5× more |
+| Does the corrected dataset change v1's verdict? | **Slightly** | With zero-stat appearances and historical positions, v1's 2025 improvement moves from 2.7% to 2.8% (frozen λ), or 2.9% with λ re-picked (v1′). Still short |
+| Does MAE suit an expected-value model? | **It works against it** | Every method's median error is +1.0 to +1.7 PPR while its mean is near 0. MAE rewards projecting a point below the expected value that bonuses and trades need. The bar is unchanged; this is recorded for the owner to settle before any next experiment, not applied here |
+
+## Decision: C, stop model research and ship the baseline transparently
+
+- **Stated plainly: the pre-registered rule passed.** The candidate met all four criteria on the
+  prospective test. C declines to act on that, for the reason you set in advance: a pass needs
+  *convincing* evidence, and a pass was to be inspected for interval width, consistency by
+  position, a single subgroup carrying it, sample size and the rulesets. Those checks were
+  computed after the result was seen. Treat them as judgement on top of the rule, not as part of
+  the rule. Separately, the candidate is v1′: the hypothesis this experiment tested (air yards, the
+  environment) failed on its own, whatever 2026 shows.
+- **Why not A.** The pre-registered rule passes on 2026 only formally. The evidence behind it is
+  four early-season weeks, carried by one of them, with a small-sample interval that includes
+  zero. In the same window of the two previous seasons, the model ran well ahead of the full-season
+  numbers that then missed the bar. Productionizing on this would be treating 3.3% as proof.
+- **Why not B.** There is no evidence-supported hypothesis for the *stat* model left in data we
+  can reproduce:
+  - the receiving opportunity nflverse adds (air yards) is redundant with the box score;
+  - target share and WOPR were already spanned;
+  - a learned environment term cannot be estimated from three training seasons;
+  - route participation does not exist for 2026.
+
+  The largest error is availability, and that is a different input (the injury report), not a
+  better stat model.
+- **C, specifically:**
+  1. When projections go to production, **ship the EWMA h=4 projection labelled as a baseline**,
+     with its measured error printed beside it: PPR MAE about 5.5 per player-week on the players
+     who appear.
+  2. **Keep the frozen v1′ running prospectively on 2026** as weeks finish. Nothing gets tuned:
+     `scripts/backtest.sh v2-prospective` re-scores the same frozen candidate. If it holds at
+     least 3% over a representative stretch, past the early-season window, with a small-sample
+     interval that excludes 0, that is the evidence that reopens A.
+  3. **Research availability separately.** It is the input worth 4–5× the stat model's edge.
+     nflverse publishes `injuries` and `weekly_rosters`; neither is ingested yet.
+  4. **Settle the metric first.** Before any further model experiment, decide whether acceptance
+     should stay MAE or move to a mean-calibrated metric, and pre-register it.

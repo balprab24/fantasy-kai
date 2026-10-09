@@ -377,6 +377,8 @@ final class ExperimentV2 {
         md.append("\n**").append(c1 && c2 && c3 && c4 ? "All four pass." : "Not all four pass.")
                 .append("** Weekly clusters in this season: ").append(weeks.size()).append(".\n\n");
 
+        fragility(md, e, model, base, ppr);
+
         md.append("## Receiving stats -- where air yards should act (RMSE, P)\n\n");
         rows.clear();
         int[] receiving = {Quantity.TARGETS, Quantity.of(StatKey.REC), Quantity.of(StatKey.REC_YD),
@@ -433,6 +435,88 @@ final class ExperimentV2 {
             "TE", "QB pass_yd", "WR rec_yd"}, rows);
         md.append("\nBias is the mean of projected minus actual; the median error is its median. "
                 + "Position columns are PPR bias; the last two are raw-stat bias in yards.\n");
+        md.append('\n');
+    }
+
+    /** Two-sided 97.5% Student-t quantiles, df 1..20 (above 20, 2.086 is close enough). */
+    private static final double[] T975 = {12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306,
+        2.262, 2.228, 2.201, 2.179, 2.160, 2.145, 2.131, 2.120, 2.110, 2.101, 2.093, 2.086};
+
+    /**
+     * How much a pass or fail should be trusted. Added after the 2026 run, report only -- it
+     * changes no choice and no criterion:
+     *
+     * <ul>
+     *   <li>a Student-t interval over the weekly mean differences. With few weeks a percentile
+     *       bootstrap over weeks is too narrow -- four clusters give only 256 resamples -- and
+     *       the t interval is the conventional small-sample check</li>
+     *   <li>leave-one-week-out: the improvement with each week removed in turn</li>
+     *   <li>weeks 1-4 alone, the prospective window, so a full season can be compared with the
+     *       same slice of the calendar</li>
+     * </ul>
+     */
+    private static void fragility(StringBuilder md, Evaluation e, String model, String base, int ppr) {
+        Map<Integer, double[]> weeks = e.weekly(model, base, ppr, P);
+        double[] diffs = weeks.values().stream().mapToDouble(w -> w[0] / w[2]).toArray();
+        int k = diffs.length;
+        if (k < 2) {
+            md.append("### How fragile is the candidate's result?\n\nOne week: no interval or "
+                    + "leave-one-out is possible.\n\n");
+            return;
+        }
+        double mean = java.util.Arrays.stream(diffs).average().orElse(Double.NaN);
+        double var = 0;
+        for (double d : diffs) {
+            var += (d - mean) * (d - mean);
+        }
+        double se = Math.sqrt(var / (k - 1) / k);
+        double t = T975[Math.min(k - 1, T975.length) - 1];
+        double baseMae = weeks.values().stream().mapToDouble(w -> w[1]).sum()
+                / weeks.values().stream().mapToDouble(w -> w[2]).sum();
+
+        double[] total = new double[3];
+        weeks.values().forEach(w -> {
+            total[0] += w[0];
+            total[1] += w[1];
+            total[2] += w[2];
+        });
+        double lowest = Double.MAX_VALUE;
+        double highest = -Double.MAX_VALUE;
+        int lowestWeek = 0;
+        int highestWeek = 0;
+        for (Map.Entry<Integer, double[]> w : weeks.entrySet()) {
+            double improvement = -(total[0] - w.getValue()[0]) / (total[1] - w.getValue()[1]);
+            if (improvement < lowest) {
+                lowest = improvement;
+                lowestWeek = w.getKey() % 100;
+            }
+            if (improvement > highest) {
+                highest = improvement;
+                highestWeek = w.getKey() % 100;
+            }
+        }
+        double[] early = new double[3];
+        weeks.forEach((key, w) -> {
+            if (key % 100 <= 4) {
+                early[0] += w[0];
+                early[1] += w[1];
+                early[2] += w[2];
+            }
+        });
+
+        md.append("### How fragile is the candidate's result? (report-only, added after the 2026 run)\n\n");
+        List<String[]> rows = new ArrayList<>();
+        rows.add(new String[] {"Weeks (clusters)", Integer.toString(k)});
+        rows.add(new String[] {"Mean weekly diff, t interval (df " + (k - 1) + ")",
+            Backtest.f3(mean) + " [" + Backtest.f3(mean - t * se) + ", " + Backtest.f3(mean + t * se) + "]"
+                + " = " + Backtest.pct(-mean / baseMae) + " [" + Backtest.pct(-(mean + t * se) / baseMae)
+                + ", " + Backtest.pct(-(mean - t * se) / baseMae) + "]"});
+        rows.add(new String[] {"Leave one week out: improvement range",
+            Backtest.pct(lowest) + " (without week " + lowestWeek + ") to " + Backtest.pct(highest)
+                + " (without week " + highestWeek + ")"});
+        rows.add(new String[] {"Weeks 1–4 only", early[2] == 0 ? "n/a"
+            : Backtest.pct(-early[0] / early[1]) + " (n " + Backtest.n((int) early[2]) + ")"});
+        Backtest.table(md, new String[] {"Check", "Value"}, rows);
         md.append('\n');
     }
 

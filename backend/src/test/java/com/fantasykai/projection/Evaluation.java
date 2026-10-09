@@ -211,6 +211,29 @@ final class Evaluation {
     }
 
     /**
+     * Per week: the summed paired difference in absolute error (model minus baseline), the
+     * baseline's summed absolute error, and the count -- the raw material for the fragility
+     * checks a short test season needs.
+     */
+    Map<Integer, double[]> weekly(String model, String baseline, int league, Predicate<Case> filter) {
+        double[] pm = points.get(model)[league];
+        double[] pb = points.get(baseline)[league];
+        Map<Integer, double[]> weeks = new TreeMap<>();
+        for (int i = 0; i < cases.size(); i++) {
+            if (!filter.test(cases.get(i))) {
+                continue;
+            }
+            double em = Math.abs(pm[i] - actual[league][i]);
+            double eb = Math.abs(pb[i] - actual[league][i]);
+            double[] w = weeks.computeIfAbsent(cases.get(i).weekKey(), k -> new double[3]);
+            w[0] += em - eb;
+            w[1] += eb;
+            w[2]++;
+        }
+        return weeks;
+    }
+
+    /**
      * Paired absolute-error difference, model minus baseline, with a 95% percentile CI from
      * a bootstrap that resamples whole weeks. A week is the unit because errors within one
      * share its games, its weather and its injuries; resampling player-weeks as if they were
