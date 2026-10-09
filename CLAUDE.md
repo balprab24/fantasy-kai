@@ -126,6 +126,7 @@ backend/src/test/resources/nflverse/       Real 2024 rows as fixtures — not in
 docs/map.md                                Front door — status board, class map, pipelines
 docs/orientation.md                        Plain-English door — glossary, real-vs-planned
 docs/north-star.md                         Scope, roadmap, product invariants
+docs/projections-v1-architecture.md        Phase 6 V1 production design (proposal; baseline provider)
 docs/fantasy-platform-handoff.md           Engineering rationale (§1/§11 superseded)
 DESIGN.md · PRODUCT.md                     The visual system, and a design-facing digest of
                                            product truth (it owns no facts). Impeccable reads

@@ -653,6 +653,19 @@ these numbers defensible out loud.
 
 ### Phase 6 — brief (V1)
 
+> **Superseded in part on 2026-10-09.** The research closed with decision C: the weighted-average
+> baseline ships, and the learned model stays research. The production design is now
+> [`projections-v1-architecture.md`](projections-v1-architecture.md), a proposal awaiting owner
+> review. Two changes are measured rather than assumed:
+>
+> - **Bonuses use the projected line** through the unchanged `ScoringEngine`, not expected
+>   values (decision #1 below). For the baseline, expected values were worse and the difference
+>   small.
+> - **Availability uses known status only.** Out and reserve are not ranked; Questionable and
+>   Doubtful are badged.
+>
+> The rest of this brief is kept as history.
+
 Written 2026-10-08 from a read-only inventory of the code, the database and the candidate sources,
 and four owner decisions taken the same day. **No code exists yet; 6a starts when the owner
 approves this section.** Every weight below is a hypothesis for 6a and 6b to measure, per §6's
