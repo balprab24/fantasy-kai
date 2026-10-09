@@ -78,6 +78,10 @@ backend/src/main/java/com/fantasykai/
   query/           Phase 3 — JdbcTemplate reads, StatKey-generated SQL, the §8 whitelists
   api/             Phase 3 — controllers, DTOs, RFC 7807 advice; Phase 5 write endpoints
   auth/            Phase 5 — filter chain, JWT, rotating refresh, Argon2id, rate limit
+backend/src/test/java/com/fantasykai/projection/
+                 Phase 6 Slice 1 — the projection backtest. Test-scoped research code, never
+                 in the jar; moves to src/main in 6c only if the verdict is to ship. Timeline.asOf
+                 is the leakage door; ExpectedPoints is the bonus boundary around ScoringEngine
 backend/src/main/resources/db/migration/   Flyway. V1 schema, V2 ingestion support,
                                            V3 presets, V4 Vegas columns, V5 refresh_tokens,
                                            V6 players.birth_date + teams.logo_url
@@ -126,13 +130,14 @@ docs/fantasy-platform-handoff.md           Engineering rationale (§1/§11 super
 DESIGN.md · PRODUCT.md                     The visual system, and a design-facing digest of
                                            product truth (it owns no facts). Impeccable reads
                                            both; .impeccable/surfaces/ holds its direction brief
-docs/perf/                                 baseline.md only so far; projection-accuracy.md (Phase 6)
-                                           and results.md (Phase 11) are owed
+docs/perf/                                 baseline.md; projection-accuracy.md (Phase 6 Slice 1:
+                                           method, frozen choices, results) + projection-backtest/
+                                           (the generated reports); results.md (Phase 11) is owed
 perf/rankings.js                           k6 load script — pins season=2025 on purpose
 scripts/                                   session-check.sh (runs at every session start),
                                            package.sh + lib/jar-state.sh, install-ingest.sh,
                                            launchd plist, ingest-once.sh, perf-explain.sh,
-                                           db-restore.sh (was neon-restore.sh)
+                                           db-restore.sh (was neon-restore.sh), backtest.sh
 .claude/                                   SessionStart hook + the /review-pass command
 ```
 
@@ -163,7 +168,8 @@ scripts/                                   session-check.sh (runs at every sessi
 | 5c.8 — Landing storytelling pass | **Branch `feat/landing-studio`, uncommitted** (2026-10-06) — owner brief: three product visuals, not the page. The hero is McCaffrey's 2025 season as three stops (#7 / #1 / #1 overall, 314.6 / 365.6 / 416.6, "+51.0 from catches") that are also the switch, over a top-five board that follows him (a dashed rule where places are skipped), moves fixed against 0 PPR. "One rule. Three boards." is the three boards to 20th side by side with Nacua's 20th → 11th → 2nd as one line — **new capture**: the 0 PPR and Half PPR top twenty, from the local API. On phones each board names only its top five and Nacua, the rest of the depth a ticked rail. "Your rates" is "Your league pays [0 \| 0.5 \| 1] a catch", week 7 as 32.1 + 7 × the rate, the season as 18 stacked bars. The drawn route left the landing: `HeroReadout`, `RuleSwing`, `SeasonRoute` and `lib/trace.ts` deleted. Fresh Impeccable reviewers: design round 1 FIX (3 P1, 3 P2, 2 P3 — all taken but tap-to-reveal), detector clean (its in-page run is blocked by the site's own CSP, which has no `wasm-unsafe-eval`), one contrast failure (WR teal on Lift, 4.37:1) fixed; verdict pass SHIP, its one P3 regression (phone captions) fixed after. **The app is pixel-identical to before (16 of 16 captures: 4 pages × 4 widths).** **81 frontend unit tests**; 7 of 7 mutations caught, one only after a sixth-place boundary test was added |
 | 5c.9 — Landing direction pass | **Branch `feat/landing-studio`, uncommitted, nothing staged** (2026-10-07) — owner brief: the page read as an analytics report; show the product first. Four rounds, each closed by a fresh reviewer. Each section now tells a different part of the story. **The hero: your league's exact rules rewrite the rankings.** The real 2026 board (captured 2026-10-07, weeks 1–4; 0 PPR, Half PPR, PPR and "My league" boards, top 60 each) opens on a member's own ruleset -- "Scored under My league · Half PPR · 6-pt passing TDs" -- with a **live scoring switch** (a click, arrow key or focus ends the loop and sorts; only a visitor's change is announced) and a "Δ vs PPR" column. It re-sorts itself in an 8 s loop (My league → PPR → My league: Allen 3 → 1, Purdy 7 → 2, Smith-Njigba 1 → 10), three times, only in view, never under reduced motion; no cursor, no fade, Pause/Play under the window. **One board** (2025, "the last full season") is the catch-value story, manual only: Nacua 20th → 11th → 2nd. **The band** is Nacua's player page, switch live, 8-game log behind "Show all 16 games". The settings section and the roadmap block are gone; the roadmap is one line under the form. Page height 5,068 → 3,421 CSS px at 1440, 5,875 → 4,402 at 390; no sideways scroll at six widths; the switch never moves between states (measured 320–1440). **85 frontend unit tests**; every round's mutations caught. Captures from throwaway local accounts, deleted. **Not done:** app pixel captures (no app file changed beyond the landing-only `stops` edge). The app's `WeeklyChart` no-game week labels (measured 2.08:1, faint at 50%) were fixed separately on 2026-10-08, branch `fix/weekly-chart-contrast`: full faint (5.5:1) on every week, and a test refuses an opacity modifier on a text-colour token utility -- not `opacity-*` on an ancestor (87 frontend unit tests) |
 | 5d.1 — security pass | ✅ 2026-09-21 — **Boot 3.5 went OSS-EOL on 2026-06-30 and nobody had checked.** Tomcat pinned to 10.1.59 over the parent's CVE-bearing 10.1.55; the auth rate limiter proved **forgeable at the application layer**; four-day ingest outage found and refilled. See "The EOL clock" below |
-| 6 — Projections · 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
+| 6 — Projections, Slice 1 (backtest) | **Branch `feat/projections-backtest`, not merged** (2026-10-09) — the brief's 6a + 6b in one harness, `backend/src/test/java/com/fantasykai/projection/` (test-scoped, owner decision: Java, not Python). Baselines A–D and a ridge model per (position, stat) over the stats we already ingest; points through the unmodified `ScoringEngine` under 0 PPR / Half / PPR / My league; expected-value bonuses around the engine. Every choice made on 2024 and frozen in `frozen-config.json` at `9342065` **before** 2025 was read; `scripts/backtest.sh test` refuses until that file is committed. **Test 2025: model G3 beats EWMA h=4 by 2.7% PPR MAE, CI [−0.202, −0.097], at every position and under every ruleset — and fails the pre-registered 3% bar, so v1 does not ship.** 84% of the gain is own-history modelling; team shares and opponent add nothing; knowing who is active would remove 0.88 points of MAE, about 6× the model's whole gain. Next: air yards + league environment, judged on 2026. `docs/perf/projection-accuracy.md`. **197 in the suite** (22 new); the `asOf` `<`→`<=` mutation fails 9. The review pass found three reporting faults, none of them in a test-season number, and fixed them; they are listed in the doc |
+| 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
 
 Full roadmap and the reasoning for the order: [`docs/north-star.md`](docs/north-star.md) §10.
@@ -719,6 +725,10 @@ cd backend && ./mvnw spring-boot:run \
 ./scripts/install-ingest.sh
 launchctl list | grep fantasykai        # loaded?
 tail -f logs/ingest.log
+
+# Phase 6 projection backtest (needs Docker Postgres only; ~6 s). validate makes every choice on
+# 2024 and writes frozen-config.json; test refuses to run until that file is committed.
+./scripts/backtest.sh validate | test | prospective
 
 # production: redeploy procedure in deploy/README.md §7, then the acceptance checks
 ./deploy/acceptance.sh                  # 1, 2, 4a, 4c, 5, 6, 7, 9, 10 against the live site

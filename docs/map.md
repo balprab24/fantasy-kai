@@ -17,9 +17,9 @@ and nothing caught it for two days.
 | | |
 |---|---|
 | Phases shipped | **0 → 5c** |
-| Currently next | **Phase 6 — Projections**, V1 brief in north-star §10 (owner decision 2026-10-08). Then **Phase 11.5** — Spring Boot 3.5 → 4, overdue security work. **5d is live** at `https://www.fantasykai.com` since 2026-09-23 |
+| Currently next | **Phase 6 — Projections**, V1 brief in north-star §10 (owner decision 2026-10-08). **Slice 1 (the backtest) done on `feat/projections-backtest`: model v1 +2.7% over the best baseline on 2025, short of the pre-registered 3% — it does not ship; the next step is an experiment** — [`perf/projection-accuracy.md`](perf/projection-accuracy.md). Then **Phase 11.5** — Spring Boot 3.5 → 4, overdue security work. **5d is live** at `https://www.fantasykai.com` since 2026-09-23 |
 | Backend | **81** files · Java 25 / Spring Boot 3.5.16 — **OSS-EOL since 2026-06-30**, Tomcat pinned to 10.1.59 over the parent's 10.1.55. See [`../CLAUDE.md`](../CLAUDE.md) "The EOL clock" |
-| Tests | 20 files · **175 tests**, all green (this row said "17 files" until 2026-09-28; there were 18 — counted with `find`, not recalled) · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 47.5s measured 2026-09-24, 58.2s on 09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
+| Tests | 50 files · **197 tests**, all green — 30 of the files and 22 of the tests are the Phase 6 backtest in `com.fantasykai.projection` (this row said "17 files" until 2026-09-28; there were 18 — counted with `find`, not recalled) · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 47.5s measured 2026-09-24, 58.2s on 09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
 | HTTP endpoints | **13** — 6 `GET`, members only since 2026-09-29 (the sixth is `/players/{id}/career`, 2026-09-28), 4 `/auth`, 3 authenticated mutations |
 | Migrations | `V1` … `V6` (`V6`: `players.birth_date`, `teams.logo_url`) |
 | Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
@@ -458,9 +458,10 @@ colour. Recorded, deliberately not fixed in that milestone.
   corrected to Phase 11. `V1` and `V2` still say "Phase 6" in a comment and **stay that
   way** — Flyway checksums an applied migration, so editing one breaks local startup while
   CI stays green. `V4`'s "Phase 6" is correct; it means Projections.
-- Owed and missing: `perf/results.md` (Phase 11), `perf/projection-accuracy.md` (Phase 6,
-  and north-star calls the whole projection model *"a hypothesis until that file exists"*),
-  and the site attribution footer, owed since Phase 0.
+- Owed and missing: `perf/results.md` (Phase 11) and the site attribution footer, owed since
+  Phase 0. `perf/projection-accuracy.md` exists since 2026-10-09 (Phase 6 Slice 1) — north-star
+  calls the projection model *"a hypothesis until that file exists"*, and its test-season
+  section is what decides it.
 
 No `TODO` or `FIXME` exists anywhere in the repo.
 
