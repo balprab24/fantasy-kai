@@ -45,7 +45,7 @@ cd "$repo" || exit 70
 EXPECT_STAT_ROWS=114479     # CLAUDE.md "Measured numbers" · docs/map.md §1 (re-measured 2026-09-21)
 EXPECT_PLAYERS=25066        # CLAUDE.md "Measured numbers" · docs/map.md §1 (re-measured 2026-09-21)
 EXPECT_GAMES=1965           # docs/map.md §1
-EXPECT_TESTS=175            # docs/map.md §1
+EXPECT_TESTS=196            # docs/map.md §1
 EXPECT_ENDPOINTS=13         # docs/map.md §1 (6 GET, members only + 4 auth + 3 mutations)
 EXPECT_MIGRATIONS=6         # docs/map.md §1 ("V1 … V6")
 EXPECT_BACKEND_FILES=81     # docs/map.md §1
