@@ -8,6 +8,17 @@
 #     ./scripts/backtest.sh test          # the frozen choices, refit on 2021-24, 2025 read once
 #     ./scripts/backtest.sh prospective   # the frozen choices, refit on 2021-25, 2026 so far
 #
+# Experiment v2 (air yards + league environment, on a corrected dataset):
+#
+#     ./scripts/backtest.sh v2-validate     # 2024 picks lambda and the candidate,
+#                                           # writes backend/src/test/resources/projection/frozen-config-v2.json
+#     ./scripts/backtest.sh v2-diagnostic   # frozen; 2025 shown, never chosen on
+#     ./scripts/backtest.sh v2-prospective  # frozen; 2026's finished weeks -- the acceptance test
+#
+# v2 reads two nflverse files per season from .cache/nflverse/ (gitignored), downloading
+# any that are missing exactly once. A cached file is never refreshed behind your back: the
+# reports print every file's sha256, and deleting the cache is how you choose new data.
+#
 # Output lands in backend/target/backtest/ (gitignored): <stage>-results.md,
 # <stage>-predictions.csv, and features.csv from validate.
 #
@@ -22,13 +33,16 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 stage="${1:-validate}"
 case "$stage" in
-    validate|test|prospective) ;;
-    *) echo "usage: $0 [validate|test|prospective]" >&2; exit 2 ;;
+    validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective) ;;
+    *) echo "usage: $0 [validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective]" >&2; exit 2 ;;
 esac
 
 frozen="backend/src/test/resources/projection/frozen-config.json"
+if [[ "$stage" == v2-* ]]; then
+    frozen="backend/src/test/resources/projection/frozen-config-v2.json"
+fi
 frozen_commit=""
-if [[ "$stage" != validate ]]; then
+if [[ "$stage" != validate && "$stage" != v2-validate ]]; then
     if ! git -C "$repo" ls-files --error-unmatch "$frozen" >/dev/null 2>&1; then
         echo "refusing the $stage stage: $frozen is not committed." >&2
         echo "run validate, commit its frozen-config.json, then run $stage." >&2
@@ -71,6 +85,26 @@ if [[ -n "$dirty" ]]; then
     head="$head + uncommitted: $dirty"
 fi
 export BACKTEST_HEAD="$head"
+
+if [[ "$stage" == v2-* ]]; then
+    cache="$repo/.cache/nflverse"
+    mkdir -p "$cache"
+    base="https://github.com/nflverse/nflverse-data/releases/download"
+    last=2026
+    [[ "$stage" == v2-validate ]] && last=2024     # validation never even downloads later seasons
+    [[ "$stage" == v2-diagnostic ]] && last=2025
+    for season in $(seq 2020 "$last"); do
+        for asset in "stats_player/stats_player_week_$season.csv" "snap_counts/snap_counts_$season.csv"; do
+            file="$cache/$(basename "$asset")"
+            if [[ ! -s "$file" ]]; then
+                echo "downloading $(basename "$asset") into the cache" >&2
+                curl -fsSL --retry 3 -o "$file.part" "$base/$asset"
+                mv "$file.part" "$file"
+            fi
+        done
+    done
+    export NFLVERSE_CACHE="$cache"
+fi
 if [[ -n "$frozen_commit" ]]; then
     since="$(git -C "$repo" log --format=%h "$frozen_commit"..HEAD -- \
         backend/src/test/java/com/fantasykai/projection scripts/backtest.sh | paste -sd ' ' -)"

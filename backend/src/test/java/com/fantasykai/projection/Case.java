@@ -25,6 +25,8 @@ final class Case {
     final List<TeamGame> teamHistory;
     /** What this week's opponent allowed, game by game, cut at week N like everything else. */
     final List<DefenseGame> opponentHistory;
+    /** The league's weeks before week N -- every season; the environment reads only this one. */
+    final List<LeagueWeek> leagueHistory;
     final double trailingOpportunity;
 
     /** Primary population: top-N by trailing opportunity among players who played. */
@@ -38,7 +40,7 @@ final class Case {
 
     Case(long playerId, String position, int season, int week, int teamId, Game game,
             PlayerGame actual, List<PlayerGame> history, List<TeamGame> teamHistory,
-            List<DefenseGame> opponentHistory) {
+            List<DefenseGame> opponentHistory, List<LeagueWeek> leagueHistory) {
         this.playerId = playerId;
         this.position = position;
         this.season = season;
@@ -49,6 +51,7 @@ final class Case {
         this.history = history;
         this.teamHistory = teamHistory;
         this.opponentHistory = opponentHistory;
+        this.leagueHistory = leagueHistory;
         this.trailingOpportunity = History.trailingOpportunity(history, position);
     }
 
