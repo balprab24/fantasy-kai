@@ -15,6 +15,11 @@
 #     ./scripts/backtest.sh v2-diagnostic   # frozen; 2025 shown, never chosen on
 #     ./scripts/backtest.sh v2-prospective  # frozen; 2026's finished weeks -- the acceptance test
 #
+# Production parity (Phase 6 Slice 2): the production WeightedAverageProjectionProvider against
+# research baseline D on every 2024-25 player-week, bit for bit, on both research datasets:
+#
+#     ./scripts/backtest.sh parity
+#
 # v2 reads two nflverse files per season from .cache/nflverse/ (gitignored), downloading
 # any that are missing exactly once. A cached file is never refreshed behind your back: the
 # reports print every file's sha256, and deleting the cache is how you choose new data.
@@ -33,8 +38,8 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 stage="${1:-validate}"
 case "$stage" in
-    validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective) ;;
-    *) echo "usage: $0 [validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective]" >&2; exit 2 ;;
+    validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity) ;;
+    *) echo "usage: $0 [validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity]" >&2; exit 2 ;;
 esac
 
 frozen="backend/src/test/resources/projection/frozen-config.json"
@@ -86,13 +91,13 @@ if [[ -n "$dirty" ]]; then
 fi
 export BACKTEST_HEAD="$head"
 
-if [[ "$stage" == v2-* ]]; then
+if [[ "$stage" == v2-* || "$stage" == parity ]]; then
     cache="$repo/.cache/nflverse"
     mkdir -p "$cache"
     base="https://github.com/nflverse/nflverse-data/releases/download"
     last=2026
     [[ "$stage" == v2-validate ]] && last=2024     # validation never even downloads later seasons
-    [[ "$stage" == v2-diagnostic ]] && last=2025
+    [[ "$stage" == v2-diagnostic || "$stage" == parity ]] && last=2025
     for season in $(seq 2020 "$last"); do
         for asset in "stats_player/stats_player_week_$season.csv" "snap_counts/snap_counts_$season.csv"; do
             file="$cache/$(basename "$asset")"

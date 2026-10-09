@@ -76,6 +76,10 @@ public final class Backtest {
                 ExperimentV2.run(stage, connection, frozenCommit);
                 return;
             }
+            if ("parity".equals(stage)) {
+                ProviderParity.run(connection);
+                return;
+            }
             BacktestData data = BacktestData.load(connection);
             List<League> leagues = League.load(connection);
             switch (stage) {

@@ -62,4 +62,12 @@ class OneShotContextTests {
         // whole dependency graph, not just a context that refreshed.
         assertThat(context.getBean(IngestService.class)).isNotNull();
     }
+
+    @Test
+    void theProjectionProviderIsUsableHeadless() {
+        // Phase 6's projection job will run in this same headless context, after the ingest.
+        // The provider has to exist here, chosen by configuration -- not only in a web app.
+        assertThat(context.getBean(com.fantasykai.projections.ProjectionProvider.class).source().id())
+                .isEqualTo("weighted-average-v1");
+    }
 }

@@ -64,26 +64,42 @@ ingested stats (player_game_stats, REG)          roster_week · injury_report (n
 `com.fantasykai.projection`. Production never imports test code. Parity tests point test → main
 only.
 
-## 2. Domain model and provider interface (`com.fantasykai.projections`)
+## 2. Domain model and provider interface (`com.fantasykai.projections`, built in Slice 2)
 
 ```java
 public interface ProjectionProvider {
-    ProjectionSource source();      // id "weighted-average-v1", label "Fantasy-Kai Baseline", summary
-    List<PlayerProjection> project(TargetWeek target, ProjectionInputs inputs);   // batch
+    ProjectionSource source();                            // what made it; persisted beside every line
+    Optional<RawProjection> project(PlayerHistory history);   // raw stats, or nothing
 }
-public interface ProjectionInputs {  // read-only; grows additively for a future provider
-    List<EligiblePlayer> players(TargetWeek t);          // rostered for t, team plays in t
-    List<HistoricalLine> history(long playerId, TargetWeek t);   // stored REG lines strictly before t, oldest first
+record ProjectionSource(String id, String label, String description) {}  // id: versioned, never a class name
+record SeasonWeek(int season, int week) implements Comparable<SeasonWeek> {}   // regular season, 1-18
+record HistoricalGame(SeasonWeek when, double[] stats /*StatKey order*/,
+                      double passAttempts, double carries, double targets) {}  // one appearance
+final class PlayerHistory {                               // the only way a provider sees games
+    static PlayerHistory before(SeasonWeek target, Collection<HistoricalGame> all);  // strictly before target, oldest first
 }
-record TargetWeek(int season, int week) {}
-record HistoricalLine(int season, int week, double[] stats /*StatKey order*/, double[] usage) {}
-record PlayerProjection(long playerId, long gameId, int teamId, double[] stats, double[] usage,
-                        int gamesUsed, String dataThrough) {}   // raw stats, never points
+record RawProjection(ProjectionSource source, SeasonWeek target, double[] stats,
+                     double passAttempts, double carries, double targets,
+                     int gamesUsed, SeasonWeek lastGame) {      // never points
+    StatLine line(String position);                       // what ScoringEngine reads
+}
 ```
 
-- `history()` is the production twin of `Timeline.asOf`. It is the one leakage door, and it gets
-  its own tests.
-- A batch interface lets a future model compute features in bulk.
+- **`PlayerHistory.before` is the one leakage door.** It is the production twin of
+  `Timeline.asOf`, and the cutoff is built into the only way to construct a history.
+  `PlayerHistoryTests` fails if it ever admits the target week.
+- **Selection.** `ProjectionConfig` exposes one `ProjectionProvider` bean, chosen by
+  `fantasykai.projections.provider` (default `weighted-average-v1`). An unknown id stops startup.
+  The bean exists in the headless one-shot context the daily job runs in (`OneShotContextTests`).
+
+**One refinement from the approved sketch, made in Slice 2.** The provider projects **one player
+from his history** instead of taking a batch with eligibility inputs (`ProjectionInputs.players`).
+Which players get projected (rostered, playing that week) is the job's question in Slices 3–4,
+not the provider's.
+
+A future learned provider that needs more than a player's own games (team volume, the line) would
+extend the input. Only the provider and the job, its single caller, would change. Scoring, the
+API and the UI read stored raw lines and `ProjectionSource`, and never see a provider.
 
 ## 3. The weighted-average algorithm (exactly the tested baseline D, `h = 4`)
 
