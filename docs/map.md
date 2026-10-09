@@ -17,7 +17,7 @@ and nothing caught it for two days.
 | | |
 |---|---|
 | Phases shipped | **0 → 5c** |
-| Currently next | **Phase 11.5** — Spring Boot 3.5 → 4, overdue security work (north-star §10). Then Phase 6 — Projections. **5d is live** at `https://www.fantasykai.com` since 2026-09-23 |
+| Currently next | **Phase 6 — Projections**, V1 brief in north-star §10 (owner decision 2026-10-08). Then **Phase 11.5** — Spring Boot 3.5 → 4, overdue security work. **5d is live** at `https://www.fantasykai.com` since 2026-09-23 |
 | Backend | **81** files · Java 25 / Spring Boot 3.5.16 — **OSS-EOL since 2026-06-30**, Tomcat pinned to 10.1.59 over the parent's 10.1.55. See [`../CLAUDE.md`](../CLAUDE.md) "The EOL clock" |
 | Tests | 20 files · **175 tests**, all green (this row said "17 files" until 2026-09-28; there were 18 — counted with `find`, not recalled) · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 47.5s measured 2026-09-24, 58.2s on 09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
 | HTTP endpoints | **13** — 6 `GET`, members only since 2026-09-29 (the sixth is `/players/{id}/career`, 2026-09-28), 4 `/auth`, 3 authenticated mutations |
@@ -35,7 +35,7 @@ and nothing caught it for two days.
 | 4 | Vegas in the schema — `V4` widens `games` by 10 columns | ✅ |
 | 4.75 | Toolchain recovery — JDK 25 located, enforcer rule, deps current, headless-context bug fixed | ✅ |
 | **5** | **Auth + web shell** — Argon2id, JWT, rotating refresh, Bucket4j · Next.js shell | ✅ 5a/5b · 5c · **5d live 2026-09-23** — 10/11 acceptance checks; 4b owed. 4c (three rate-limiter bypasses, fixed in code 2026-09-24) passes since the **2026-09-29 redeploy**. `DEPLOY-STEPS.md` |
-| 6 | Projections — `SignalKey`, `ProjectionEngine`, `ExplainedScore`, published MAE | |
+| 6 | Projections — `ProjectionEngine`, `ExplainedScore`, published MAE (`SignalKey` moved to 9) | ⬅ next — brief in north-star §10 |
 | 7 | League import — `LeagueProvider`, ESPN + Sleeper | |
 | 8 | Roster tools — optimizer, simulator, trade evaluator, waivers | |
 | 9 | Consensus board — FFC ADP + Sleeper rostered% → the market board (members-only since 2026-09-28; it was "the logged-out top 100") | |
