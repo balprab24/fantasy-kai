@@ -319,6 +319,7 @@ scored before a page can be taken. That is the [§9 baseline](perf/baseline.md),
 | Understand a perf number | [`perf/baseline.md`](perf/baseline.md) · reproduce with `scripts/perf-explain.sh` and `perf/rankings.js` |
 | Know why a type was chosen | the migration's own comment — every column carries its measured range |
 | Know what is true right now | `./scripts/session-check.sh` — it runs itself at session start. A `drift` row means a doc is wrong, including this one |
+| Refresh the landing hero's 2026 boards | "Re-capturing the landing hero", below. `session-check.sh`'s `hero` row warns once a week has finished that the capture does not hold |
 | Understand any of this without the jargon | [`orientation.md`](orientation.md) — glossary, real-vs-planned, how a request actually works |
 | Finish a piece of work | [`../CLAUDE.md`](../CLAUDE.md), "Definition of done" · or type `/review-pass` |
 | Run it | [`../README.md`](../README.md) for setup · [`../CLAUDE.md`](../CLAUDE.md) for the full command list |
@@ -326,6 +327,33 @@ scored before a page can be taken. That is the [§9 baseline](perf/baseline.md),
 | Add a screen | a route under `frontend/src/app/`, a hook in `src/lib/queries.ts`, a type in `src/lib/types.ts` |
 | Change how a request is authenticated | `frontend/src/lib/api.ts` — one fetch wrapper, and the only thing that holds the access token |
 | Understand why a build died on the JDK | `pom.xml`'s enforcer rule says it in the error. Background in [`../CLAUDE.md`](../CLAUDE.md) |
+
+### Re-capturing the landing hero
+
+The hero is the real 2026 board under four scorings, **captured** into
+`frontend/src/components/landing/heroData.ts` -- the landing is public and the board is for
+members (north-star §2), so the page cannot fetch it. The page says "through Week N", read off
+the rows (`HERO_THROUGH_WEEK`, the highest `gamesPlayed`), so an old capture is never wrong,
+only old. Nothing refreshes it. `session-check.sh` warns (`hero`) once the schedule has a
+finished regular-season week the capture does not hold.
+
+1. **A current local mirror.** `docker compose up -d`; a backend on :8080
+   (`curl localhost:8080/actuator/health`). If the `hero` row says the mirror is behind:
+   `./scripts/package.sh`, then `./scripts/ingest-once.sh`.
+2. **A throwaway local account**: `POST /api/v1/auth/register` with
+   `landing-capture-<hex>@example.test` and a random 24-byte password; keep the `accessToken`.
+3. **"My league"**: `POST /api/v1/scoring-profiles` with `{name: "My league", rules: "<JSON>"}` --
+   Half PPR's rates with `pass_td` 6 (`MY_LEAGUE_RATES`). `rules` is a JSON *string*, not an object.
+4. **The four boards**: `GET /api/v1/rankings?profileId={1,2,3,<mine>}&season=2026&scope=season&size=200`.
+   Keep each board's top 60, set `espnId` to `null` (the landing shows no likeness), and replace
+   `HERO_BOARDS_2026` keeping its shape. Update `HERO_TOTAL`, and the capture date in the header.
+5. **The story ranks move on purpose.** PPR → My league (Allen 3 → 1, Purdy 7 → 2, Smith-Njigba
+   1 → 10) and 0 PPR → PPR (Smith-Njigba 9 → 1, Lamb 17 → 4) are asserted in
+   `frontend/tests/lib.test.ts`, as is `HERO_THROUGH_WEEK`, and quoted in DESIGN.md, CLAUDE.md
+   row 5c.9 and the `.impeccable` brief. Change the tests deliberately, read
+   what the new week says, and update the prose that quotes it.
+6. **Delete the account** with psql on stdin (`-c` does not interpolate `:'email'`):
+   `DELETE FROM users WHERE email = :'email';` -- tokens and profiles cascade.
 
 ---
 

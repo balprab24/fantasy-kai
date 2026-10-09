@@ -24,7 +24,8 @@ owns explanation, not facts.
 It runs automatically at session start (the `SessionStart` hook in `.claude/settings.json`), and
 by hand any time. It re-derives from the tree and the database what these docs only *claim*:
 toolchain, container health, git and PR state, Flyway checksums against the applied migrations,
-row counts, ingest freshness, jar staleness, and the file/test/endpoint counts written in prose.
+row counts, ingest freshness, jar staleness, the landing hero's capture week against the
+schedule, and the file/test/endpoint counts written in prose.
 
 **Where the check and a doc disagree, the check wins and the doc is what gets fixed** — before
 the session moves on to anything else. A `drift` row is not noise; it is a doc that has started
