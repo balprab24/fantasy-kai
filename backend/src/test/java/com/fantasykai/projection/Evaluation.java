@@ -124,6 +124,28 @@ final class Evaluation {
     }
 
     /**
+     * The median of projected minus actual points. Beside the bias (the mean of the same
+     * errors) it shows which way MAE pulls: fantasy points are right-skewed, so the
+     * prediction that minimises absolute error sits below the mean, and a median error
+     * below zero next to a near-zero bias is that skew showing.
+     */
+    double medianError(String method, int league, Predicate<Case> filter) {
+        double[] p = points.get(method)[league];
+        List<Double> errors = new ArrayList<>();
+        for (int i = 0; i < cases.size(); i++) {
+            if (filter.test(cases.get(i))) {
+                errors.add(p[i] - actual[league][i]);
+            }
+        }
+        if (errors.isEmpty()) {
+            return Double.NaN;
+        }
+        errors.sort(Double::compare);
+        int n = errors.size();
+        return n % 2 == 1 ? errors.get(n / 2) : (errors.get(n / 2 - 1) + errors.get(n / 2)) / 2;
+    }
+
+    /**
      * Mean Spearman rank correlation of projected and actual points within each
      * position-week, weighted by its size -- how well a method orders a board, which is what a
      * member sees. Reported, never optimized.

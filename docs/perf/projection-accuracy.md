@@ -421,3 +421,174 @@ job, and frozen-at-kickoff rows. So that path is legitimate. It would launch an 
 with its measured error (PPR MAE ≈ 5.5) beside it. **My recommendation is to run the experiment
 above first.** It is harness work only, with no table, job or endpoint, and its result decides what the
 infrastructure serves.
+
+---
+
+# Experiment v2: opportunity data and the league environment
+
+*Everything above this line is Slice 1 and stays as it was: v1's method, its frozen choices, its
+NOT YET, and its review disclosures. v2 is a separate experiment with its own freeze.*
+
+**The question.** Can opportunity data nflverse already publishes (air yards), plus a league
+scoring-environment term, push the raw-stat model past the same pre-registered 3% on 2026 weeks
+that no choice has seen?
+
+**Owner decisions (2026-10-09), before any v2 number existed:**
+
+1. **The official acceptance population stays P**: players who appeared. It now correctly
+   includes active zero-stat appearances. P0 (everyone projected before kickoff, inactive scored
+   0) and the inactive slice are diagnostics printed beside it, never the acceptance number.
+   Measured on 2025 *before* this choice, v1 would have cleared 3% on P0 (5.887 → 5.704, 3.11%),
+   largely because it projects fringe players a little lower. Switching populations now would
+   have been redefining success after seeing the result.
+2. **The candidate is chosen by v1's CI-gated rule on 2024**, the same rule that chose G3. Start
+   at v1′ (v1's features on the corrected data). Adopt v2a only if its paired 2024 error CI
+   against v1′ is entirely below 0, then v2b against the winner. v1′, v2a and v2b are all
+   reported regardless.
+
+**Held constant, so a change can be attributed to information rather than to a new search:**
+
+- the G3 structure per position;
+- the λ grid {0.001 … 10} and the λ procedure;
+- the shrinkage grids;
+- half-life 4;
+- the EWMA h=4 baseline;
+- the CI gate;
+- the four ship criteria and the 3% bar.
+
+v1 picked the smallest λ often. The grid was **not** widened, because that observation came after
+v1's freeze.
+
+## What nflverse publishes (measured 2020–2026, definitions verified against the files)
+
+| Feature | nflverse field | Coverage | Ingest status | v2 use |
+|---|---|---|---|---|
+| Receiving air yards | `stats_player_week.receiving_air_yards` | 100% of skill rows with a target, every season | `StatIngestor` downloads, drops | v2a |
+| Team intended air yards | Σ `passing_air_yards` per game-team | 100% | dropped | Air-yard share denominator |
+| Air-yard share | `air_yards_share` = player receiving air yards ÷ **team passing air yards**. Exact to 4 dp in 2021 and 2025; ÷ team *receiving* air yards is off by up to 0.30 | 100% | dropped | v2a, recomputed from raw |
+| Target share | `target_share` = targets ÷ team targets, exact every season | 100% | dropped | **Already in v1** (`tshare`). Not new information |
+| WOPR | `wopr` = 1.5·target_share + 0.7·air_yards_share, exact | 100% | dropped | Not a column: it is spanned by `tshare` + `ayshare` in a linear model |
+| RACR | `racr`, 99.1–99.5% (undefined at 0 air yards) | ~100% | dropped | v2a, recomputed with shrinkage |
+| YAC, first downs, EPA, QB air yards | various | ~100% | dropped | Not used, to keep v2a small and attributable |
+| Route participation | none per player. `pbp_participation` ends 2025; FTN charting is 2024+ without routes | — | — | Not reproducible for 2020–26 |
+| Historical position | `stats_player_week.position`, `snap_counts.position` | 100% | read only to create players | Used. Differs from `players.position` on 0–13 skill rows a season |
+| Active zero-stat games | `snap_counts` offense_snaps > 0 with no stat row | 2020–26 | dropped | Constructed |
+| Availability | `injuries`, `weekly_rosters` | exist | not ingested | Not used (owner scope). Quantified below |
+
+## The corrected dataset (research-only; v1's stages are untouched)
+
+- The v2 stages read `stats_player_week` and `snap_counts` for each season from a gitignored
+  `.cache/nflverse/`. Each file is downloaded once, and the reports print its sha256.
+- Every stored skill row from 2020–2024 matched its nflverse row. 0 rows lack air yards.
+- **Zero-stat appearances are added as zero lines**: 730 / 796 / 806 / 851 / 818 in 2020–2024.
+- Snap rows that couldn't be placed are counted and dropped: 29–46 a season, for a pfr id our
+  table lacks or a player who isn't a skill player there. No team mismatches.
+- The week's position replaced today's on 1 / 0 / 11 / 13 / 2 rows.
+- A game counts as finished when it has a score **or** stored stat rows. The local mirror has
+  2026 week 4's ATL–NO with rows but no score, so v1's prospective run scored 15 of that week's
+  16 games.
+- v1's stages still read the database only. Re-running v1 validate after all of this gives a
+  byte-identical report apart from the code label.
+
+## Feature definitions (all as of week N−1, through `Timeline.asOf`)
+
+**v2a, receiving opportunity.** Added to the RB/WR/TE receiving models (targets, rec, rec_yd,
+rec_td):
+
+- `ewma:air_yards`: air yards per game, h = 4.
+- `ayshare`: Σw his air yards ÷ Σw his team's passing air yards, with the same weights.
+- `x_air_yards`: `ayshare` × the team's weighted passing air yards.
+- `ewma:air_yards*racr`, for rec_yd only. RACR is shrunk with 300 air yards at the positional
+  rate.
+
+**v2b, league environment.** v2a plus two columns on every model:
+
+- For week N of season S: `env:q = ((Σ league q over S's weeks before N + 32·π_q) / (team-games so
+  far + 32)) / π_q`, with π_q the training seasons' per-team-game level.
+- Week 1 is exactly 1. No other season and no later week enters.
+- Columns: `env:q` and `ewma:q*env:q`.
+
+The pseudo-counts (300, 32) were fixed before any run and not tuned.
+
+## Leakage
+
+`V2LeakageTests` builds the league twice, once with weeks 4–6 full of 9999 sentinels in air
+yards, team passing air yards and therefore the league's weekly totals. It also pins week 1 at
+exactly 1 and checks week 3's environment against a hand computation that uses only that
+season.
+
+- Mutating `asOf` to `<=` failed 3 of 3.
+- Letting the environment read every season failed 1.
+
+`NflverseExtrasTests` pins two things. The share denominator is team **passing** air yards. And
+"could not read it" (`NaN`) and "it was zero" stay distinct: a target with no air yards is
+unknown, and no target means 0.
+
+## Protocol
+
+| Stage | Train | Evaluate | Purpose |
+|---|---|---|---|
+| `v2-validate` | 2021–23 | 2024 | λ per variant, the candidate. Writes `frozen-config-v2.json`. Never downloads, reads or builds 2025 or 2026 |
+| `v2-diagnostic` | 2021–24 | 2025 | Regression and bias check. **Nothing chosen**. Refuses until the v2 freeze is committed |
+| `v2-prospective` | 2021–25 | 2026's finished weeks | **The acceptance test**. Same guard |
+
+**Disclosure.** v1's aggregate results on 2026 weeks 1–4 were seen in the last session (the v1
+prospective footnote above). No v2 choice uses them: v2's hypotheses came from the 2025 analysis,
+and every v2 choice is frozen here, before v2 reads 2026. With four weekly clusters the 2026
+interval will be coarse and wide. The 3% bar is not lowered for it.
+
+## Validation, 2024: the candidate
+
+The full report is [`projection-backtest/v2-validate-2024.md`](projection-backtest/v2-validate-2024.md).
+These numbers are optimistic by construction.
+
+| Challenger | Against | Diff in PPR abs. error | 95% CI | Adopted |
+|---|---|---:|---:|---|
+| v2a (+ air yards) | v1′ | +0.003 | [−0.001, 0.007] | no |
+| v2b (+ air yards + environment) | v1′ | **+0.029** | **[0.014, 0.046]** | no. It is *worse*, beyond noise |
+
+**Frozen candidate: v1′.** Neither addition earned a place on 2024.
+
+| 2024, P | EWMA h=4 | v1 (frozen λ) | v1′ | v2a | v2b |
+|---|---:|---:|---:|---:|---:|
+| MAE PPR | 5.493 | 5.355 | 5.353 | 5.356 | 5.381 |
+| Improvement, 95% CI | — | +2.5% | +2.5% [−0.226, −0.061] | +2.5% | +2.0% |
+| Bias PPR (mean error) | +0.058 | −0.300 | −0.302 | −0.287 | **−0.100** |
+| Median error PPR | +1.120 | +1.006 | +0.988 | +1.000 | +1.166 |
+
+**What 2024 already says, before 2026 is read:**
+
+- **Air yards add no information the model lacked.** Every receiving stat's RMSE moves by 0.1%
+  or less, at every position. The feature values were checked and are not broken:
+  - WR air yards are about 58 per game, air-yard share about 0.22 and RACR about 0.77;
+  - the fitted weights are small and offset one another.
+
+  A player's targets, yards per target and yards history already carry what his air yards
+  would say.
+- **The environment term fixes bias and costs MAE.**
+  - It halves the 2024 bias (−0.30 → −0.10 PPR; WR −0.49 → −0.12), yet MAE rises by 0.028. Two
+    reasons:
+    - **The term is under-identified.** Three training seasons give the regression three league
+      levels to learn from, and it fit a negative weight on `env:pass_yd` (QB pass_yd bias
+      went +1.2 → +7.2 in a lower-passing year).
+    - **MAE is not the mean's metric.** Every method's *median* error is about +1 PPR while
+      its mean is near 0. Fantasy points are right-skewed, so the projection that minimizes MAE
+      sits about a point below the expected value. Moving a projection toward the true mean, as
+      the expected points a ruleset needs must, *raises* MAE.
+  - The bar stays MAE. Changing it now would be redefining success. The tension is recorded
+    here because it bounds what any mean-unbiased model can show on this metric.
+- **Availability on 2024.** Inactive players are 307 of 3,808 projected (P0). Knowing who is
+  active would remove 0.704 PPR MAE per projected player (0.751 for the baseline), about five
+  times v1′'s whole edge of 0.140.
+
+### Every v2-validate run
+
+| Run | Change | Effect |
+|---|---|---|
+| 1 | First run of the frozen design | Candidate v1′ |
+| 2 | Temporary prints of feature distributions and fitted weights, a bug check; removed after | Identical |
+| 3, 4 | Report only: a median-error column, and one duplicated row removed | Choices and the frozen config identical to run 1. Runs 3 and 4 are byte-identical |
+
+## Results (2025 diagnostic, 2026 prospective)
+
+*Not yet run. They land in the commit after this freeze.*

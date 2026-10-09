@@ -72,6 +72,10 @@ public final class Backtest {
         Files.createDirectories(OUT);
         try (Connection connection = DriverManager.getConnection(
                 env("DB_URL"), env("DB_USERNAME"), env("DB_PASSWORD"))) {
+            if (stage.startsWith("v2-")) {
+                ExperimentV2.run(stage, connection, frozenCommit);
+                return;
+            }
             BacktestData data = BacktestData.load(connection);
             List<League> leagues = League.load(connection);
             switch (stage) {
@@ -370,13 +374,13 @@ public final class Backtest {
                 chosen, chosen.shrinkage(), chosenOdds);
     }
 
-    private static void featurize(List<Case> cases, Priors priors, double halfLife) {
+    static void featurize(List<Case> cases, Priors priors, double halfLife) {
         for (Case c : cases) {
             c.features = Features.compute(c, priors, halfLife);
         }
     }
 
-    private static double[][] project(List<Case> cases, Baseline baseline) {
+    static double[][] project(List<Case> cases, Baseline baseline) {
         double[][] out = new double[cases.size()][];
         for (int i = 0; i < cases.size(); i++) {
             out[i] = baseline.project(cases.get(i).history, cases.get(i).season);
@@ -384,7 +388,7 @@ public final class Backtest {
         return out;
     }
 
-    private static double[][] predict(ProjectionModel model, List<Case> cases) {
+    static double[][] predict(ProjectionModel model, List<Case> cases) {
         double[][] out = new double[cases.size()][];
         for (int i = 0; i < cases.size(); i++) {
             out[i] = model.predict(cases.get(i));
@@ -430,7 +434,7 @@ public final class Backtest {
      * -- a stage must not display the season it is not allowed to see. The sha256 still covers
      * every row, so the fingerprint stays complete without being readable.
      */
-    private static void header(StringBuilder md, BacktestData data, int throughSeason) {
+    static void header(StringBuilder md, BacktestData data, int throughSeason) {
         md.append("## Data\n\n");
         md.append("Local database, regular season only, QB/RB/WR/TE rows. Fingerprint (totals for "
                 + "seasons after ").append(throughSeason).append(" withheld):\n\n");
@@ -731,7 +735,7 @@ public final class Backtest {
         return out;
     }
 
-    private static String[] intervalRow(String label, Evaluation.Interval i) {
+    static String[] intervalRow(String label, Evaluation.Interval i) {
         return new String[] {label, n(i.n()), f3(i.baseMae()), f3(i.modelMae()), f3(i.diff()),
             "[" + f3(i.lo()) + ", " + f3(i.hi()) + "]", pct(i.relative())};
     }
@@ -789,7 +793,7 @@ public final class Backtest {
 
     // ---- formatting ------------------------------------------------------------------
 
-    private static void table(StringBuilder md, String[] header, List<String[]> rows) {
+    static void table(StringBuilder md, String[] header, List<String[]> rows) {
         md.append("| ").append(String.join(" | ", header)).append(" |\n|");
         for (int i = 0; i < header.length; i++) {
             md.append(i == 0 ? "---|" : "---:|");
@@ -824,7 +828,7 @@ public final class Backtest {
         return String.format(Locale.ROOT, "%.1f%%", 100 * v);
     }
 
-    private static String pass(boolean ok) {
+    static String pass(boolean ok) {
         return ok ? "**pass**" : "**FAIL**";
     }
 }

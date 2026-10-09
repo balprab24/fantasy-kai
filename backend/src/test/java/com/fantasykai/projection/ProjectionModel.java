@@ -39,8 +39,18 @@ final class ProjectionModel {
         G4
     }
 
+    /**
+     * @param opportunity Experiment v2a: air-yard columns on the receiving models
+     * @param environment Experiment v2b: the league scoring environment on every model
+     */
     record Config(Group group, boolean pooledReceiving, boolean pooledRushing,
-            Map<String, Double> lambdas) {}
+            boolean opportunity, boolean environment, Map<String, Double> lambdas) {
+
+        /** v1's shape: no v2 columns. */
+        Config(Group group, boolean pooledReceiving, boolean pooledRushing, Map<String, Double> lambdas) {
+            this(group, pooledReceiving, pooledRushing, false, false, lambdas);
+        }
+    }
 
     /** A ridge model: a position (or a pooled family of positions) and the stat it projects. */
     record Key(String scope, int q) {
@@ -136,6 +146,33 @@ final class ProjectionModel {
      * can weight rather than a formula fixed in advance.
      */
     static List<String> columns(int q, Group group, boolean pooled) {
+        return columns(q, group, pooled, false, false);
+    }
+
+    /**
+     * v1's columns, plus Experiment v2's when asked for. v2a adds receiving opportunity from
+     * air yards to the receiving models only; v2b adds the league environment to every model.
+     * WOPR is not a column: it is 1.5 × target share + 0.7 × air-yard share, and both are
+     * already columns, so a linear model can form any weighting of them it likes.
+     */
+    static List<String> columns(int q, Group group, boolean pooled, boolean opportunity,
+            boolean environment) {
+        List<String> v1 = columnsV1(q, group, pooled);
+        Set<String> cols = new LinkedHashSet<>(v1);
+        if (opportunity && RECEIVING.contains(q)) {
+            cols.addAll(List.of("ewma:air_yards", "ayshare", "x_air_yards"));
+            if (q == q(StatKey.REC_YD)) {
+                cols.add("ewma:air_yards*racr");
+            }
+        }
+        if (environment) {
+            String n = Quantity.name(q);
+            cols.addAll(List.of("env:" + n, "ewma:" + n + "*env:" + n));
+        }
+        return List.copyOf(cols);
+    }
+
+    private static List<String> columnsV1(int q, Group group, boolean pooled) {
         String n = Quantity.name(q);
         Rate efficiency = efficiencyOf(q);
         Set<String> cols = new LinkedHashSet<>(List.of("ewma:" + n, "std:" + n, "last:" + n,
@@ -216,13 +253,22 @@ final class ProjectionModel {
     }
 
     static int[][] design(Key key, Group group) {
+        return design(key, new Config(group, false, false, Map.of()));
+    }
+
+    static int[][] design(Key key, Config config) {
         boolean pooled = key.scope().endsWith("*");
-        return compile(columns(key.q(), group, pooled));
+        return compile(columns(key.q(), config.group(), pooled, config.opportunity(),
+                config.environment()));
     }
 
     /** Fits one key's ridge on the rows it covers. Exposed for the validation-season λ search. */
     static Ridge fitKey(Key key, Group group, List<Case> train, double lambda) {
-        int[][] design = design(key, group);
+        return fitKey(key, new Config(group, false, false, Map.of()), train, lambda);
+    }
+
+    static Ridge fitKey(Key key, Config config, List<Case> train, double lambda) {
+        int[][] design = design(key, config);
         List<Case> rows = train.stream().filter(c -> covers(key, c)).toList();
         double[][] x = new double[rows.size()][];
         double[] y = new double[rows.size()];
@@ -243,8 +289,8 @@ final class ProjectionModel {
             if (lambda == null) {
                 throw new IllegalArgumentException("no λ chosen for " + key);
             }
-            ridges.put(key.toString(), fitKey(key, config.group(), train, lambda));
-            designs.put(key.toString(), design(key, config.group()));
+            ridges.put(key.toString(), fitKey(key, config, train, lambda));
+            designs.put(key.toString(), design(key, config));
         }
 
         // The shrinkage for each rare pair is chosen on the training rows themselves: each

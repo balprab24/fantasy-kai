@@ -23,33 +23,52 @@ final class Fixture {
     Fixture schedule(int season, int fromWeek, int toWeek) {
         for (int week = fromWeek; week <= toWeek; week++) {
             long id = season * 100L + week;
-            games.put(id, new Game(id, season, week, HOME, AWAY, 3.0, 45.0, true));
+            games.put(id, new Game(id, season + "_" + week, season, week, HOME, AWAY, 3.0, 45.0, true));
         }
         return this;
     }
 
-    /** A stat line for a player: receptions, receiving yards and targets, everything else 0. */
+    /**
+     * A stat line for a player: receptions, receiving yards and targets, everything else 0.
+     * Air yards stand in as 1.2 × receiving yards unless {@link #wrAir} gives them.
+     */
     Fixture wr(long player, int team, int season, int week, double rec, double recYd, double targets) {
+        return wrAir(player, team, season, week, rec, recYd, targets, 1.2 * recYd);
+    }
+
+    Fixture wrAir(long player, int team, int season, int week, double rec, double recYd,
+            double targets, double airYards) {
         double[] line = new double[Quantity.COUNT];
         line[Quantity.of(StatKey.REC)] = rec;
         line[Quantity.of(StatKey.REC_YD)] = recYd;
         line[Quantity.TARGETS] = targets;
-        return row(player, "WR", team, season, week, line);
+        return row(player, "WR", team, season, week, line, airYards);
     }
 
-    /** Sets a team's volume for one game; unset games default to 30 / 25 / 30. */
+    /** Sets a team's volume for one game; unset games default to 30 / 25 / 30 and 250 air yards. */
     Fixture volume(int team, int season, int week, int passAtt, int rushAtt, int targets) {
+        return volume(team, season, week, passAtt, rushAtt, targets, 250);
+    }
+
+    Fixture volume(int team, int season, int week, int passAtt, int rushAtt, int targets,
+            double passAirYards) {
         long gameId = season * 100L + week;
-        teamGames.put(gameId + ":" + team, new TeamGame(team, gameId, season, week, passAtt, rushAtt, targets));
+        teamGames.put(gameId + ":" + team,
+                new TeamGame(team, gameId, season, week, passAtt, rushAtt, targets, passAirYards));
         return this;
     }
 
     Fixture row(long player, String position, int team, int season, int week, double[] line) {
+        return row(player, position, team, season, week, line, 0);
+    }
+
+    Fixture row(long player, String position, int team, int season, int week, double[] line,
+            double airYards) {
         long gameId = season * 100L + week;
         TeamGame t = teamGames.computeIfAbsent(gameId + ":" + team,
-                k -> new TeamGame(team, gameId, season, week, 30, 25, 30));
-        players.computeIfAbsent(player, id -> new ArrayList<>()).add(
-                new PlayerGame(player, position, gameId, season, week, team, 80.0, line, 0, t));
+                k -> new TeamGame(team, gameId, season, week, 30, 25, 30, 250));
+        players.computeIfAbsent(player, id -> new ArrayList<>()).add(new PlayerGame(player, position,
+                gameId, season, week, team, 80.0, line, 0, t, airYards, false));
         return this;
     }
 
@@ -58,7 +77,7 @@ final class Fixture {
         for (Game g : games.values()) {
             for (int team : new int[] {HOME, AWAY}) {
                 teamGames.computeIfAbsent(g.id() + ":" + team,
-                        k -> new TeamGame(team, g.id(), g.season(), g.week(), 30, 25, 30));
+                        k -> new TeamGame(team, g.id(), g.season(), g.week(), 30, 25, 30, 250));
             }
         }
         Map<Long, Timeline<PlayerGame>> timelines = new TreeMap<>();
@@ -89,6 +108,7 @@ final class Fixture {
 
         Map<Integer, List<Game>> byWeek = new TreeMap<>();
         games.values().forEach(g -> byWeek.computeIfAbsent(g.key(), k -> new ArrayList<>()).add(g));
-        return new BacktestData(timelines, teams, defenses, games, byWeek, List.of());
+        return new BacktestData(timelines, teams, defenses, BacktestData.league(players, teamGames),
+                games, byWeek, List.of());
     }
 }

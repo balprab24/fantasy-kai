@@ -26,6 +26,16 @@ final class Features {
      */
     static final double OPPONENT_PSEUDO_GAMES = 4;
 
+    /** RACR is blended with this many air yards at the positional rate (v2a; fixed, not tuned). */
+    static final double RACR_PSEUDO_AIR_YARDS = 300;
+
+    /**
+     * The scoring environment is blended with this many team-games at the training seasons'
+     * level -- about two weeks of a full slate -- so week 2 is not judged on one week (v2b;
+     * fixed, not tuned).
+     */
+    static final double ENVIRONMENT_PSEUDO_TEAM_GAMES = 32;
+
     static final List<String> NAMES;
     private static final Map<String, Integer> INDEX = new HashMap<>();
 
@@ -39,7 +49,9 @@ final class Features {
             names.add("prior:" + n);
             names.add("lsum:" + n);
             names.add("opp:" + n);
+            names.add("env:" + n);
         }
+        names.addAll(List.of("ewma:air_yards", "ayshare", "x_air_yards", "racr"));
         names.addAll(List.of("lweight", "returns", "snap_ewma", "snap_last", "log_games",
                 "no_season_games", "tshare", "cshare", "pshare", "team_pass", "team_rush",
                 "team_tgt", "x_targets", "x_carries", "x_pass_att"));
@@ -155,10 +167,111 @@ final class Features {
         f[index("pos:" + c.position)] = 1;
 
         double[] opponent = opponentFactor(c, priors, halfLife);
+        double[] environment = environment(c, priors);
         for (int q = 0; q < Quantity.COUNT; q++) {
             f[index("opp:" + Quantity.name(q))] = opponent[q];
+            f[index("env:" + Quantity.name(q))] = environment[q];
         }
+        airYards(c, priors, halfLife, f);
         return f;
+    }
+
+    /**
+     * Receiving opportunity from air yards (v2a), over the games whose air yards are known.
+     *
+     * <ul>
+     *   <li>{@code ewma:air_yards} -- intended air yards per game, weighted like everything
+     *       else</li>
+     *   <li>{@code ayshare} -- his air yards over his team's passing air yards in the same
+     *       games: nflverse's {@code air_yards_share}, verified to be that ratio</li>
+     *   <li>{@code x_air_yards} -- that share times the team's weighted passing air yards, as
+     *       {@code x_targets} is for targets</li>
+     *   <li>{@code racr} -- receiving yards per air yard, long-weighted and shrunk</li>
+     * </ul>
+     *
+     * A player with no known air yards takes the positional mean, never a zero.
+     */
+    private static void airYards(Case c, Priors priors, double halfLife, double[] f) {
+        List<PlayerGame> h = c.history;
+        int n = h.size();
+        double air = 0;
+        double weights = 0;
+        double shareAir = 0;
+        double teamAir = 0;
+        double longAir = 0;
+        double longRecYd = 0;
+        for (int i = 0; i < n; i++) {
+            PlayerGame game = h.get(i);
+            if (Double.isNaN(game.airYards())) {
+                continue;
+            }
+            double w = History.weight(n - 1 - i, halfLife);
+            air += w * game.airYards();
+            weights += w;
+            // The share counts only games where both sides of the ratio are known.
+            if (!Double.isNaN(game.team().passAirYards())) {
+                shareAir += w * game.airYards();
+                teamAir += w * game.team().passAirYards();
+            }
+            double lw = History.weight(n - 1 - i, LONG_HALF_LIFE);
+            longAir += lw * game.airYards();
+            longRecYd += lw * game.line()[Quantity.of(com.fantasykai.scoring.StatKey.REC_YD)];
+        }
+        double share = teamAir > 0 ? shareAir / teamAir : 0;
+        f[index("ewma:air_yards")] = weights > 0 ? air / weights : priors.airPerGame(c.position);
+        f[index("ayshare")] = share;
+        f[index("x_air_yards")] = share * teamPassAir(c.teamHistory, halfLife, priors);
+        double racrDenominator = longAir + RACR_PSEUDO_AIR_YARDS;
+        f[index("racr")] = racrDenominator > 0
+                ? (longRecYd + RACR_PSEUDO_AIR_YARDS * priors.racr(c.position)) / racrDenominator
+                : priors.racr(c.position);
+    }
+
+    private static double teamPassAir(List<TeamGame> th, double halfLife, Priors priors) {
+        double sum = 0;
+        double total = 0;
+        int n = th.size();
+        for (int i = 0; i < n; i++) {
+            if (!Double.isNaN(th.get(i).passAirYards())) {
+                double w = History.weight(n - 1 - i, halfLife);
+                sum += w * th.get(i).passAirYards();
+                total += w;
+            }
+        }
+        return total > 0 ? sum / total : priors.teamPassAir();
+    }
+
+    /**
+     * The league's scoring environment this season so far, per quantity, as a multiple of the
+     * training seasons' level (v2b).
+     *
+     * <pre>
+     * env:q = ((Σ league q over this season's weeks before N + K·π_q) / (team-games so far + K)) / π_q
+     * </pre>
+     *
+     * π_q is the training seasons' per-team-game mean and K is
+     * {@link #ENVIRONMENT_PSEUDO_TEAM_GAMES}. Week 1 is exactly 1. It reads
+     * {@link Case#leagueHistory} -- already cut at week N by {@link Timeline#asOf} -- and only
+     * the weeks of the season being projected, never another season and never week N.
+     */
+    static double[] environment(Case c, Priors priors) {
+        double[] sum = new double[Quantity.COUNT];
+        double games = 0;
+        for (LeagueWeek week : c.leagueHistory) {
+            if (week.season() == c.season) {
+                games += week.teamGames();
+                for (int q = 0; q < Quantity.COUNT; q++) {
+                    sum[q] += week.totals()[q];
+                }
+            }
+        }
+        double k = ENVIRONMENT_PSEUDO_TEAM_GAMES;
+        double[] env = new double[Quantity.COUNT];
+        for (int q = 0; q < Quantity.COUNT; q++) {
+            double base = priors.leaguePerTeamGame(q);
+            env[q] = base == 0 ? 1 : ((sum[q] + k * base) / (games + k)) / base;
+        }
+        return env;
     }
 
     /**

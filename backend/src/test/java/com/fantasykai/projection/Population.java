@@ -91,9 +91,13 @@ final class Population {
                     teamChanges++;
                 }
                 int opponent = game.homeTeamId() == team ? game.awayTeamId() : game.homeTeamId();
-                Case c = new Case(entry.getKey(), last.position(), season, week, team, game,
+                // This week's position when he has a row (a roster designation, public before
+                // kickoff); his last game's otherwise. Constant per player in v1's dataset.
+                String position = actual != null ? actual.position() : last.position();
+                Case c = new Case(entry.getKey(), position, season, week, team, game,
                         actual, history, data.teams().get(team).asOf(season, week),
-                        data.defenses().get(opponent).asOf(season, week));
+                        data.defenses().get(opponent).asOf(season, week),
+                        data.league().asOf(season, week));
                 c.inPAll = actual != null;
                 thisWeek.add(c);
                 eligibleP0.put(c, p0);
