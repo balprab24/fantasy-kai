@@ -444,6 +444,29 @@ describe("the two modes' tokens (globals.css)", () => {
   });
 });
 
+describe("text colours are used at full strength", () => {
+  // Every text pair in globals.css and DESIGN.md is measured at the token's own
+  // value. An opacity modifier on a text colour (`text-faint/50`) is a new,
+  // unmeasured colour: the weekly chart's no-game weeks were 2.08:1 that way.
+  const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
+  const colours = [...new Set([...css.matchAll(/--color-([\w-]+):/g)].map((m) => m[1]))];
+  const src = new URL("../src/", import.meta.url);
+  const files = readdirSync(src, { recursive: true, encoding: "utf8" }).filter((f) => /\.tsx?$/.test(f));
+
+  it("finds the colours and the sources it checks", () => {
+    assert.ok(colours.includes("faint") && colours.includes("ink"), "no colour tokens parsed from globals.css");
+    assert.ok(files.some((f) => f.endsWith("WeeklyChart.tsx")), "no component sources found");
+  });
+
+  it("never fades a text colour with an opacity modifier", () => {
+    const faded = new RegExp(`(?<![\\w-])text-(?:${colours.join("|")})/\\d+`, "g");
+    const hits = files.flatMap((f) =>
+      [...readFileSync(new URL(f, src), "utf8").matchAll(faded)].map((m) => `${f}: ${m[0]}`),
+    );
+    assert.deepEqual(hits, []);
+  });
+});
+
 describe("the landing's captured boards", () => {
   it("draws the 2025 PPR board from rank 1 with no gaps, the order tiers need", () => {
     assert.equal(PPR_2025.length, 60);
