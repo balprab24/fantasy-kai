@@ -655,8 +655,8 @@ these numbers defensible out loud.
 
 > **Superseded in part on 2026-10-09.** The research closed with decision C: the weighted-average
 > baseline ships, and the learned model stays research. The production design is now
-> [`projections-v1-architecture.md`](projections-v1-architecture.md), a proposal awaiting owner
-> review. Two changes are measured rather than assumed:
+> [`projections-v1-architecture.md`](projections-v1-architecture.md), approved by the owner on
+> 2026-10-09. Two changes are measured rather than assumed:
 >
 > - **Bonuses use the projected line** through the unchanged `ScoringEngine`, not expected
 >   values (decision #1 below). For the baseline, expected values were worse and the difference

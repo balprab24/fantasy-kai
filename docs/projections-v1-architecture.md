@@ -1,11 +1,28 @@
-# Projections V1: architecture (proposed, awaiting owner review)
+# Projections V1: architecture (approved 2026-10-09)
 
 *Written 2026-10-09, after the research closed with **decision C**
 ([`perf/projection-accuracy.md`](perf/projection-accuracy.md)).*
 
-**Status: a proposal.** No production projection code exists. Slice 2 starts only after the owner
-reviews this. north-star's Phase 6 brief (§10) points here, and where they disagree this document
+**Status: approved by the owner on 2026-10-09.** Slice 2 (the provider and its parity tests) is
+the first code. north-star's Phase 6 brief (§10) points here, and where they disagree this document
 is the newer intent.
+
+**The approved decisions, verbatim in substance:**
+
+1. **Bonuses are scored on the projected line.** Projected raw stats go through the existing
+   deterministic `ScoringEngine`, with no expected-value bonus scoring in V1. The research
+   finding is kept: expected-value bonuses differed by about 0.20 points on average and were
+   slightly worse for the weighted baseline (§5).
+2. **Availability uses known information only.**
+   - `Out` and applicable reserve lists are excluded from the projection rankings.
+   - `Questionable` and `Doubtful` players stay projected and ranked, with a visible status.
+   - Injury availability is not predicted (§6).
+   - **No unexplained disappearance.** A player excluded for availability keeps his stored
+     projection. His page says a projection exists and that he is unavailable, and the board
+     says who it left out (§6, §9, §11).
+3. **New nflverse inputs:** the weekly roster and injury report feeds, in Slice 4, not Slice 2.
+4. **No NFL history, no projection.** 1–3 games get a projection, later labelled
+   `Limited history`. No rookie priors, nothing fabricated (§7).
 
 V1 ships the **weighted-average baseline** (research baseline D, EWMA h = 4) behind a provider
 boundary. Swapping in a learned provider later changes one class and one config value, and nothing
@@ -89,7 +106,7 @@ For player *p* and target week *(S, W)*:
 | n = 1–3 | Projected and labelled **Limited history**. Relative error (MAE ÷ mean) is 0.96 with 1 prior game and 0.81 with 2–3, against ≤0.70 with 4+ (2025, measured) |
 | Team change | Ignored: history follows the player |
 | Bye, inactive, missed weeks | Absent from H. Ages count games, not weeks |
-| Active zero-stat games | Absent from H, because production doesn't store them. Same as the tested Slice 1 baseline: a known optimism, documented |
+| Active zero-stat games | **An appearance.** The provider counts every game it is given, including an all-zero line, and never filters one out. Today's ingest stores no snap-only appearance, so production history would match the Slice 1 tested baseline (stored rows) until a later slice adds them. That is an open data decision; see §15 |
 | Stat- or position-specific behaviour | None. Every stat, including the rare ones (2-pt, `ret_td`, `fum_lost`), is its own EWMA |
 | Clamping / shrinkage | None. Matches the research |
 
@@ -149,7 +166,10 @@ On 2025's 406 player-weeks that were projected before kickoff and then absent:
 **Policy (B for definite, C for uncertain):**
 
 - **OUT** (injury report) and **RESERVE** (weekly roster RES/PUP/SUS/NFI-type) keep their raw
-  projection but are **not ranked**. They show as "Out — not projected to play".
+  projection but are **not ranked**. They never vanish silently:
+  - the player page shows the projection with "Out — not ranked this week" and why;
+  - the board's caption counts who was left out and lists them on request
+    (`excluded.unavailable` in the API).
 - **DOUBTFUL** and **QUESTIONABLE** are ranked unchanged and carry a badge. We don't predict.
 - **UNKNOWN** applies when roster or injury data is missing or stale. The player is ranked, and
   the caption says what we don't know. Degrade, never 500.
@@ -318,4 +338,24 @@ Slices 3 and 4 can run in parallel; 5 needs both.
    and UNKNOWN states.
 8. **Visible gaps.** 26 rostered players have no projection, and players are not projected until
    their first game.
+
+## 15. Open decisions for later slices
+
+- **Zero-stat active appearances in production history.** The provider counts them (Slice 2 tests
+  this). Whether production *supplies* them is a data question for Slice 3 or 4. Today a skill
+  player with offensive snaps and no stat line leaves no row: `SnapCountIngestor` only writes
+  `snap_pct` onto existing rows.
+
+  The two research datasets give the size of the effect. On 2025 the baseline's error was
+  5.512 on stored rows (Slice 1) and 5.532 with zero-stat appearances added (v2), the second on a
+  population that also contains those appearances.
+
+  The options:
+
+  - **(a)** store snap-only appearances in their own table, next to the weekly roster feed.
+    Never in `player_game_stats`, whose row count is the §9 baseline and whose `gamesPlayed`
+    counts the board shows.
+  - **(b)** accept the documented optimism.
+
+  This needs the owner's decision before Slice 3's inputs are built.
 
