@@ -298,6 +298,19 @@ history of `nflverse/nfldata`'s `data/games.csv`, which the schedules release is
 - `IntegrityChecks` logs any stat rows on a delisted game. A played game does not leave the
   schedule; when one does, nflverse has most likely re-identified it, and its stats will arrive a
   second time.
+- **Stats and rankings: no double count, and no filter (choice B, 2026-10-12).**
+  - A stat row's key is `(player_id, game_id)`, from the stats file's own `game_id`, and the
+    stats ingest only upserts. So our code would keep one performance twice if the source ever
+    carried it under two ids.
+  - It never has. nflverse's stats come from the plays of a game as played, under its id at the
+    time, and every observed cross-week move happened before kickoff.
+  - Measured 2020–26: 0 stats rows under an id the schedule no longer lists, and 0 player-weeks
+    with two regular-season rows, in the source and in our database.
+  - BUF–CIN has no stats or play-by-play today; its January 2023 state is unknowable.
+  - So rankings, the game log and career do not read `delisted_at`. Filtering would only matter
+    for stats published and then withdrawn, which has never been observed.
+  - `GameReconciliationTests` replays the 2020 PIT–TEN sequence through both ingestors and the
+    rankings query (counted once), and pins the unfiltered read.
 
 **Target week W.**
 

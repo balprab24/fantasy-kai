@@ -7,6 +7,9 @@ import com.fantasykai.projections.ProjectionDatabase;
 import com.fantasykai.projections.SeasonWeek;
 import com.fantasykai.projections.TargetWeek;
 import com.fantasykai.projections.TargetWeekResolver;
+import com.fantasykai.query.PlayerQueryRepository;
+import com.fantasykai.query.ScorableRow;
+import com.fantasykai.scoring.StatKey;
 import java.io.StringReader;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -46,6 +49,9 @@ import org.springframework.core.io.ClassPathResource;
  * 2023-01-06.csv  173413e9d7dc53aceb9ec00ba2dc40f1b87df618  BUF-CIN gone: declared no contest
  * </pre>
  *
+ * <p>{@code stats_player_week_2020.csv} is three rows of today's 2020 stats file, for the
+ * double-count tests below.
+ *
  * <p>One more, {@code 2020-09-25-unreadable-row.csv}, is derived rather than recorded: the first
  * file with a single cell blanked, to prove an unusable row is not read as a dropped game.
  *
@@ -60,12 +66,14 @@ class GameReconciliationTests {
     /** The fixture served as games.csv; the client runs the real header check on it. */
     private String schedule;
 
-    private final GameIngestor ingestor = new GameIngestor(new NflverseClient(properties()) {
+    private final NflverseClient client = new NflverseClient(properties()) {
         @Override
         public <T> List<T> read(String release, String asset, Set<String> required,
                 Function<CSVRecord, T> mapper) {
+            // The schedule fixture in play, or a stats file served under its own name.
+            String fixture = asset.startsWith("stats_player_week_") ? asset : schedule;
             try (var reader = new StringReader(new String(new ClassPathResource(
-                    "nflverse/schedule-history/" + schedule).getInputStream().readAllBytes(),
+                    "nflverse/schedule-history/" + fixture).getInputStream().readAllBytes(),
                     StandardCharsets.UTF_8));
                     CSVParser parser = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true)
                             .get().parse(reader)) {
@@ -82,7 +90,10 @@ class GameReconciliationTests {
                 throw new IngestException("fixture " + schedule, e);
             }
         }
-    }, ProjectionDatabase.get().jdbc);
+    };
+
+    private final GameIngestor ingestor = new GameIngestor(client, ProjectionDatabase.get().jdbc);
+    private final StatIngestor stats = new StatIngestor(client, ProjectionDatabase.get().jdbc);
 
     @BeforeEach
     void teams() {
@@ -230,6 +241,73 @@ class GameReconciliationTests {
                 .isEqualTo(GameIngestor.MAX_DELISTED_PER_SEASON);
     }
 
+    // --- stats: could a moved or cancelled game be counted twice? -----------------------
+
+    /**
+     * The double count this codebase was suspected of, replayed -- and it does not happen.
+     *
+     * <p>A stat row's identity is (player, game), the game resolved from the stats file's own
+     * {@code game_id}, and {@code StatIngestor} only ever upserts. So the code alone would keep
+     * one performance twice if the stats file ever carried it under two ids. The source never
+     * has: nflverse builds player stats from the plays of a game as it was played, under its id
+     * at that time, and 2020's PIT-TEN was moved before kickoff. Measured 2026-10-12 over every
+     * 2020-26 stats file: 0 rows under an id the schedule no longer lists, 0 player-weeks with
+     * two regular-season rows, and 69 rows for 2020_07_PIT_TEN against 0 for 2020_04_PIT_TEN.
+     *
+     * <p>stats_player_week_2020.csv here is three real rows from that file: Henry and Diontae
+     * Johnson in PIT-TEN as played in week 7, and Mahomes in NE-KC, the game moved within its
+     * week.
+     */
+    @Test
+    void aGameMovedToAnotherWeekBeforeItWasPlayedIsCountedOnceUnderItsNewId() {
+        ingest("2020-09-25.csv", 2020);   // 2020_04_PIT_TEN on the schedule
+        ingest("2020-10-02.csv", 2020);   // postponed: gone
+        ingest("2020-10-06.csv", 2020);   // back as 2020_07_PIT_TEN
+        stats.ingest(2020);               // the stats, published once it was played
+
+        List<ScorableRow> henry = rankingRows(2020, "Derrick Henry");
+        assertThat(henry).singleElement().satisfies(row -> {
+            assertThat(row.week()).isEqualTo(7);
+            assertThat(row.line().values()[StatKey.RUSH_YD.index()]).isEqualTo(75);
+        });
+        assertThat(rankingRows(2020, "Diontae Johnson")).hasSize(1);
+        assertThat(count("SELECT count(*) FROM player_game_stats WHERE game_id = " + id("2020_04_PIT_TEN")))
+                .as("the delisted id never had a stat").isZero();
+        assertThat(new IntegrityChecks(db.jdbc).statsOnDelistedGames()).isZero();
+    }
+
+    /** Moved within its week: one id throughout, so one row, whatever the schedule did. */
+    @Test
+    void aGameMovedWithinItsWeekIsCountedOnce() {
+        ingest("2020-09-25.csv", 2020);
+        ingest("2020-10-06.csv", 2020);   // NE-KC: Sunday became Monday, same id
+        stats.ingest(2020);
+        stats.ingest(2020);               // and a second pull upserts, never adds
+
+        assertThat(rankingRows(2020, "Patrick Mahomes")).singleElement()
+                .satisfies(row -> assertThat(row.week()).isEqualTo(4));
+    }
+
+    /**
+     * Choice B, pinned as it is rather than as it might be: rankings do not consult
+     * {@code delisted_at}. If stats ever did land on a game nflverse later drops -- a game played
+     * in part and then abandoned, as BUF-CIN was, if its partial stats had ever been published
+     * (today's 2022 files carry none, and no snapshot from January 2023 survives) -- the ranking
+     * would still count them once, and the after-ingest check is what says so. Change the read
+     * path and this test, and the docs that explain why, together.
+     */
+    @Test
+    void rankingsStillCountStatsOnADelistedGameAndTheIntegrityCheckFlagsThem() {
+        ingest("2023-01-05.csv", 2022);
+        long player = db.player("Partial Game Receiver", "WR", team("CIN"));
+        db.played(player, id("2022_17_BUF_CIN"), team("CIN"));
+        ingest("2023-01-06.csv", 2022);
+
+        assertThat(delisted("2022_17_BUF_CIN")).isTrue();
+        assertThat(rankingRows(2022, "Partial Game Receiver")).hasSize(1);
+        assertThat(new IntegrityChecks(db.jdbc).statsOnDelistedGames()).isOne();
+    }
+
     /** Stats on a game the schedule dropped mean a played game was re-identified: say so. */
     @Test
     void integrityChecksCountStatsOnADelistedGame() {
@@ -247,6 +325,14 @@ class GameReconciliationTests {
     private void ingest(String fixture, int season) {
         schedule = fixture;
         ingestor.ingest(List.of(season));
+    }
+
+    /** What the rankings read for one player, through the query the board uses. */
+    private List<ScorableRow> rankingRows(int season, String name) {
+        return new PlayerQueryRepository(db.jdbc)
+                .findScorableRows(season, List.of("QB", "RB", "WR", "TE"), null).stream()
+                .filter(row -> row.name().equals(name))
+                .toList();
     }
 
     private boolean delisted(String gameId) {
