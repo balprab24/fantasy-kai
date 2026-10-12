@@ -94,6 +94,11 @@ fantasykai:
     backfill-on-startup: false
     once: false
 
+  # Which projection method produces raw projected lines (Phase 6). One id per algorithm and
+  # version -- see ProjectionSource. Only weighted-average-v1 exists.
+  projections:
+    provider: weighted-average-v1
+
 # Honour X-Forwarded-* from the reverse proxy in front of this application.
 #
 # Without it Tomcat does not know TLS was terminated ahead of it,
