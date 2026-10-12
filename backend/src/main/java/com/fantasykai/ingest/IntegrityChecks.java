@@ -23,6 +23,18 @@ public class IntegrityChecks {
             WHERE s.season <> g.season OR s.week <> g.week
             """;
 
+    /**
+     * Stat rows on a game the schedule no longer lists (V8). A game that was played does not
+     * leave the schedule; when one does, nflverse has most likely given it a new id -- and its
+     * stats will arrive a second time under that id, two games in one week for every player in
+     * it. The projection job refuses that history by name; this says where it came from.
+     */
+    public static final String STATS_ON_DELISTED_GAMES = """
+            SELECT count(*) FROM player_game_stats s
+            JOIN games g ON g.id = s.game_id
+            WHERE g.delisted_at IS NOT NULL
+            """;
+
     private static final Logger log = LoggerFactory.getLogger(IntegrityChecks.class);
 
     private final JdbcTemplate jdbc;
@@ -37,6 +49,12 @@ public class IntegrityChecks {
         return drifted == null ? 0 : drifted;
     }
 
+    /** @return stat rows whose game the schedule no longer lists; expected zero */
+    public long statsOnDelistedGames() {
+        Long rows = jdbc.queryForObject(STATS_ON_DELISTED_GAMES, Long.class);
+        return rows == null ? 0 : rows;
+    }
+
     /** Logs loudly rather than throwing: the data is already written, and a stale row beats no service. */
     public void verifyAfterIngest() {
         long drifted = seasonWeekDrift();
@@ -44,6 +62,11 @@ public class IntegrityChecks {
             log.error("integrity: {} stat rows disagree with their game on season/week", drifted);
         } else {
             log.info("integrity: season/week agree with the joined game on every stat row");
+        }
+        long delisted = statsOnDelistedGames();
+        if (delisted > 0) {
+            log.error("integrity: {} stat rows belong to games nflverse no longer lists -- a played game"
+                    + " re-identified upstream? Its stats may now be stored twice", delisted);
         }
     }
 }

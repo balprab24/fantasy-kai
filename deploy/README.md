@@ -336,3 +336,37 @@ $C up -d --no-build --wait backend
 default, because the checkout is the new code and a build from it would undo the rollback. If the
 Caddyfile moved too, `git checkout <running-sha> -- deploy/Caddyfile` and repeat step 6. The
 rollback's *image* half is proven by step 1; these two commands have not yet been run on the VM.
+
+## 8. Repair a locked projection (Phase 6)
+
+**Normal application code never rewrites a projection after its game has kicked off.** A
+`player_week_projection` row with `locked_at` set is the record of what was projected before the
+game, and `V7`'s trigger refuses any `UPDATE` or `DELETE` of one. That rule is for the
+application; this procedure is for genuine corruption -- a projection written for a game that
+never existed -- and nothing else. A wrong-looking projection of a real game is not corruption:
+it is the record, and the live-accuracy report is where it shows.
+
+One row per repair, by its full key, inside one transaction, with a reason a stranger could audit
+a year later:
+
+```bash
+$C exec -T postgres psql -U fantasykai -d fantasykai -v ON_ERROR_STOP=1 <<'SQL'
+BEGIN;
+SET LOCAL fantasykai.projection_repair_reason = '<what was wrong, how it was found, the commit or note that records it>';
+DELETE FROM player_week_projection
+ WHERE season = <s> AND week = <w> AND provider = '<id>' AND player_id = <p>;
+-- must report DELETE 1; anything else, ROLLBACK
+COMMIT;
+SQL
+```
+
+- **The reason lasts one transaction.** `SET LOCAL` ends with `COMMIT`, so the next statement is
+  refused again. No application code sets it -- `ProjectionSchemaTests` reads `src/main/java` to
+  make sure.
+- **Nothing is lost.** The trigger first copies the row as it stood, with the reason, the database
+  user and the time, into `player_week_projection_repairs`. A reason shorter than 10 characters
+  is refused and nothing changes.
+- **Never `TRUNCATE`, and never disable the trigger.** Both bypass the record: `TRUNCATE` fires no
+  row trigger, and a disabled trigger protects nothing for every session at once.
+- A projection for a game the schedule dropped *before* kickoff needs no repair. The job withdraws
+  open rows for a delisted game on its next run and never locks them (`ProjectionJob`, `V8`).

@@ -70,4 +70,20 @@ class OneShotContextTests {
         assertThat(context.getBean(com.fantasykai.projections.ProjectionProvider.class).source().id())
                 .isEqualTo("weighted-average-v1");
     }
+
+    @Test
+    void theDailyPullAndTheProjectionJobAreUsableHeadless() {
+        // Slice 3: ingest-once runs DailyPull, which runs the projection job after the ingest --
+        // in exactly this context, so its whole graph (transactions included) has to resolve here.
+        assertThat(context.getBean(DailyPull.class)).isNotNull();
+        assertThat(context.getBean(com.fantasykai.projections.ProjectionJob.class)).isNotNull();
+    }
+
+    @Test
+    void theProjectionJobShipsSwitchedOff() {
+        // Off until Slice 4's roster eligibility (owner decision 2026-10-12). This is the shipped
+        // default -- application.yml as deployed -- not a test override.
+        assertThat(context.getBean(com.fantasykai.projections.ProjectionProperties.class).jobEnabled())
+                .isFalse();
+    }
 }

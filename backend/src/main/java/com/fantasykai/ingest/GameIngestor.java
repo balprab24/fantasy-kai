@@ -5,12 +5,17 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.commons.csv.CSVRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -21,11 +26,35 @@ import org.springframework.stereotype.Component;
  * <p>Phase 4 took this from 8 of the source's 46 columns to 18. The scores, the
  * betting lines and the weather were already being downloaded and discarded, so
  * nothing about the fetch changed -- only what is kept.
+ *
+ * <p><strong>The file is the schedule as it is now, and a game can leave it.</strong>
+ * nflverse has no status column: a game moved to another week is deleted and added
+ * again under a new {@code game_id}, and a cancelled game is deleted (V8 records the
+ * measured cases). An upsert alone would keep every such game here for good, with no
+ * stats, and the projection job would project both teams for it. So each season this
+ * run reads is reconciled against the file: a stored game the file no longer lists is
+ * marked {@code delisted_at}, and one that comes back is listed again. Marked, never
+ * deleted -- stats, appearances and locked projections may point at it.
+ *
+ * <p>Three guards keep a broken file from rewriting the schedule. A row this run cannot
+ * use still counts as listed -- "could not read it" is not "it is gone". A season the file
+ * has no row for is not reconciled at all. And a run that would delist more than
+ * {@value #MAX_DELISTED_PER_SEASON} games of one season -- more than a week's slate at
+ * once -- fails instead, delisting nothing.
  */
 @Component
 public class GameIngestor {
 
     static final String SOURCE = "nflverse.schedules";
+
+    private static final Logger log = LoggerFactory.getLogger(GameIngestor.class);
+
+    /**
+     * More than this many games leaving one season in one run is a truncated or broken
+     * file, not a schedule change: the most nflverse has ever moved at once is a handful
+     * (2020), and one week's slate is 16.
+     */
+    static final int MAX_DELISTED_PER_SEASON = 16;
 
     /** nflverse publishes kickoff times in US Eastern. */
     private static final ZoneId LEAGUE_ZONE = ZoneId.of("America/New_York");
@@ -110,11 +139,13 @@ public class GameIngestor {
                 .map(column -> column + " = EXCLUDED." + column)
                 .collect(Collectors.joining(",\n                   "));
 
+        // A game the file lists is on the schedule, whatever an earlier run concluded.
         return """
                 INSERT INTO games (%s)
                 VALUES (%s)
                 ON CONFLICT (nflverse_game_id) DO UPDATE
-                   SET %s
+                   SET %s,
+                       delisted_at = NULL
                 """.formatted(String.join(", ", columns), String.join(", ", values), updates);
     }
 
@@ -128,12 +159,18 @@ public class GameIngestor {
 
     /** @param seasons the seasons to keep; the source file spans 1999-present */
     public IngestResult ingest(List<Integer> seasons) {
+        // Every game the file lists, by season -- including a row this run cannot use. A row we
+        // could not read is not a game the source dropped, and must never be delisted as one.
+        Map<Integer, Set<String>> listed = new TreeMap<>();
         List<Object[]> rows = client.read("schedules", "games.csv", REQUIRED_COLUMNS, record -> {
             Integer season = CsvValues.integer(record, "season");
             if (season == null || !seasons.contains(season)) {
                 return null;
             }
             String gameId = CsvValues.text(record, "game_id", 20);
+            if (gameId != null) {
+                listed.computeIfAbsent(season, s -> new HashSet<>()).add(gameId);
+            }
             Integer week = CsvValues.integer(record, "week");
             String home = CsvValues.text(record, "home_team", 4);
             String away = CsvValues.text(record, "away_team", 4);
@@ -156,7 +193,32 @@ public class GameIngestor {
         });
 
         jdbc.batchUpdate(UPSERT, rows);
+        listed.forEach(this::reconcile);
         return IngestResult.of(SOURCE, rows.size(), rows.size());
+    }
+
+    /**
+     * Marks the stored games of {@code season} that the file no longer lists. Called only for
+     * a season the file has rows for, so a file missing a season never empties it.
+     */
+    private void reconcile(int season, Set<String> listedIds) {
+        List<String> gone = jdbc.queryForList(
+                "SELECT nflverse_game_id FROM games WHERE season = ? AND delisted_at IS NULL ORDER BY nflverse_game_id",
+                String.class, season).stream()
+                .filter(id -> !listedIds.contains(id))
+                .toList();
+        if (gone.isEmpty()) {
+            return;
+        }
+        if (gone.size() > MAX_DELISTED_PER_SEASON) {
+            throw new IngestException("the schedule no longer lists " + gone.size() + " stored " + season
+                    + " games, more than " + MAX_DELISTED_PER_SEASON + " at once -- a broken file, not a"
+                    + " schedule change; nothing was delisted. First: " + gone.subList(0, 5));
+        }
+        jdbc.batchUpdate("UPDATE games SET delisted_at = now() WHERE nflverse_game_id = ?",
+                gone.stream().map(id -> new Object[] {id}).toList());
+        log.warn("{}: {} {} game(s) no longer on nflverse's schedule, delisted: {}",
+                SOURCE, gone.size(), season, gone);
     }
 
     private static OffsetDateTime kickoff(CSVRecord record) {

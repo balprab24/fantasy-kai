@@ -206,6 +206,55 @@ class IngestionTests {
         assertThat((BigDecimal) statLine(CHASE).get("snap_pct")).isEqualByComparingTo("94.00");
     }
 
+    /**
+     * V7: the snap file's appearances, from real 2024 rows. Drew Sample (CIN's blocking tight
+     * end) took 46 offensive snaps at Baltimore in week 10 and has no stat line that week -- the
+     * game the projection baseline could not see before. Ted Karras played every snap at center
+     * and is not a skill player. Devontez Walker is a receiver who played only on special teams
+     * that day -- 20 snaps, none on offense -- so he did not appear on offense either.
+     */
+    @Test
+    void storesEveryOffensiveSnapASkillPlayerTookAndNothingElse() {
+        Map<String, Object> sample = appearance("00-0035631");
+        assertThat(sample).containsEntry("offense_snaps", 46).containsEntry("team", "CIN")
+                .containsEntry("game", "2024_10_CIN_BAL");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM player_game_stats s JOIN players p ON p.id = s.player_id
+                 WHERE p.gsis_id = '00-0035631'
+                """, Long.class)).as("the reason he needs an appearance: no stat line").isZero();
+
+        // Chase has a stat line in the same game and is stored too: "zero-stat" is decided on read.
+        assertThat(appearance(CHASE)).containsEntry("offense_snaps", 77);
+
+        assertThat(jdbc.queryForList("""
+                SELECT p.full_name FROM player_game_appearances a JOIN players p ON p.id = a.player_id
+                 ORDER BY p.full_name
+                """, String.class))
+                .as("not Karras (C, 82 snaps), not Walker (WR, 0 offensive snaps), not Seibert (K) or Hutchinson (DE)")
+                .containsExactly("Drew Sample", "Ja'Marr Chase");
+    }
+
+    @Test
+    void theSnapFilesAppearanceColumnsAreRequired() {
+        assertThat(SnapCountIngestor.REQUIRED_COLUMNS).contains("position", "team", "offense_snaps");
+
+        renameInHeader = Map.entry("offense_snaps", "off_snaps");
+        assertThatThrownBy(() -> ingestService.backfill())
+                .isInstanceOf(IngestException.class)
+                .hasMessageContaining("offense_snaps");
+    }
+
+    private Map<String, Object> appearance(String gsisId) {
+        return jdbc.queryForMap("""
+                SELECT a.offense_snaps, t.abbr AS team, g.nflverse_game_id AS game
+                  FROM player_game_appearances a
+                  JOIN players p ON p.id = a.player_id
+                  JOIN teams t ON t.id = a.team_id
+                  JOIN games g ON g.id = a.game_id
+                 WHERE p.gsis_id = ?
+                """, gsisId);
+    }
+
     @Test
     void skipsStatLinesWithNoPlayerId() {
         // Four fixture rows; one has an empty player_id and cannot be referenced.
