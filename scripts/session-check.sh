@@ -45,10 +45,10 @@ cd "$repo" || exit 70
 EXPECT_STAT_ROWS=114479     # CLAUDE.md "Measured numbers" · docs/map.md §1 (re-measured 2026-09-21)
 EXPECT_PLAYERS=25066        # CLAUDE.md "Measured numbers" · docs/map.md §1 (re-measured 2026-09-21)
 EXPECT_GAMES=1965           # docs/map.md §1
-EXPECT_TESTS=313            # docs/map.md §1
+EXPECT_TESTS=353            # docs/map.md §1
 EXPECT_ENDPOINTS=13         # docs/map.md §1 (6 GET, members only + 4 auth + 3 mutations)
-EXPECT_MIGRATIONS=8         # docs/map.md §1 ("V1 … V8")
-EXPECT_BACKEND_FILES=98     # docs/map.md §1
+EXPECT_MIGRATIONS=9         # docs/map.md §1 ("V1 … V9")
+EXPECT_BACKEND_FILES=105    # docs/map.md §1
 EXPECT_FRONTEND_FILES=76    # docs/map.md §1 (.ts/.tsx under frontend/src)
 EXPECT_JDK=25               # CLAUDE.md "Commands" · README · pom.xml enforcer
 

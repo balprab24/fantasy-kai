@@ -61,6 +61,7 @@ Full PPR, half PPR, standard and TE premium stop being three code paths and beco
 | Ingest every position, filter at query time | v1 scores QB/RB/WR/TE only, but storing only those rows would cut `player_game_stats` from 112K to 37K and gut the §9 baseline — and K/DST in v2 would then need a backfill after all. | never |
 | **Project the stat line, never the points** | A projection row carries the same 13 `StatKey` columns and is scored by the unmodified `ScoringEngine`. A projected point value is right for exactly one ruleset — the `fantasy_points` mistake, one layer up. north-star §3.1 | never |
 | **Normal application code never rewrites a projection after that player's game has kicked off** | A locked row is the record of what was projected before the game, and Slice 7's live accuracy compares it with what happened. A `V7` trigger refuses `UPDATE`/`DELETE` of a locked `player_week_projection` row. Genuine corruption has one deliberate, audited escape -- one row, one transaction, a stated reason, the old row kept (`deploy/README.md` §8); no application code can take it | never |
+| **Availability decides the board, never the raw line** | A projection is made from a player's history alone and kept whatever his status becomes; Out, reserve and off-roster only decide whether the board ranks it, read at request time. A late or failed feed is `UNKNOWN`, ranked, never a disappearance. `AvailabilityRules` is the one place a roster or injury value gets a meaning | never |
 | **Store signal components, never a blended rank** | A rank is a function of (signals × recipe × league). Storing it freezes the recipe and turns a weight change into a backfill. north-star §3.2 | never |
 | `SignalKey` is the only place a blendable signal is named | Same three-jobs trick as `StatKey`, one level up: recipe allowlist, dot-product index, signals-table column name. north-star §3.3 | never |
 | **Every ranked number carries its parts** — `ExplainedScore`, not `double` | "Why is he ranked here" *is* the product. Explanation bolted on afterwards ends up absent or wrong. | never |
@@ -84,8 +85,11 @@ backend/src/main/java/com/fantasykai/
                    PlayerHistory.before is the production leakage door
                    Phase 6 Slice 3 -- JdbcProjectionInputs (stat rows + zero-stat appearances),
                    TargetWeekResolver, ProjectionRepository, ProjectionJob; run by ingest/DailyPull,
-                   switched off (projections.job-enabled=false) until Slice 4. GameIngestor
-                   reconciles the schedule (V8 delisted_at)
+                   switched off (projections.job-enabled=false). GameIngestor reconciles the
+                   schedule (V8 delisted_at)
+                   Phase 6 Slice 4 -- AvailabilityRules (every roster/injury value's meaning, one
+                   place), AvailabilityService (known availability for a player-week), weekly-roster
+                   candidates for the job; ingest/RosterWeekIngestor + InjuryReportIngestor (V9)
 backend/src/test/java/com/fantasykai/projection/
                  Phase 6 Slice 1 — the projection backtest. Test-scoped research code, never
                  in the jar; moves to src/main in 6c only if the verdict is to ship. Timeline.asOf
@@ -94,7 +98,8 @@ backend/src/main/resources/db/migration/   Flyway. V1 schema, V2 ingestion suppo
                                            V3 presets, V4 Vegas columns, V5 refresh_tokens,
                                            V6 players.birth_date + teams.logo_url,
                                            V7 player_game_appearances + player_week_projection
-                                           (+ its repair log), V8 games.delisted_at
+                                           (+ its repair log), V8 games.delisted_at,
+                                           V9 roster_week + injury_report
 backend/Dockerfile                         Phase 5d. Temurin 25 JRE on Alpine, arm64 and amd64
 deploy/                                    Phase 5d. compose.prod.yml + Caddyfile + README.md
                                            (the runbook, the firewall trap, the acceptance checks,
@@ -183,6 +188,7 @@ scripts/                                   session-check.sh (runs at every sessi
 | 6 — Projections, Experiment v2 | **Branch `feat/projections-v2` (stacked on PR #56's branch), not pushed** (2026-10-09) — owner question: do air yards (nflverse, downloaded and dropped) and a league scoring-environment term push the model past 3% on unseen 2026 weeks? A corrected research dataset (`.cache/nflverse/`, gitignored; v1 stages untouched): active zero-stat appearances added (687–851/season, 2020–25), the week's position, a game finished once its stat rows exist. Owner decisions: official population stays P (P0 diagnostic — v1 passes 3% there); candidate by v1's CI gate on 2024, frozen at `24d16d1` → **v1′** (air yards add nothing; the environment term costs MAE). **2026 weeks 1–4: v1′ +3.3%, all four criteria pass formally — not convincing**: small-sample t interval [−0.3%, +6.9%], +2.2% without week 2, QB worse, and the same weeks ran +5.1%/+5.6% in 2024/2025 whose full seasons finished at 2.6%/2.9%. **Decision C**: ship the EWMA baseline transparently when projections ship; keep the frozen v1′ scoring on 2026 as weeks land; research availability (inactive players cost 4.4–5× the model's edge). `docs/perf/projection-accuracy.md`. **203 in the suite** |
 | 6 — Projections V1, Slice 2 (provider) | **Branch `feat/projections-provider` (stacked on the architecture PR #58), local** (2026-10-09) — `com.fantasykai.projections`: `ProjectionProvider` (one player's `PlayerHistory` in, `RawProjection` out, raw stats only, no scoring), `ProjectionSource` (`weighted-average-v1`, "Fantasy-Kai Baseline"), `WeightedAverageProjectionProvider` (`0.5^(age/4)` over games played since 2020, crosses seasons, all-zero appearances count, no history → empty), one config-selected bean. **Parity with research baseline D is bit-identical**: 2,000 seeded random histories, and `scripts/backtest.sh parity` over every 2024–25 player-week on both research datasets (28,652 compared, 0 mismatches). 4 of 4 mutations caught; a NaN stat is refused, never averaged. **230 in the suite** |
 | 6 — Projections V1, Slice 3 (persistence + job) | **Branch `feat/projections-job` (stacked on Slice 2, PR #59), local; checkpoint `3509cd2` + review fixes, not pushed** (2026-10-12) — `V7`: `player_game_appearances` (§15 decided **(a)** by the owner: every skill player's offensive-snap game, from the snap file `SnapCountIngestor` already downloads; zero-stat counts reproduce research v2 exactly, 730/796/806/851/818/687 in 2020–25) and `player_week_projection` (raw lines, PK led by season/week/provider; a trigger refuses to change a locked row, with **one audited repair path**, `deploy/README.md` §8). **`V8` `games.delisted_at`**: nflverse *deletes* a moved or cancelled game (measured from nfldata's git history: 2020 PIT–TEN, DEN–NE, PIT–BAL; 2022 BUF–CIN), so `GameIngestor` reconciles each season and the job never projects a delisted game — replayed from real file versions in `GameReconciliationTests`; 0 of 1,965 delisted against today's schedule. `JdbcProjectionInputs` (parity row 3: equal to v2's histories on all 14,906 2024–25 player-weeks, 0 mismatches; two games in a week fail the run **by name**), `TargetWeekResolver` (48 h rule narrowed to late stats), `ProjectionJob` (withdraw delisted, lock at kickoff, one transaction), `ingest/DailyPull`. Provider id ≤ 40, held by domain and column. **The job ships switched off** until Slice 4's roster eligibility (owner decision). **Spring contexts stay at 12**. **313 in the suite**; 31 of 31 mutations caught |
+| 6 — Projections V1, Slice 4 (availability) | **Branch `feat/projections-availability` (stacked on PR #60), uncommitted** (2026-10-12) — the roster and injury feeds measured before anything was built: one row per player per week; `status` decides and its detail only refines; **INA is game-day and never read as unavailable**; the injury columns differ by season. `V9` `roster_week` + `injury_report` (source values, current season only, each week replaced in one transaction, a shrinking roster refused). `AvailabilityRules`: reserve/exempt → RESERVE, practice squad/released/retired → NOT_ON_ROSTER, Out → OUT (not ranked); Doubtful/Questionable ranked with a badge; nothing known → UNKNOWN, ranked. Designations never carry across weeks; rosters carry until a team's next week is published. The job's candidates are now weekly rosters (the interim `players.team_id` is gone); Out and reserve players keep their raw line. **2025 check, production classifier, nothing tuned: the research's 406 absences reproduced, 153 left off the board, 0 who played wrongly left off.** Job still off. **353 in the suite**; 20 of 20 mutations caught |
 | 7 — League import (ESPN + Sleeper) · 8 — Roster tools | |
 | 9–11 | consensus board · iOS (Expo) · perf pass |
 
@@ -428,6 +434,20 @@ written in all. Rows read did not change: no 2025 or 2026 snap row lacks `offens
   on 2026-10-12, because the double count was disproved. `IntegrityChecks` logs stats on a
   delisted game, and `GameReconciliationTests` pins both the real replay and the unfiltered
   read.
+- **`INA` in nflverse's weekly roster is the game-day inactive list, and it is the future.** It
+  is written about 90 minutes before kickoff. On 2026-10-12 the Monday night teams read ACT 53 and
+  INA 0, while every team that had played read ACT 48 and about 7 INA. A 06:00 pull never sees it,
+  and a backtest that read it would be using information nobody had. `AvailabilityRules` never
+  treats it as unavailable.
+
+  The roster file keeps only each week's *final* state. A player activated from reserve, or
+  elevated from the practice squad, after a Saturday-morning pull reads ACT in history. For 2025
+  that bounds production's blind spot at 0 activations and 2 elevations.
+- **nflverse's injury file changes its columns between seasons.** 2024 has `date_modified` and no
+  `season_type`, 2025–26 the reverse, so require only the columns every season ships. Blank
+  `gsis_id` rows exist in the roster file (6 in 2026). Grouping on the id unguarded made 1960s
+  placeholder players look like reserve players who played, which nearly put a false exception
+  into the availability rule. Measure with blank ids excluded.
 - **nflverse release assets 404 until published.** `AssetNotPublishedException` → `ingest_runs.status = 'SKIPPED'`. A future season must not fail the run.
 - **An absent CSV column and a zero are the same thing to `CsvValues`, and that is a
   silent-failure machine.** `shortValue` maps a missing column to 0 — correct for "did not record

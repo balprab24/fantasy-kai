@@ -20,6 +20,11 @@
 #
 #     ./scripts/backtest.sh parity
 #
+# Availability (Phase 6 Slice 4): the approved V1 rule -- Out and reserve lists not ranked -- run on
+# 2025's P0 with the production classifier, against nflverse's weekly roster and injury report:
+#
+#     ./scripts/backtest.sh availability
+#
 # v2 reads two nflverse files per season from .cache/nflverse/ (gitignored), downloading
 # any that are missing exactly once. A cached file is never refreshed behind your back: the
 # reports print every file's sha256, and deleting the cache is how you choose new data.
@@ -38,8 +43,8 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 stage="${1:-validate}"
 case "$stage" in
-    validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity) ;;
-    *) echo "usage: $0 [validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity]" >&2; exit 2 ;;
+    validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity|availability) ;;
+    *) echo "usage: $0 [validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity|availability]" >&2; exit 2 ;;
 esac
 
 frozen="backend/src/test/resources/projection/frozen-config.json"
@@ -91,7 +96,7 @@ if [[ -n "$dirty" ]]; then
 fi
 export BACKTEST_HEAD="$head"
 
-if [[ "$stage" == v2-* || "$stage" == parity ]]; then
+if [[ "$stage" == v2-* || "$stage" == parity || "$stage" == availability ]]; then
     cache="$repo/.cache/nflverse"
     mkdir -p "$cache"
     base="https://github.com/nflverse/nflverse-data/releases/download"
@@ -108,6 +113,16 @@ if [[ "$stage" == v2-* || "$stage" == parity ]]; then
             fi
         done
     done
+    if [[ "$stage" == availability ]]; then
+        for asset in "weekly_rosters/roster_weekly_2025.csv" "injuries/injuries_2025.csv"; do
+            file="$cache/$(basename "$asset")"
+            if [[ ! -s "$file" ]]; then
+                echo "downloading $(basename "$asset") into the cache" >&2
+                curl -fsSL --retry 3 -o "$file.part" "$base/$asset"
+                mv "$file.part" "$file"
+            fi
+        done
+    fi
     export NFLVERSE_CACHE="$cache"
 fi
 if [[ -n "$frozen_commit" ]]; then

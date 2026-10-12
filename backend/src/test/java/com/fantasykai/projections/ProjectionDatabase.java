@@ -59,8 +59,8 @@ public final class ProjectionDatabase {
     public void reset() {
         jdbc.execute("""
                 TRUNCATE player_week_projection, player_week_projection_repairs,
-                         player_game_appearances, player_game_stats, games, players, teams,
-                         ingest_runs RESTART IDENTITY CASCADE
+                         player_game_appearances, player_game_stats, roster_week, injury_report,
+                         games, players, teams, ingest_runs RESTART IDENTITY CASCADE
                 """);
     }
 
@@ -74,6 +74,26 @@ public final class ProjectionDatabase {
                 INSERT INTO players (gsis_id, full_name, position, team_id)
                 VALUES (?, ?, ?, ?) RETURNING id
                 """, Long.class, "00-" + name.hashCode(), name, position, teamId);
+    }
+
+    /** A player with his real nflverse gsis id, as an availability feed names him. */
+    public long player(String gsisId, String name, String position, Integer teamId) {
+        return jdbc.queryForObject("INSERT INTO players (gsis_id, full_name, position, team_id)"
+                + " VALUES (?, ?, ?, ?) RETURNING id", Long.class, gsisId, name, position, teamId);
+    }
+
+    /** One roster row, replacing any he already has that week. */
+    public void roster(int season, int week, long playerId, int teamId, String status) {
+        jdbc.update("DELETE FROM roster_week WHERE season = ? AND week = ? AND player_id = ?",
+                season, week, playerId);
+        jdbc.update("INSERT INTO roster_week (season, week, player_id, team_id, status, status_detail,"
+                + " ingested_at) VALUES (?, ?, ?, ?, ?, NULL, now())", season, week, playerId, teamId, status);
+    }
+
+    /** One injury-report row; {@code reportStatus} null for listed without a game status. */
+    public void injury(int season, int week, long playerId, int teamId, String reportStatus) {
+        jdbc.update("INSERT INTO injury_report (season, week, player_id, team_id, report_status, ingested_at)"
+                + " VALUES (?, ?, ?, ?, ?, now())", season, week, playerId, teamId, reportStatus);
     }
 
     /** The schedule no longer lists it: what {@code GameIngestor} records when nflverse drops a game. */

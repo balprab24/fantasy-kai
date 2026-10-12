@@ -9,8 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -53,26 +51,25 @@ public class ProjectionJob {
 
     private static final Logger log = LoggerFactory.getLogger(ProjectionJob.class);
 
-    private static final String POSITIONS =
-            ScoringPosition.ALL.stream().map(position -> "?").collect(Collectors.joining(", "));
-
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transaction;
     private final TargetWeekResolver resolver;
     private final JdbcProjectionInputs inputs;
     private final ProjectionRepository repository;
     private final ProjectionProvider provider;
+    private final AvailabilityService availability;
     private final Clock clock;
 
     public ProjectionJob(JdbcTemplate jdbc, TransactionTemplate transaction, TargetWeekResolver resolver,
             JdbcProjectionInputs inputs, ProjectionRepository repository, ProjectionProvider provider,
-            Clock clock) {
+            AvailabilityService availability, Clock clock) {
         this.jdbc = jdbc;
         this.transaction = transaction;
         this.resolver = resolver;
         this.inputs = inputs;
         this.repository = repository;
         this.provider = provider;
+        this.availability = availability;
         this.clock = clock;
     }
 
@@ -111,7 +108,7 @@ public class ProjectionJob {
             }
         }
 
-        List<Candidate> candidates = candidates(openGameByTeam.keySet());
+        List<Candidate> candidates = candidates(week, openGameByTeam.keySet());
         Set<Long> alreadyLocked = repository.lockedPlayers(week, source);
         Map<Long, PlayerHistory> histories = inputs.histories(week);
 
@@ -137,22 +134,30 @@ public class ProjectionJob {
     private record Candidate(long playerId, int teamId) {}
 
     /**
-     * Who might play: a skill player whose team plays one of the open games.
+     * Who gets a projection: a skill player on the roster of a team that plays one of the open
+     * games -- active, or on a reserve or exempt list ({@link AvailabilityRules#PROJECTED_ROSTER_STATUSES}).
      *
-     * <p><strong>Interim, until Slice 4.</strong> The team is {@code players.team_id} --
-     * nflverse's {@code latest_team} -- which a retired or released player keeps, so this set is
-     * too wide. Slice 4 replaces it with the weekly roster: who is on which team that week, and
-     * whether he is active. Until then the daily pull does not run this job at all
-     * ({@code fantasykai.projections.job-enabled=false}, owner decision 2026-10-12).
+     * <p>Rostered, not available: an Out or injured-reserve player still gets his raw line, which
+     * his page can show; whether the board ranks him is availability's question, asked later and
+     * never stored here. Practice squad, released and retired players get none -- the interim rule
+     * this replaces, {@code players.team_id}, kept a retired player's last team for good.
+     *
+     * <p>Each team's roster is its latest published week up to the target
+     * ({@link AvailabilityService#roster}), so a week whose rosters are not out yet uses the
+     * previous one rather than projecting nobody. A season with no roster at all yet projects no
+     * one, and says so: there is nothing true to project from.
      */
-    private List<Candidate> candidates(Set<Integer> teams) {
-        if (teams.isEmpty()) {
-            return List.of(); // "IN ()" is a syntax error, and there is nothing to ask
+    private List<Candidate> candidates(SeasonWeek week, Set<Integer> openTeams) {
+        Map<Long, AvailabilityService.RosterEntry> roster = availability.roster(week);
+        if (roster.isEmpty()) {
+            log.warn("projections: no weekly roster for {} yet -- no candidates", week.season());
         }
-        String sql = "SELECT id, team_id FROM players WHERE position IN (" + POSITIONS + ")"
-                + " AND team_id IN (" + teams.stream().map(team -> "?").collect(Collectors.joining(", "))
-                + ") ORDER BY id";
-        Object[] args = Stream.concat(ScoringPosition.ALL.stream(), teams.stream().sorted()).toArray();
-        return jdbc.query(sql, (rs, n) -> new Candidate(rs.getLong("id"), rs.getInt("team_id")), args);
+        return roster.values().stream()
+                .filter(entry -> openTeams.contains(entry.teamId()))
+                .filter(entry -> AvailabilityRules.PROJECTED_ROSTER_STATUSES.contains(entry.status()))
+                .filter(entry -> ScoringPosition.ALL.contains(entry.position()))
+                .map(entry -> new Candidate(entry.playerId(), entry.teamId()))
+                .sorted(java.util.Comparator.comparingLong(Candidate::playerId))
+                .toList();
     }
 }

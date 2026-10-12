@@ -10,7 +10,7 @@ is the newer intent.
 **Slice 3 (2026-10-12)** follows §8, with the owner's decisions of that day and the
 refinements of its review, each recorded where it applies:
 - §15 is resolved as (a): zero-stat appearances are stored.
-- The job ships switched off until Slice 4.
+- The job ships switched off, and stays off after Slice 4 until it is turned on deliberately.
 - §8 records:
   - the primary-key order, and `data_through` as two columns;
   - the provider-id length, held by the domain and the column together;
@@ -18,6 +18,10 @@ refinements of its review, each recorded where it applies:
   - schedule reconciliation (`V8`, from nflverse's measured behaviour);
   - the 48-hour rule, narrowed to late stats;
   - a corrupt history failing the run by name.
+
+**Slice 4 (2026-10-12)** adds known availability: the roster and injury feeds measured before
+anything was built, the rule, storage, ingest, the historical check (§6), and roster eligibility
+for the job (§7). The job stays switched off; no endpoint or UI changed.
 
 **The approved decisions, verbatim in substance:**
 
@@ -182,7 +186,7 @@ projected line. The player page's explanation shows each bonus as "projected 101
 This **supersedes brief decision #1** (expected bonuses), on evidence. The research
 `ExpectedPoints` is not ported. Revisit only if bonus usage in production turns out material.
 
-## 6. Availability: known information only (measured)
+## 6. Availability: known information only (measured; built in Slice 4)
 
 On 2025's 406 player-weeks that were projected before kickoff and then absent:
 
@@ -204,21 +208,124 @@ On 2025's 406 player-weeks that were projected before kickoff and then absent:
 - **UNKNOWN** applies when roster or injury data is missing or stale. The player is ranked, and
   the caption says what we don't know. Degrade, never 500.
 
-**Inputs.** Two new optional raw ingests, header-verified, with a 404 recorded as `SKIPPED`:
+**The feeds, read before anything was built** (2024–26 files, 2026-10-12). Neither carries a
+timestamp.
 
-- `roster_week`, from nflverse `roster_weekly_{season}.csv`: gsis, team, week, status. It also
-  gives the **target-week team** (byes, trades).
-- `injury_report`, from `injuries_{season}.csv`: gsis, week, report_status.
+| Concept | Feed | Field(s) | Example values | V1 use |
+|---|---|---|---|---|
+| Player | both | `gsis_id` | `00-0036900` | The only join key: never a name, jersey or team. A blank id (2026: 6 roster rows) or one the player master lacks (26 rows) is skipped and logged |
+| Team | both | `team` | `CIN`, `LA` (Rams, as in the schedule) | The team that week; the projection's team since Slice 4 |
+| Week | both | `week`, `game_type` | `5`, `REG` / `WC` | Regular season only, weeks 1–18. The wild card is week 18 in 2020, so `game_type` decides |
+| Roster status | roster | `status` | `ACT` `INA` `RES` `DEV` `CUT` `RET` `EXE` (+ rare `TRD` `TRC` `TRT`) | Membership, and reserve lists. One row per player per week; a bye team has no rows that week |
+| Roster detail | roster | `status_description_abbr` | `A01`, `R01`, `R48`, `P07` | Stored, never decides: it only refines `status` |
+| Game status | injuries | `report_status` | `Out` `Doubtful` `Questionable`, blank; `Note` (2024 only) | The week's designation. Pregame by nature: final Friday for a Sunday game |
+| Practice | injuries | `practice_status`, `report_primary_injury` | `Limited Participation in Practice`, `Hamstring` | Stored for display; never decides |
 
-Both update daily (measured: today 14:19 and 14:22 UTC). The final Out/Questionable statuses
-land Friday, and our 06:00 ET daily ingest picks them up Saturday. `players.status` is not used:
-it says ACT for 3,900 skill players with no game since 2020, so it's stale.
+- **What each status meant, measured.** 2025 regular season, rows with an id, against who
+  recorded a stat line or an offensive snap that week:
+  - ACT: 26,129 rows, 19,297 played;
+  - DEV (practice squad): 8,333 rows, 0 played;
+  - RES (reserve lists): 5,486 rows, 0 played;
+  - INA: 3,419 rows, 1 played;
+  - CUT: 932 rows, 0 played; RET: 349, 0; EXE: 7, 0;
+  - injury-report Out: 1,342 rows, 0 played.
+  - A first pass appeared to show 3 `RES R09` players who played. That was the analysis
+    collapsing blank ids together: those rows are 1960s players with no id at all.
+- **INA is the game-day inactive list.** On 2026-10-12 the Monday night teams read ACT 53 and
+  INA 0, while every team that had played read ACT 48 and about 7 INA. It is written about 90
+  minutes before kickoff, so a 06:00 pull never sees it, and a backtest that read it would read
+  the future. It is never a reason to rank anyone lower.
+- **Snapshots, not history.** Each week's rows are rewritten until (and after) its games, so a
+  past week is its final state. A week is published during that week: week 6 was absent on
+  Monday 2026-10-12, and week 5 present on Friday 10-09.
+- **The injury file changed shape.** 2024 has `date_modified` and no `season_type`, 2025–26 the
+  reverse; neither is read. 2024 listed two player-weeks twice (Cade Stover, week 15:
+  Questionable, then Out four hours later).
 
-## 7. Eligibility and sparse history (measured on the 2026 week 5 roster)
+**The rule, as built (`AvailabilityRules`).** First match wins:
+
+1. roster RES or EXE &rarr; `RESERVE`, not ranked, even when also listed Doubtful (Trey Lance,
+   2026 week 5);
+2. roster DEV, CUT or RET &rarr; `NOT_ON_ROSTER`, not ranked, and not projected;
+3. report Out &rarr; `OUT`, not ranked. Roster ACT with Out is not a conflict: ACT is membership
+   of the 53, Out is this week's game;
+4. Doubtful &rarr; `DOUBTFUL`, then Questionable &rarr; `QUESTIONABLE`, both ranked with a badge;
+5. roster ACT or INA &rarr; `AVAILABLE`;
+6. otherwise &rarr; `UNKNOWN`, ranked.
+
+Any other value is no information, never unavailability. Two reports for one player-week keep
+the more restrictive, because 2025–26 carry no timestamp to order them.
+
+**Which week answers (`AvailabilityService`).**
+
+- An injury designation counts for **its own week only**; a week-5 Questionable says nothing about
+  week 6.
+- A roster counts until the team's next week is published: each team is read at its latest
+  published week up to the target, and the week it came from travels with the result. A roster
+  status lasts until a transaction, and a reserve stint lasts weeks by rule.
+- A player missing from his team's newest roster is not on it. A traded player is read from his
+  newest row.
+- Only the target season is ever read.
+- No roster row and no designation is `UNKNOWN`. A missing, late or failed feed is not news
+  about anyone, so it never makes a player disappear.
+
+**Storage and ingest (`V9`).**
+
+- **Tables.** `roster_week` and `injury_report` hold the source values as shipped, a blank
+  designation as NULL, plus `ingested_at`, with PK *(season, week, player_id)*. Meaning is
+  derived on read, so changing the rule never needs a backfill.
+- **Current season only.** The daily pull and a backfill alike read just the season being played;
+  production needs nothing older.
+- **Each week the file carries replaces that week**, in one transaction. A week it does not carry
+  is left alone.
+- **Shrink guard.** A roster file that would shrink a stored week below 90% fails the run and
+  writes nothing, because membership decides who is projected. Injury rows have no guard: losing
+  one can only un-designate a player, who is then ranked.
+- **Ordering.** `IngestService` reads both after the player master and the stats, so
+  `DailyPull`'s projection job always runs on the morning's availability.
+- **Reading at the API.** Availability never changes the raw line. It is read at request time
+  (Slice 5), never stored with a projection.
+
+**Validated historically** (`scripts/backtest.sh availability`). The production classifier,
+nothing tuned, on 2025's P0 rebuilt from stored rows: 3,808 player-weeks, the research's 406
+absences reproduced.
+
+| V1 classification | Ranked | Absent | Played |
+|---|---|---:|---:|
+| AVAILABLE | yes | 156 | 3,302 |
+| QUESTIONABLE | yes | 41 | 100 |
+| DOUBTFUL | yes | 11 | 0 |
+| OUT | **no** | 93 | 0 |
+| RESERVE | **no** | 60 | 0 |
+| NOT_ON_ROSTER | **no** | 39 | 0 |
+| UNKNOWN | yes | 6 | 0 |
+
+- **Out or reserve:** 153 absent players correctly left off the board, and **0 players who played
+  wrongly left off**.
+- **Not projected at all** (not rostered that week): 45 absent, 0 who played.
+- **Game-day inactives with no designation:** 37, which cannot be known in time.
+- **Doubtful sat 11 times out of 11** in 2025. It stays ranked: that is the approved rule, and
+  this check does not tune it.
+- **The leak this cannot see.** The roster file is each week's *final* snapshot, so a player
+  activated from reserve, or elevated from the practice squad, after a Saturday 06:00 pull shows
+  ACT here.
+  - The bound: 0 players played after being RES the week before; 2 played as elevated
+    practice-squad players.
+  - Production would have left those 2 unprojected. This is not a false ranking suppression: the
+    projection simply would not exist.
+- `players.status` is not used: it says ACT for 3,900 skill players with no game since 2020.
+
+## 7. Eligibility and sparse history (measured on the 2026 week 5 roster; built in Slice 4)
 
 A player is projected when he is rostered for W (ACT, or RES/INA for the status display), has a
 skill position, his team plays in W, and he has n ≥ 1.
 
+- **As built.** Each team is read at its latest published roster week up to W, and the statuses
+  are ACT, INA, RES or EXE (`AvailabilityRules.PROJECTED_ROSTER_STATUSES`).
+  - This replaces Slice 3's interim `players.team_id`, which kept a retired player's last team
+    for good.
+  - A season with no roster yet projects no one.
+  - Out and reserve players keep their raw line; availability only decides the board.
 - **Of 468 ACT skill players:** 399 have n ≥ 4, **43 are Limited** (1–3), and **26 get no
   projection**: 22 of them rookies, and 14 of the 26 QBs.
 - A position-prior fallback would add 26 fabricated lines, mostly for backup QBs, so it is
@@ -244,7 +351,7 @@ skill position, his team plays in W, and he has n ≥ 1.
   - `provider` is `VARCHAR(40)`, and `ProjectionSource.MAX_ID_LENGTH` is 40. An id the column
     cannot hold is refused when the source is constructed, at startup, not by the first night's
     insert. A schema test holds the two numbers together.
-- `V9`: `roster_week`, `injury_report` (Slice 4).
+- `V9__roster_week_and_injury_report` (Slice 4): `roster_week`, `injury_report`. See §6.
 - Scoring about 500 rows per request is trivial next to `/rankings`'s ~6K-row scan. No Redis.
 
 **The lock, and the one way to repair it.**
@@ -339,12 +446,13 @@ history of `nflverse/nfldata`'s `data/games.csv`, which the schedules release is
   `ingest-once`, both through `ingest.DailyPull`. It runs even after a failed ingest, because it
   reads only what is stored; the ingest's failure is still the one the process exits on.
 - **It ships switched off** (`fantasykai.projections.job-enabled=false`, owner decision
-  2026-10-12), until Slice 4 gives it roster eligibility. Until then a player's week-W team is
-  `players.team_id`, which is nflverse's `latest_team`, and retired and released players keep it.
-  A row the job writes locks for good at kickoff, so a redeploy between the two slices must not
-  write the record from the interim rule. **Before switching it on in production**, run one
-  backfill. The daily pull fetches only the current season, so `player_game_appearances` would
-  otherwise lack every earlier season's zero games.
+  2026-10-12), and is turned on only deliberately, because a row the job writes locks for good at
+  kickoff.
+  - Slice 3 shipped with an interim rule: a player's week-W team was `players.team_id`, which
+    retired and released players keep. Slice 4 replaced it with weekly rosters (§7).
+  - **Before switching it on in production**, run one backfill. The daily pull fetches only the
+    current season, so `player_game_appearances` would otherwise lack every earlier season's
+    zero games.
 - It is recorded in `ingest_runs` as `fantasykai.projections`, so `ingestFreshness` covers it.
 - It regenerates W's rows for games that haven't kicked off. Kicked-off rows get `locked_at` and
   are never rewritten by the application, which keeps an honest record for live-accuracy
@@ -449,7 +557,7 @@ who played. The number is in the popover, not on rows. The copy comes from the A
 |---|---|---|
 | **2** | `projections/` domain, `WeightedAverageProjectionProvider` (pure, no DB) | Hand-computed tests; randomized bit-parity against research baseline D; `backtest.sh parity` exact on every 2024–25 player-week |
 | **3** | `V7`, `JdbcProjectionInputs`, `TargetWeekResolver`, `ProjectionJob` (lock at kickoff, `ingest_runs`, headless) | Schema test (all `StatKey` columns, no points column); lifecycle tests (mid-week, MNF stats missing, rollover, bye, after week 18, preseason); a locked row survives a rerun; `OneShotContextTests` with the job. **Built 2026-10-12** on `feat/projections-job`. Also shipped: zero-stat appearances (§15), schedule reconciliation (`V8`), the audited locked-row repair, and the provider-id limit. The job is switched off until Slice 4 |
-| **4** | `V9`, `RosterWeekIngestor`, `InjuryIngestor`, `AvailabilityResolver`, roster-team eligibility | Real 2025 rows as fixtures; header check; 404 → `SKIPPED`; Out/reserve/Q/D/unknown resolution; missing data → UNKNOWN, never a failure |
+| **4** | `V9`, `RosterWeekIngestor`, `InjuryIngestor`, `AvailabilityResolver`, roster-team eligibility | Real 2025 rows as fixtures; header check; 404 → `SKIPPED`; Out/reserve/Q/D/unknown resolution; missing data → UNKNOWN, never a failure. **Built 2026-10-12** on `feat/projections-availability`: `AvailabilityRules`/`AvailabilityService` (the resolver), `RosterWeekIngestor`, `InjuryReportIngestor`, real 2024–26 rows; 2025 check reproduced 153 / 0 (§6) |
 | **5** | The two endpoints and `ExplainedScore` | 401 anonymous; another member's profile 404 (warm cache); `QuerySafetyTests`; points bit-identical to `ScoringEngine.score`; PPR − 0 PPR = rec; parts sum to total; Out not ranked; states for bye, no history, no week |
 | **6** | Board "Next week" and the player panel | lint/test/build; browser-verified at 390 and 1440; other pages unchanged |
 | **7** | QA and monitoring | A weekly live-accuracy report (locked rows against actuals); a freshness alert; deploy runbook; acceptance checks; docs |
@@ -459,7 +567,9 @@ Slices 3 and 4 can run in parallel; 5 needs both.
 ## 14. Known risks
 
 1. **Unknowable absences.** Game-day inactives (37 of 406 in 2025) and late changes after the
-   06:00 ingest can't be known before kickoff. 164 absences had no flag at all.
+   06:00 ingest can't be known before kickoff. 164 absences had no flag at all. Since Slice 4,
+   the same Saturday-morning clock also misses reserve activations and practice-squad
+   elevations made later that day. The 2025 bound is 0 activations and 2 elevations (§6).
 2. ~~**No zero-stat games in production history.**~~ Retired in Slice 3: they are stored and
    read (§15). Without them the baseline over-projected fringe players; 2025 baseline bias on P
    was +0.54.
@@ -512,3 +622,19 @@ Slices 3 and 4 can run in parallel; 5 needs both.
   - Decided before any projection row exists, so `weighted-average-v1` has one meaning from its
     first locked row.
 
+
+- **Availability at the API and in accuracy tracking.** Decided by the owner on 2026-10-12, to be
+  built in the slices named. Not implemented in Slice 4.
+  - **Slice 5, the live API, uses current request-time availability.** The answer is the stored
+    raw projection, plus current known availability (`AvailabilityService`), plus the member's
+    scoring rules.
+    - If a player becomes Out after his line was generated, the board stops ranking him at once,
+      instead of showing Tuesday's eligibility.
+    - The raw projection itself never changes.
+  - **Slice 7, live accuracy, snapshots the resolved availability when a projection locks.**
+    - `roster_week` and `injury_report` are rewritten to each week's final state, so they cannot
+      say what Fantasy-Kai knew before kickoff.
+    - The snapshot is for evaluation and audit only, and never replaces request-time availability
+      in the product.
+    - Request-time state is what we believe now; the lock-time snapshot is what we knew before
+      kickoff.

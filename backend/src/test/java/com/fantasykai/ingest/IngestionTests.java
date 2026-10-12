@@ -404,6 +404,29 @@ class IngestionTests {
         assertThat(columns).noneMatch(column -> column.contains("fantasy_point"));
     }
 
+    /**
+     * Slice 4: the weekly roster and the injury report, read for the season being played only --
+     * 2024 under this test's clock. Real 2024 rows: Hutchinson on injured reserve in week 10 (his
+     * leg, week 6), Seibert game-day inactive in week 10 and Out in week 11, and report rows with
+     * no designation, stored as NULL rather than an empty string.
+     */
+    @Test
+    void readsTheCurrentSeasonsRosterAndInjuryReportAsShipped() {
+        assertThat(jdbc.queryForObject("""
+                SELECT r.status FROM roster_week r JOIN players p ON p.id = r.player_id
+                 WHERE p.gsis_id = ? AND r.season = 2024 AND r.week = 10
+                """, String.class, HUTCHINSON)).isEqualTo("RES");
+        assertThat(jdbc.queryForObject("""
+                SELECT i.report_status FROM injury_report i JOIN players p ON p.id = i.player_id
+                 WHERE p.gsis_id = ? AND i.season = 2024 AND i.week = 11
+                """, String.class, SEIBERT)).isEqualTo("Out");
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM injury_report WHERE report_status IS NULL", Long.class)).isEqualTo(4L);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM injury_report WHERE report_status = ''", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM roster_week", Long.class)).isEqualTo(6L);
+    }
+
     @Test
     void recordsEveryStepInIngestRuns() {
         List<Map<String, Object>> runs = jdbc.queryForList(
@@ -413,7 +436,8 @@ class IngestionTests {
                 .allSatisfy(run -> assertThat(run).containsEntry("status", "SUCCESS"))
                 .extracting(run -> run.get("source"))
                 .contains("nflverse.teams", "nflverse.players", "nflverse.schedules",
-                        "nflverse.stats_player_week", "nflverse.snap_counts");
+                        "nflverse.stats_player_week", "nflverse.snap_counts",
+                        "nflverse.weekly_rosters", "nflverse.injuries");
     }
 
     @Test

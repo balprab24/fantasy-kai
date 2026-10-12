@@ -8,10 +8,10 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *
  * @param provider   a {@link ProjectionSource#id()}; {@code weighted-average-v1} is the only one
  * @param jobEnabled whether the daily pull runs {@link ProjectionJob} after the ingest. Off by
- *                   default until Slice 4 gives the job real eligibility: until then a player's
- *                   week-W team is {@code players.team_id}, which retired and released players
- *                   keep, and a row the job writes is locked for good at kickoff. Owner decision
- *                   2026-10-12.
+ *                   default (owner decision 2026-10-12), and turned on only deliberately: a row
+ *                   the job writes is locked for good at kickoff, so production needs its one-time
+ *                   backfill first ({@code DEPLOY-STEPS.md}). Since Slice 4 the job projects from
+ *                   weekly rosters, not the interim {@code players.team_id}.
  */
 @ConfigurationProperties(prefix = "fantasykai.projections")
 public record ProjectionProperties(

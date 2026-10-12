@@ -99,6 +99,15 @@ class ProjectionJobTests {
         thursdayGame = db.game(2026, 5, cin, bal, THURSDAY_KICKOFF);
         sundayGame = db.game(2026, 5, kc, det, SUNDAY_KICKOFF);
         mondayGame = db.game(2026, 5, buf, tb, MONDAY_KICKOFF);
+
+        // Weekly rosters, as nflverse publishes them: week 4 for every team, week 5 for the teams
+        // that play it -- MIA is on its bye, so it has no week-5 rows at all.
+        for (long player : List.of(chase, flowers, kelce, rookie, blocker, evans, waddle, kicker)) {
+            db.roster(2026, 4, player, team.get(player), "ACT");
+            if (team.get(player) != mia) {
+                db.roster(2026, 5, player, team.get(player), "ACT");
+            }
+        }
     }
 
     @Test
@@ -189,7 +198,7 @@ class ProjectionJobTests {
         jobAt(WEDNESDAY).run(2026);
         jobAt(FRIDAY).run(2026);
         Map<String, Object> locked = rows().get(chase);
-        db.moveTo(chase, kc);
+        db.roster(2026, 5, chase, kc, "ACT"); // traded to KC, who play Sunday
 
         ProjectionRun saturday = jobAt(SATURDAY).run(2026);
 
@@ -203,8 +212,8 @@ class ProjectionJobTests {
     @Test
     void aPlayerWhoLeavesTheWeekLosesHisOpenRow() {
         jobAt(WEDNESDAY).run(2026);
-        db.moveTo(kelce, mia);     // a team on a bye
-        db.moveTo(evans, null);    // released
+        db.roster(2026, 5, kelce, kc, "CUT");    // released
+        db.roster(2026, 5, evans, tb, "DEV");    // sent to the practice squad
 
         jobAt(THURSDAY).run(2026);
 
@@ -406,12 +415,72 @@ class ProjectionJobTests {
                 .isOne();
     }
 
+    // --- roster eligibility (Slice 4): who gets a raw projection --------------------------
+
+    /**
+     * Availability never touches the raw line. An Out player and a reserve player are still
+     * rostered, still projected, bit for bit -- whether the board ranks them is asked later, and
+     * never stored here.
+     */
+    @Test
+    void anOutOrReservePlayerStillGetsHisRawProjection() {
+        db.injury(2026, 5, chase, cin, "Out");
+        db.roster(2026, 5, flowers, bal, "RES");
+
+        jobAt(WEDNESDAY).run(2026);
+
+        assertThat(rows()).containsKeys(chase, flowers);
+        assertMatchesTheProvider(rows().get(chase), chase);
+        assertMatchesTheProvider(rows().get(flowers), flowers);
+    }
+
+    /**
+     * The interim rule this replaces projected anyone whose players.team_id plays -- including a
+     * retired player, who keeps his last team for good. A roster is who is on the team now.
+     */
+    @Test
+    void aPlayerWithAHistoryButNoRosterThisSeasonIsNotProjected() {
+        long retired = player("Retired", "WR", cin);
+        Instant sunday = Instant.parse("2026-09-13T17:00:00Z");
+        long earlier = db.game(2025, 18, cin, bal, sunday.minusSeconds(250L * 86400));
+        stats(retired, earlier, Games.receiver(2025, 18, 6, 70, 1, 9));
+
+        jobAt(WEDNESDAY).run(2026);
+
+        assertThat(rows()).doesNotContainKey(retired).containsKey(chase);
+    }
+
+    /**
+     * nflverse publishes a week's rosters during that week. Until a team's are out, its previous
+     * week's stand -- the board is not emptied for want of a file that is a day away.
+     */
+    @Test
+    void aWeekWhoseRostersAreNotOutYetUsesThePreviousWeeks() {
+        db.jdbc.update("DELETE FROM roster_week WHERE season = 2026 AND week = 5");
+
+        ProjectionRun run = jobAt(WEDNESDAY).run(2026);
+
+        assertThat(run.written()).isEqualTo(5);
+        assertThat(rows()).containsOnlyKeys(chase, flowers, kelce, blocker, evans);
+    }
+
+    /** No roster at all for the season: nothing true to project from, so nothing is projected. */
+    @Test
+    void aSeasonWithNoRosterYetProjectsNoOne() {
+        db.jdbc.update("DELETE FROM roster_week");
+
+        ProjectionRun run = jobAt(WEDNESDAY).run(2026);
+
+        assertThat(run.candidates()).isZero();
+        assertThat(run.written()).isZero();
+    }
+
     // --- helpers -------------------------------------------------------------------------
 
     private ProjectionJob jobAt(Instant now) {
         return new ProjectionJob(db.jdbc, db.transaction, new TargetWeekResolver(db.jdbc),
                 new JdbcProjectionInputs(db.jdbc), new ProjectionRepository(db.jdbc), provider,
-                Clock.fixed(now, ZoneOffset.UTC));
+                new AvailabilityService(db.jdbc), Clock.fixed(now, ZoneOffset.UTC));
     }
 
     private long player(String name, String position, int teamId) {

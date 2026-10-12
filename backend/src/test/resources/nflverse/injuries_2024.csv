@@ -1,0 +1,10 @@
+season,game_type,team,week,gsis_id,position,full_name,first_name,last_name,report_primary_injury,report_secondary_injury,report_status,practice_primary_injury,practice_secondary_injury,practice_status,date_modified
+2024,REG,CIN,1,00-0036900,WR,Ja'Marr Chase,Ja'Marr,Chase,Not injury related - resting player,,Questionable,Not injury related - resting player,,Full Participation in Practice,2024-09-06T18:45:00Z
+2024,REG,CIN,2,00-0035631,TE,Drew Sample,Drew,Sample,,,,Biceps,,Full Participation in Practice,2024-09-13T19:04:00Z
+2024,REG,CIN,4,00-0036900,WR,Ja'Marr Chase,Ja'Marr,Chase,,,,Shoulder,,Full Participation in Practice,2024-09-27T18:45:35Z
+2024,REG,WAS,10,00-0035145,K,Austin Seibert,Austin,Seibert,Right Hip,,Questionable,Right Hip,,Limited Participation in Practice,2024-11-08T20:03:53Z
+2024,REG,WAS,11,00-0035145,K,Austin Seibert,Austin,Seibert,Right Hip,,Out,Right Hip,,Did Not Participate In Practice,2024-11-13T18:32:54Z
+2024,REG,WAS,12,00-0035145,K,Austin Seibert,Austin,Seibert,Right Hip,,Questionable,Right Hip,,Full Participation in Practice,2024-11-22T18:33:45Z
+2024,REG,CIN,14,00-0036900,WR,Ja'Marr Chase,Ja'Marr,Chase,,,,Ankle,,Full Participation in Practice,2024-12-07T18:24:07Z
+2024,REG,CIN,14,00-0035631,TE,Drew Sample,Drew,Sample,,,,Ankle,,Full Participation in Practice,2024-12-07T18:24:07Z
+2024,REG,CIN,18,00-0035631,TE,Drew Sample,Drew,Sample,Groin,,Questionable,Groin,,Did Not Participate In Practice,2025-01-02T19:14:54Z

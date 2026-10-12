@@ -80,6 +80,15 @@ class OneShotContextTests {
     }
 
     @Test
+    void theAvailabilityIngestAndServiceAreUsableHeadless() {
+        // Slice 4: the daily pull reads the roster and injury feeds in this context, and the
+        // projection job asks AvailabilityService for its candidates.
+        assertThat(context.getBean(RosterWeekIngestor.class)).isNotNull();
+        assertThat(context.getBean(InjuryReportIngestor.class)).isNotNull();
+        assertThat(context.getBean(com.fantasykai.projections.AvailabilityService.class)).isNotNull();
+    }
+
+    @Test
     void theProjectionJobShipsSwitchedOff() {
         // Off until Slice 4's roster eligibility (owner decision 2026-10-12). This is the shipped
         // default -- application.yml as deployed -- not a test override.

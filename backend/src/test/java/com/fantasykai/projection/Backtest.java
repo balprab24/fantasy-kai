@@ -80,6 +80,10 @@ public final class Backtest {
                 ProviderParity.run(connection);
                 return;
             }
+            if ("availability".equals(stage)) {
+                AvailabilityBacktest.run(connection, Path.of(env("NFLVERSE_CACHE")));
+                return;
+            }
             BacktestData data = BacktestData.load(connection);
             List<League> leagues = League.load(connection);
             switch (stage) {
