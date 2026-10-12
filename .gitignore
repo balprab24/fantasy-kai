@@ -43,3 +43,6 @@ logs/
 # Impeccable review captures and critique snapshots -- evidence, not source
 .impeccable/review/
 .impeccable/critique/
+
+# Research data cache (scripts/backtest.sh v2 stages): nflverse files, never committed
+.cache/

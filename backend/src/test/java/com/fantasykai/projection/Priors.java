@@ -21,6 +21,9 @@ final class Priors {
     private final Map<String, double[]> perTouch = new HashMap<>();
     private final Map<String, Double> snap = new HashMap<>();
     private final Map<String, double[]> allowed = new HashMap<>();
+    private final Map<String, double[]> air = new HashMap<>(); // per game, rec_yd per air yard
+    private double teamPassAir;
+    private final double[] leaguePerTeamGame = new double[Quantity.COUNT];
     private final double[] teamVolume;
     private final double impliedTotal;
 
@@ -85,7 +88,36 @@ final class Priors {
             priors.allowed.put(POSITIONS.get(p), mean);
         }
 
+        double teamAir = 0;
+        int teamAirGames = 0;
+        for (Timeline<TeamGame> timeline : data.teams().values()) {
+            for (TeamGame game : timeline.all()) {
+                if (seasons.contains(game.season()) && !Double.isNaN(game.passAirYards())) {
+                    teamAir += game.passAirYards();
+                    teamAirGames++;
+                }
+            }
+        }
+        priors.teamPassAir = ratio(teamAir, teamAirGames);
+
+        double leagueGames = 0;
+        double[] leagueSum = new double[Quantity.COUNT];
+        for (LeagueWeek week : data.league().all()) {
+            if (seasons.contains(week.season())) {
+                leagueGames += week.teamGames();
+                for (int q = 0; q < Quantity.COUNT; q++) {
+                    leagueSum[q] += week.totals()[q];
+                }
+            }
+        }
+        for (int q = 0; q < Quantity.COUNT; q++) {
+            priors.leaguePerTeamGame[q] = ratio(leagueSum[q], leagueGames);
+        }
+
         for (String position : POSITIONS) {
+            double airSum = 0;
+            double airGames = 0;
+            double airRecYd = 0;
             double[] sum = new double[Quantity.COUNT];
             double games = 0;
             double returns = 0;
@@ -101,6 +133,11 @@ final class Priors {
                     }
                     games++;
                     returns += game.returns();
+                    if (!Double.isNaN(game.airYards())) {
+                        airSum += game.airYards();
+                        airGames++;
+                        airRecYd += game.line()[Quantity.of(StatKey.REC_YD)];
+                    }
                     if (!Double.isNaN(game.snapPct())) {
                         snapSum += game.snapPct();
                         snapN++;
@@ -129,6 +166,7 @@ final class Priors {
                 ratio(sum[Quantity.of(StatKey.RET_TD)], returns)
             });
             priors.snap.put(position, snapSum / snapN);
+            priors.air.put(position, new double[] {ratio(airSum, airGames), ratio(airRecYd, airSum)});
         }
         return priors;
     }
@@ -152,6 +190,26 @@ final class Priors {
     /** League mean a defense allowed per game to a position, per quantity. */
     double allowed(String position, int q) {
         return allowed.get(position)[q];
+    }
+
+    /** Receiving air yards per game at this position; 0 when the dataset has none (v1's). */
+    double airPerGame(String position) {
+        return air.get(position)[0];
+    }
+
+    /** Receiving yards per air yard (RACR) at this position. */
+    double racr(String position) {
+        return air.get(position)[1];
+    }
+
+    /** A team's passing air yards per game. */
+    double teamPassAir() {
+        return teamPassAir;
+    }
+
+    /** The training seasons' league production per team-game -- the environment's baseline. */
+    double leaguePerTeamGame(int q) {
+        return leaguePerTeamGame[q];
     }
 
     double snap(String position) {
