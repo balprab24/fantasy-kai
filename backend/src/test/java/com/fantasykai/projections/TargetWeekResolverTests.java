@@ -123,6 +123,65 @@ class TargetWeekResolverTests {
                 .isEqualTo(new SeasonWeek(2026, 6));
     }
 
+    /**
+     * Off the schedule -- nflverse deleted the row, so the ingest delisted it -- is not part of
+     * the week at all: it stops holding it at once, an hour after kickoff, not after 48.
+     */
+    @Test
+    void aGameOffTheScheduleStopsHoldingTheWeekAtOnce() {
+        schedule(2026, 1, 6);
+        complete(1, 4);
+        played(5, DayOfWeek.THURSDAY);
+        played(5, DayOfWeek.SUNDAY);
+        db.delist(games.get("5:" + DayOfWeek.MONDAY));
+
+        assertThat(resolver.resolve(2026, kickoff(5, DayOfWeek.MONDAY).plusSeconds(3600)).orElseThrow().week())
+                .isEqualTo(new SeasonWeek(2026, 6));
+    }
+
+    /** ...and it is never one of the week's games, so nothing is projected for it. */
+    @Test
+    void aGameOffTheScheduleIsNotATargetGame() {
+        schedule(2026, 1, 6);
+        complete(1, 4);
+        long sunday = games.get("5:" + DayOfWeek.SUNDAY);
+        db.delist(sunday);
+
+        // Wednesday 06:00 before week 5's Thursday game: the week a run would be projecting.
+        TargetWeek target = resolver.resolve(2026, day(4, DayOfWeek.WEDNESDAY, 6, 0)).orElseThrow();
+
+        assertThat(target.week()).isEqualTo(new SeasonWeek(2026, 5));
+        assertThat(target.games()).hasSize(2).extracting(TargetWeek.Game::id).doesNotContain(sunday);
+    }
+
+    /**
+     * A late feed is not a cancellation. A listed game with no stats is still a game of its week
+     * -- a target game, holding the week -- until 48 hours after kickoff; then it stops holding
+     * the week but stays listed, and its stats still count when they land.
+     */
+    @Test
+    void lateStatsAreNotMistakenForACancellation() {
+        schedule(2026, 1, 6);
+        complete(1, 4);
+        played(5, DayOfWeek.THURSDAY);
+        played(5, DayOfWeek.SUNDAY);
+        long monday = games.get("5:" + DayOfWeek.MONDAY);
+        Instant kickoff = kickoff(5, DayOfWeek.MONDAY);
+
+        TargetWeek thirtyHoursLate = resolver.resolve(2026, kickoff.plusSeconds(30 * 3600)).orElseThrow();
+        assertThat(thirtyHoursLate.week()).isEqualTo(new SeasonWeek(2026, 5));
+        assertThat(thirtyHoursLate.games()).extracting(TargetWeek.Game::id).contains(monday);
+
+        assertThat(resolver.resolve(2026, kickoff.plusSeconds(49 * 3600)).orElseThrow().week())
+                .isEqualTo(new SeasonWeek(2026, 6));
+        assertThat(db.jdbc.queryForObject("SELECT delisted_at IS NULL FROM games WHERE id = ?", Boolean.class, monday))
+                .as("rolled past, not removed: the schedule still lists it").isTrue();
+
+        played(5, DayOfWeek.MONDAY);
+        assertThat(resolver.resolve(2026, kickoff.plusSeconds(60 * 3600)).orElseThrow().week())
+                .as("the stats landing changes nothing about the rollover").isEqualTo(new SeasonWeek(2026, 6));
+    }
+
     /** A game with no date cannot be judged late: it holds its week until its stats exist. */
     @Test
     void aGameWithNoKickoffTimeIsNeverTakenAsFinished() {

@@ -7,10 +7,17 @@
 the first code. north-star's Phase 6 brief (§10) points here, and where they disagree this document
 is the newer intent.
 
-**Slice 3 (2026-10-12)** follows §8 with the owner's decisions of that day and four refinements,
-each recorded where it applies: §15 resolved as (a), zero-stat appearances stored; the job ships
-switched off until Slice 4; and in §8 the primary-key order, `data_through` as two columns, a
-48-hour escape in the target week, and a database trigger that holds the lock.
+**Slice 3 (2026-10-12)** follows §8, with the owner's decisions of that day and the
+refinements of its review, each recorded where it applies:
+- §15 is resolved as (a): zero-stat appearances are stored.
+- The job ships switched off until Slice 4.
+- §8 records:
+  - the primary-key order, and `data_through` as two columns;
+  - the provider-id length, held by the domain and the column together;
+  - the lock and its one audited repair path;
+  - schedule reconciliation (`V8`, from nflverse's measured behaviour);
+  - the 48-hour rule, narrowed to late stats;
+  - a corrupt history failing the run by name.
 
 **The approved decisions, verbatim in substance:**
 
@@ -227,39 +234,91 @@ skill position, his team plays in W, and he has n ≥ 1.
     `team_id`, the 13 `StatKey` columns and 3 usage columns as `DOUBLE PRECISION`, `games_used`,
     `data_through_season` and `data_through_week`, `generated_at` and `locked_at`.
   - `player_game_appearances` (§15): every game a skill player took an offensive snap in.
+- `V8__games_delisted` (Slice 3) adds `games.delisted_at`. See "The schedule" below.
 - **No points column**, enforced by a schema test, and `player_game_stats` is untouched.
 - **Refinements made in Slice 3:**
   - The PK holds the same four columns, but leads with *(season, week, provider)*. The job's
     replace and the board's read are then a range of it, and a player's own lookup still names
     every column.
   - `data_through` is two columns: it is `RawProjection.lastGame`, a season and a week.
-  - **A trigger refuses any `UPDATE` or `DELETE` of a locked row**, whoever issues it. Locking an
-    open row is allowed, and `TRUNCATE` is the deliberate way out. The job and the trigger are
-    each proven alone: the trigger catches a job that forgot `locked_at IS NULL`, and the schema
-    test catches a missing trigger.
-- `V8`: `roster_week`, `injury_report`.
+  - `provider` is `VARCHAR(40)`, and `ProjectionSource.MAX_ID_LENGTH` is 40. An id the column
+    cannot hold is refused when the source is constructed, at startup, not by the first night's
+    insert. A schema test holds the two numbers together.
+- `V9`: `roster_week`, `injury_report` (Slice 4).
 - Scoring about 500 rows per request is trivial next to `/rankings`'s ~6K-row scan. No Redis.
+
+**The lock, and the one way to repair it.**
+
+- **Normal application code never rewrites a projection after its game has kicked off.** A `V7`
+  trigger refuses `UPDATE` and `DELETE` of a locked row, whatever code path asks. The job and the
+  trigger are each proven alone: the trigger catches a job that forgot `locked_at IS NULL`, and
+  the schema test catches a missing trigger.
+- This is not a claim that no correction can ever happen. Genuine corruption, meaning a
+  projection for a game that never existed, can be repaired by an operator, one row at a time.
+  - It happens in one transaction that sets `fantasykai.projection_repair_reason`, a sentence of
+    at least 10 characters.
+  - The trigger copies the row as it stood, with the reason, user and time, into
+    `player_week_projection_repairs` before allowing the change. A repair corrects the board
+    without erasing what was recorded.
+  - No application code sets the reason, and a test reads `src/main/java` to keep it that way.
+  - `TRUNCATE` is for an empty test database, never a repair. The procedure is
+    `deploy/README.md` §8.
+
+**The schedule (`V8`).** nflverse's schedule has no status column. These cases were read from the
+history of `nflverse/nfldata`'s `data/games.csv`, which the schedules release is built from
+(2026-10-12):
+
+| What happened | What the file did | Seen in |
+|---|---|---|
+| Moved within its week | Same `game_id`, new `gameday`/`gametime` | 2020 NE–KC (Sun → Mon), BUF–TEN (Sun → Tue), KC–BUF (Thu → Mon), BAL–PIT (Thanksgiving → Wed), DAL–BAL (Thu → Tue) |
+| Moved to another week | Row deleted, a new `game_id` added; `old_game_id` is not stable across the move either | 2020 PIT–TEN week 4 → 7 (on 2020-10-02 neither row existed), DEN–NE 5 → 6, PIT–BAL 7 → 8 |
+| Cancelled | Row deleted | 2022 BUF–CIN: listed unchanged, no score, from kickoff on 2023-01-02 to 01-05, gone on 01-06 |
+
+- An upsert alone kept every such game in `games` for good, with no stats, and the job projected
+  both teams for it.
+- So `GameIngestor` reconciles each season it reads against the file.
+  - A stored game the file no longer lists gets `delisted_at`.
+  - One the file lists again is cleared.
+  - It is marked, never deleted, because stats, appearances and locked projections may point at
+    it.
+- **Guards.**
+  - A row the run cannot use (say, a blank team) still counts as listed: "could not read it" is
+    not "it is gone".
+  - A season the file has no rows for is not reconciled.
+  - A run that would delist more than 16 games of one season (a week's slate) fails and delists
+    nothing: that is a broken file, not a schedule change.
+- **What delisting means downstream:**
+  - A delisted game is never part of a target week and never projected.
+  - The job **withdraws** its open rows on its next run, *before* locking, so a game dropped
+    before the job saw it kick off never enters the record.
+  - Its locked rows stay. A game that kicked off and was then cancelled, as BUF–CIN was, has a
+    true pre-game record.
+- **Measured.** Replayed from those real file versions in `GameReconciliationTests`. Against
+  today's full schedule, reconciling 2020–26 delisted 0 of 1,965 stored games.
+- `IntegrityChecks` logs any stat rows on a delisted game. A played game does not leave the
+  schedule; when one does, nflverse has most likely re-identified it, and its stats will arrive a
+  second time.
 
 **Target week W.**
 
-- W is the smallest regular-season week of the current season in which some game is not yet
-  complete. A game is **complete** when its stat rows are stored (the score can lag, as ATL–NO
-  did).
+- W is the smallest regular-season week of the current season in which some **listed** game is
+  not yet complete. A game is **complete** when its stat rows are stored (the score can lag, as
+  ATL–NO did).
 - The board rolls forward only when **all** of last week's stats are in: normally the Tuesday
   06:00 ET ingest, otherwise the next one. Until then week N shows with every game locked.
-- **Slice 3 refinement:** a game still without stat rows **48 hours after kickoff** stops holding
-  the week.
-  - Without it, a Monday night game whose stats were still missing at Thursday 06:00 would leave
-    Thursday's game never projected: the last run before it would still be on the old week.
-    48 hours puts Monday night's kickoff behind that run.
-  - It also stops a cancelled game freezing the rest of the season. nflverse drops one from its
-    schedule (2022 week 17 holds 15 games, and BUF–CIN is not among them), but `GameIngestor`
-    only upserts, so a game ingested *before* its cancellation stays in `games` with no stats,
-    for good. No REG game in 2020–26 is unreported 48 hours after kickoff locally (both measured
-    2026-10-12). That is only because those seasons were backfilled long after the fact; a
-    cancellation during a live season would leave one.
-  - A game rolled past this way is regenerated from its stats once they land, as every open row
-    is.
+- **Two conditions, two mechanisms:**
+  - *The game is no longer on the schedule* (moved or cancelled). It is `delisted_at` and leaves
+    the week at once, with no waiting.
+  - *The game is on the schedule and its stats are late.* It stops holding the week **48 hours
+    after kickoff**, stays listed, and its stats count when they land: the next run regenerates
+    every open row from them. Without this, a Monday night game whose stats were still missing at
+    Thursday 06:00 would leave Thursday's game never projected, since the last run before it would
+    still be on the old week; 48 hours puts Monday night's kickoff behind that run.
+  - The 48-hour rule is not how a cancellation is handled. It only bounds the days before
+    nflverse deletes the row (BUF–CIN: three).
+- **Whether the 48-hour rule is needed** rests on a risk that has not been measured: how often
+  Monday night's stats arrive after Thursday 06:00. It costs one condition, and tests pin both
+  conditions apart.
 
 **Generation.**
 
@@ -275,9 +334,17 @@ skill position, his team plays in W, and he has n ≥ 1.
   otherwise lack every earlier season's zero games.
 - It is recorded in `ingest_runs` as `fantasykai.projections`, so `ingestFreshness` covers it.
 - It regenerates W's rows for games that haven't kicked off. Kicked-off rows get `locked_at` and
-  are **never rewritten**, which keeps an honest record for live-accuracy tracking.
+  are never rewritten by the application, which keeps an honest record for live-accuracy
+  tracking.
 - It is deterministic and idempotent. It recomputes daily because stats can be corrected and
   rosters change. No real-time updates.
+- **A corrupt history fails the run, on purpose** (owner decision 2026-10-12). Two games for one
+  player in one week violate a domain fact; skipping him would hide the fault and publish an
+  incomplete board.
+  - The failure is the diagnosis. `CorruptHistoryException` names the player (id and gsis), the
+    week, and each conflicting game with where it came from (stat row or appearance).
+  - That message is what `ingest_runs.error` and `ingestFreshness` show.
+  - There were 0 such player-weeks on 2026-10-12.
 
 **Edge cases:**
 
@@ -355,10 +422,10 @@ who played. The number is in the popover, not on rows. The copy comes from the A
 |---|---|
 | New `projections/` | `ProjectionProvider`, `WeightedAverageProjectionProvider`, `ProjectionSource`, `ProjectionInputs` + `JdbcProjectionInputs`, `TargetWeek` + `TargetWeekResolver`, `PlayerProjection`/`HistoricalLine`, `ProjectionRepository`, `ProjectionJob`, `AvailabilityResolver` |
 | `ingest/` | `RosterWeekIngestor`, `InjuryIngestor` (the `StatIngestor` `List<Field>` pattern); `IngestService`, `IngestScheduler`, `IngestOnceRunner` (run the job) |
-| Migrations | `V7__player_week_projection.sql`, `V8__roster_week_and_injury_report.sql` |
+| Migrations | `V7__projections_and_appearances.sql`, `V8__games_delisted.sql` (both Slice 3), `V9__roster_week_and_injury_report.sql` |
 | `api/` | `ProjectionsController`, `ProjectionsService`, `ProjectionBoard`, `ProjectionRow`, `PlayerProjectionResponse`, `ExplainedScore` |
 | Frontend | `lib/types.ts`, `lib/api.ts` (hooks), `rankings/FilterBar.tsx`, `RankingsWorkspace.tsx`, `PlayerRow.tsx`, `player/PlayerWorkspace.tsx`, a new `player/ProjectionPanel.tsx`, the info popover |
-| Docs and checks | `CLAUDE.md`, `map.md`, north-star brief, `session-check.sh` (endpoint count 13 → 15), `deploy/README.md` (V7/V8) |
+| Docs and checks | `CLAUDE.md`, `map.md`, north-star brief, `session-check.sh` (endpoint count 13 → 15), `deploy/README.md` (V7–V9; §8 the locked-row repair) |
 
 **Reused:** `StatKey`, `StatLine`, `ScoringEngine`, `ScoringProfiles.byId`, `ScoringPosition`,
 `PageResponse`, the `StatColumns` pattern, `IngestRunRecorder`, `CsvValues`, `NflverseClient`.
@@ -368,8 +435,8 @@ who played. The number is in the popover, not on rows. The copy comes from the A
 | # | Ships | Done when |
 |---|---|---|
 | **2** | `projections/` domain, `WeightedAverageProjectionProvider` (pure, no DB) | Hand-computed tests; randomized bit-parity against research baseline D; `backtest.sh parity` exact on every 2024–25 player-week |
-| **3** | `V7`, `JdbcProjectionInputs`, `TargetWeekResolver`, `ProjectionJob` (lock at kickoff, `ingest_runs`, headless) | Schema test (all `StatKey` columns, no points column); lifecycle tests (mid-week, MNF stats missing, rollover, bye, after week 18, preseason); a locked row survives a rerun; `OneShotContextTests` with the job. **Built 2026-10-12** on `feat/projections-job`, with zero-stat appearances (§15) and the job switched off until Slice 4 |
-| **4** | `V8`, `RosterWeekIngestor`, `InjuryIngestor`, `AvailabilityResolver`, roster-team eligibility | Real 2025 rows as fixtures; header check; 404 → `SKIPPED`; Out/reserve/Q/D/unknown resolution; missing data → UNKNOWN, never a failure |
+| **3** | `V7`, `JdbcProjectionInputs`, `TargetWeekResolver`, `ProjectionJob` (lock at kickoff, `ingest_runs`, headless) | Schema test (all `StatKey` columns, no points column); lifecycle tests (mid-week, MNF stats missing, rollover, bye, after week 18, preseason); a locked row survives a rerun; `OneShotContextTests` with the job. **Built 2026-10-12** on `feat/projections-job`. Also shipped: zero-stat appearances (§15), schedule reconciliation (`V8`), the audited locked-row repair, and the provider-id limit. The job is switched off until Slice 4 |
+| **4** | `V9`, `RosterWeekIngestor`, `InjuryIngestor`, `AvailabilityResolver`, roster-team eligibility | Real 2025 rows as fixtures; header check; 404 → `SKIPPED`; Out/reserve/Q/D/unknown resolution; missing data → UNKNOWN, never a failure |
 | **5** | The two endpoints and `ExplainedScore` | 401 anonymous; another member's profile 404 (warm cache); `QuerySafetyTests`; points bit-identical to `ScoringEngine.score`; PPR − 0 PPR = rec; parts sum to total; Out not ranked; states for bye, no history, no week |
 | **6** | Board "Next week" and the player panel | lint/test/build; browser-verified at 390 and 1440; other pages unchanged |
 | **7** | QA and monitoring | A weekly live-accuracy report (locked rows against actuals); a freshness alert; deploy runbook; acceptance checks; docs |
@@ -395,6 +462,13 @@ Slices 3 and 4 can run in parallel; 5 needs both.
    and UNKNOWN states.
 8. **Visible gaps.** 26 rostered players have no projection, and players are not projected until
    their first game.
+9. **Appearances are upsert-only.** If nflverse removed or corrected a published snap row, its
+   appearance would stay, and the player would keep a zero game he did not play. This has not
+   been observed, and the evidence is thin, because the release assets keep no history.
+   - The 2020–25 snap files were byte-identical on 2026-10-09 and 10-12.
+   - None of 2026 weeks 1–4's 5,970 rows was removed or changed over those three days.
+   - Deferred. The schedule needed reconciliation because nflverse *does* delete schedule rows
+     (§8); snap rows have shown no such behaviour.
 
 ## 15. Open decisions for later slices
 

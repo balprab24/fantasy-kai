@@ -2,7 +2,12 @@ package com.fantasykai.projections;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
+import com.fantasykai.ingest.DailyPull;
+import com.fantasykai.ingest.IngestProperties;
+import com.fantasykai.ingest.IngestRunRecorder;
+import com.fantasykai.ingest.IngestService;
 import com.fantasykai.scoring.StatKey;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -247,10 +252,127 @@ class ProjectionJobTests {
         db.played(chase, db.game(2026, 4, cin, nyj, Instant.parse("2026-10-04T17:00:00Z")), cin);
 
         assertThatThrownBy(() -> jobAt(FRIDAY).run(2026))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(CorruptHistoryException.class)
+                .hasMessageContaining("player " + chase)
                 .hasMessageContaining("2026 week 4");
 
         assertThat(rows()).isEqualTo(before);
+    }
+
+    /**
+     * Fail loudly, and say exactly what: the daily pull's {@code ingest_runs} row -- what
+     * {@code ingestFreshness} shows -- names the player, the week and both games.
+     */
+    @Test
+    void aCorruptHistoryIsReportedByPlayerWeekAndGamesNotAsAGenericFailure() {
+        long secondGame = db.game(2026, 4, cin, nyj, Instant.parse("2026-10-04T17:00:00Z"));
+        db.played(chase, secondGame, cin);
+        String second = db.jdbc.queryForObject("SELECT nflverse_game_id FROM games WHERE id = ?",
+                String.class, secondGame);
+        String first = db.jdbc.queryForObject("SELECT nflverse_game_id FROM games WHERE season = 2026"
+                + " AND week = 4 AND home_team_id = ? AND away_team_id = ?", String.class, cin, bal);
+        DailyPull pull = new DailyPull(mock(IngestService.class), jobAt(FRIDAY),
+                new ProjectionProperties("weighted-average-v1", true), new IngestRunRecorder(db.jdbc),
+                new IngestProperties("https://example.invalid", "https://example.invalid", 2020,
+                        "0 0 6 * * *", false, false, false),
+                Clock.fixed(FRIDAY, ZoneOffset.UTC));
+
+        assertThatThrownBy(pull::run).isInstanceOf(CorruptHistoryException.class);
+
+        String error = db.jdbc.queryForObject(
+                "SELECT error FROM ingest_runs WHERE source = 'fantasykai.projections' AND status = 'FAILED'",
+                String.class);
+        assertThat(error).contains("player " + chase, "2026 week 4", first + " (stat row)",
+                second + " (stat row)");
+    }
+
+    // --- the schedule changes under the job (games.delisted_at, V8) -----------------------
+
+    /** Cancelled before kickoff: its open rows go, and nothing is projected for it again. */
+    @Test
+    void aGameCancelledBeforeKickoffHasItsOpenRowsWithdrawn() {
+        jobAt(WEDNESDAY).run(2026);
+        db.delist(sundayGame);
+
+        ProjectionRun thursday = jobAt(THURSDAY).run(2026);
+
+        assertThat(thursday.withdrawn()).as("Kelce's KC-DET row").isEqualTo(1);
+        assertThat(rows()).doesNotContainKey(kelce).containsKeys(chase, flowers, blocker, evans);
+        assertThat(thursday.written()).as("KC and DET have no game this week now").isEqualTo(4);
+    }
+
+    /**
+     * Cancelled after it kicked off -- 2022's BUF-CIN, listed for three days and then dropped:
+     * the rows locked at kickoff are the record of what was projected, and stay.
+     */
+    @Test
+    void aGameCancelledAfterKickoffKeepsItsLockedRows() {
+        jobAt(WEDNESDAY).run(2026);
+        jobAt(FRIDAY).run(2026);
+        Map<String, Object> locked = rows().get(chase);
+        db.delist(thursdayGame);
+
+        ProjectionRun saturday = jobAt(SATURDAY).run(2026);
+
+        assertThat(saturday.withdrawn()).isZero();
+        assertThat(rows().get(chase)).isEqualTo(locked);
+        assertThat(rows().get(flowers)).containsEntry("locked_at", Timestamp.from(THURSDAY_KICKOFF));
+    }
+
+    /**
+     * Dropped from the schedule before the job saw it kick off: withdrawn, never locked. The
+     * order matters -- locking first would make a game that never happened part of the record.
+     */
+    @Test
+    void aDroppedGameWhoseOldKickoffPassedBetweenRunsIsWithdrawnNotLocked() {
+        jobAt(WEDNESDAY).run(2026);
+        db.delist(sundayGame);
+
+        ProjectionRun monday = jobAt(Instant.parse("2026-10-12T10:00:00Z")).run(2026);
+
+        assertThat(monday.withdrawn()).isEqualTo(1);
+        assertThat(rows()).doesNotContainKey(kelce);
+    }
+
+    /**
+     * Moved within its week -- 2020's NE-KC, Sunday to Monday: the same game, a later kickoff.
+     * The rows stay open past the old time and are regenerated, then lock at the new one.
+     */
+    @Test
+    void aGameMovedLaterInItsWeekStaysOpenUntilItsNewKickoff() {
+        jobAt(WEDNESDAY).run(2026);
+        db.jdbc.update("UPDATE games SET kickoff_at = ? WHERE id = ?",
+                MONDAY_KICKOFF.atOffset(ZoneOffset.UTC), thursdayGame);
+
+        jobAt(FRIDAY).run(2026);
+
+        assertThat(rows().get(chase)).containsEntry("locked_at", null)
+                .containsEntry("generated_at", Timestamp.from(FRIDAY));
+        jobAt(TUESDAY).run(2026);
+        assertThat(rows().get(chase)).containsEntry("locked_at", Timestamp.from(MONDAY_KICKOFF));
+    }
+
+    /**
+     * Moved to another week -- 2020's PIT-TEN, week 4 to week 7: nflverse drops the old id and
+     * adds a new one. Week 5 withdraws the old game's rows; the new week projects the new game.
+     */
+    @Test
+    void aGameMovedToAnotherWeekIsProjectedThereAndWithdrawnHere() {
+        jobAt(WEDNESDAY).run(2026);
+        db.delist(thursdayGame);
+        long moved = db.game(2026, 6, cin, bal, Instant.parse("2026-10-18T17:00:00Z"));
+
+        ProjectionRun thursday = jobAt(THURSDAY).run(2026);
+        assertThat(thursday.withdrawn()).as("Chase and Flowers").isEqualTo(2);
+        assertThat(rows()).doesNotContainKeys(chase, flowers);
+
+        db.played(kelce, sundayGame, kc);
+        db.played(evans, mondayGame, tb);
+        ProjectionRun next = jobAt(TUESDAY).run(2026);
+
+        assertThat(next.week()).as("the dropped game no longer holds week 5").contains(new SeasonWeek(2026, 6));
+        assertThat(db.jdbc.queryForObject("SELECT game_id FROM player_week_projection"
+                + " WHERE player_id = ? AND season = 2026 AND week = 6", Long.class, chase)).isEqualTo(moved);
     }
 
     /** A game with no kickoff time cannot be locked at a time nobody knows. */

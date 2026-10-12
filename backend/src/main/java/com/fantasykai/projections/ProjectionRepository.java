@@ -49,13 +49,26 @@ public class ProjectionRepository {
     /**
      * Locks every row whose game has kicked off, at its kickoff: every week and every provider,
      * so a row is locked however late the job next runs. The job never wrote one after kickoff,
-     * so the row as it stands is the one that was in place when the game started.
+     * so the row as it stands is the one that was in place when the game started. Run after
+     * {@link #withdrawDelisted}, in the same transaction: a game no longer on the schedule has
+     * no open rows left to lock, so it never enters the record.
      */
     private static final String LOCK_KICKED_OFF = """
             UPDATE player_week_projection p
                SET locked_at = g.kickoff_at
               FROM games g
              WHERE g.id = p.game_id AND p.locked_at IS NULL AND g.kickoff_at <= ?
+            """;
+
+    /**
+     * Open rows for a game nflverse no longer lists -- moved to another week or cancelled. Every
+     * week and every provider: the game is not happening as projected, so neither is the row.
+     * A row already locked stays, because its game kicked off before it left the schedule.
+     */
+    private static final String WITHDRAW_DELISTED = """
+            DELETE FROM player_week_projection p
+             USING games g
+             WHERE g.id = p.game_id AND g.delisted_at IS NOT NULL AND p.locked_at IS NULL
             """;
 
     private static final String LOCKED_PLAYERS = """
@@ -72,6 +85,11 @@ public class ProjectionRepository {
 
     public ProjectionRepository(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
+    }
+
+    /** @return how many open rows were withdrawn because their game left the schedule */
+    public int withdrawDelisted() {
+        return jdbc.update(WITHDRAW_DELISTED);
     }
 
     /** @return how many rows were locked by this call */

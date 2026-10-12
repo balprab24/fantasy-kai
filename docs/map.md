@@ -17,11 +17,11 @@ and nothing caught it for two days.
 | | |
 |---|---|
 | Phases shipped | **0 → 5c** |
-| Currently next | **Phase 6 — Projections**, V1 brief in north-star §10 (owner decision 2026-10-08). **Slice 1 done (PR #56): v1 +2.7% on 2025, short of 3%. Experiment v2 done (`feat/projections-v2`): air yards and a league-environment term add nothing; the frozen candidate passes 3% only formally on 4 early 2026 weeks; decision C — ship the baseline transparently, keep scoring v1′ prospectively, research availability** — [`perf/projection-accuracy.md`](perf/projection-accuracy.md). **Production V1 architecture approved 2026-10-09:** [`projections-v1-architecture.md`](projections-v1-architecture.md). **Slice 2** (the provider) is PR #59; **Slice 3** (`V7`, the inputs, the target week, the job — shipped switched off until Slice 4) is on `feat/projections-job`. Then **Phase 11.5** — Spring Boot 3.5 → 4, overdue security work. **5d is live** at `https://www.fantasykai.com` since 2026-09-23 |
-| Backend | **97** files · Java 25 / Spring Boot 3.5.16 — **OSS-EOL since 2026-06-30**, Tomcat pinned to 10.1.59 over the parent's 10.1.55. See [`../CLAUDE.md`](../CLAUDE.md) "The EOL clock" |
-| Tests | 68 files · **279 tests**, all green — 37 of the files and 29 of the tests are the Phase 6 backtest in `com.fantasykai.projection` (Slice 1, Experiment v2, provider parity); 10 files and 63 tests are production `com.fantasykai.projections` (Slices 2 and 3), plus `DailyPullTests` (7) in `ingest`. Slice 3's database tests share one plain Testcontainers Postgres and **add no Spring context** — still 12 (this row said "17 files" until 2026-09-28; there were 18 — counted with `find`, not recalled) · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 53.5s measured 2026-10-12, 47.5s on 2026-09-24, 58.2s on 09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
+| Currently next | **Phase 6 — Projections**, V1 brief in north-star §10 (owner decision 2026-10-08). **Slice 1 done (PR #56): v1 +2.7% on 2025, short of 3%. Experiment v2 done (`feat/projections-v2`): air yards and a league-environment term add nothing; the frozen candidate passes 3% only formally on 4 early 2026 weeks; decision C — ship the baseline transparently, keep scoring v1′ prospectively, research availability** — [`perf/projection-accuracy.md`](perf/projection-accuracy.md). **Production V1 architecture approved 2026-10-09:** [`projections-v1-architecture.md`](projections-v1-architecture.md). **Slice 2** (the provider) is PR #59; **Slice 3** (`V7`/`V8`, the inputs, the target week, the job — shipped switched off until Slice 4 — plus schedule reconciliation) is on `feat/projections-job`, checkpoint `3509cd2`, not pushed. Then **Phase 11.5** — Spring Boot 3.5 → 4, overdue security work. **5d is live** at `https://www.fantasykai.com` since 2026-09-23 |
+| Backend | **98** files · Java 25 / Spring Boot 3.5.16 — **OSS-EOL since 2026-06-30**, Tomcat pinned to 10.1.59 over the parent's 10.1.55. See [`../CLAUDE.md`](../CLAUDE.md) "The EOL clock" |
+| Tests | 70 files · **310 tests**, all green — 37 of the files and 29 of the tests are the Phase 6 backtest in `com.fantasykai.projection` (Slice 1, Experiment v2, provider parity); 11 files and 83 tests are production `com.fantasykai.projections` (Slices 2 and 3), plus `DailyPullTests` (7) and `GameReconciliationTests` (11, replaying real nflverse schedule versions) in `ingest`. Slice 3's database tests share one plain Testcontainers Postgres and **add no Spring context** — still 12 (this row said "17 files" until 2026-09-28; there were 18 — counted with `find`, not recalled) · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 54.4s measured 2026-10-12, 47.5s on 2026-09-24, 58.2s on 09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
 | HTTP endpoints | **13** — 6 `GET`, members only since 2026-09-29 (the sixth is `/players/{id}/career`, 2026-09-28), 4 `/auth`, 3 authenticated mutations |
-| Migrations | `V1` … `V7` (`V6`: `players.birth_date`, `teams.logo_url`; `V7`: `player_game_appearances` and `player_week_projection`, whose locked rows a trigger refuses to change) |
+| Migrations | `V1` … `V8` (`V6`: `players.birth_date`, `teams.logo_url`; `V7`: `player_game_appearances` and `player_week_projection`, whose locked rows a trigger refuses to change but for an audited repair; `V8`: `games.delisted_at`) |
 | Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
 | Frontend | **Next.js 16 · 76 `.ts`/`.tsx` files** (78 under `frontend/src`) — every page rendered per request since 2026-09-29, under a nonce-based CSP (`src/proxy.ts`). Visual system "Prime time" since 2026-09-30 (branch `feat/kai-identity`; the rulebook is `DESIGN.md`), in two modes: the public pages in **Daylight** (a paper ground with one cool band, since 2026-10-05) -- a landing page at `/` (recomposed 2026-10-07, product first) whose hero is the real rankings board for the season being played, in the product's dark skin, running off the page's right edge, opening on a member's own ruleset, with a live scoring switch, re-sorting itself between PPR and that ruleset in a short loop (still under reduced motion), then one board the visitor drives through 0 PPR / Half PPR / PPR as its rows travel, a full-width band of one player opened with the player page's own scoring switch live, and email-first sign-up -- and behind sign-in, in **Prime time**, a top bar, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (cut-out plate, weekly chart, game log, career), ruleset builder; attribution footer on both. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, the landing's captured data and the two modes' token parity, 85 tests, no dependency, and in CI since 2026-09-28 |
 
@@ -63,12 +63,12 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | `NflverseClient` | One HTTP GET of a GitHub release asset + commons-csv parse |
 | `TeamIngestor` | `teams_colors_logos.csv` → `teams`, including historical abbreviations, and since `V6` the ESPN logo URL (https only) |
 | `PlayerIngestor` | `players.csv` → `players`; espn/pfr/nfl/esb ids as `jsonb`, and since `V6` `birth_date` — read but never required, and a malformed one is null: display-only data must not stop the pull |
-| `GameIngestor` | `schedules/games.csv` → `games`. 18 of the source's 46 columns; upsert generated from one ordered `List<Field>` |
+| `GameIngestor` | `schedules/games.csv` → `games`. 18 of the source's 46 columns; upsert generated from one ordered `List<Field>`. **Since `V8`, reconciles each season it reads**: nflverse deletes a moved or cancelled game rather than flagging it, so a stored game the file no longer lists gets `delisted_at` (and loses it if listed again). A row it cannot use still counts as listed, a season with no rows is left alone, and more than 16 games leaving one season at once fails the run |
 | `StatIngestor` | `stats_player_week_{season}.csv` → `player_game_stats`. 47 stat columns from one `FIELDS` list |
 | `SnapCountIngestor` | `snap_counts_{season}.csv` → `player_game_stats.snap_pct`, joined on pfr id; and since `V7` every skill player's offensive-snap game → `player_game_appearances` (research v2's definition, so the 2020–25 zero-stat counts reproduce exactly). One run row: `rows_upserted` is shares + appearances |
 | `SleeperCrosswalk` | Sleeper API → `players.external_ids.sleeper`, matched on gsis id |
 | `CsvValues` | Null-safe typed accessors over a `CSVRecord`. **`shortValue` defaults to 0, `shortOrNull` doesn't** — the distinction matters |
-| `IntegrityChecks` | Post-ingest invariant: `player_game_stats.season/week` vs the joined game |
+| `IntegrityChecks` | Post-ingest invariants: `player_game_stats.season/week` vs the joined game, and stat rows on a delisted game (a played game re-identified upstream) |
 | `IngestRunRecorder` | `start` / `succeed` / `skip` / `fail` writes to `ingest_runs` |
 | `IngestFreshnessHealthIndicator` | Reads `ingest_runs` back out as an actuator component. **DOWN means degraded, not dead** — which is why `application.yml` carries a `liveness` group for deploy probes |
 | `IngestProperties` | `@ConfigurationProperties` + the season-boundary maths |
@@ -139,7 +139,7 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | `Problems` · `ProblemAuthenticationEntryPoint` · `ProblemAccessDeniedHandler` | RFC 7807 for the filter-chain paths, which run before `DispatcherServlet` and so never reach `ApiExceptionHandler` |
 | `InvalidTokenException` · `EmailAlreadyRegisteredException` | Absent, expired, forged or replayed token · a duplicate registration |
 
-#### `projections/` — Phase 6 · 15 files
+#### `projections/` — Phase 6 · 16 files
 
 Spec: [`projections-v1-architecture.md`](projections-v1-architecture.md). Raw stat lines only — nothing here scores, ranks or rounds.
 
@@ -147,12 +147,12 @@ Spec: [`projections-v1-architecture.md`](projections-v1-architecture.md). Raw st
 |---|---|
 | `ProjectionProvider` · `WeightedAverageProjectionProvider` | One player's history in, a raw projected line out. The Fantasy-Kai Baseline, `0.5^(age/4)` over games played since 2020 — bit-identical to research baseline D (Slice 2) |
 | `PlayerHistory` · `HistoricalGame` · `SeasonWeek` | **`PlayerHistory.before` is the one leakage door**: strictly before the target week, oldest first, two games in a week refused. An all-zero game is a game |
-| `RawProjection` · `ProjectionSource` | The line (fractional, unrounded) and what made it — a versioned id, never a class name |
+| `RawProjection` · `ProjectionSource` | The line (fractional, unrounded) and what made it — a versioned id, never a class name, at most `MAX_ID_LENGTH` (40) characters, the width of its column |
 | `ProjectionConfig` · `ProjectionProperties` | One provider bean by `fantasykai.projections.provider`; `job-enabled` (**false** until Slice 4, owner decision 2026-10-12) |
-| `JdbcProjectionInputs` | Stored REG stat rows + appearances with no stat row (as zero games) → each skill player's `PlayerHistory`. Equal to research v2's histories game by game (`backtest.sh parity`) |
-| `TargetWeekResolver` · `TargetWeek` | Next week = the smallest REG week with a game neither stat-complete nor unreported 48 h after kickoff. Job-only: it scans `player_game_stats` |
-| `ProjectionRepository` | Writes `player_week_projection`: locks rows at kickoff, deletes only unlocked ones, insert generated from `StatKey` |
-| `ProjectionJob` · `ProjectionRun` | One transaction under an advisory lock: lock kicked-off rows, resolve the week, project the open games' candidates, replace the open rows. **Interim candidates** (`players.team_id`) until Slice 4's roster |
+| `JdbcProjectionInputs` · `CorruptHistoryException` | Stored REG stat rows + appearances with no stat row (as zero games) → each skill player's `PlayerHistory`. Equal to research v2's histories game by game (`backtest.sh parity`). Two games in one week fail the run **by name** — player, week, each game and its source |
+| `TargetWeekResolver` · `TargetWeek` | Next week = the smallest REG week with a **listed** game neither stat-complete nor unreported 48 h after kickoff. A delisted game leaves the week at once; the 48 h rule is for late stats only. Job-only: it scans `player_game_stats` |
+| `ProjectionRepository` | Writes `player_week_projection`: withdraws open rows of delisted games, locks rows at kickoff, deletes only unlocked ones, insert generated from `StatKey` |
+| `ProjectionJob` · `ProjectionRun` | One transaction under an advisory lock: withdraw delisted games' open rows, lock kicked-off rows, resolve the week, project the open games' candidates, replace the open rows. **Interim candidates** (`players.team_id`) until Slice 4's roster |
 
 ### Everything else
 
@@ -161,7 +161,8 @@ backend/src/main/resources/
   application.yml                  datasource, flyway, ingest config
   db/migration/                    V1 schema · V2 ingestion support · V3 presets · V4 Vegas
                                    columns · V5 auth · V6 birth date + team logo · V7
-                                   appearances + projections (lock trigger)
+                                   appearances + projections (lock trigger, repair log) ·
+                                   V8 games.delisted_at
 backend/
   Dockerfile                       multi-stage, Temurin 25, Alpine runtime. arm64 + amd64;
                                    3.82s from docker restart to a 200 on liveness

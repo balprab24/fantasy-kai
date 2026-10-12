@@ -10,6 +10,7 @@ import java.util.Optional;
  * @param candidates players it considered for the week's open games
  * @param written    rows it wrote -- candidates with a history and no locked row this week
  * @param locked     rows it locked because their game had kicked off
+ * @param withdrawn  open rows it removed because their game left the schedule
  */
 public record ProjectionRun(int season, Optional<SeasonWeek> week, int candidates, int written,
-        int locked) {}
+        int locked, int withdrawn) {}

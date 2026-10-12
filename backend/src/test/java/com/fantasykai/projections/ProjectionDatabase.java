@@ -24,7 +24,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * Testcontainers' reaper when the JVM exits.
  *
  * <p>Seeding helpers write rows straight into the tables, with the kickoff times a lifecycle
- * test needs to control. Public only so far as {@code ingest.DailyPullTests} needs it.
+ * test needs to control. Public for the {@code ingest} tests that seed through it.
  */
 public final class ProjectionDatabase {
 
@@ -32,7 +32,7 @@ public final class ProjectionDatabase {
 
     final HikariDataSource dataSource;
     public final JdbcTemplate jdbc;
-    final TransactionTemplate transaction;
+    public final TransactionTemplate transaction;
 
     private ProjectionDatabase(PostgreSQLContainer<?> postgres) {
         dataSource = new HikariDataSource();
@@ -58,28 +58,34 @@ public final class ProjectionDatabase {
     /** Empties every table these tests write. TRUNCATE does not fire the lock trigger. */
     public void reset() {
         jdbc.execute("""
-                TRUNCATE player_week_projection, player_game_appearances, player_game_stats,
-                         games, players, teams, ingest_runs RESTART IDENTITY CASCADE
+                TRUNCATE player_week_projection, player_week_projection_repairs,
+                         player_game_appearances, player_game_stats, games, players, teams,
+                         ingest_runs RESTART IDENTITY CASCADE
                 """);
     }
 
-    int team(String abbr) {
+    public int team(String abbr) {
         return jdbc.queryForObject("INSERT INTO teams (abbr, name) VALUES (?, ?) RETURNING id",
                 Integer.class, abbr, abbr);
     }
 
-    long player(String name, String position, Integer teamId) {
+    public long player(String name, String position, Integer teamId) {
         return jdbc.queryForObject("""
                 INSERT INTO players (gsis_id, full_name, position, team_id)
                 VALUES (?, ?, ?, ?) RETURNING id
                 """, Long.class, "00-" + name.hashCode(), name, position, teamId);
     }
 
-    void moveTo(long playerId, Integer teamId) {
+    /** The schedule no longer lists it: what {@code GameIngestor} records when nflverse drops a game. */
+    public void delist(long gameId) {
+        jdbc.update("UPDATE games SET delisted_at = now() WHERE id = ?", gameId);
+    }
+
+    public void moveTo(long playerId, Integer teamId) {
         jdbc.update("UPDATE players SET team_id = ? WHERE id = ?", teamId, playerId);
     }
 
-    long game(int season, int week, String seasonType, int home, int away, Instant kickoff) {
+    public long game(int season, int week, String seasonType, int home, int away, Instant kickoff) {
         return jdbc.queryForObject("""
                 INSERT INTO games (nflverse_game_id, season, week, season_type, home_team_id,
                                    away_team_id, kickoff_at)
@@ -88,12 +94,12 @@ public final class ProjectionDatabase {
                 seasonType, home, away, kickoff == null ? null : kickoff.atOffset(ZoneOffset.UTC));
     }
 
-    long game(int season, int week, int home, int away, Instant kickoff) {
+    public long game(int season, int week, int home, int away, Instant kickoff) {
         return game(season, week, "REG", home, away, kickoff);
     }
 
     /** A stat row carrying {@code line}'s 13 scorable stats and its three volume counts. */
-    void stats(long playerId, long gameId, int teamId, HistoricalGame line) {
+    public void stats(long playerId, long gameId, int teamId, HistoricalGame line) {
         stats(playerId, gameId, teamId, line.stats(), line.passAttempts(), line.carries(), line.targets());
     }
 
@@ -102,7 +108,7 @@ public final class ProjectionDatabase {
      * SMALLINT, so a fractional value is refused here rather than truncated into a different
      * test than the one written.
      */
-    void stats(long playerId, long gameId, int teamId, double[] stats, double passAttempts,
+    public void stats(long playerId, long gameId, int teamId, double[] stats, double passAttempts,
             double carries, double targets) {
         Object[] args = new Object[6 + StatKey.COUNT + 1];
         args[0] = playerId;
@@ -134,13 +140,13 @@ public final class ProjectionDatabase {
     }
 
     /** A stat row with nothing in it but one catch -- the cheapest way to mark a game played. */
-    void played(long playerId, long gameId, int teamId) {
+    public void played(long playerId, long gameId, int teamId) {
         double[] stats = new double[StatKey.COUNT];
         stats[StatKey.REC.index()] = 1;
         stats(playerId, gameId, teamId, stats, 0, 0, 1);
     }
 
-    void appearance(long playerId, long gameId, int teamId, int offenseSnaps) {
+    public void appearance(long playerId, long gameId, int teamId, int offenseSnaps) {
         jdbc.update("""
                 INSERT INTO player_game_appearances (player_id, game_id, team_id, offense_snaps)
                 VALUES (?, ?, ?, ?)

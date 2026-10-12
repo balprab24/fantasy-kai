@@ -23,8 +23,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>Once a day, after the ingest ({@code ingest.DailyPull}), in one transaction:
  *
  * <ol>
+ *   <li>withdraw every open row whose game has left the schedule ({@code games.delisted_at});</li>
  *   <li>lock every row whose game has kicked off -- from then on it is the record of what was
- *       projected before the game, and nothing rewrites it;</li>
+ *       projected before the game, and normal application code never rewrites it;</li>
  *   <li>find the target week ({@link TargetWeekResolver});</li>
  *   <li>project every candidate for the week's games that have not kicked off, from his stored
  *       history ({@link JdbcProjectionInputs});</li>
@@ -79,19 +80,23 @@ public class ProjectionJob {
     public ProjectionRun run(int season) {
         Instant now = clock.instant();
         ProjectionRun run = transaction.execute(status -> runLocked(season, now));
-        log.info("projections {}: week {}, {} candidates, {} written, {} locked at kickoff",
-                provider.source().id(), run.week().map(SeasonWeek::toString).orElse("none"),
-                run.candidates(), run.written(), run.locked());
+        log.info("projections {}: week {}, {} candidates, {} written, {} locked at kickoff, {} withdrawn"
+                + " (game left the schedule)", provider.source().id(),
+                run.week().map(SeasonWeek::toString).orElse("none"), run.candidates(), run.written(),
+                run.locked(), run.withdrawn());
         return run;
     }
 
     private ProjectionRun runLocked(int season, Instant now) {
         jdbc.query("SELECT pg_advisory_xact_lock(?)", rs -> {}, ADVISORY_LOCK);
+        // Withdraw before locking: a game that left the schedule before the job saw it kick off
+        // is not a game anyone projected, and must not become part of the record.
+        int withdrawn = repository.withdrawDelisted();
         int locked = repository.lockKickedOff(now);
 
         Optional<TargetWeek> target = resolver.resolve(season, now);
         if (target.isEmpty()) {
-            return new ProjectionRun(season, Optional.empty(), 0, 0, locked);
+            return new ProjectionRun(season, Optional.empty(), 0, 0, locked, withdrawn);
         }
         SeasonWeek week = target.get().week();
         String source = provider.source().id();
@@ -126,7 +131,7 @@ public class ProjectionJob {
         }
 
         repository.replaceOpen(week, source, rows, now);
-        return new ProjectionRun(season, Optional.of(week), candidates.size(), rows.size(), locked);
+        return new ProjectionRun(season, Optional.of(week), candidates.size(), rows.size(), locked, withdrawn);
     }
 
     private record Candidate(long playerId, int teamId) {}

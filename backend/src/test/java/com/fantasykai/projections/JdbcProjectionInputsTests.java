@@ -132,22 +132,56 @@ class JdbcProjectionInputsTests {
         assertThat(histories).doesNotContainKeys(kicker, tackle, rookie);
     }
 
-    /** Two games in one week is a data fault, and the run stops rather than average it. */
+    /**
+     * Two games in one week is structural corruption, and the run stops rather than average it
+     * or quietly drop the player (owner decision 2026-10-12). The failure is the diagnosis: the
+     * player, the week, and each game with where it came from.
+     */
     @Test
-    void twoGamesInOneWeekFailRatherThanProject() {
+    void twoGamesInOneWeekFailNamingThePlayerTheWeekAndBothGames() {
         long receiver = db.player("Receiver", "WR", cin);
         int det = db.team("DET");
-        db.played(receiver, game(2026, 1), cin);
-        db.played(receiver, db.game(2026, 1, det, cin, null), cin);
+        long first = game(2026, 1);
+        long second = db.game(2026, 1, det, cin, null);
+        db.played(receiver, first, cin);
+        db.played(receiver, second, cin);
 
         assertThatThrownBy(() -> inputs.histories(TARGET))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("2026 week 1");
+                .isInstanceOfSatisfying(CorruptHistoryException.class, e -> {
+                    assertThat(e.playerId()).isEqualTo(receiver);
+                    assertThat(e.week()).isEqualTo(new SeasonWeek(2026, 1));
+                    assertThat(e.games()).containsExactly(
+                            nflverseId(first) + " (stat row)", nflverseId(second) + " (stat row)");
+                })
+                .hasMessageContaining("player " + receiver + " (gsis ")
+                .hasMessageContaining("2 regular-season games in 2026 week 1");
+    }
+
+    /** A stat row and an appearance in different games of one week conflict the same way. */
+    @Test
+    void aStatRowAndAnAppearanceInOneWeekAreNamedAsSuch() {
+        long tightEnd = db.player("Tight End", "TE", cin);
+        int det = db.team("DET");
+        long other = db.game(2026, 1, det, cin, null);
+        db.played(tightEnd, game(2026, 1), cin);
+        db.appearance(tightEnd, other, cin, 12);
+        long receiver = db.player("Receiver", "WR", cin);
+        db.played(receiver, db.game(2025, 18, det, cin, null), cin);
+        db.played(receiver, game(2025, 18), cin);
+
+        assertThatThrownBy(() -> inputs.histories(TARGET))
+                .isInstanceOf(CorruptHistoryException.class)
+                .hasMessageContaining(nflverseId(other) + " (appearance, no stat row)")
+                .hasMessageContaining("1 more player-week(s)");
     }
 
     @Test
     void anEmptyDatabaseHasNoHistories() {
         assertThat(inputs.histories(TARGET)).isEmpty();
+    }
+
+    private String nflverseId(long gameId) {
+        return db.jdbc.queryForObject("SELECT nflverse_game_id FROM games WHERE id = ?", String.class, gameId);
     }
 
     /** A regular-season game between CIN and BAL in that week, home side alternating. */

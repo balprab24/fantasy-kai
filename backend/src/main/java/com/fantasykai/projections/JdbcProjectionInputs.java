@@ -46,7 +46,7 @@ public class JdbcProjectionInputs {
             ScoringPosition.ALL.stream().map(position -> "?").collect(Collectors.joining(", "));
 
     private static final String STAT_ROWS = """
-            SELECT s.player_id, s.season, s.week, %s, %s
+            SELECT s.player_id, p.gsis_id, g.nflverse_game_id, s.season, s.week, %s, %s
               FROM player_game_stats s
               JOIN players p ON p.id = s.player_id
               JOIN games g ON g.id = s.game_id
@@ -55,7 +55,7 @@ public class JdbcProjectionInputs {
             """.formatted(StatColumns.SELECT_LIST, Usage.SELECT_LIST, POSITIONS);
 
     private static final String ZERO_STAT_APPEARANCES = """
-            SELECT a.player_id, g.season, g.week
+            SELECT a.player_id, p.gsis_id, g.nflverse_game_id, g.season, g.week
               FROM player_game_appearances a
               JOIN players p ON p.id = a.player_id
               JOIN games g ON g.id = a.game_id
@@ -74,26 +74,38 @@ public class JdbcProjectionInputs {
     /**
      * @return each skill player with at least one game before {@code target}, by player id;
      *     a player with none is absent
-     * @throws IllegalArgumentException if a player has two games in one week -- a data fault
-     *     that fails the run rather than projecting from a corrupt history
+     * @throws CorruptHistoryException if a player has two games in one week -- a data fault that
+     *     fails the run, naming the player, the week and both games, rather than projecting from
+     *     a corrupt history or quietly leaving him off the board
      */
     public Map<Long, PlayerHistory> histories(SeasonWeek target) {
         Object[] args = Stream.concat(ScoringPosition.ALL.stream(),
                 Stream.of(target.season(), target.week())).toArray();
         Map<Long, List<HistoricalGame>> games = new TreeMap<>();
+        // player -> week -> where each game came from, for a diagnosis that names them all.
+        Map<Long, Map<SeasonWeek, List<String>>> sources = new TreeMap<>();
+        Map<Long, String> gsisIds = new TreeMap<>();
 
         jdbc.query(STAT_ROWS, rs -> {
             Usage usage = Usage.read(rs);
-            games.computeIfAbsent(rs.getLong("player_id"), id -> new ArrayList<>()).add(
-                    new HistoricalGame(new SeasonWeek(rs.getInt("season"), rs.getInt("week")),
-                            StatColumns.readValues(rs), usage.passAtt(), usage.rushAtt(), usage.targets()));
+            SeasonWeek when = new SeasonWeek(rs.getInt("season"), rs.getInt("week"));
+            long player = rs.getLong("player_id");
+            games.computeIfAbsent(player, id -> new ArrayList<>()).add(new HistoricalGame(when,
+                    StatColumns.readValues(rs), usage.passAtt(), usage.rushAtt(), usage.targets()));
+            note(sources, gsisIds, player, rs.getString("gsis_id"), when,
+                    rs.getString("nflverse_game_id") + " (stat row)");
         }, args);
 
         jdbc.query(ZERO_STAT_APPEARANCES, rs -> {
-            games.computeIfAbsent(rs.getLong("player_id"), id -> new ArrayList<>()).add(
-                    new HistoricalGame(new SeasonWeek(rs.getInt("season"), rs.getInt("week")),
-                            new double[StatKey.COUNT], 0, 0, 0));
+            SeasonWeek when = new SeasonWeek(rs.getInt("season"), rs.getInt("week"));
+            long player = rs.getLong("player_id");
+            games.computeIfAbsent(player, id -> new ArrayList<>()).add(
+                    new HistoricalGame(when, new double[StatKey.COUNT], 0, 0, 0));
+            note(sources, gsisIds, player, rs.getString("gsis_id"), when,
+                    rs.getString("nflverse_game_id") + " (appearance, no stat row)");
         }, args);
+
+        refuseTwoGamesInAWeek(sources, gsisIds);
 
         Map<Long, PlayerHistory> histories = new TreeMap<>();
         games.forEach((player, played) -> {
@@ -103,5 +115,35 @@ public class JdbcProjectionInputs {
             }
         });
         return histories;
+    }
+
+    private static void note(Map<Long, Map<SeasonWeek, List<String>>> sources, Map<Long, String> gsisIds,
+            long player, String gsisId, SeasonWeek when, String game) {
+        sources.computeIfAbsent(player, id -> new TreeMap<>())
+                .computeIfAbsent(when, w -> new ArrayList<>()).add(game);
+        gsisIds.putIfAbsent(player, gsisId);
+    }
+
+    /** The first corrupt player-week in player-then-week order, and how many more there are. */
+    private static void refuseTwoGamesInAWeek(Map<Long, Map<SeasonWeek, List<String>>> sources,
+            Map<Long, String> gsisIds) {
+        CorruptHistoryException first = null;
+        int others = 0;
+        for (Map.Entry<Long, Map<SeasonWeek, List<String>>> player : sources.entrySet()) {
+            for (Map.Entry<SeasonWeek, List<String>> week : player.getValue().entrySet()) {
+                if (week.getValue().size() > 1) {
+                    if (first == null) {
+                        first = new CorruptHistoryException(player.getKey(), gsisIds.get(player.getKey()),
+                                week.getKey(), week.getValue().stream().sorted().toList(), 0);
+                    } else {
+                        others++;
+                    }
+                }
+            }
+        }
+        if (first != null) {
+            throw others == 0 ? first : new CorruptHistoryException(first.playerId(),
+                    gsisIds.get(first.playerId()), first.week(), first.games(), others);
+        }
     }
 }

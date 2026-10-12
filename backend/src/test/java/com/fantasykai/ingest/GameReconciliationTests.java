@@ -1,0 +1,282 @@
+package com.fantasykai.ingest;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.fantasykai.projections.ProjectionDatabase;
+import com.fantasykai.projections.SeasonWeek;
+import com.fantasykai.projections.TargetWeek;
+import com.fantasykai.projections.TargetWeekResolver;
+import java.io.StringReader;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
+
+/**
+ * The schedule as nflverse publishes it now, replayed from what it actually published.
+ *
+ * <p>Each fixture in {@code nflverse/schedule-history/} is the real {@code data/games.csv} of
+ * nflverse/nfldata -- the file the schedules release is built from -- at one commit, header
+ * verbatim, cut down to the games that moved plus an untouched control:
+ *
+ * <pre>
+ * 2020-09-25.csv  566ef14979e4768e402c1c4884ba660148ebe5e2  2020_04_PIT_TEN listed (Sunday
+ *                                                           Oct 4); NE-KC Sunday Oct 4
+ * 2020-10-02.csv  0ac58c22581b7a9e6d61df2b1e1837e98ef561e8  PIT-TEN gone entirely: postponed,
+ *                                                           no new date yet
+ * 2020-10-06.csv  2af6313715bcb62e565eb2aeca6237db2cc640de  PIT-TEN back as 2020_07_PIT_TEN;
+ *                                                           NE-KC the same id, now Monday,
+ *                                                           played; 2020_07_PIT_BAL gone,
+ *                                                           2020_08_PIT_BAL added
+ * 2020-10-14.csv  32c6a398b55c578286ebcb1353fdbf8d8d76a4ea  2020_05_DEN_NE gone,
+ *                                                           2020_06_DEN_NE added
+ * 2023-01-05.csv  038f374658071dcda6c0e0128ed4e982e7f2698d  2022_17_BUF_CIN listed, kicked off
+ *                                                           Jan 2, no score
+ * 2023-01-06.csv  173413e9d7dc53aceb9ec00ba2dc40f1b87df618  BUF-CIN gone: declared no contest
+ * </pre>
+ *
+ * <p>One more, {@code 2020-09-25-unreadable-row.csv}, is derived rather than recorded: the first
+ * file with a single cell blanked, to prove an unusable row is not read as a dropped game.
+ *
+ * <p>No status column anywhere: a move across weeks and a cancellation are both a deleted row,
+ * and a move within a week is the same id with a new date. Plain JUnit on the shared test
+ * database -- no Spring context.
+ */
+class GameReconciliationTests {
+
+    private final ProjectionDatabase db = ProjectionDatabase.get();
+
+    /** The fixture served as games.csv; the client runs the real header check on it. */
+    private String schedule;
+
+    private final GameIngestor ingestor = new GameIngestor(new NflverseClient(properties()) {
+        @Override
+        public <T> List<T> read(String release, String asset, Set<String> required,
+                Function<CSVRecord, T> mapper) {
+            try (var reader = new StringReader(new String(new ClassPathResource(
+                    "nflverse/schedule-history/" + schedule).getInputStream().readAllBytes(),
+                    StandardCharsets.UTF_8));
+                    CSVParser parser = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true)
+                            .get().parse(reader)) {
+                verifyHeader(URI.create("fixture:" + schedule), parser.getHeaderMap().keySet(), required);
+                List<T> mapped = new ArrayList<>();
+                for (CSVRecord record : parser) {
+                    T value = mapper.apply(record);
+                    if (value != null) {
+                        mapped.add(value);
+                    }
+                }
+                return mapped;
+            } catch (java.io.IOException e) {
+                throw new IngestException("fixture " + schedule, e);
+            }
+        }
+    }, ProjectionDatabase.get().jdbc);
+
+    @BeforeEach
+    void teams() {
+        db.reset();
+        for (String abbr : List.of("ARI", "BAL", "BUF", "CAR", "CHI", "CIN", "DEN", "DET", "IND", "KC",
+                "NE", "PIT", "TEN")) {
+            db.team(abbr);
+        }
+    }
+
+    /** Postponed with no date yet: the row is simply gone, so the stored game is delisted. */
+    @Test
+    void aGameTheScheduleDropsIsDelistedNotDeleted() {
+        ingest("2020-09-25.csv", 2020);
+        ingest("2020-10-02.csv", 2020);
+
+        assertThat(delisted("2020_04_PIT_TEN")).as("postponed: off the schedule").isTrue();
+        assertThat(delisted("2020_04_NE_KC")).isFalse();
+        assertThat(delisted("2020_04_IND_CHI")).as("the control game").isFalse();
+        assertThat(count("SELECT count(*) FROM games")).as("a flag, never a delete").isEqualTo(5);
+    }
+
+    /** Moved across weeks: a new id in the new week, the old one stays off the schedule. */
+    @Test
+    void aGameMovedToAnotherWeekFollowsItsNewIdAndTheOldOneStaysDelisted() {
+        ingest("2020-09-25.csv", 2020);
+        ingest("2020-10-02.csv", 2020);
+        ingest("2020-10-06.csv", 2020);
+        ingest("2020-10-14.csv", 2020);
+
+        assertThat(delisted("2020_04_PIT_TEN")).isTrue();
+        assertThat(delisted("2020_07_PIT_TEN")).isFalse();
+        assertThat(week("2020_07_PIT_TEN")).isEqualTo(7);
+        assertThat(delisted("2020_07_PIT_BAL")).isTrue();
+        assertThat(delisted("2020_08_PIT_BAL")).isFalse();
+        assertThat(delisted("2020_05_DEN_NE")).isTrue();
+        assertThat(delisted("2020_06_DEN_NE")).isFalse();
+    }
+
+    /** Moved within its week: the same id, updated in place -- never delisted. */
+    @Test
+    void aGameMovedWithinItsWeekKeepsItsIdAndTakesTheNewKickoff() {
+        ingest("2020-09-25.csv", 2020);
+        assertThat(kickoff("2020_04_NE_KC")).isEqualTo(Instant.parse("2020-10-04T20:25:00Z"));
+
+        ingest("2020-10-06.csv", 2020);
+
+        assertThat(delisted("2020_04_NE_KC")).isFalse();
+        assertThat(kickoff("2020_04_NE_KC")).as("Monday 7:05 PM Eastern").isEqualTo(Instant.parse("2020-10-05T23:05:00Z"));
+    }
+
+    /** Cancelled after kickoff: listed with no score for three days, then gone. */
+    @Test
+    void aCancelledGameIsDelistedWhenTheScheduleDropsIt() {
+        ingest("2023-01-05.csv", 2022);
+        assertThat(delisted("2022_17_BUF_CIN")).as("still listed on Jan 5").isFalse();
+
+        ingest("2023-01-06.csv", 2022);
+
+        assertThat(delisted("2022_17_BUF_CIN")).isTrue();
+        assertThat(delisted("2022_17_CHI_DET")).isFalse();
+    }
+
+    /** The source is the authority both ways: a game listed again is on the schedule again. */
+    @Test
+    void aGameListedAgainIsNoLongerDelisted() {
+        ingest("2023-01-05.csv", 2022);
+        ingest("2023-01-06.csv", 2022);
+        ingest("2023-01-05.csv", 2022);
+
+        assertThat(delisted("2022_17_BUF_CIN")).isFalse();
+    }
+
+    /** Off the schedule means out of the projection week: no waiting, no 48-hour rule. */
+    @Test
+    void aGameOffTheScheduleIsNeverATargetGame() {
+        ingest("2020-09-25.csv", 2020);
+        ingest("2020-10-02.csv", 2020);
+
+        TargetWeek week4 = new TargetWeekResolver(db.jdbc)
+                .resolve(2020, Instant.parse("2020-10-03T10:00:00Z")).orElseThrow();
+
+        assertThat(week4.week()).isEqualTo(new SeasonWeek(2020, 4));
+        assertThat(week4.games()).extracting(TargetWeek.Game::id)
+                .containsExactlyInAnyOrder(id("2020_04_NE_KC"), id("2020_04_IND_CHI"))
+                .doesNotContain(id("2020_04_PIT_TEN"));
+    }
+
+    /**
+     * A row this run cannot use is still a game the source lists. 2020-09-25-unreadable-row.csv
+     * is the real 2020-09-25 file with one cell blanked -- NE-KC's home_team -- the only fixture
+     * here that is not a verbatim nfldata version. Reading "could not parse it" as "it is gone"
+     * would delist a game that is on the schedule.
+     */
+    @Test
+    void aRowThatCannotBeReadIsNotAGameTheSourceDropped() {
+        ingest("2020-09-25.csv", 2020);
+
+        ingest("2020-09-25-unreadable-row.csv", 2020);
+
+        assertThat(delisted("2020_04_NE_KC")).isFalse();
+        assertThat(count("SELECT count(*) FROM games WHERE delisted_at IS NOT NULL")).isZero();
+    }
+
+    /** A file with no rows for a season is no evidence about that season: nothing is delisted. */
+    @Test
+    void aSeasonTheFileDoesNotCoverIsLeftAlone() {
+        db.game(2022, 17, team("CIN"), team("BUF"), Instant.parse("2023-01-03T01:30:00Z"));
+
+        schedule = "2020-09-25.csv"; // no 2022 rows at all
+        ingestor.ingest(List.of(2020, 2022));
+
+        assertThat(count("SELECT count(*) FROM games WHERE season = 2022 AND delisted_at IS NULL")).isOne();
+    }
+
+    /**
+     * A truncated file must not rewrite the schedule. More than a week's slate leaving one season
+     * at once fails the run and delists nothing.
+     */
+    @Test
+    void aFileThatDropsMoreThanAWeeksSlateFailsAndDelistsNothing() {
+        ingest("2020-09-25.csv", 2020);
+        for (int week = 1; week <= GameIngestor.MAX_DELISTED_PER_SEASON; week++) {
+            db.game(2020, week, team("ARI"), team("CAR"), Instant.parse("2020-09-13T17:00:00Z"));
+        }
+
+        assertThatThrownBy(() -> ingest("2020-10-02.csv", 2020))
+                .isInstanceOf(IngestException.class)
+                .hasMessageContaining("17 stored 2020 games")
+                .hasMessageContaining("nothing was delisted");
+        assertThat(count("SELECT count(*) FROM games WHERE delisted_at IS NOT NULL")).isZero();
+    }
+
+    /** Exactly at the cap is still a schedule change. */
+    @Test
+    void aWeeksSlateLeavingAtOnceIsStillAllowed() {
+        ingest("2020-09-25.csv", 2020);
+        for (int week = 1; week < GameIngestor.MAX_DELISTED_PER_SEASON; week++) {
+            db.game(2020, week, team("ARI"), team("CAR"), Instant.parse("2020-09-13T17:00:00Z"));
+        }
+
+        ingest("2020-10-02.csv", 2020);
+
+        assertThat(count("SELECT count(*) FROM games WHERE delisted_at IS NOT NULL"))
+                .isEqualTo(GameIngestor.MAX_DELISTED_PER_SEASON);
+    }
+
+    /** Stats on a game the schedule dropped mean a played game was re-identified: say so. */
+    @Test
+    void integrityChecksCountStatsOnADelistedGame() {
+        ingest("2023-01-05.csv", 2022);
+        long player = db.player("Receiver", "WR", team("CIN"));
+        db.played(player, id("2022_17_BUF_CIN"), team("CIN"));
+        IntegrityChecks checks = new IntegrityChecks(db.jdbc);
+        assertThat(checks.statsOnDelistedGames()).isZero();
+
+        ingest("2023-01-06.csv", 2022);
+
+        assertThat(checks.statsOnDelistedGames()).isOne();
+    }
+
+    private void ingest(String fixture, int season) {
+        schedule = fixture;
+        ingestor.ingest(List.of(season));
+    }
+
+    private boolean delisted(String gameId) {
+        return db.jdbc.queryForObject("SELECT delisted_at IS NOT NULL FROM games WHERE nflverse_game_id = ?",
+                Boolean.class, gameId);
+    }
+
+    private long id(String gameId) {
+        return db.jdbc.queryForObject("SELECT id FROM games WHERE nflverse_game_id = ?", Long.class, gameId);
+    }
+
+    private int week(String gameId) {
+        return db.jdbc.queryForObject("SELECT week FROM games WHERE nflverse_game_id = ?", Integer.class, gameId);
+    }
+
+    private Instant kickoff(String gameId) {
+        return db.jdbc.queryForObject("SELECT kickoff_at FROM games WHERE nflverse_game_id = ?",
+                OffsetDateTime.class, gameId).toInstant();
+    }
+
+    private int team(String abbr) {
+        return db.jdbc.queryForObject("SELECT id FROM teams WHERE abbr = ?", Integer.class, abbr);
+    }
+
+    private long count(String sql) {
+        return db.jdbc.queryForObject(sql, Long.class);
+    }
+
+    private static IngestProperties properties() {
+        return new IngestProperties("https://example.invalid", "https://example.invalid", 2020,
+                "0 0 6 * * *", false, false, false);
+    }
+}

@@ -52,8 +52,9 @@ CREATE TABLE player_game_appearances (
 CREATE TABLE player_week_projection (
     season    SMALLINT    NOT NULL,
     week      SMALLINT    NOT NULL CONSTRAINT ck_projection_week CHECK (week BETWEEN 1 AND 18),
-    -- ProjectionSource.id: an algorithm and a version, never a class name. Mirrored here so a
-    -- row can never claim a method nothing defines.
+    -- ProjectionSource.id: an algorithm and a version, never a class name. The pattern and the
+    -- length are ProjectionSource's (MAX_ID_LENGTH = 40), mirrored so a row can never claim a
+    -- method nothing could define; ProjectionSchemaTests holds the two lengths together.
     provider  VARCHAR(40) NOT NULL
         CONSTRAINT ck_projection_provider CHECK (provider ~ '^[a-z0-9]+(-[a-z0-9]+)*-v[0-9]+$'),
     player_id BIGINT      NOT NULL,
@@ -98,20 +99,52 @@ CREATE TABLE player_week_projection (
 );
 
 
--- A locked projection is never rewritten -- not by the job, not by a hand-typed UPDATE, not
--- by a future code path that forgot the rule. The live-accuracy record (Slice 7) compares
--- these rows with what happened, and it is only honest if nothing touched them after kickoff.
--- ProjectionJob already never writes one; this makes "never" a property of the table.
+-- Normal application code never rewrites a projection after its game has kicked off. The
+-- live-accuracy record (Slice 7) compares these rows with what happened, and it is only honest
+-- if nothing touched them after kickoff. ProjectionJob already never writes a locked row; this
+-- trigger makes that hold for every code path, including one that forgets the rule.
 --
--- Locking itself is allowed: setting locked_at on a row whose locked_at is NULL does not fire.
--- TRUNCATE does not fire row triggers, deliberately -- it is the one way to clear the table,
--- and it is not something a code path does by accident.
-CREATE FUNCTION refuse_locked_projection_change() RETURNS trigger
+-- It is not a claim that no correction can ever happen. Genuine corruption -- a projection for
+-- a game that never existed -- can be repaired one row at a time, deliberately, by an operator:
+--
+--   BEGIN;
+--   SET LOCAL fantasykai.projection_repair_reason = '<why, in a sentence>';
+--   DELETE FROM player_week_projection WHERE season = .. AND week = .. AND provider = ..
+--                                         AND player_id = ..;
+--   COMMIT;
+--
+-- (deploy/README.md, "Repairing a locked projection"). The reason lasts one transaction, no
+-- application code sets it (ProjectionSchemaTests checks src/main), and the row as it stood is
+-- kept in player_week_projection_repairs first, so a repair corrects the board without erasing
+-- what was recorded. Locking itself is allowed: setting locked_at on an open row does not fire.
+-- TRUNCATE does not fire row triggers; it is for an empty test database, never a repair.
+CREATE TABLE player_week_projection_repairs (
+    id          BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    repaired_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    operation   VARCHAR(6)  NOT NULL CONSTRAINT ck_repairs_operation CHECK (operation IN ('UPDATE', 'DELETE')),
+    reason      TEXT        NOT NULL CONSTRAINT ck_repairs_reason CHECK (length(btrim(reason)) >= 10),
+    db_user     TEXT        NOT NULL DEFAULT current_user,
+    -- The locked row exactly as it stood before the repair.
+    old_row     JSONB       NOT NULL
+);
+
+CREATE FUNCTION guard_locked_projection() RETURNS trigger
 LANGUAGE plpgsql AS $$
+DECLARE
+    -- missing_ok: NULL when never set; '' once a SET LOCAL has ended in this session.
+    reason TEXT := current_setting('fantasykai.projection_repair_reason', true);
 BEGIN
-    RAISE EXCEPTION 'projection for player % in % week % (%) was locked at % and is never rewritten',
-        OLD.player_id, OLD.season, OLD.week, OLD.provider, OLD.locked_at
-        USING ERRCODE = 'integrity_constraint_violation';
+    IF reason IS NULL OR btrim(reason) = '' THEN
+        RAISE EXCEPTION 'projection for player % in % week % (%) was locked at % and is never rewritten by the application; a repair needs fantasykai.projection_repair_reason (deploy/README.md)',
+            OLD.player_id, OLD.season, OLD.week, OLD.provider, OLD.locked_at
+            USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+    INSERT INTO player_week_projection_repairs (operation, reason, old_row)
+    VALUES (TG_OP, reason, to_jsonb(OLD));
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -119,4 +152,4 @@ CREATE TRIGGER trg_projection_locked
     BEFORE UPDATE OR DELETE ON player_week_projection
     FOR EACH ROW
     WHEN (OLD.locked_at IS NOT NULL)
-    EXECUTE FUNCTION refuse_locked_projection_change();
+    EXECUTE FUNCTION guard_locked_projection();

@@ -48,7 +48,7 @@ class DailyPullTests {
 
     @Test
     void ingestsThenProjectsAndRecordsTheProjectionRun() {
-        when(job.run(2026)).thenReturn(new ProjectionRun(2026, Optional.of(new SeasonWeek(2026, 6)), 480, 455, 12));
+        when(job.run(2026)).thenReturn(new ProjectionRun(2026, Optional.of(new SeasonWeek(2026, 6)), 480, 455, 12, 0));
 
         pull(true, OCTOBER).run();
 
@@ -64,7 +64,7 @@ class DailyPullTests {
     /** After week 18 the job has nothing to do. That is not a failure, and it still ran. */
     @Test
     void noWeekLeftToProjectIsRecordedAsSkipped() {
-        when(job.run(2026)).thenReturn(new ProjectionRun(2026, Optional.empty(), 0, 0, 0));
+        when(job.run(2026)).thenReturn(new ProjectionRun(2026, Optional.empty(), 0, 0, 0, 0));
 
         pull(true, OCTOBER).run();
 
@@ -92,7 +92,7 @@ class DailyPullTests {
     void projectsEvenWhenTheIngestFailedAndStillThrowsTheIngestFailure() {
         IngestException ingestFailure = new IngestException("snap_counts header changed");
         doThrow(ingestFailure).when(ingest).ingestCurrentSeason();
-        when(job.run(2026)).thenReturn(new ProjectionRun(2026, Optional.of(new SeasonWeek(2026, 6)), 480, 455, 0));
+        when(job.run(2026)).thenReturn(new ProjectionRun(2026, Optional.of(new SeasonWeek(2026, 6)), 480, 455, 0, 0));
 
         assertThatThrownBy(() -> pull(true, OCTOBER).run()).isSameAs(ingestFailure);
 
@@ -130,7 +130,7 @@ class DailyPullTests {
     /** A season is named for the year it starts in: February 2027 is still the 2026 season. */
     @Test
     void theSeasonProjectedIsTheCurrentOneByTheClock() {
-        when(job.run(anyInt())).thenReturn(new ProjectionRun(2026, Optional.empty(), 0, 0, 0));
+        when(job.run(anyInt())).thenReturn(new ProjectionRun(2026, Optional.empty(), 0, 0, 0, 0));
 
         pull(true, Clock.fixed(Instant.parse("2027-02-03T11:00:00Z"), ZoneId.of("America/New_York"))).run();
 

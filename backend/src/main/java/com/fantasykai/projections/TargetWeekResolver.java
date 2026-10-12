@@ -18,20 +18,22 @@ import org.springframework.stereotype.Component;
  * normally the Tuesday 06:00 ET pull, after Monday night. Until then the week shows with every
  * game kicked off and locked.
  *
- * <p>One escape: a game still without stat rows {@value #UNREPORTED_HOURS} hours after kickoff
- * stops holding the week. Without it, one Monday night game whose stats are late past Thursday
- * 06:00 would mean Thursday night's game is never projected at all -- the last run before it
- * would still be on the old week. Forty-eight hours puts Monday night's kickoff behind
- * Thursday's 06:00 run.
+ * <p>Two different conditions, handled two different ways:
  *
- * <p>It also stops a cancelled game freezing the rest of the season. nflverse drops one from its
- * schedule (2022 week 17 holds 15 games; BUF-CIN is not among them, measured 2026-10-12), but
- * {@code GameIngestor} only upserts: a game ingested before it was cancelled stays in
- * {@code games} with no stats, for good. The local database never saw that happen only because
- * 2022 was backfilled years later.
- *
- * <p>A game rolled past this way is finished as far as the week is concerned; when its stats do
- * land, the next run regenerates every open row from them.
+ * <ul>
+ *   <li><strong>A game no longer on the schedule</strong> -- moved to another week or cancelled,
+ *       which nflverse expresses by deleting the row -- is {@code games.delisted_at}, set by the
+ *       ingest ({@code GameIngestor}). It is not part of any week: it never holds one, is never a
+ *       target game, and is never projected. Immediately, with no waiting.</li>
+ *   <li><strong>A game still on the schedule whose stats have not arrived</strong> stops holding
+ *       the week {@value #UNREPORTED_HOURS} hours after kickoff. That is a late feed, not a
+ *       schedule change: the game stays listed, and when its stats land the next run regenerates
+ *       every open row from them. Without it, one Monday night game whose stats were still missing
+ *       at Thursday 06:00 would leave Thursday's game never projected -- the last run before it
+ *       would still be on the old week. Forty-eight hours puts Monday night's kickoff behind that
+ *       run. It also bounds the days a cancelled game stays listed before nflverse deletes it
+ *       (2022's BUF-CIN: three), but delisting, not this, is what removes it.</li>
+ * </ul>
  *
  * <p>Postseason games never count: weeks 19-22 are playoffs, and 2020's wild card is week 18.
  * Empty means there is no week to project: after week 18, before the schedule is published,
@@ -50,14 +52,14 @@ public class TargetWeekResolver {
 
     private static final String NEXT_WEEK = """
             SELECT min(g.week) FROM games g
-             WHERE g.season = ? AND g.season_type = 'REG'
+             WHERE g.season = ? AND g.season_type = 'REG' AND g.delisted_at IS NULL
                AND NOT EXISTS (SELECT 1 FROM player_game_stats s WHERE s.game_id = g.id)
                AND (g.kickoff_at IS NULL OR g.kickoff_at > ?)
             """;
 
     private static final String GAMES = """
             SELECT id, home_team_id, away_team_id, kickoff_at FROM games
-             WHERE season = ? AND week = ? AND season_type = 'REG'
+             WHERE season = ? AND week = ? AND season_type = 'REG' AND delisted_at IS NULL
              ORDER BY id
             """;
 
