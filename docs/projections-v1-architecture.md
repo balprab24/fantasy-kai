@@ -7,6 +7,11 @@
 the first code. north-star's Phase 6 brief (§10) points here, and where they disagree this document
 is the newer intent.
 
+**Slice 3 (2026-10-12)** follows §8 with the owner's decisions of that day and four refinements,
+each recorded where it applies: §15 resolved as (a), zero-stat appearances stored; the job ships
+switched off until Slice 4; and in §8 the primary-key order, `data_through` as two columns, a
+48-hour escape in the target week, and a database trigger that holds the lock.
+
 **The approved decisions, verbatim in substance:**
 
 1. **Bonuses are scored on the projected line.** Projected raw stats go through the existing
@@ -122,12 +127,14 @@ For player *p* and target week *(S, W)*:
 | n = 1–3 | Projected and labelled **Limited history**. Relative error (MAE ÷ mean) is 0.96 with 1 prior game and 0.81 with 2–3, against ≤0.70 with 4+ (2025, measured) |
 | Team change | Ignored: history follows the player |
 | Bye, inactive, missed weeks | Absent from H. Ages count games, not weeks |
-| Active zero-stat games | **An appearance.** The provider counts every game it is given, including an all-zero line, and never filters one out. Today's ingest stores no snap-only appearance, so production history would match the Slice 1 tested baseline (stored rows) until a later slice adds them. That is an open data decision; see §15 |
+| Active zero-stat games | **An appearance.** The provider counts every game it is given, including an all-zero line, and never filters one out. Since Slice 3 production supplies them (§15, decision (a)): `JdbcProjectionInputs` adds every stored appearance with no stat row as a zero game, so production history is research v2's corrected dataset — equal game by game on every 2024–25 player-week (`backtest.sh parity`, 14,906 compared, 0 mismatches) |
 | Stat- or position-specific behaviour | None. Every stat, including the rare ones (2-pt, `ret_td`, `fum_lost`), is its own EWMA |
 | Clamping / shrinkage | None. Matches the research |
 
 **Its expected error, from the research.** On stored-row data the PPR MAE per player-week was
-5.48 (2024) and 5.51 (2025) on P, and 4.47 on the board-wide population (2025).
+5.48 (2024) and 5.51 (2025) on P, and 4.47 on the board-wide population (2025). With zero-stat
+appearances in the history, which is what ships since Slice 3, it was 5.532 on 2025 — on a
+population that also contains those appearances, so the two are not directly comparable (§15).
 
 **Parity, three layers.**
 
@@ -215,10 +222,21 @@ skill position, his team plays in W, and he has n ≥ 1.
 
 **Persist raw projections, score per request.**
 
-- `V7__player_week_projection`: PK *(player_id, season, week, provider)*, plus `game_id`,
-  `team_id`, the 13 `StatKey` columns and 3 usage columns as `DOUBLE PRECISION`, `games_used`,
-  `data_through`, `generated_at` and `locked_at`.
+- `V7__projections_and_appearances` (Slice 3) creates two tables.
+  - `player_week_projection`: PK *(season, week, provider, player_id)*, plus `game_id`,
+    `team_id`, the 13 `StatKey` columns and 3 usage columns as `DOUBLE PRECISION`, `games_used`,
+    `data_through_season` and `data_through_week`, `generated_at` and `locked_at`.
+  - `player_game_appearances` (§15): every game a skill player took an offensive snap in.
 - **No points column**, enforced by a schema test, and `player_game_stats` is untouched.
+- **Refinements made in Slice 3:**
+  - The PK holds the same four columns, but leads with *(season, week, provider)*. The job's
+    replace and the board's read are then a range of it, and a player's own lookup still names
+    every column.
+  - `data_through` is two columns: it is `RawProjection.lastGame`, a season and a week.
+  - **A trigger refuses any `UPDATE` or `DELETE` of a locked row**, whoever issues it. Locking an
+    open row is allowed, and `TRUNCATE` is the deliberate way out. The job and the trigger are
+    each proven alone: the trigger catches a job that forgot `locked_at IS NULL`, and the schema
+    test catches a missing trigger.
 - `V8`: `roster_week`, `injury_report`.
 - Scoring about 500 rows per request is trivial next to `/rankings`'s ~6K-row scan. No Redis.
 
@@ -229,11 +247,32 @@ skill position, his team plays in W, and he has n ≥ 1.
   did).
 - The board rolls forward only when **all** of last week's stats are in: normally the Tuesday
   06:00 ET ingest, otherwise the next one. Until then week N shows with every game locked.
+- **Slice 3 refinement:** a game still without stat rows **48 hours after kickoff** stops holding
+  the week.
+  - Without it, a Monday night game whose stats were still missing at Thursday 06:00 would leave
+    Thursday's game never projected: the last run before it would still be on the old week.
+    48 hours puts Monday night's kickoff behind that run.
+  - It also stops a cancelled game freezing the rest of the season. nflverse drops one from its
+    schedule (2022 week 17 holds 15 games, and BUF–CIN is not among them), but `GameIngestor`
+    only upserts, so a game ingested *before* its cancellation stays in `games` with no stats,
+    for good. No REG game in 2020–26 is unreported 48 hours after kickoff locally (both measured
+    2026-10-12). That is only because those seasons were backfilled long after the fact; a
+    cancellation during a live season would leave one.
+  - A game rolled past this way is regenerated from its stats once they land, as every open row
+    is.
 
 **Generation.**
 
 - `ProjectionJob` runs right after the daily ingest (same scheduler) and headless through
-  `ingest-once`.
+  `ingest-once`, both through `ingest.DailyPull`. It runs even after a failed ingest, because it
+  reads only what is stored; the ingest's failure is still the one the process exits on.
+- **It ships switched off** (`fantasykai.projections.job-enabled=false`, owner decision
+  2026-10-12), until Slice 4 gives it roster eligibility. Until then a player's week-W team is
+  `players.team_id`, which is nflverse's `latest_team`, and retired and released players keep it.
+  A row the job writes locks for good at kickoff, so a redeploy between the two slices must not
+  write the record from the interim rule. **Before switching it on in production**, run one
+  backfill. The daily pull fetches only the current season, so `player_game_appearances` would
+  otherwise lack every earlier season's zero games.
 - It is recorded in `ingest_runs` as `fantasykai.projections`, so `ingestFreshness` covers it.
 - It regenerates W's rows for games that haven't kicked off. Kicked-off rows get `locked_at` and
   are **never rewritten**, which keeps an honest record for live-accuracy tracking.
@@ -329,7 +368,7 @@ who played. The number is in the popover, not on rows. The copy comes from the A
 | # | Ships | Done when |
 |---|---|---|
 | **2** | `projections/` domain, `WeightedAverageProjectionProvider` (pure, no DB) | Hand-computed tests; randomized bit-parity against research baseline D; `backtest.sh parity` exact on every 2024–25 player-week |
-| **3** | `V7`, `JdbcProjectionInputs`, `TargetWeekResolver`, `ProjectionJob` (lock at kickoff, `ingest_runs`, headless) | Schema test (all `StatKey` columns, no points column); lifecycle tests (mid-week, MNF stats missing, rollover, bye, after week 18, preseason); a locked row survives a rerun; `OneShotContextTests` with the job |
+| **3** | `V7`, `JdbcProjectionInputs`, `TargetWeekResolver`, `ProjectionJob` (lock at kickoff, `ingest_runs`, headless) | Schema test (all `StatKey` columns, no points column); lifecycle tests (mid-week, MNF stats missing, rollover, bye, after week 18, preseason); a locked row survives a rerun; `OneShotContextTests` with the job. **Built 2026-10-12** on `feat/projections-job`, with zero-stat appearances (§15) and the job switched off until Slice 4 |
 | **4** | `V8`, `RosterWeekIngestor`, `InjuryIngestor`, `AvailabilityResolver`, roster-team eligibility | Real 2025 rows as fixtures; header check; 404 → `SKIPPED`; Out/reserve/Q/D/unknown resolution; missing data → UNKNOWN, never a failure |
 | **5** | The two endpoints and `ExplainedScore` | 401 anonymous; another member's profile 404 (warm cache); `QuerySafetyTests`; points bit-identical to `ScoringEngine.score`; PPR − 0 PPR = rec; parts sum to total; Out not ranked; states for bye, no history, no week |
 | **6** | Board "Next week" and the player panel | lint/test/build; browser-verified at 390 and 1440; other pages unchanged |
@@ -341,9 +380,11 @@ Slices 3 and 4 can run in parallel; 5 needs both.
 
 1. **Unknowable absences.** Game-day inactives (37 of 406 in 2025) and late changes after the
    06:00 ingest can't be known before kickoff. 164 absences had no flag at all.
-2. **No zero-stat games in production history.** They make the baseline over-project fringe
-   players; 2025 baseline bias on P was +0.54.
-3. **MNF stats lag** delays rollover to Wednesday on some weeks.
+2. ~~**No zero-stat games in production history.**~~ Retired in Slice 3: they are stored and
+   read (§15). Without them the baseline over-projected fringe players; 2025 baseline bias on P
+   was +0.54.
+3. **MNF stats lag** delays rollover to Wednesday on some weeks. Since Slice 3 it can delay it no
+   further than 48 hours after kickoff (§8).
 4. **The bonus step is discontinuous** at a threshold. Measured small, and shown in the
    explanation.
 5. **A future provider may need more inputs.** Handled by `ProjectionInputs` growing additively;
@@ -373,5 +414,14 @@ Slices 3 and 4 can run in parallel; 5 needs both.
     counts the board shows.
   - **(b)** accept the documented optimism.
 
-  This needs the owner's decision before Slice 3's inputs are built.
+  **Decided 2026-10-12: (a), in Slice 3.**
+  - No new source was needed. `SnapCountIngestor` already downloads the snap file every day, and
+    now also writes `player_game_appearances`: a skill position in the file, `offense_snaps > 0`,
+    a pfr id and a game that resolve, and a team that is a side of that game.
+  - Every appearance is stored, with or without a stat line. "Zero-stat" is decided when it is
+    read, so ingest order cannot double-count or drop a game.
+  - The stored zero-stat counts reproduce research v2 exactly: 730 / 796 / 806 / 851 / 818 / 687
+    in 2020–25, and 158 in 2026 weeks 1–4.
+  - Decided before any projection row exists, so `weighted-average-v1` has one meaning from its
+    first locked row.
 

@@ -258,6 +258,14 @@ line is a vector, a score is a dot product plus threshold bonuses — computed p
       table counts matched). §7 of the runbook makes that the first step of every redeploy. The
       schedule is still owed.
 - [ ] Confirm **auto-renew** is on at Porkbun; consider a **reserved** public IP.
+- [ ] **Phase 6 `V7` (when the projections slices deploy)** — `V7` applies itself on startup and
+      the daily pull fills `player_game_appearances` for the **current season only**.
+      **Before setting `fantasykai.projections.job-enabled=true`** (Slice 4), run one backfill
+      (`--fantasykai.ingest.backfill-on-startup=true`; 20.3 s and 28.7 s in two local runs on 2026-10-12) so
+      2020–2025 carry their zero-stat games too. Without it, every history before 2026 silently
+      lacks them, and production would project from a different history than the one parity
+      proved. Check it the way the local mirror was checked: zero-stat appearances per season
+      must read 730 / 796 / 806 / 851 / 818 / 687 for 2020–25.
 - [x] ~~Decide whether the laptop's launchd ingest stays~~ — **uninstalled 2026-09-29, owner
       decision.** It failed on 6 of its last 8 mornings (09-22 → 09-29); production's has succeeded
       every day since its first unattended run on 09-23. The three failures examined with `pmset` fired
