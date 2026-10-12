@@ -269,6 +269,12 @@ line is a vector, a score is a dot product plus threshold bonuses — computed p
       lacks them, and production would project from a different history than the one parity
       proved. Check it the way the local mirror was checked: zero-stat appearances per season
       must read 730 / 796 / 806 / 851 / 818 / 687 for 2020–25.
+      **`V9` (Slice 4)** applies on startup too. The daily pull then reads the current season's
+      weekly roster and injury report on its own, so availability needs no backfill. Before
+      enabling the job, check that `roster_week` holds the current week for every playing team:
+      the job projects only rostered players, so an empty roster means an empty board. Locally on
+      2026-10-12 it held 13,016 rows for weeks 1–5. 26 rows named players the master lacked, and
+      the ingest logs them by id.
 - [x] ~~Decide whether the laptop's launchd ingest stays~~ — **uninstalled 2026-09-29, owner
       decision.** It failed on 6 of its last 8 mornings (09-22 → 09-29); production's has succeeded
       every day since its first unattended run on 09-23. The three failures examined with `pmset` fired

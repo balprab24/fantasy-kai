@@ -1,0 +1,11 @@
+season,season_type,game_type,team,week,gsis_id,position,full_name,first_name,last_name,report_primary_injury,report_secondary_injury,report_status,practice_primary_injury,practice_secondary_injury,practice_status
+2026,REG,REG,BAL,3,00-0039064,WR,Zay Flowers,Xavien,Flowers,Hamstring,,Questionable,Hamstring,,Limited Participation in Practice
+2026,REG,REG,LAC,3,00-0037012,QB,Trey Lance,Trey,Lance,Groin,,Questionable,Groin,,Limited Participation in Practice
+2026,REG,REG,NE,3,00-0041395,TE,Eli Raridon,Elijah,Raridon,Thigh,,Questionable,Thigh,,Did Not Participate In Practice
+2026,REG,REG,BAL,4,00-0039064,WR,Zay Flowers,Xavien,Flowers,Hamstring,Not injury related - resting player,Questionable,Hamstring,Not injury related - resting player,Limited Participation in Practice
+2026,REG,REG,LAC,4,00-0037012,QB,Trey Lance,Trey,Lance,Groin,,Questionable,Groin,,Limited Participation in Practice
+2026,REG,REG,NE,4,00-0041395,TE,Eli Raridon,Elijah,Raridon,Thigh,,Questionable,Thigh,,Limited Participation in Practice
+2026,REG,REG,BAL,5,00-0039064,WR,Zay Flowers,Xavien,Flowers,Foot,,Questionable,Foot,,Limited Participation in Practice
+2026,REG,REG,BUF,5,00-0036988,WR,Josh Palmer,Joshua,Palmer,Shoulder,,Out,Shoulder,,Did Not Participate In Practice
+2026,REG,REG,CIN,5,00-0036900,WR,Ja'Marr Chase,Ja'Marr,Chase,Concussion,,Questionable,Concussion,,Full Participation in Practice
+2026,REG,REG,LAC,5,00-0037012,QB,Trey Lance,Trey,Lance,Groin,,Doubtful,Groin,,Limited Participation in Practice

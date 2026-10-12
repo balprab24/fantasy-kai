@@ -98,11 +98,11 @@ fantasykai:
   # version -- see ProjectionSource. Only weighted-average-v1 exists.
   projections:
     provider: weighted-average-v1
-    # Whether the daily pull runs ProjectionJob after the ingest. OFF until Slice 4 adds roster
-    # eligibility (owner decision 2026-10-12): until then a player's week-W team is
-    # players.team_id -- nflverse latest_team, which retired and released players keep -- and a
-    # row the job writes locks for good at kickoff. Before turning it on in production, run one
-    # backfill so player_game_appearances covers every season, not only the current one.
+    # Whether the daily pull runs ProjectionJob after the ingest. OFF (owner decision 2026-10-12)
+    # until it is turned on deliberately: a row the job writes locks for good at kickoff. Slice 4
+    # replaced the interim players.team_id candidates with weekly rosters. Before turning it on in
+    # production, run one backfill so player_game_appearances covers every season, not only the
+    # current one (DEPLOY-STEPS.md).
     job-enabled: false
 
 # Honour X-Forwarded-* from the reverse proxy in front of this application.
