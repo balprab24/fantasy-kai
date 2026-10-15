@@ -280,7 +280,7 @@ back, and deserves a second look before it ships.
 mkdir -p ~/backups && f=~/backups/pre-<change>-$(date -u +%Y%m%dT%H%M%SZ).dump
 $C exec -T postgres pg_dump -U fantasykai -Fc fantasykai > "$f" && sha256sum "$f"
 # then, from the laptop:
-scp -i ~/.ssh/fantasykai_oracle ubuntu@<vm-ip>:backups/<file> ~/fantasykai-backups/
+scp -i ~/.ssh/<your-key> ubuntu@<vm-ip>:backups/<file> ~/fantasykai-backups/
 ```
 
 Restore the laptop's copy into a scratch database and compare every table's count with
@@ -322,7 +322,7 @@ Certificates survive a recreate because they live in the `caddy_data` volume.
 **7. Ingest once** (the command in §6) if the change adds columns the ingest fills — then query
 those columns. The exit code says the pull ran, not that it wrote what you added.
 
-**8. Run the acceptance checks:** `./deploy/acceptance.sh` from the laptop, with the local stack up
+**8. Run the acceptance checks:** `VM=<vm-ip> ./deploy/acceptance.sh` from the laptop, with the local stack up
 for check 9. It exits 1 on any failure and prints `?`, never PASS, for a check it could not run.
 
 **Rolling back** the backend is the tag from step 3:

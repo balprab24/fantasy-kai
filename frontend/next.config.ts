@@ -5,7 +5,7 @@ import { apiOriginOf } from "./src/lib/csp";
 // Parsed here, at build time, so a malformed NEXT_PUBLIC_API_URL (no scheme, a
 // typo) fails the build instead of shipping: proxy.ts parses the same value on
 // every request, and a throw there is a 500 on every page. An EMPTY value still
-// passes -- that is F11 (DEPLOY-STEPS.md), owed its own refusal.
+// passes -- that is F11 (docs/deployment.md), owed its own refusal.
 apiOriginOf(API_BASE);
 
 /**

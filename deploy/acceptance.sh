@@ -3,7 +3,10 @@
 # against the live site. Every check attacks or probes the deployment rather than
 # reading its config, and prints the evidence next to its verdict.
 #
-#   ./deploy/acceptance.sh                  # after every redeploy (README §7)
+#   VM=<server-ip> ./deploy/acceptance.sh   # after every redeploy (README §7)
+#
+# VM is the server's public address, used only by check 7's port scan. Unset, check 7
+# prints "?" instead of guessing -- the address belongs to the deployment, not the repo.
 #
 # Exits 1 on any FAIL. A check that cannot run prints "?" and never PASS --
 # "could not check" and "checked, fine" must not look the same (session-check.sh).
@@ -19,7 +22,7 @@
 set -u
 API=${API:-https://api.fantasykai.com}
 WWW=${WWW:-https://www.fantasykai.com}
-VM=${VM:-163.192.220.190}
+VM=${VM:-}
 LOCAL_API=${LOCAL_API:-http://localhost:8080}
 PROD_TOKEN=${PROD_TOKEN:-}
 LOCAL_TOKEN=${LOCAL_TOKEN:-}
@@ -77,7 +80,9 @@ hsts=$(curl -sS -D - -o /dev/null "$API/actuator/health/liveness" | tr -d '\r' |
 # else (macOS: connect timeout), or a laptop with no network reads as three closed
 # ports and a PASS. 443 is the positive control.
 probe() { nc -z -G 5 "$VM" "$1" >/dev/null 2>&1 && echo open || echo closed; }
-if ! command -v nc >/dev/null 2>&1 || [[ $(probe 443) != open ]]; then
+if [[ -z $VM ]]; then
+    unknown 7 "VM is not set -- run as VM=<server-ip> ./deploy/acceptance.sh to port-scan the host"
+elif ! command -v nc >/dev/null 2>&1 || [[ $(probe 443) != open ]]; then
     unknown 7 "cannot open $VM:443 with this nc -- no evidence either way about 5432/6379/8080"
 else
     p5432=$(probe 5432); p6379=$(probe 6379); p8080=$(probe 8080)

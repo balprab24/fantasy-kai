@@ -56,7 +56,7 @@ export function contentSecurityPolicy({ nonce, apiOrigin, dev }: CspInput): stri
 /**
  * The API's origin from the configured base URL -- the same value `lib/api.ts`
  * fetches with. Empty means api.ts fetches relative to this site, so there is no
- * other origin to allow; that is F11's failure shape (DEPLOY-STEPS.md), and the
+ * other origin to allow; that is F11's failure shape (docs/deployment.md), and the
  * policy mirrors it rather than papering over it.
  */
 export function apiOriginOf(base: string): string | null {
