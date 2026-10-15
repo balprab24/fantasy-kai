@@ -42,15 +42,15 @@ cd "$repo" || exit 70
 # Row counts are floors, not equalities: the season is running and stat rows
 # grow every week. Fewer rows than recorded is a FAIL; more is fine and the
 # surplus is printed.
-EXPECT_STAT_ROWS=114479     # CLAUDE.md "Measured numbers" · docs/map.md §1 (re-measured 2026-09-21)
-EXPECT_PLAYERS=25066        # CLAUDE.md "Measured numbers" · docs/map.md §1 (re-measured 2026-09-21)
+EXPECT_STAT_ROWS=114479     # docs/architecture.md "Measured numbers" (re-measured 2026-09-21)
+EXPECT_PLAYERS=25066        # docs/architecture.md "Measured numbers" (re-measured 2026-09-21)
 EXPECT_GAMES=1965           # docs/map.md §1
 EXPECT_TESTS=197            # docs/map.md §1
 EXPECT_ENDPOINTS=13         # docs/map.md §1 (6 GET, members only + 4 auth + 3 mutations)
 EXPECT_MIGRATIONS=6         # docs/map.md §1 ("V1 … V6")
 EXPECT_BACKEND_FILES=81     # docs/map.md §1
 EXPECT_FRONTEND_FILES=76    # docs/map.md §1 (.ts/.tsx under frontend/src)
-EXPECT_JDK=25               # CLAUDE.md "Commands" · README · pom.xml enforcer
+EXPECT_JDK=25               # docs/development.md "Commands" · README · pom.xml enforcer
 
 # The deployed API's hostname, and it is deliberately empty until Phase 5d has
 # actually landed one. Empty means the DEPLOY rows print "?" with that reason --
@@ -571,7 +571,7 @@ check_deploy() {
 
 check_claims() {
     group "CLAIMS  (a number here disagreeing with the docs means one of them is wrong)"
-    claim "tests"      "$(count_tests)"     "$EXPECT_TESTS"          "CLAUDE.md"
+    claim "tests"      "$(count_tests)"     "$EXPECT_TESTS"          "map.md §1"
     claim "endpoints"  "$(count_endpoints)" "$EXPECT_ENDPOINTS"      "map.md §1"
     claim "backend"    "$(count_backend)"   "$EXPECT_BACKEND_FILES"  "map.md §1"
     claim "frontend"   "$(count_frontend)"  "$EXPECT_FRONTEND_FILES" "map.md §1"
@@ -588,7 +588,7 @@ run_all() {
     check_claims
     printf '\n'
     printf 'not checked here: does the suite pass · does the frontend build\n'
-    printf '  the gates for those are in CLAUDE.md under "Definition of done".\n'
+    printf '  the gates for those are in CONTRIBUTING.md under "Review pass".\n'
     printf '\n'
     printf '%d FAIL · %d drift · %d warn · %d unknown\n' "$n_fail" "$n_drift" "$n_warn" "$n_unknown"
 }
@@ -618,7 +618,7 @@ print(json.dumps({
         "additionalContext": (
             "Output of ./scripts/session-check.sh, run automatically at session start. "
             "These are re-derived facts about the working tree and database; where they "
-            "disagree with CLAUDE.md or docs/, THIS wins and the doc is what needs "
+            "disagree with docs/, THIS wins and the doc is what needs "
             "fixing.\n\n" + report),
     },
 }))

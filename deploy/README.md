@@ -303,7 +303,7 @@ docker run --rm --entrypoint sh fantasykai-backend:latest -c 'unzip -l app.jar |
 119 s to build and 18 s from swap to healthy on 2026-09-29, of which the new JVM took ~12 s from
 container creation to *Started*. Caddy answers `502` while nothing listens — how long that window
 lasts from outside has not been measured.
-The last line must still say **10.1.59** — CLAUDE.md, "The EOL clock".
+The last line must still say **10.1.59** — docs/development.md, "Spring Boot 3.5 is past open-source end of life".
 
 **6. If the Caddyfile changed, recreate Caddy — never just reload it:**
 

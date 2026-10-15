@@ -126,7 +126,7 @@ hash lookup per signal, and the query is generated from the enum rather than mai
 
 ## 4. Invariants — do not break these
 
-New, on top of the ones in [`CLAUDE.md`](../CLAUDE.md).
+New, on top of the ones in [`architecture.md`](architecture.md).
 
 | Invariant | Why | Expires |
 |---|---|---|
@@ -410,7 +410,7 @@ persistence idioms for two small tables is worse than one, and every read path i
 already `JdbcTemplate`.
 
 But note the cost, because it is not zero: **`ddl-auto: validate` is currently a no-op.** There are
-zero `@Entity` classes, so it validates nothing, and CLAUDE.md's invariant — *"`validate` fails fast
+zero `@Entity` classes, so it validates nothing, and the architecture doc's invariant — *"`validate` fails fast
 the moment a JPA entity drifts from a migration"* — is vacuous today. Choosing `JdbcTemplate` keeps
 it vacuous. If that guard is wanted for real, this is the phase to introduce entities and say so.
 
@@ -748,7 +748,7 @@ verified; optional, so a 404 is `SKIPPED`. A `ProjectionJob` after the 06:00 ET 
   rate = points; each bonus's probability and expected points; the factors.
 - A separate endpoint on purpose: `/rankings` and the §9 baseline it carries stay untouched.
   Scored per request — at most one row per skill player active that season, 578–633 in each of
-  2020–25 (CLAUDE.md) — and no Redis: caching is Phase 11's.
+  2020–25 ([`architecture.md`](architecture.md)) — and no Redis: caching is Phase 11's.
 
 **Missing data degrades the explanation, never the endpoint:** a bye, too little history, Out or
 IR, no line yet (trailing team volume, said so), no injury report (availability 1, said so).

@@ -14,7 +14,7 @@
 # Any other arguments are passed through to Maven untouched.
 #
 # Tests are skipped by default because this exists to refresh the ingest jar,
-# and `./mvnw -B verify` is the gate for correctness -- see CLAUDE.md's
+# and `./mvnw -B verify` is the gate for correctness -- see CONTRIBUTING.md's
 # definition of done. Skipping them here is not a claim that they passed, and
 # nothing downstream reads the sidecar as if it were.
 

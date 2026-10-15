@@ -46,7 +46,7 @@ Nothing in the database changed between those two rows. Both numbers were comput
 stat lines about a second apart. That is the entire product in one comparison.
 
 Everything else in the architecture exists to protect this. The rule "never store a computed
-point value" appears in [CLAUDE.md's invariant table](../CLAUDE.md) because the moment one gets
+point value" appears in [the invariant table](architecture.md#invariants--do-not-break-these) because the moment one gets
 saved, the thing above stops being true.
 
 ## 3. What exists today, and what is a plan
@@ -95,7 +95,7 @@ will be a real before-and-after rather than a claim.
 Numbers here come in three kinds and the docs are careful about which is which. You should be too.
 
 - **Measured** — someone ran it and wrote down what came back: the backfill wall time, the p95,
-  the row counts. They live in [CLAUDE.md's "Measured numbers"](../CLAUDE.md) and
+  the row counts. They live in ["Measured numbers"](architecture.md#measured-numbers--do-not-re-derive-or-estimate-these) and
   [`perf/baseline.md`](perf/baseline.md), and are not to be re-derived from memory or estimated.
   **They are deliberately not repeated here.** An earlier draft of this line quoted the row count
   and was stale within the hour, which is the argument for the rule at the top of this file rather
@@ -206,5 +206,5 @@ The terms the other docs use without introducing.
 | To run it | [`../README.md`](../README.md) |
 | Where a specific class or file is | [`map.md`](map.md) |
 | Why a decision was made | [`north-star.md`](north-star.md) (product) · [`fantasy-platform-handoff.md`](fantasy-platform-handoff.md) (engineering) |
-| What bit someone already | [`../CLAUDE.md`](../CLAUDE.md), the traps section — every entry cost real time |
+| What bit someone already | [`development.md`](development.md), the traps section — every entry cost real time |
 | What is true right now | `./scripts/session-check.sh` |

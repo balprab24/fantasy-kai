@@ -78,7 +78,7 @@ The community-maintained NFL data project. Published as CSV/Parquet to GitHub Re
 
 Datasets you need:
 - **`stats_player_week`** (from the `stats_player` release) — weekly per-player box score, **150 columns, 18,983 rows for the 2024 season**. This is the backbone table.
-  - Chosen over the older `player_stats` release (53 columns, **5,597 rows for 2024**, offense only) for two reasons: it carries the kicking and defensive columns that K/DST scoring needs, and six seasons of it is **112,450 rows** read / 112,319 stored versus ~34K — the volume §9 assumes. (Measured; CLAUDE.md pins both numbers and the 131-row gap.) You can always filter down to fantasy-relevant positions with a `WHERE`; you cannot widen the schema without a re-ingest.
+  - Chosen over the older `player_stats` release (53 columns, **5,597 rows for 2024**, offense only) for two reasons: it carries the kicking and defensive columns that K/DST scoring needs, and six seasons of it is **112,450 rows** read / 112,319 stored versus ~34K — the volume §9 assumes. (Measured; [`architecture.md`](architecture.md) pins both numbers and the 131-row gap.) You can always filter down to fantasy-relevant positions with a `WHERE`; you cannot widen the schema without a re-ingest.
   - Every row carries `game_id` (e.g. `2024_01_NYJ_SF`), so stat lines resolve to a game directly instead of joining on team + week.
   - **It also ships `fantasy_points` and `fantasy_points_ppr`. Do not store them.** The entire architecture is that points are computed on demand from raw stats; persisting the source's precomputed values would quietly reintroduce the thing you designed the system to avoid.
 - `players` — player master with cross-platform IDs (gsis, espn, sleeper, pfr)

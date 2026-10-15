@@ -263,7 +263,7 @@ scripts/                           session-check.sh (the session-start truth che
                                    jar current", shared by three callers) · ingest-once.sh ·
                                    launchd plist · perf-explain.sh · db-restore.sh (full
                                    dump; refuses a non-empty target and compares row counts)
-.claude/                           settings.json's SessionStart hook · commands/review-pass.md
+.claude/                           Claude Code project config: SessionStart hook runs session-check · /review-pass
 ```
 
 ---
@@ -321,12 +321,12 @@ scored before a page can be taken. That is the [§9 baseline](perf/baseline.md),
 | Know what is true right now | `./scripts/session-check.sh` — it runs itself at session start. A `drift` row means a doc is wrong, including this one |
 | Refresh the landing hero's 2026 boards | "Re-capturing the landing hero", below. `session-check.sh`'s `hero` row warns once a week has finished that the capture does not hold |
 | Understand any of this without the jargon | [`orientation.md`](orientation.md) — glossary, real-vs-planned, how a request actually works |
-| Finish a piece of work | [`../CLAUDE.md`](../CLAUDE.md), "Definition of done" · or type `/review-pass` |
-| Run it | [`../README.md`](../README.md) for setup · [`../CLAUDE.md`](../CLAUDE.md) for the full command list |
+| Finish a piece of work | [`../CONTRIBUTING.md`](../CONTRIBUTING.md), "Review pass" · or type `/review-pass` |
+| Run it | [`../README.md`](../README.md) for setup · [`development.md`](development.md) for the full command list |
 | Deploy it | [`../deploy/README.md`](../deploy/README.md) — the runbook, the firewall trap, and the acceptance checks. `deploy/compose.prod.yml` + `Caddyfile`; move the data with `scripts/db-restore.sh`. north-star §5d |
 | Add a screen | a route under `frontend/src/app/`, a hook in `src/lib/queries.ts`, a type in `src/lib/types.ts` |
 | Change how a request is authenticated | `frontend/src/lib/api.ts` — one fetch wrapper, and the only thing that holds the access token |
-| Understand why a build died on the JDK | `pom.xml`'s enforcer rule says it in the error. Background in [`../CLAUDE.md`](../CLAUDE.md) |
+| Understand why a build died on the JDK | `pom.xml`'s enforcer rule says it in the error. Background in [`development.md`](development.md) |
 
 ### Re-capturing the landing hero
 
@@ -349,8 +349,8 @@ finished regular-season week the capture does not hold.
    `HERO_BOARDS_2026` keeping its shape. Update `HERO_TOTAL`, and the capture date in the header.
 5. **The story ranks move on purpose.** PPR → My league (Allen 3 → 1, Purdy 7 → 2, Smith-Njigba
    1 → 10) and 0 PPR → PPR (Smith-Njigba 9 → 1, Lamb 17 → 4) are asserted in
-   `frontend/tests/lib.test.ts`, as is `HERO_THROUGH_WEEK`, and quoted in DESIGN.md, CLAUDE.md
-   row 5c.9 and the `.impeccable` brief. Change the tests deliberately, read
+   `frontend/tests/lib.test.ts`, as is `HERO_THROUGH_WEEK`, and quoted in DESIGN.md and the
+   `.impeccable` brief. Change the tests deliberately, read
    what the new week says, and update the prose that quotes it.
 6. **Delete the account** with psql on stdin (`-c` does not interpolate `:'email'`):
    `DELETE FROM users WHERE email = :'email';` -- tokens and profiles cascade.
@@ -391,7 +391,7 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 |---|---|
 | `StatIngestor` holds a whole season in memory | Identity mapper into a `List<CSVRecord>`, then a second full-size batch, under a JVM with no `-Xmx` |
 | ~~The ingest depends on a laptop being awake~~ | **Closed 2026-09-29.** Production's `IngestScheduler` has run at 06:00 ET since 2026-09-23 and the laptop's launchd job was uninstalled — it had failed on 6 of its last 8 mornings, the three examined with `pmset` inside a Power Nap DarkWake (inferred, not proven). The local database is a mirror refreshed by hand; `session-check.sh` treats it as one |
-| No shared Testcontainers base class | Ten cached Spring contexts, seven with an embedded Tomcat. **Teardown measured at ~35s on 2026-09-14 — the largest single term in the build, more than compilation and all 132 tests together.** It sits just over Surefire's 30s fork-exit timeout, which is why the same commit builds in 31s some days and 58s others. **Back to urgent**: it was downgraded on a ~9s estimate that direct measurement contradicts. See [`../CLAUDE.md`](../CLAUDE.md) |
+| No shared Testcontainers base class | Ten cached Spring contexts, seven with an embedded Tomcat. **Teardown measured at ~35s on 2026-09-14 — the largest single term in the build, more than compilation and all 132 tests together.** It sits just over Surefire's 30s fork-exit timeout, which is why the same commit builds in 31s some days and 58s others. **Back to urgent**: it was downgraded on a ~9s estimate that direct measurement contradicts. See [`development.md`](development.md) |
 | Hikari is at Spring Boot's default 10 connections | 10 × ~39 ms occupancy ≈ the 256 req/s ceiling. Phase 11 must not mistake raising it for a fix |
 
 ### Follow-ups from the rankings workspace pass — **new** 2026-09-28
@@ -449,7 +449,7 @@ colour. Recorded, deliberately not fixed in that milestone.
 
 - **`ddl-auto: validate` validates nothing** — there are zero `@Entity` classes, and
   Phase 5 decided deliberately to keep it that way (north-star §5a). The setting's real
-  guarantee is that it can never become `update`; CLAUDE.md now says that rather than
+  guarantee is that it can never become `update`; architecture.md now says that rather than
   claiming a drift check. JPA remains on the classpath as a carrier for `JdbcTemplate`.
 - **Redis is claimed at last** — Bucket4j's bucket store, resolved lazily so an outage
   costs logins and not the site. Phase 11's ruleset cache is the second consumer.
@@ -476,7 +476,7 @@ win and this file gets fixed.**
 |---|---|
 | [`north-star.md`](north-star.md) | **Scope, sequencing, product decisions.** What we're building, for whom, in what order, and what we're deliberately not building |
 | [`fantasy-platform-handoff.md`](fantasy-platform-handoff.md) | **Engineering rationale** — §5 schema, §6 scoring, §8 security, §9 performance. **§1 and §11 are superseded** by the north star |
-| [`../CLAUDE.md`](../CLAUDE.md) | **Operational memory** — invariants, measured numbers, the traps in the source data, the commands, the definition of done |
+| [`architecture.md`](architecture.md) · [`development.md`](development.md) · [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Invariants and measured numbers · commands and the traps · the review pass |
 | [`orientation.md`](orientation.md) | **Explanation.** What this is in plain English, real-vs-planned, and a glossary of every term the other four assume. No facts of its own either |
 | **this file** | **Navigation.** Where things are, what state they're in, where to look next. No facts of its own |
 
