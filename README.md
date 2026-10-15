@@ -159,7 +159,8 @@ backend build and tests, frontend lint, tests and build, and an OWASP dependency
   on an Oracle Cloud VM, with TLS terminated by Caddy.
 - **Data:** refreshed daily at 06:00 ET by the API's own scheduler.
 - **Runbook:** [`deploy/README.md`](deploy/README.md) covers setup, redeploys with a tested
-  rollback, and the acceptance checks in `deploy/acceptance.sh`.
+  rollback, and the acceptance checks in `deploy/acceptance.sh`. How the deployment was verified
+  and what went wrong along the way: [`docs/deployment.md`](docs/deployment.md).
 
 ---
 
@@ -225,9 +226,12 @@ perf/       k6 load-test script
 scripts/    Packaging, one-shot ingest, backtest runner and repository health check
 ```
 
-Further reading: [`docs/orientation.md`](docs/orientation.md) (plain-English tour and glossary) ·
-[`docs/fantasy-platform-handoff.md`](docs/fantasy-platform-handoff.md) (schema, scoring, security
-and performance design) · [`docs/north-star.md`](docs/north-star.md) (product scope and roadmap).
+Further reading: [`docs/architecture.md`](docs/architecture.md) (design, invariants, measured
+numbers) · [`docs/development.md`](docs/development.md) (commands and lessons learned) ·
+[`docs/deployment.md`](docs/deployment.md) (production write-up) ·
+[`docs/orientation.md`](docs/orientation.md) (plain-English tour and glossary) ·
+[`docs/north-star.md`](docs/north-star.md) (product scope and roadmap) ·
+[`CONTRIBUTING.md`](CONTRIBUTING.md) (how changes are reviewed).
 
 ## Data sources and attribution
 

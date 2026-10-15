@@ -33,23 +33,23 @@ cd "$repo" || exit 70
 
 # ─── Claims mirrored from the docs ──────────────────────────────────────────
 #
-# Every value below is ALSO written in prose somewhere. That duplication is
-# allowed for exactly one reason: this script re-derives the real value and
-# tells you when the two stop agreeing. When a row drifts, fix the doc AND this
-# block in the same commit -- a number that lives in two places and is only
-# corrected in one is worse than a number that lives in neither.
+# The row counts below are also quoted in docs/architecture.md ("Measured
+# numbers"); the tree counts live only here, because counts written into prose
+# drift within days. This script re-derives the real value and says when it
+# stops agreeing with the baseline. When a row drifts, update the baseline here,
+# and the doc in the same commit if it quotes that value.
 #
 # Row counts are floors, not equalities: the season is running and stat rows
 # grow every week. Fewer rows than recorded is a FAIL; more is fine and the
 # surplus is printed.
 EXPECT_STAT_ROWS=114479     # docs/architecture.md "Measured numbers" (re-measured 2026-09-21)
 EXPECT_PLAYERS=25066        # docs/architecture.md "Measured numbers" (re-measured 2026-09-21)
-EXPECT_GAMES=1965           # docs/map.md §1
-EXPECT_TESTS=197            # docs/map.md §1
-EXPECT_ENDPOINTS=13         # docs/map.md §1 (6 GET, members only + 4 auth + 3 mutations)
-EXPECT_MIGRATIONS=6         # docs/map.md §1 ("V1 … V6")
-EXPECT_BACKEND_FILES=81     # docs/map.md §1
-EXPECT_FRONTEND_FILES=76    # docs/map.md §1 (.ts/.tsx under frontend/src)
+EXPECT_GAMES=1965           # baseline
+EXPECT_TESTS=197            # baseline
+EXPECT_ENDPOINTS=13         # baseline (6 GET, members only + 4 auth + 3 mutations)
+EXPECT_MIGRATIONS=6         # baseline ("V1 … V6")
+EXPECT_BACKEND_FILES=81     # baseline
+EXPECT_FRONTEND_FILES=76    # baseline (.ts/.tsx under frontend/src)
 EXPECT_JDK=25               # docs/development.md "Commands" · README · pom.xml enforcer
 
 # The deployed API's hostname, and it is deliberately empty until Phase 5d has
@@ -570,12 +570,12 @@ check_deploy() {
 }
 
 check_claims() {
-    group "CLAIMS  (a number here disagreeing with the docs means one of them is wrong)"
-    claim "tests"      "$(count_tests)"     "$EXPECT_TESTS"          "map.md §1"
-    claim "endpoints"  "$(count_endpoints)" "$EXPECT_ENDPOINTS"      "map.md §1"
-    claim "backend"    "$(count_backend)"   "$EXPECT_BACKEND_FILES"  "map.md §1"
-    claim "frontend"   "$(count_frontend)"  "$EXPECT_FRONTEND_FILES" "map.md §1"
-    claim "migrations" "$(count_migrations)" "$EXPECT_MIGRATIONS"    "map.md §1"
+    group "CLAIMS  (a number here disagreeing with the baseline means the tree or the baseline moved)"
+    claim "tests"      "$(count_tests)"     "$EXPECT_TESTS"          "baseline"
+    claim "endpoints"  "$(count_endpoints)" "$EXPECT_ENDPOINTS"      "baseline"
+    claim "backend"    "$(count_backend)"   "$EXPECT_BACKEND_FILES"  "baseline"
+    claim "frontend"   "$(count_frontend)"  "$EXPECT_FRONTEND_FILES" "baseline"
+    claim "migrations" "$(count_migrations)" "$EXPECT_MIGRATIONS"    "baseline"
 }
 
 run_all() {

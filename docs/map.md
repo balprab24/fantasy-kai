@@ -1,49 +1,20 @@
 # The map
 
-**Where everything is and what state it's in.** This file owns nothing. Every fact it
+**Where everything is.** This file owns nothing. Every fact it
 can't own, it links to — so when it disagrees with the doc that owns a fact, the doc wins
 and this file gets fixed.
 
-Last verified against the tree: **2026-09-21** — and no longer by hand. `./scripts/session-check.sh`
-re-derives every count in the status board below, plus the database's own numbers, in about three
-seconds, and runs at the start of every session. **When it disagrees with this file, it wins.**
-That is what it was built for: the "14 files" in the row below was wrong the day it was written,
-and nothing caught it for two days.
+Counts are not written here. `./scripts/session-check.sh` re-derives them, plus the database's own
+numbers, in about three seconds. **When it disagrees with this file, it wins.**
 
 ---
 
-## 1. Status board
+## 1. Status
 
-| | |
-|---|---|
-| Phases shipped | **0 → 5c** |
-| Currently next | **Phase 6 — Projections**, V1 brief in north-star §10 (owner decision 2026-10-08). **Slice 1 (the backtest) done on `feat/projections-backtest`: model v1 +2.7% over the best baseline on 2025, short of the pre-registered 3% — it does not ship; the next step is an experiment** — [`perf/projection-accuracy.md`](perf/projection-accuracy.md). Then **Phase 11.5** — Spring Boot 3.5 → 4, overdue security work. **5d is live** at `https://www.fantasykai.com` since 2026-09-23 |
-| Backend | **81** files · Java 25 / Spring Boot 3.5.16 — **OSS-EOL since 2026-06-30**, Tomcat pinned to 10.1.59 over the parent's 10.1.55. See [`../CLAUDE.md`](../CLAUDE.md) "The EOL clock" |
-| Tests | 50 files · **197 tests**, all green — 30 of the files and 22 of the tests are the Phase 6 backtest in `com.fantasykai.projection` (this row said "17 files" until 2026-09-28; there were 18 — counted with `find`, not recalled) · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 47.5s measured 2026-09-24, 58.2s on 09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
-| HTTP endpoints | **13** — 6 `GET`, members only since 2026-09-29 (the sixth is `/players/{id}/career`, 2026-09-28), 4 `/auth`, 3 authenticated mutations |
-| Migrations | `V1` … `V6` (`V6`: `players.birth_date`, `teams.logo_url`) |
-| Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
-| Frontend | **Next.js 16 · 76 `.ts`/`.tsx` files** (78 under `frontend/src`) — every page rendered per request since 2026-09-29, under a nonce-based CSP (`src/proxy.ts`). Visual system "Prime time" since 2026-09-30 (branch `feat/kai-identity`; the rulebook is `DESIGN.md`), in two modes: the public pages in **Daylight** (a paper ground with one cool band, since 2026-10-05) -- a landing page at `/` (recomposed 2026-10-07, product first) whose hero is the real rankings board for the season being played, in the product's dark skin, running off the page's right edge, opening on a member's own ruleset, with a live scoring switch, re-sorting itself between PPR and that ruleset in a short loop (still under reduced motion), then one board the visitor drives through 0 PPR / Half PPR / PPR as its rows travel, a full-width band of one player opened with the player page's own scoring switch live, and email-first sign-up -- and behind sign-in, in **Prime time**, a top bar, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (cut-out plate, weekly chart, game log, career), ruleset builder; attribution footer on both. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, the landing's captured data and the two modes' token parity, 85 tests, no dependency, and in CI since 2026-09-28 |
-
-| # | Phase | State |
-|---|---|---|
-| 0 | Foundation — compose, Boot skeleton, Flyway `V1` | ✅ |
-| 1 | Ingestion — nflverse + Sleeper, six-season backfill in 22.8s. Daily pull installed under launchd `f478233` | ✅ |
-| 2 | Scoring engine — ruleset model, validator, dot-product evaluator | ✅ |
-| 3 | Read API — `JdbcTemplate` reads, `StatKey`-generated SQL, query whitelists | ✅ |
-| 3.5 | Close the baseline — k6 at 1/5/10/20 VUs; **the bottleneck is Postgres, not the scorer (88/12)** | ✅ |
-| 4 | Vegas in the schema — `V4` widens `games` by 10 columns | ✅ |
-| 4.75 | Toolchain recovery — JDK 25 located, enforcer rule, deps current, headless-context bug fixed | ✅ |
-| **5** | **Auth + web shell** — Argon2id, JWT, rotating refresh, Bucket4j · Next.js shell | ✅ 5a/5b · 5c · **5d live 2026-09-23** — 10/11 acceptance checks; 4b owed. 4c (three rate-limiter bypasses, fixed in code 2026-09-24) passes since the **2026-09-29 redeploy**. `DEPLOY-STEPS.md` |
-| 6 | Projections — `ProjectionEngine`, `ExplainedScore`, published MAE (`SignalKey` moved to 9) | ⬅ next — brief in north-star §10 |
-| 7 | League import — `LeagueProvider`, ESPN + Sleeper | |
-| 8 | Roster tools — optimizer, simulator, trade evaluator, waivers | |
-| 9 | Consensus board — FFC ADP + Sleeper rostered% → the market board (members-only since 2026-09-28; it was "the logged-out top 100") | |
-| 10 | iOS (Expo) | |
-| 11 | Perf pass — cache → matview → indexes, measuring after each | |
-
-Roadmap detail and the reasoning for the order: [`north-star.md` §10](north-star.md).
-Phase status is also in [`../CLAUDE.md`](../CLAUDE.md) — if the two disagree, north-star wins.
+Not kept here. Status written into a doc goes stale within days, so it lives where it can be
+checked: what ships today is in the [README](../README.md#status), the roadmap and the reasoning
+for its order are in [`north-star.md` §10](north-star.md), and live counts (tests, endpoints,
+files, migrations, rows) come from `./scripts/session-check.sh`.
 
 ---
 
