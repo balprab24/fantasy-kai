@@ -5,7 +5,7 @@ import { apiOriginOf } from "./src/lib/csp";
 // Parsed here, at build time, so a malformed NEXT_PUBLIC_API_URL (no scheme, a
 // typo) fails the build instead of shipping: proxy.ts parses the same value on
 // every request, and a throw there is a 500 on every page. An EMPTY value still
-// passes -- that is F11 (DEPLOY-STEPS.md), owed its own refusal.
+// passes -- that is F11 (docs/deployment.md), owed its own refusal.
 apiOriginOf(API_BASE);
 
 /**
@@ -28,8 +28,8 @@ const SECURITY_HEADERS = [
 
 const nextConfig: NextConfig = {
   // Next writes its own AGENTS.md and CLAUDE.md into this directory on every
-  // dev start. The repo already has one CLAUDE.md at the root and it is the
-  // project's operational memory -- a generated second one nested here shadows
+  // dev start. The repo already has one CLAUDE.md at the root, which imports the
+  // project docs -- a generated second one nested here shadows
   // it for anything working in frontend/, which is the opposite of useful.
   agentRules: false,
   async headers() {

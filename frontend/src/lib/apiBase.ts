@@ -5,7 +5,7 @@
  * block the app's own requests.
  *
  * `??`, not `||`: an empty string is kept as it is, which makes every call
- * same-origin -- the F11 failure (DEPLOY-STEPS.md), still owed a build-time
+ * same-origin -- the F11 failure (docs/deployment.md), still owed a build-time
  * refusal.
  */
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";

@@ -264,7 +264,7 @@ class AuthRateLimitTests {
     /**
      * Both directions of the proto question, because HSTS depends on it. Caddy
      * writes {@code X-Forwarded-Proto}, so it must still make a request secure --
-     * without it HSTS silently stops being sent (the trap in CLAUDE.md). Nothing
+     * without it HSTS silently stops being sent (the trap in docs/development.md). Nothing
      * writes {@code X-Forwarded-Ssl}, so it must not.
      */
     @Test

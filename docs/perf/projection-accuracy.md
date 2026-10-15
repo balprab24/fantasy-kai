@@ -362,7 +362,7 @@ player-week.
 
 ## Corrections found in review
 
-The review pass (CLAUDE.md, definition of done) ran after the test season was read. It found
+The review pass (CONTRIBUTING.md) ran after the test season was read. It found
 three things wrong in what the committed reports or the first draft of this file say. None of
 them changes a model, a choice or a test-season number.
 

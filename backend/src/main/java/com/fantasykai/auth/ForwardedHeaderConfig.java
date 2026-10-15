@@ -24,7 +24,7 @@ import org.springframework.web.filter.ForwardedHeaderFilter;
  * Spring's {@link ForwardedHeaderFilter}, shown only the headers Caddy writes.
  *
  * <p>{@code server.forward-headers-strategy: framework} is what makes HSTS work
- * behind a TLS-terminating proxy (see the trap in CLAUDE.md), but the filter it
+ * behind a TLS-terminating proxy (see the HSTS trap in docs/development.md), but the filter it
  * installs honours <em>seven</em> headers and Caddy overwrites only three:
  * {@code X-Forwarded-For}, {@code -Proto} and {@code -Host}. The other four --
  * RFC 7239 {@code Forwarded}, {@code X-Forwarded-Prefix}, {@code -Port} and

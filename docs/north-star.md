@@ -126,7 +126,7 @@ hash lookup per signal, and the query is generated from the enum rather than mai
 
 ## 4. Invariants — do not break these
 
-New, on top of the ones in [`CLAUDE.md`](../CLAUDE.md).
+New, on top of the ones in [`architecture.md`](architecture.md).
 
 | Invariant | Why | Expires |
 |---|---|---|
@@ -302,7 +302,7 @@ a product you can't open is not one you'll use, and this only gets built if it g
 | **3.5** | Close the baseline | Measured at 1/5/10/20 VUs, 2026-09-07. p95 **21.4 → 125.0 ms**, throughput saturates ~256 req/s, and **the bottleneck is Postgres at 88% of CPU, not the Java scorer** — which contradicts handoff §9. | ✅ |
 | **4** | **Vegas in the schema** | `V4` widened `games` with the score, betting and weather columns; `GameIngestor` now reads 18 of the source's 46. No new HTTP source. Measurement corrected the brief three times — moneylines never overflow `SMALLINT`, and `result`/`total` are derived, not stored. **Brief below.** | ✅ |
 | **4.75** | **Toolchain recovery** | Unplanned. The Java 25 bump's JDK lived in `~/.jdk`, which `java_home` does not scan, so the build stopped working and took the daily ingest with it. Enforcer rule added; jjwt, bucket4j and bcprov brought current; **a headless-context bug 130 green tests could not see** fixed. Corrected two measured claims in the docs. | ✅ |
-| **5** | **Auth + web shell** | **5a/5b shipped.** Handoff §8 in full, all twelve rows — Argon2id, JWT, rotating refresh, Bucket4j, `@PreAuthorize`, `@Valid`, HSTS, Dependabot. First write endpoints (`POST/PUT/DELETE /scoring-profiles`). Next.js 16 (see 5c): login, rankings table, player detail, profile switcher, public landing page. Attribution footer. **End of phase = a deployed site you can log into. Brief below.** | ✅ **5a–5d done — live at `www.fantasykai.com` 2026-09-23.** 10/11 acceptance checks since the 2026-09-29 redeploy closed 4c; 4b owed. See `DEPLOY-STEPS.md` |
+| **5** | **Auth + web shell** | **5a/5b shipped.** Handoff §8 in full, all twelve rows — Argon2id, JWT, rotating refresh, Bucket4j, `@PreAuthorize`, `@Valid`, HSTS, Dependabot. First write endpoints (`POST/PUT/DELETE /scoring-profiles`). Next.js 16 (see 5c): login, rankings table, player detail, profile switcher, public landing page. Attribution footer. **End of phase = a deployed site you can log into. Brief below.** | ✅ **5a–5d done — live at `www.fantasykai.com` 2026-09-23.** 10/11 acceptance checks since the 2026-09-29 redeploy closed 4c; 4b owed. See [`deployment.md`](deployment.md) |
 | 6 | Projections | `player_week_projection`, `ProjectionEngine`, `ExplainedScore`, backtest + published MAE. The heart of "valid reasons for ranking." **V1 is next week only, with expected bonuses; `SignalKey` moved to Phase 9** — brief below | ⬅ **in progress** — owner decision 2026-10-08, ahead of 11.5. **Slice 1 (6a + 6b, the backtest) done 2026-10-09:** model v1 beats the best baseline by 2.7% on 2025 (CI below 0), short of the pre-registered 3%, so **v1 does not ship**. Next is an experiment, not infrastructure: [`perf/projection-accuracy.md`](perf/projection-accuracy.md) |
 | 7 | League import | `LeagueProvider` interface. ESPN first (cookie paste, encrypted at rest), **Sleeper in the same phase** to prove the seam is real. ESPN `mSettings.scoringItems` → `Ruleset`, auto-creating your profile. Manual ruleset builder as the fallback for when ESPN breaks — because it will. | |
 | 8 | Roster tools | `LineupOptimizer`, `SeasonSimulator`, `TradeEvaluator`, `WaiverBoard`. §7 made real. | |
@@ -410,7 +410,7 @@ persistence idioms for two small tables is worse than one, and every read path i
 already `JdbcTemplate`.
 
 But note the cost, because it is not zero: **`ddl-auto: validate` is currently a no-op.** There are
-zero `@Entity` classes, so it validates nothing, and CLAUDE.md's invariant — *"`validate` fails fast
+zero `@Entity` classes, so it validates nothing, and the architecture doc's invariant — *"`validate` fails fast
 the moment a JPA entity drifts from a migration"* — is vacuous today. Choosing `JdbcTemplate` keeps
 it vacuous. If that guard is wanted for real, this is the phase to introduce entities and say so.
 
@@ -703,7 +703,7 @@ our model -> projected raw stat line (13 StatKey columns + usage)    stored, nev
    so it would run on a fallback nothing has validated. ROS is weekly projections scored per week
    and summed — the score-then-sum invariant — so it is V1.1, and it must exist before Phase 8.
 3. **Phase 6 goes ahead of 11.5.** See row 11.5: the end-of-life risk is unchanged and accruing.
-4. **The backend was redeployed first** (`DEPLOY-STEPS.md`, 2026-10-08), so the projection
+4. **The backend was redeployed first** (2026-10-08; see [`deployment.md`](deployment.md)), so the projection
    endpoints land on a members-only API that production actually enforces.
 
 **V1 scope.** QB/RB/WR/TE (the `ScoringPosition` whitelist); the next unplayed regular-season week;
@@ -748,7 +748,7 @@ verified; optional, so a 404 is `SKIPPED`. A `ProjectionJob` after the 06:00 ET 
   rate = points; each bonus's probability and expected points; the factors.
 - A separate endpoint on purpose: `/rankings` and the §9 baseline it carries stay untouched.
   Scored per request — at most one row per skill player active that season, 578–633 in each of
-  2020–25 (CLAUDE.md) — and no Redis: caching is Phase 11's.
+  2020–25 ([`architecture.md`](architecture.md)) — and no Redis: caching is Phase 11's.
 
 **Missing data degrades the explanation, never the endpoint:** a bye, too little history, Out or
 IR, no line yet (trailing team volume, said so), no injury report (availability 1, said so).

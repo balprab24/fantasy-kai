@@ -31,7 +31,7 @@ enough to act on it, because every number can be traced to the stat lines that p
 
 - **Store raw stat lines, never fantasy points; compute points on demand against a ruleset.** One
   season has several correct answers and the ruleset decides which, so switching scoring re-orders
-  the board rather than filtering it (CLAUDE.md, "The one idea").
+  the board rather than filtering it (docs/architecture.md, "The one idea").
 - **Explained, not asserted.** Every ranked number carries its parts (north-star §1 claim 2).
 - **No expert rankings, ever.** Consensus means the market: real drafts, real rosters, real lines
   (north-star §4).

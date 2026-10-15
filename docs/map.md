@@ -1,49 +1,20 @@
 # The map
 
-**Where everything is and what state it's in.** This file owns nothing. Every fact it
+**Where everything is.** This file owns nothing. Every fact it
 can't own, it links to — so when it disagrees with the doc that owns a fact, the doc wins
 and this file gets fixed.
 
-Last verified against the tree: **2026-09-21** — and no longer by hand. `./scripts/session-check.sh`
-re-derives every count in the status board below, plus the database's own numbers, in about three
-seconds, and runs at the start of every session. **When it disagrees with this file, it wins.**
-That is what it was built for: the "14 files" in the row below was wrong the day it was written,
-and nothing caught it for two days.
+Counts are not written here. `./scripts/session-check.sh` re-derives them, plus the database's own
+numbers, in about three seconds. **When it disagrees with this file, it wins.**
 
 ---
 
-## 1. Status board
+## 1. Status
 
-| | |
-|---|---|
-| Phases shipped | **0 → 5c** |
-| Currently next | **Phase 6 — Projections**, V1 brief in north-star §10 (owner decision 2026-10-08). **Slice 1 (the backtest) done on `feat/projections-backtest`: model v1 +2.7% over the best baseline on 2025, short of the pre-registered 3% — it does not ship; the next step is an experiment** — [`perf/projection-accuracy.md`](perf/projection-accuracy.md). Then **Phase 11.5** — Spring Boot 3.5 → 4, overdue security work. **5d is live** at `https://www.fantasykai.com` since 2026-09-23 |
-| Backend | **81** files · Java 25 / Spring Boot 3.5.16 — **OSS-EOL since 2026-06-30**, Tomcat pinned to 10.1.59 over the parent's 10.1.55. See [`../CLAUDE.md`](../CLAUDE.md) "The EOL clock" |
-| Tests | 50 files · **197 tests**, all green — 30 of the files and 22 of the tests are the Phase 6 backtest in `com.fantasykai.projection` (this row said "17 files" until 2026-09-28; there were 18 — counted with `find`, not recalled) · `./mvnw -B clean verify` **≈ 32s of work + up to 30s waiting for the forked JVM to die** — 47.5s measured 2026-09-24, 58.2s on 09-21, 57.9s on 09-14, 30.7s on 09-12. Teardown is the biggest term in the build; see [`../CLAUDE.md`](../CLAUDE.md) |
-| HTTP endpoints | **13** — 6 `GET`, members only since 2026-09-29 (the sixth is `/players/{id}/career`, 2026-09-28), 4 `/auth`, 3 authenticated mutations |
-| Migrations | `V1` … `V6` (`V6`: `players.birth_date`, `teams.logo_url`) |
-| Data loaded | **114,479** stat rows (2026 week 2 refilled 2026-09-21 after a 4-day outage) · 25,066 players · 1,965 games · 2020–2026 |
-| Frontend | **Next.js 16 · 76 `.ts`/`.tsx` files** (78 under `frontend/src`) — every page rendered per request since 2026-09-29, under a nonce-based CSP (`src/proxy.ts`). Visual system "Prime time" since 2026-09-30 (branch `feat/kai-identity`; the rulebook is `DESIGN.md`), in two modes: the public pages in **Daylight** (a paper ground with one cool band, since 2026-10-05) -- a landing page at `/` (recomposed 2026-10-07, product first) whose hero is the real rankings board for the season being played, in the product's dark skin, running off the page's right edge, opening on a member's own ruleset, with a live scoring switch, re-sorting itself between PPR and that ruleset in a short loop (still under reduced motion), then one board the visitor drives through 0 PPR / Half PPR / PPR as its rows travel, a full-width band of one player opened with the player page's own scoring switch live, and email-first sign-up -- and behind sign-in, in **Prime time**, a top bar, the rankings workspace (tiers, positional ranks, find-in-board, ESPN headshots, filters in the URL), the player workspace (cut-out plate, weekly chart, game log, career), ruleset builder; attribution footer on both. `npm run build` + `npm run lint` green. **`npm test`** — `node --test` over the pure libs, the landing's captured data and the two modes' token parity, 85 tests, no dependency, and in CI since 2026-09-28 |
-
-| # | Phase | State |
-|---|---|---|
-| 0 | Foundation — compose, Boot skeleton, Flyway `V1` | ✅ |
-| 1 | Ingestion — nflverse + Sleeper, six-season backfill in 22.8s. Daily pull installed under launchd `f478233` | ✅ |
-| 2 | Scoring engine — ruleset model, validator, dot-product evaluator | ✅ |
-| 3 | Read API — `JdbcTemplate` reads, `StatKey`-generated SQL, query whitelists | ✅ |
-| 3.5 | Close the baseline — k6 at 1/5/10/20 VUs; **the bottleneck is Postgres, not the scorer (88/12)** | ✅ |
-| 4 | Vegas in the schema — `V4` widens `games` by 10 columns | ✅ |
-| 4.75 | Toolchain recovery — JDK 25 located, enforcer rule, deps current, headless-context bug fixed | ✅ |
-| **5** | **Auth + web shell** — Argon2id, JWT, rotating refresh, Bucket4j · Next.js shell | ✅ 5a/5b · 5c · **5d live 2026-09-23** — 10/11 acceptance checks; 4b owed. 4c (three rate-limiter bypasses, fixed in code 2026-09-24) passes since the **2026-09-29 redeploy**. `DEPLOY-STEPS.md` |
-| 6 | Projections — `ProjectionEngine`, `ExplainedScore`, published MAE (`SignalKey` moved to 9) | ⬅ next — brief in north-star §10 |
-| 7 | League import — `LeagueProvider`, ESPN + Sleeper | |
-| 8 | Roster tools — optimizer, simulator, trade evaluator, waivers | |
-| 9 | Consensus board — FFC ADP + Sleeper rostered% → the market board (members-only since 2026-09-28; it was "the logged-out top 100") | |
-| 10 | iOS (Expo) | |
-| 11 | Perf pass — cache → matview → indexes, measuring after each | |
-
-Roadmap detail and the reasoning for the order: [`north-star.md` §10](north-star.md).
-Phase status is also in [`../CLAUDE.md`](../CLAUDE.md) — if the two disagree, north-star wins.
+Not kept here. Status written into a doc goes stale within days, so it lives where it can be
+checked: what ships today is in the [README](../README.md#status), the roadmap and the reasoning
+for its order are in [`north-star.md` §10](north-star.md), and live counts (tests, endpoints,
+files, migrations, rows) come from `./scripts/session-check.sh`.
 
 ---
 
@@ -263,7 +234,7 @@ scripts/                           session-check.sh (the session-start truth che
                                    jar current", shared by three callers) · ingest-once.sh ·
                                    launchd plist · perf-explain.sh · db-restore.sh (full
                                    dump; refuses a non-empty target and compares row counts)
-.claude/                           settings.json's SessionStart hook · commands/review-pass.md
+.claude/                           Claude Code project config: SessionStart hook runs session-check · /review-pass
 ```
 
 ---
@@ -321,12 +292,12 @@ scored before a page can be taken. That is the [§9 baseline](perf/baseline.md),
 | Know what is true right now | `./scripts/session-check.sh` — it runs itself at session start. A `drift` row means a doc is wrong, including this one |
 | Refresh the landing hero's 2026 boards | "Re-capturing the landing hero", below. `session-check.sh`'s `hero` row warns once a week has finished that the capture does not hold |
 | Understand any of this without the jargon | [`orientation.md`](orientation.md) — glossary, real-vs-planned, how a request actually works |
-| Finish a piece of work | [`../CLAUDE.md`](../CLAUDE.md), "Definition of done" · or type `/review-pass` |
-| Run it | [`../README.md`](../README.md) for setup · [`../CLAUDE.md`](../CLAUDE.md) for the full command list |
+| Finish a piece of work | [`../CONTRIBUTING.md`](../CONTRIBUTING.md), "Review pass" · or type `/review-pass` |
+| Run it | [`../README.md`](../README.md) for setup · [`development.md`](development.md) for the full command list |
 | Deploy it | [`../deploy/README.md`](../deploy/README.md) — the runbook, the firewall trap, and the acceptance checks. `deploy/compose.prod.yml` + `Caddyfile`; move the data with `scripts/db-restore.sh`. north-star §5d |
 | Add a screen | a route under `frontend/src/app/`, a hook in `src/lib/queries.ts`, a type in `src/lib/types.ts` |
 | Change how a request is authenticated | `frontend/src/lib/api.ts` — one fetch wrapper, and the only thing that holds the access token |
-| Understand why a build died on the JDK | `pom.xml`'s enforcer rule says it in the error. Background in [`../CLAUDE.md`](../CLAUDE.md) |
+| Understand why a build died on the JDK | `pom.xml`'s enforcer rule says it in the error. Background in [`development.md`](development.md) |
 
 ### Re-capturing the landing hero
 
@@ -349,8 +320,8 @@ finished regular-season week the capture does not hold.
    `HERO_BOARDS_2026` keeping its shape. Update `HERO_TOTAL`, and the capture date in the header.
 5. **The story ranks move on purpose.** PPR → My league (Allen 3 → 1, Purdy 7 → 2, Smith-Njigba
    1 → 10) and 0 PPR → PPR (Smith-Njigba 9 → 1, Lamb 17 → 4) are asserted in
-   `frontend/tests/lib.test.ts`, as is `HERO_THROUGH_WEEK`, and quoted in DESIGN.md, CLAUDE.md
-   row 5c.9 and the `.impeccable` brief. Change the tests deliberately, read
+   `frontend/tests/lib.test.ts`, as is `HERO_THROUGH_WEEK`, and quoted in DESIGN.md and the
+   `.impeccable` brief. Change the tests deliberately, read
    what the new week says, and update the prose that quotes it.
 6. **Delete the account** with psql on stdin (`-c` does not interpolate `:'email'`):
    `DELETE FROM users WHERE email = :'email';` -- tokens and profiles cascade.
@@ -391,7 +362,7 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 |---|---|
 | `StatIngestor` holds a whole season in memory | Identity mapper into a `List<CSVRecord>`, then a second full-size batch, under a JVM with no `-Xmx` |
 | ~~The ingest depends on a laptop being awake~~ | **Closed 2026-09-29.** Production's `IngestScheduler` has run at 06:00 ET since 2026-09-23 and the laptop's launchd job was uninstalled — it had failed on 6 of its last 8 mornings, the three examined with `pmset` inside a Power Nap DarkWake (inferred, not proven). The local database is a mirror refreshed by hand; `session-check.sh` treats it as one |
-| No shared Testcontainers base class | Ten cached Spring contexts, seven with an embedded Tomcat. **Teardown measured at ~35s on 2026-09-14 — the largest single term in the build, more than compilation and all 132 tests together.** It sits just over Surefire's 30s fork-exit timeout, which is why the same commit builds in 31s some days and 58s others. **Back to urgent**: it was downgraded on a ~9s estimate that direct measurement contradicts. See [`../CLAUDE.md`](../CLAUDE.md) |
+| No shared Testcontainers base class | Ten cached Spring contexts, seven with an embedded Tomcat. **Teardown measured at ~35s on 2026-09-14 — the largest single term in the build, more than compilation and all 132 tests together.** It sits just over Surefire's 30s fork-exit timeout, which is why the same commit builds in 31s some days and 58s others. **Back to urgent**: it was downgraded on a ~9s estimate that direct measurement contradicts. See [`development.md`](development.md) |
 | Hikari is at Spring Boot's default 10 connections | 10 × ~39 ms occupancy ≈ the 256 req/s ceiling. Phase 11 must not mistake raising it for a fix |
 
 ### Follow-ups from the rankings workspace pass — **new** 2026-09-28
@@ -449,7 +420,7 @@ colour. Recorded, deliberately not fixed in that milestone.
 
 - **`ddl-auto: validate` validates nothing** — there are zero `@Entity` classes, and
   Phase 5 decided deliberately to keep it that way (north-star §5a). The setting's real
-  guarantee is that it can never become `update`; CLAUDE.md now says that rather than
+  guarantee is that it can never become `update`; architecture.md now says that rather than
   claiming a drift check. JPA remains on the classpath as a carrier for `JdbcTemplate`.
 - **Redis is claimed at last** — Bucket4j's bucket store, resolved lazily so an outage
   costs logins and not the site. Phase 11's ruleset cache is the second consumer.
@@ -476,7 +447,7 @@ win and this file gets fixed.**
 |---|---|
 | [`north-star.md`](north-star.md) | **Scope, sequencing, product decisions.** What we're building, for whom, in what order, and what we're deliberately not building |
 | [`fantasy-platform-handoff.md`](fantasy-platform-handoff.md) | **Engineering rationale** — §5 schema, §6 scoring, §8 security, §9 performance. **§1 and §11 are superseded** by the north star |
-| [`../CLAUDE.md`](../CLAUDE.md) | **Operational memory** — invariants, measured numbers, the traps in the source data, the commands, the definition of done |
+| [`architecture.md`](architecture.md) · [`development.md`](development.md) · [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Invariants and measured numbers · commands and the traps · the review pass |
 | [`orientation.md`](orientation.md) | **Explanation.** What this is in plain English, real-vs-planned, and a glossary of every term the other four assume. No facts of its own either |
 | **this file** | **Navigation.** Where things are, what state they're in, where to look next. No facts of its own |
 

@@ -44,7 +44,7 @@ final class ApiFixture {
      * rather than earned through {@code /auth/login}: signing in goes through
      * the Redis-backed rate limiter, and these classes run without Redis on
      * purpose. A Redis container would mean another Spring context, and context
-     * teardown is already the largest term in the build (CLAUDE.md).
+     * teardown is already the largest term in the build (docs/development.md).
      */
     static TestRestTemplate asMember(TestRestTemplate anonymous, JdbcTemplate jdbc, JwtService jwt) {
         Long member = jdbc.queryForObject("""

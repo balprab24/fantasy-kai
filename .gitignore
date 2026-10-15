@@ -43,3 +43,7 @@ logs/
 # Impeccable review captures and critique snapshots -- evidence, not source
 .impeccable/review/
 .impeccable/critique/
+
+# Personal, never committed: private ops notes and local agent notes
+*.private.md
+CLAUDE.local.md
