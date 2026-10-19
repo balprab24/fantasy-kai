@@ -133,7 +133,7 @@ export function RankingsWorkspace() {
   }, [rowsLoaded]);
 
   return (
-    <div className="mx-auto max-w-[1320px] px-4 pt-7 pb-10 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-[1440px] px-4 pt-7 pb-10 sm:px-6 lg:px-8">
       <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-2">
         <div className="min-w-0">
           <h1 className="type-title">Rankings</h1>
@@ -242,7 +242,7 @@ export function RankingsWorkspace() {
  */
 export function RankingsWorkspaceFallback() {
   return (
-    <div className="mx-auto max-w-[1320px] px-4 pt-7 pb-10 sm:px-6 lg:px-8" aria-busy>
+    <div className="mx-auto max-w-[1440px] px-4 pt-7 pb-10 sm:px-6 lg:px-8" aria-busy>
       <h1 className="type-title">Rankings</h1>
       {/* The recipe sentence and the colour key: 56px under the title, 128px
           on a 390px phone, where both wrap and "Edit scoring" drops below. */}

@@ -1,79 +1,84 @@
 @import "tailwindcss";
 
 /*
- * "Prime time": a broadcast graphics package for one idea -- your rules decide
- * the order. DESIGN.md at the repo root is the rulebook; this file is the
- * vocabulary it is written in.
+ * "Prime time", rebuilt (2026-10-19): a broadcast package for one idea -- your
+ * rules decide the order. DESIGN.md at the repo root is the rulebook; this file
+ * is the vocabulary it is written in.
  *
- * True black is the stage. Separation, where it is needed at all, comes from
- * three blue-black steps that each have one job, never from a grey card:
+ * The ground is night-game navy, not a neutral black: the stage under the
+ * lights. Depth comes from four steps that each have one job:
  *
  *   canvas   the stage: every page background, and the board's rows
- *   surface  the one separation layer: the control console, the sticky table
- *            header, chips, popovers, the player plate
- *   well     things you type into or pick from: inputs, segmented tracks, hover
+ *   surface  a panel: a section of a page, the console, the player stage,
+ *            the sticky table header, popovers
+ *   well     things you type into or pick from: inputs, segmented tracks,
+ *            hover on a row
  *   lift     the chosen one: a selected segment, a tooltip
  *
- * Blue rises with elevation, so the steps read as depth rather than as grey.
+ * Panels are rounded and bordered by one hairline -- sections of a page read
+ * as separate, deliberate pieces. Rows inside them stay lines, never cards.
+ *
  * The two accents come from the logo's two strokes and never trade jobs:
  *
  *   ki (orange)     the brand and the one thing to do: the primary action, the
- *                   wordmark, the top tier, the landing's plate. "The best."
+ *                   wordmark, the S tier. "The best."
  *   energy (blue)   you are here, and live: selection, focus, links, the
- *                   fetching sweep, and the landing's story line. "You are here."
+ *                   fetching sweep, the open player's row. "You are here."
  *
  * Every text/background pair below was measured (WCAG 2 relative luminance),
- * not eyeballed, on canvas / surface / well / lift (re-measured 2026-09-30).
- * Where one figure is given it is the lowest of the four, which is on lift:
- *   ink 18.7 / 17.1 / 15.5 / 13.5 · mute 8.6 / 7.8 / 7.1 / 6.2
- *   faint 5.5 / 5.0 / 4.55 / 3.98 -- so faint never sits on lift
- *   energy-text 7.51 · ki 6.48 · pos-* 5.47 (rb, the lowest) · q-good 7.99
- *   q-mid 8.50 · danger 6.39 · on-ki over ki 8.34 · black over ki 8.95
- *   line-strong 3.70 / 3.37 / 3.06 / 2.68 -- it bounds every input and
- *   secondary button, and WCAG 1.4.11 wants 3:1 for that, so no control's edge
- *   sits on lift. `line` is structure and is allowed not to.
+ * not eyeballed, on canvas / surface / well / lift (2026-10-19, the
+ * script is in the PR):
+ *   ink 17.7 / 16.8 / 15.5 / 13.4 · mute 8.1 / 7.7 / 7.1 / 6.1
+ *   faint 5.7 / 5.4 / 5.0 / 4.3 -- so faint never sits on lift
+ *   energy-text 9.8 / 9.3 / 8.6 / 7.4 · ki 8.5 / 8.0 / 7.4 / 6.4
+ *   pos-* 7.1 / 6.8 / 6.3 / 5.4 (rb, the lowest) · q-good 10.4 / 9.9 / 9.1 / 7.9
+ *   q-mid 11.1 / 10.5 / 9.7 / 8.4 · danger 8.3 / 7.9 / 7.3 / 6.3
+ *   on-ki over ki 8.3
+ *   line-strong 4.0 / 3.8 / 3.5 / 3.1 -- the 3:1 edge of every input and
+ *   secondary button (WCAG 1.4.11), on every step including lift.
+ *   `line` is structure and is allowed not to.
  */
 @theme {
-  --color-canvas: #000000;
-  --color-surface: #0a0f1c;
-  --color-well: #111a2c;
-  --color-lift: #1a2540;
+  --color-canvas: #060a12;
+  --color-surface: #0b1120;
+  --color-well: #121a2c;
+  --color-lift: #1b2640;
 
   --color-ink: #eef2fa;
   --color-mute: #9aa6bd;
-  --color-faint: #76839c;
-  --color-line: rgb(148 170 210 / 0.13);
-  --color-line-strong: #5b6781;
+  --color-faint: #7d8aa3;
+  --color-line: rgb(148 170 210 / 0.12);
+  --color-line-strong: #64718c;
 
   --color-ki: #ff8a3d;
   --color-on-ki: #140a02;
   /* Orange read as a figure rather than laid down as a fill: the S tier
-     letter, the receipt's total. The same orange here; Daylight deepens it,
-     because #ff8a3d on chalk is 2.1:1. */
+     letter. The same orange here; Daylight deepens it, because #ff8a3d on
+     paper is 2.1:1. */
   --color-ki-text: #ff8a3d;
   --color-energy: #3d8bff;
   --color-energy-text: #8ab8ff;
   --color-danger: #f28b8b;
 
-  /* The empty part of a gauge (the board's points bar), and the top edge of a
-     floating piece catching the light (a chip, the landing's switch). */
+  /* The empty part of a gauge, and the top edge of a floating piece catching
+     the light. */
   --color-track: rgb(255 255 255 / 0.06);
-  --color-highlight: rgb(255 255 255 / 0.08);
+  --color-highlight: rgb(255 255 255 / 0.07);
   /* A bar's see-through ground over the page scrolling under it. A token, not
      `bg-canvas/85`: Tailwind compiles an opacity modifier to a literal colour
-     first and the variable only inside @supports (color-mix), so a browser
-     without color-mix would paint the Prime time black inside Daylight. */
-  --color-veil: rgb(0 0 0 / 0.8);
-  /* The ground of a public page's alternating section (Daylight). The product
-     has no bands, so here it is only the surface step, and nothing uses it. */
-  --color-band: #0a0f1c;
+     first and the variable only inside @supports (color-mix). */
+  --color-veil: rgb(6 10 18 / 0.82);
+  /* The backdrop behind a dialog: the board stays visible, dimmed, so the
+     player overlay is a room off the board rather than a new page. */
+  --color-scrim: rgb(2 4 9 / 0.72);
+  --color-band: #0b1120;
 
-  /* Positions: QB purple, RB red, WR blue, TE pink. Data colours, text only,
-     and never the only cue -- every badge carries its letters. As chart marks
-     they fail colour-blind separation outright (WR against QB is dE 0.5 under
-     deuteranopia, dataviz validator, 2026-09-29), so no chart may encode a
-     position by hue alone. TE leans magenta so it cannot be read as RB's red;
-     WR leans cyan, away from energy, which already means "you can act". */
+  /* Positions: QB purple, RB red, WR cyan, TE pink. Data colours. Their
+     letters always travel with them, so colour is never the only cue -- as
+     marks alone the four fail colour-blind separation (WR against QB is dE
+     0.5 under deuteranopia, dataviz validator, 2026-09-29), so no chart
+     encodes a position by hue alone. A chip may tint its own ground with its
+     hue at 14% behind those letters (`PositionChip`). */
   --color-pos-qb: #c3a6ff;
   --color-pos-rb: #ff6b6b;
   --color-pos-wr: #5cc8ff;
@@ -81,36 +86,38 @@
 
   /* Quality of a figure against its position's starter line (lib/board.ts
      `Quality`) takes ONE hue: q-good, "inside a 12-team league's starters".
-     The bench range is plain ink and beyond it faint -- brightness, not a
-     second and third colour, so red never means both "RB" and "bad".
-     q-mid is the notice amber: a roster status, a playoff round. Text only. */
+     The bench range is plain ink and beyond it faint. q-mid is the notice
+     amber: a roster status, a playoff round. Text only. */
   --color-q-good: #6fcf97;
   --color-q-mid: #d9c162;
 
   /* The weekly chart's two fills: a week inside the position's starter line,
-     and every other week. An emphasis pair, not a categorical one -- the grey
-     is the "not this" colour and is low-chroma on purpose. Re-validated on
-     the true-black canvas (dataviz validator, 2026-09-29): both inside the
-     lightness band, CVD dE 16.6, normal-vision dE 20.1, both >= 3:1. */
+     and every other week. An emphasis pair: CVD dE 16.6, normal-vision dE
+     20.1, both >= 3:1 on the canvas (dataviz validator, 2026-09-29). */
   --color-chart-starter: #3fa877;
   --color-chart-rest: #5d667c;
 
-  /* One superfamily in three widths (app/layout.tsx). Hierarchy comes from
-     width, weight, case and slant, not from size alone. */
   --font-display: var(--font-sofia-extra), ui-sans-serif, system-ui, sans-serif;
   --font-label: var(--font-sofia-semi), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-sofia), ui-sans-serif, system-ui, sans-serif;
 
-  /* Four radii, each earned: 0 for structure (rows, tables, rules); control
-     for anything you operate; plate for the one focal plate on a page; and
-     full only for chips that float over imagery. A control nested in a
-     control takes the outer radius minus the gap, never a new value. */
-  --radius-control: 4px;
+  /* Radii by hierarchy, never one value on everything:
+       nested   2px   a control inside a control
+       control  8px   anything you operate: buttons, inputs, segments
+       panel   16px   a section of a page
+       plate   24px   the one focal plate: the player stage, the landing's
+                      product window
+     Structure (rows, rules, table cells) is square. */
+  --radius-nested: 2px;
+  --radius-control: 8px;
+  --radius-panel: 16px;
   --radius-plate: 24px;
 
-  /* The only shadow: things that float (chips, popovers, the chart readout).
+  /* The only shadow: things that float (popovers, tooltips, the overlay).
      Offset and soft, so it reads as height, never as a glow. */
-  --shadow-float: 0 18px 40px -16px rgb(0 0 0 / 0.95), 0 2px 8px -2px rgb(0 0 0 / 0.7);
+  --shadow-float: 0 24px 48px -20px rgb(0 0 0 / 0.9), 0 2px 8px -2px rgb(0 0 0 / 0.6);
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ---- Two modes ---------------------------------------------------------------
@@ -173,6 +180,7 @@
   --color-track: rgb(11 21 48 / 0.08);
   --color-highlight: rgb(255 255 255 / 0.9);
   --color-veil: rgb(251 250 247 / 0.85);
+  --color-scrim: rgb(11 21 48 / 0.4);
 
   --color-pos-qb: #6a44d8;
   --color-pos-rb: #c92d3a;
@@ -191,16 +199,16 @@
 
 .primetime {
   color-scheme: dark;
-  --color-canvas: #000000;
-  --color-surface: #0a0f1c;
-  --color-well: #111a2c;
-  --color-lift: #1a2540;
+  --color-canvas: #060a12;
+  --color-surface: #0b1120;
+  --color-well: #121a2c;
+  --color-lift: #1b2640;
 
   --color-ink: #eef2fa;
   --color-mute: #9aa6bd;
-  --color-faint: #76839c;
-  --color-line: rgb(148 170 210 / 0.13);
-  --color-line-strong: #5b6781;
+  --color-faint: #7d8aa3;
+  --color-line: rgb(148 170 210 / 0.12);
+  --color-line-strong: #64718c;
 
   --color-ki: #ff8a3d;
   --color-on-ki: #140a02;
@@ -210,9 +218,10 @@
   --color-danger: #f28b8b;
 
   --color-track: rgb(255 255 255 / 0.06);
-  --color-highlight: rgb(255 255 255 / 0.08);
-  --color-veil: rgb(0 0 0 / 0.8);
-  --color-band: #0a0f1c;
+  --color-highlight: rgb(255 255 255 / 0.07);
+  --color-veil: rgb(6 10 18 / 0.82);
+  --color-scrim: rgb(2 4 9 / 0.72);
+  --color-band: #0b1120;
 
   --color-pos-qb: #c3a6ff;
   --color-pos-rb: #ff6b6b;
@@ -225,8 +234,9 @@
   --color-chart-starter: #3fa877;
   --color-chart-rest: #5d667c;
 
-  --shadow-float: 0 18px 40px -16px rgb(0 0 0 / 0.95), 0 2px 8px -2px rgb(0 0 0 / 0.7);
+  --shadow-float: 0 24px 48px -20px rgb(0 0 0 / 0.9), 0 2px 8px -2px rgb(0 0 0 / 0.6);
 }
+
 
 /* The parts of the page no component draws: the ground an overscroll shows,
    the scrollbar, the browser's own controls. The value is Daylight's canvas. */
@@ -297,6 +307,26 @@ html:has(.daylight) {
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.01em;
+}
+
+/* A big figure that leads: a rank, a tier letter, the metric strip's values.
+   The display face's lean, at the semi-condensed width so digits stay
+   readable at size. Proportional figures: these stand alone. */
+@utility type-figure {
+  font-family: var(--font-label);
+  font-style: italic;
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: -0.015em;
+}
+
+/* ---- The slash ---------------------------------------------------------------
+   The logo is two slanted strokes, so a mark that says "this one" -- a
+   position chip, a tier plate, the chosen tab -- is cut on the same slant.
+   A clip, not a skew transform: the letters inside stay upright and crisp.
+   Used on small marks only; panels and controls stay rectangles. */
+@utility slash {
+  clip-path: polygon(0.32em 0, 100% 0, calc(100% - 0.32em) 100%, 0 100%);
 }
 
 /* ---- Browser surfaces: the parts nobody draws still carry the design ---- */

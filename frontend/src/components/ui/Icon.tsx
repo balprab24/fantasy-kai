@@ -21,6 +21,11 @@ const PATHS = {
   arrowRight: "M5 12h14M13 6l6 6-6 6",
   arrowLeft: "M19 12H5M11 6l-6 6 6 6",
   chevronDown: "M6 9.5l6 6 6-6",
+  chevronLeft: "M14.5 6l-6 6 6 6",
+  chevronRight: "M9.5 6l6 6-6 6",
+  alert: "M12 8.5v4.5M12 16.3v.2M10.3 4.3 2.9 17.4a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z",
+  info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 11v5.5M12 7.6v.2",
+  trendUp: "M4 16.5l5.5-5.5 4 4L20 8.5M15 8.5h5v5",
 } as const;
 
 export type IconName = keyof typeof PATHS;

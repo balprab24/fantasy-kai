@@ -30,7 +30,7 @@ export function RequireAccount({ children }: { children: React.ReactNode }) {
 
   if (status === "signed-in") return <>{children}</>;
   return (
-    <div className="mx-auto max-w-[1320px] px-4 pt-7 sm:px-6 lg:px-8" aria-busy="true">
+    <div className="mx-auto max-w-[1440px] px-4 pt-7 sm:px-6 lg:px-8" aria-busy="true">
       <span className="sr-only">Checking your account</span>
       <Skeleton className="h-9 w-56" />
       <Skeleton className="mt-3 h-4 w-96 max-w-full" />

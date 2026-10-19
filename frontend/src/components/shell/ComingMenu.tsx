@@ -37,7 +37,7 @@ export function ComingMenu() {
         type="button"
         popoverTarget={popover}
         onBlur={(e) => closeIfLeft(e.relatedTarget)}
-        className="coming-anchor flex h-14 items-center gap-1.5 px-3 text-sm text-mute transition-colors hover:text-ink"
+        className="coming-anchor flex h-14 items-center gap-1.5 px-3 text-[15px] text-mute transition-colors hover:text-ink"
       >
         Coming
         <Icon name="chevronDown" size={14} className="text-faint" />
@@ -47,7 +47,7 @@ export function ComingMenu() {
         id={popover}
         popover="auto"
         onBlur={(e) => closeIfLeft(e.relatedTarget)}
-        className="coming-popover w-64 rounded-control bg-surface p-2 text-ink shadow-[inset_0_1px_0_rgb(255_255_255/0.06),var(--shadow-float)]"
+        className="coming-popover w-72 rounded-panel border border-line bg-surface p-2 text-ink shadow-float"
       >
         <p className="px-2 pt-1 pb-2 text-sm text-mute">Planned. None of these is built yet.</p>
         <ul>

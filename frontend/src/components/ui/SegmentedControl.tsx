@@ -23,8 +23,8 @@ export interface Segment {
 export type SegmentedVariant = "track" | "bare" | "stops";
 
 const TRACK: Record<SegmentedVariant, string> = {
-  track: "flex w-fit flex-wrap gap-0.5 rounded-control bg-well p-0.5",
-  bare: "flex w-fit flex-wrap gap-0.5",
+  track: "flex w-fit flex-wrap gap-1 rounded-control bg-well p-1 shadow-[inset_0_0_0_1px_var(--color-line)]",
+  bare: "flex w-fit flex-wrap gap-1",
   // An edge of its own (Edge, 3:1 on its ground), so the track reads as a control even where the well matches the page.
   stops: "relative grid w-full auto-cols-fr grid-flow-col rounded-control bg-well p-1 shadow-[inset_0_0_0_1px_var(--color-line-strong)]",
 };
@@ -39,8 +39,8 @@ const TRACK: Record<SegmentedVariant, string> = {
 // face's `h-full` cannot override): a figure is laid out by what it says.
 const OPTION: Record<SegmentedVariant, string> = {
   track:
-    "h-10 items-center whitespace-nowrap rounded-[2px] px-3 text-sm text-mute hover:text-ink md:h-8 peer-checked:bg-lift peer-checked:font-semibold peer-checked:text-ink peer-checked:shadow-[inset_0_-2px_0_var(--color-energy)]",
-  bare: "h-10 items-center whitespace-nowrap rounded-[2px] px-3 text-sm text-mute hover:text-ink md:h-8 peer-checked:bg-lift peer-checked:font-semibold peer-checked:text-ink peer-checked:shadow-[inset_0_-2px_0_var(--color-energy)]",
+    "h-10 items-center whitespace-nowrap rounded-[6px] px-3.5 text-sm text-mute hover:bg-track hover:text-ink md:h-9 peer-checked:bg-lift peer-checked:font-semibold peer-checked:text-ink peer-checked:shadow-[inset_0_-2px_0_var(--color-energy)]",
+  bare: "h-10 items-center whitespace-nowrap rounded-[6px] px-3.5 text-sm text-mute hover:bg-track hover:text-ink md:h-9 peer-checked:bg-lift peer-checked:font-semibold peer-checked:text-ink peer-checked:shadow-[inset_0_-2px_0_var(--color-energy)]",
   stops: "relative z-[1] h-full flex-col rounded-[2px] text-ink peer-[:not(:checked)]:hover:bg-track",
 };
 

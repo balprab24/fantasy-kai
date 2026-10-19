@@ -65,10 +65,10 @@ export function Attribution({ variant = "product" }: { variant?: "product" | "si
   }
 
   return (
-    <footer className="mt-24 border-t border-line">
-      <div className="mx-auto max-w-[1320px] px-4 pt-8 pb-12 text-[13px] leading-relaxed text-mute sm:px-6 lg:px-8">
+    <footer className="mt-20 border-t border-line">
+      <div className="mx-auto grid max-w-[1440px] gap-x-12 gap-y-3 px-4 pt-8 pb-12 text-[13px] leading-relaxed text-mute sm:px-6 md:grid-cols-2 lg:px-8">
         {credits}
-        <div className="mt-3">{independence}</div>
+        {independence}
       </div>
     </footer>
   );
