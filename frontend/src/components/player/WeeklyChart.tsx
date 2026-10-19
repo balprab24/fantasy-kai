@@ -3,9 +3,8 @@
 import { useState } from "react";
 import { STARTERS, formatPoints } from "@/lib/board";
 import { matchup } from "@/lib/player";
+import { weekSlots } from "@/lib/playerView";
 import type { CareerSeason, CareerWeek, Position } from "@/lib/types";
-
-const PLOT_HEIGHT = 196;
 
 /** A round axis step: 5, 10, 20, 25, 50... whichever gives three to five lines. */
 function niceStep(span: number) {
@@ -32,26 +31,31 @@ function ordinal(n: number) {
  * board colours per-game figures against) and every other week. The weekly
  * rank behind it comes from the API; this component draws, it does not score.
  *
- * Every regular-season week from 1 to the last one played has a slot, so a
- * week without a game is a visible gap rather than a missing column the eye
- * slides past. One Tab stop: arrow keys walk the weeks, and focus shows the
- * same readout hover does. The game log below is the table view.
+ * Every regular-season week from 1 to the last one played has a slot, and the
+ * two kinds of "nothing" never look alike: a week with no game recorded is a
+ * dashed, empty slot (a bye, an injury, a scratch -- the data does not say
+ * which, so the chart does not either), while a game that scored zero is a
+ * game -- a ring on the zero line, with its figure. One Tab stop: arrow keys
+ * walk the weeks, Home and End jump, and focus shows the same readout hover
+ * does. The game log is the table view.
  */
 export function WeeklyChart({
   season,
   position,
   scoringLabel,
   stale = false,
+  caption = true,
 }: {
   season: CareerSeason;
   position: string;
   scoringLabel: string;
   stale?: boolean;
+  /** The sentence over the chart; off where the panel's heading already says it. */
+  caption?: boolean;
 }) {
   const line = Object.hasOwn(STARTERS, position) ? STARTERS[position as Position] : undefined;
-  const byWeek = new Map(season.weeks.map((w) => [w.week, w]));
-  const lastWeek = Math.max(0, ...season.weeks.map((w) => w.week));
-  const slots = Array.from({ length: lastWeek }, (_, i) => i + 1);
+  const slots = weekSlots(season);
+  const lastWeek = slots.length;
 
   const values = season.weeks.map((w) => w.points);
   const high = Math.max(...values);
@@ -68,9 +72,12 @@ export function WeeklyChart({
   for (let t = bottom; t <= top + 1e-9; t += step) ticks.push(t);
 
   const highWeek = high > 0 ? season.weeks.find((w) => w.points === high)?.week : undefined;
+  const hasGap = slots.some((s) => s.game === null);
+  const hasZero = season.weeks.some((w) => w.points === 0);
   const [active, setActive] = useState<number | null>(null);
-  const [focusWeek, setFocusWeek] = useState(slots[0] ?? 1);
-  const shown = active !== null ? byWeek.get(active) ?? null : null;
+  const [focusWeek, setFocusWeek] = useState(slots[0]?.week ?? 1);
+  const shownSlot = active !== null ? slots[active - 1] ?? null : null;
+  const shown = shownSlot?.game ?? null;
 
   const starter = (w: CareerWeek) => line !== undefined && w.posRank !== null && w.posRank <= line;
   const describe = (w: CareerWeek) =>
@@ -86,31 +93,47 @@ export function WeeklyChart({
 
   return (
     <figure className={`transition-opacity ${stale ? "opacity-60" : ""}`}>
-      <figcaption className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-        <span className="text-sm text-mute">
-          Fantasy points by week, {season.season} regular season, {scoringLabel}
-        </span>
-        {line !== undefined && (
-          <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-mute">
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="size-2.5 rounded-[2px] bg-chart-starter" />
-              Top-{line} {position} week
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="size-2.5 rounded-[2px] bg-chart-rest" />
-              Other week
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="h-px w-3 bg-ink/60" />
-              Season average
-            </span>
+      <figcaption className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
+        {caption && (
+          <span className="text-sm text-mute">
+            Fantasy points by week, {season.season} regular season, {scoringLabel}
           </span>
         )}
+        <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-mute">
+          {line !== undefined && (
+            <>
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden className="size-2.5 rounded-[2px] bg-chart-starter" />
+                Top-{line} {position} week
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden className="size-2.5 rounded-[2px] bg-chart-rest" />
+                Other week
+              </span>
+            </>
+          )}
+          {hasZero && (
+            <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden className="size-2.5 rounded-full border-2 border-chart-rest" />
+              Zero points
+            </span>
+          )}
+          {hasGap && (
+            <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden className="h-3 w-2.5 rounded-[2px] border border-dashed border-line-strong" />
+              No game recorded
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="w-3 border-t border-dashed border-ink" />
+            Season average
+          </span>
+        </span>
       </figcaption>
 
-      <div className="mt-3 flex gap-2">
+      <div className="mt-4 flex gap-2">
         {/* Y axis: round values only, recessive. */}
-        <div aria-hidden className="relative w-7 shrink-0" style={{ height: PLOT_HEIGHT }}>
+        <div aria-hidden className="relative h-[180px] w-7 shrink-0 sm:h-[220px]">
           {ticks.map((t) => (
             <span
               key={t}
@@ -123,24 +146,22 @@ export function WeeklyChart({
         </div>
 
         <div className="relative min-w-0 flex-1">
-          <div className="relative" style={{ height: PLOT_HEIGHT }}>
+          <div className="relative h-[180px] sm:h-[220px]">
             {ticks.map((t) => (
               <span
                 key={t}
                 aria-hidden
-                className={`absolute inset-x-0 h-px ${t === 0 ? "bg-line-strong/60" : "bg-line"}`}
+                className={`absolute inset-x-0 h-px ${t === 0 ? "bg-line-strong/70" : "bg-line"}`}
                 style={{ bottom: `${y(t)}%` }}
               />
             ))}
             {/* Season average, labelled in text so it never relies on its colour. */}
             <span
               aria-hidden
-              className="pointer-events-none absolute right-10 left-0 z-[1] h-px bg-ink/60"
+              className="pointer-events-none absolute right-10 left-0 z-[1] border-t border-dashed border-ink/70"
               style={{ bottom: `${y(season.pointsPerGame)}%` }}
             >
-              {/* In the gutter past the last week, level with the line and never
-                  over a bar -- the line stops where the gutter starts. */}
-              <span className="tabular absolute left-full top-1/2 -translate-y-1/2 pl-1.5 text-[11px] leading-[1.15] text-ink">
+              <span className="tabular absolute top-0 left-full -translate-y-1/2 pl-1.5 text-[11px] leading-[1.15] text-ink">
                 avg
                 <br />
                 {formatPoints(season.pointsPerGame)}
@@ -152,8 +173,7 @@ export function WeeklyChart({
               className="absolute inset-y-0 right-10 left-0 flex"
               onMouseLeave={() => setActive(null)}
             >
-              {slots.map((week) => {
-                const w = byWeek.get(week);
+              {slots.map(({ week, game: w }) => {
                 const positive = w ? w.points >= 0 : true;
                 const barBottom = w ? y(Math.min(0, w.points)) : 0;
                 const barHeight = w ? Math.abs(y(w.points) - y(0)) : 0;
@@ -180,13 +200,17 @@ export function WeeklyChart({
                         else return;
                         e.preventDefault();
                       }}
-                      // The focus ring is the global one, around the whole
-                      // slot -- the same target the pointer has.
-                      className="group absolute inset-0 cursor-default rounded-[2px]"
+                      className={`group absolute inset-0 cursor-default rounded-[4px] transition-colors ${active === week ? "bg-highlight" : ""}`}
                     >
-                      {w ? (
+                      {w && w.points === 0 ? (
                         <span
-                          className={`absolute left-1/2 w-[62%] max-w-6 -translate-x-1/2 transition-[filter] group-hover:brightness-125 group-focus-visible:brightness-125 ${
+                          aria-hidden
+                          className="absolute left-1/2 size-2.5 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-chart-rest bg-surface"
+                          style={{ bottom: `${y(0)}%` }}
+                        />
+                      ) : w ? (
+                        <span
+                          className={`absolute left-1/2 w-[58%] max-w-7 -translate-x-1/2 transition-[filter] group-hover:brightness-125 group-focus-visible:brightness-125 ${
                             positive ? "rounded-t-[4px]" : "rounded-b-[4px]"
                           } ${starter(w) ? "bg-chart-starter" : "bg-chart-rest"}`}
                           style={{
@@ -197,7 +221,7 @@ export function WeeklyChart({
                       ) : (
                         <span
                           aria-hidden
-                          className="absolute left-1/2 h-px w-2 -translate-x-1/2 bg-line-strong"
+                          className="absolute left-1/2 h-5 w-[58%] max-w-7 -translate-x-1/2 rounded-t-[4px] border border-b-0 border-dashed border-line-strong"
                           style={{ bottom: `${y(0)}%` }}
                         />
                       )}
@@ -205,7 +229,7 @@ export function WeeklyChart({
                         <span
                           aria-hidden
                           className="tabular absolute left-1/2 -translate-x-1/2 text-[11px] font-semibold whitespace-nowrap text-ink"
-                          style={{ bottom: `calc(${y(w.points)}% + 3px)` }}
+                          style={{ bottom: `calc(${y(w.points)}% + 4px)` }}
                         >
                           {formatPoints(w.points)}
                         </span>
@@ -216,44 +240,51 @@ export function WeeklyChart({
               })}
             </ol>
 
-            {shown && (
+            {shownSlot && (
               // Hidden from assistive tech: each week's button already says all of
               // this in its label, and announcing it twice is noise.
               <div
                 aria-hidden
-                className="pointer-events-none absolute top-0 z-10 w-max max-w-56 -translate-x-1/2 rounded-control bg-lift px-3 py-2 text-[13px] shadow-float"
+                className="pointer-events-none absolute top-0 z-10 w-max max-w-56 -translate-x-1/2 rounded-control border border-line bg-lift px-3 py-2 text-[13px] shadow-float"
                 style={{
-                  left: `clamp(4.5rem, calc((100% - 2.5rem) * ${(shown.week - 0.5) / lastWeek}), calc(100% - 4.5rem))`,
+                  left: `clamp(4.5rem, calc((100% - 2.5rem) * ${(shownSlot.week - 0.5) / lastWeek}), calc(100% - 4.5rem))`,
                 }}
               >
-                {/* Values lead, labels follow: the reader already has the week. */}
-                <p className="tabular text-ink">
-                  <span className="font-semibold">{formatPoints(shown.points)}</span> pts
-                  {shown.posRank !== null && (
-                    <span className="text-mute">
-                      , {position}
-                      {shown.posRank} that week
-                    </span>
-                  )}
-                </p>
-                <p className="mt-0.5 text-mute">
-                  Week {shown.week}, {matchup(shown.opponent, shown.home)}
-                </p>
-                {shown.posRank !== null && line !== undefined && (
-                  <p className="mt-0.5 text-mute">
-                    {starter(shown) ? `Inside the top ${line}` : `Outside the top ${line}`}
-                  </p>
+                {shown ? (
+                  <>
+                    {/* Values lead, labels follow: the reader already has the week. */}
+                    <p className="tabular text-ink">
+                      <span className="font-semibold">{formatPoints(shown.points)}</span> pts
+                      {shown.posRank !== null && (
+                        <span className="text-mute">
+                          , {position}
+                          {shown.posRank} that week
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-0.5 text-mute">
+                      Week {shown.week}, {matchup(shown.opponent, shown.home)}
+                    </p>
+                    {shown.posRank !== null && line !== undefined && (
+                      <p className="mt-0.5 text-mute">
+                        {starter(shown) ? `Inside the top ${line}` : `Outside the top ${line}`}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-ink">Week {shownSlot.week}</p>
+                    <p className="mt-0.5 text-mute">No game recorded</p>
+                  </>
                 )}
               </div>
             )}
           </div>
 
           {/* X axis: week numbers, the one label every slot carries -- at full
-              faint, played or not. A week without a game is already said by its
-              empty slot and its button's label; a faded number on top (faint at
-              50% measured 2.08:1) only made it unreadable. */}
-          <ol aria-hidden className="mt-1.5 mr-10 flex">
-            {slots.map((week) => (
+              faint, played or not. */}
+          <ol aria-hidden className="mt-2 mr-10 flex">
+            {slots.map(({ week }) => (
               <li
                 key={week}
                 // On a phone eighteen two-digit labels run into each other, so

@@ -92,6 +92,9 @@ export function PlayerRow({
               <Link
                 href={href}
                 onClick={onOpen}
+                // The player opens over the board (an intercepted route), so
+                // the board must stay exactly where it is underneath.
+                scroll={false}
                 className="block truncate text-[16px] font-semibold text-ink after:absolute after:inset-0 group-hover:text-white focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-energy"
               >
                 {row.name}

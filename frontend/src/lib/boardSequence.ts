@@ -37,9 +37,26 @@ export function saveBoardSequence(players: SequenceEntry[], openedId: number, se
 }
 
 export function readBoardSequence(): BoardSequence | null {
+  return parseBoardSequence(boardSequenceSnapshot());
+}
+
+/**
+ * The stored text itself, for `useSyncExternalStore`: a string compares by
+ * value, so React sees the same snapshot until the sequence really changes.
+ */
+export function boardSequenceSnapshot(): string | null {
   try {
-    const raw = sessionStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as BoardSequence) : null;
+    return sessionStorage.getItem(KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function parseBoardSequence(raw: string | null): BoardSequence | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as BoardSequence;
+    return Array.isArray(parsed?.players) ? parsed : null;
   } catch {
     return null;
   }

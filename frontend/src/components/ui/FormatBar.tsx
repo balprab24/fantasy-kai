@@ -35,7 +35,7 @@ export function FormatBar({
   className?: string;
 }) {
   const name = useId();
-  const face = size === "md" ? "min-h-14 px-3 py-2 sm:px-4" : "min-h-11 px-3 py-1.5";
+  const face = size === "md" ? "min-h-14 px-3 py-2 sm:px-4" : "min-h-11 px-2.5 py-1.5 sm:px-3";
 
   return (
     <fieldset className={`min-w-0 max-w-full ${className}`}>
@@ -64,7 +64,7 @@ export function FormatBar({
                 <span className={`block max-w-[11rem] truncate leading-tight ${size === "md" ? "text-[15px]" : "text-[14px]"} ${checked ? "font-semibold" : "font-medium"}`}>
                   {profileLabel(p)}
                 </span>
-                <span className={`mt-0.5 block truncate text-[12px] leading-tight ${checked ? "text-mute" : "text-faint"}`}>
+                <span className={`mt-0.5 block truncate text-[11px] leading-tight sm:text-[12px] ${checked ? "text-mute" : "text-faint"}`}>
                   {profileCaption(p)}
                 </span>
                 <span

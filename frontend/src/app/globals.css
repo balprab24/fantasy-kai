@@ -525,6 +525,22 @@ a {
   }
 }
 
+/* The player view arriving over the board: it rises a little and the board
+   dims behind it. The one entrance in the product, because it is the one place
+   the member moves into another room. */
+@keyframes overlay-in {
+  from {
+    transform: translateY(18px);
+    opacity: 0;
+  }
+}
+
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
 .skeleton {
   background: linear-gradient(
       90deg,
@@ -542,6 +558,14 @@ a {
 
   .settled > td {
     animation: settle 900ms ease-out;
+  }
+
+  .player-overlay[open] {
+    animation: overlay-in 340ms var(--ease-out);
+  }
+
+  .player-overlay[open]::backdrop {
+    animation: scrim-in 240ms ease-out;
   }
 
   .skeleton {
