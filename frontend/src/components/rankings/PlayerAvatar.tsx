@@ -21,6 +21,7 @@ export function initials(name: string) {
  */
 const SIZES = {
   sm: { box: "size-8", px: 64, text: "text-[11px]" },
+  md: { box: "size-9", px: 72, text: "text-[12px]" },
 } as const;
 
 /**
@@ -46,7 +47,7 @@ export function PlayerAvatar({
   const { box, px, text } = SIZES[size];
   const src = headshotUrl(espnId, px);
   const [failed, setFailed] = useState<string | null>(null);
-  const shape = `${box} shrink-0 overflow-hidden rounded-full bg-well`;
+  const shape = `${box} shrink-0 overflow-hidden rounded-full bg-well shadow-[inset_0_0_0_1px_var(--color-line)]`;
 
   if (src && src !== failed) {
     return (
