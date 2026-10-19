@@ -54,7 +54,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "register" }) {
   // At lg the form stands on the page's content edge with the product beside
   // it, rather than centred alone in an empty field.
   return (
-    <div className="mx-auto grid max-w-[1320px] items-center gap-x-20 px-4 pt-16 pb-8 sm:px-6 sm:pt-24 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:px-8 lg:pb-24">
+    <div className="mx-auto grid max-w-[1440px] items-center gap-x-20 px-4 pt-14 pb-8 sm:px-6 sm:pt-20 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:px-8 lg:pb-24">
       <div className="w-full max-w-sm">
         <h1 className="type-display text-[3.25rem] text-ink">{registering ? "Join the Kai" : "Sign in"}</h1>
         <p className="mt-3 text-[15px] leading-relaxed text-mute">

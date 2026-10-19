@@ -47,8 +47,8 @@ export function Attribution({ variant = "product" }: { variant?: "product" | "si
   // the band, so the page ends on a change of ground rather than a rule.
   if (variant === "site") {
     return (
-      <footer className="bg-band">
-        <div className="mx-auto grid max-w-[1320px] gap-x-20 gap-y-8 px-4 pt-10 pb-14 text-[13px] leading-relaxed text-mute sm:px-6 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:px-8">
+      <footer className="border-t border-line bg-surface">
+        <div className="mx-auto grid max-w-[1440px] gap-x-20 gap-y-8 px-4 pt-10 pb-14 text-[13px] leading-relaxed text-mute sm:px-6 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:px-8">
           <div>
             <Wordmark />
             <p className="mt-3 max-w-[32ch]">
