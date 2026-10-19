@@ -17,7 +17,9 @@ import { PlayerAvatar } from "./PlayerAvatar";
  */
 export const COL = {
   rank: "w-11 pl-3 pr-1 text-right sm:w-16 sm:pl-4 sm:pr-3",
-  player: "pr-3 sm:w-[17rem] lg:w-[19rem]",
+  // Below sm the name column takes what is left and truncates inside it
+  // (max-width 0 is what lets a table cell shrink below its text).
+  player: "pr-3 max-sm:w-full max-sm:max-w-0 sm:w-[17rem] lg:w-[19rem]",
   pos: "hidden w-20 pr-3 sm:table-cell",
   team: "hidden w-16 pr-3 md:table-cell",
   games: "hidden w-12 pr-3 text-right lg:table-cell",
@@ -86,7 +88,11 @@ export function PlayerRow({
       </td>
       <th scope="row" className={`${cell} ${COL.player} text-left font-normal`}>
         <div className="flex min-w-0 items-center gap-3">
-          {avatar && <PlayerAvatar name={row.name} espnId={row.espnId} size="md" />}
+          {avatar && (
+            <span className="flex shrink-0 max-[359px]:hidden">
+              <PlayerAvatar name={row.name} espnId={row.espnId} size="md" />
+            </span>
+          )}
           <span className="min-w-0">
             {href ? (
               <Link

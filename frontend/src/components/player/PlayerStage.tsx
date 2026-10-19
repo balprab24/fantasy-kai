@@ -40,6 +40,7 @@ export function PlayerStage({
   season,
   selected,
   careerLoading,
+  careerFailed = false,
   scoringLabel,
   stale,
   scored,
@@ -55,6 +56,8 @@ export function PlayerStage({
   season: number | null;
   selected: CareerSeason | null;
   careerLoading: boolean;
+  /** The career could not be scored: say so, rather than "no games". */
+  careerFailed?: boolean;
   scoringLabel: string;
   stale: boolean;
   /** False for a position v1 does not score: its points are "—", not 0.0. */
@@ -112,7 +115,7 @@ export function PlayerStage({
                 selected={profileId}
                 onSelect={onProfile}
                 size="sm"
-                className="max-sm:w-full"
+                className="min-w-0 flex-1 basis-[26rem]"
               />
             ) : (
               <Skeleton className="h-[3.25rem] w-full max-w-[34rem]" />
@@ -126,7 +129,11 @@ export function PlayerStage({
 
       {/* The season's line: what every tab below is the detail of. */}
       <div className={`border-t border-line transition-opacity ${stale ? "opacity-60" : ""}`}>
-        {careerLoading ? (
+        {careerFailed ? (
+          <p className="px-5 py-5 text-[15px] text-danger sm:px-7">
+            This season could not be scored. The panels below say why and offer a retry.
+          </p>
+        ) : careerLoading ? (
           <div className="grid grid-cols-3 gap-px lg:grid-cols-6">
             {Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="px-5 py-5 sm:px-7">

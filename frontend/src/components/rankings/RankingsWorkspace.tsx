@@ -45,14 +45,16 @@ export function RankingsWorkspace() {
   // ones it saw on its own route, so the rows underneath never re-sort to
   // whatever the player view's URL says. Adjusted during render, the way React
   // documents state derived from a changing input.
+  // Compared as text, so a fresh params object for the same URL is no change.
   const onBoard = pathname === "/rankings";
-  const [frozen, setFrozen] = useState(liveParams);
-  if (onBoard && liveParams !== frozen) setFrozen(liveParams);
-  const params = onBoard ? liveParams : frozen;
+  const live = liveParams.toString();
+  const [frozen, setFrozen] = useState(live);
+  if (onBoard && live !== frozen) setFrozen(live);
+  const params = onBoard ? live : frozen;
   const openPlayerId = onBoard ? null : Number(/^\/players\/([1-9][0-9]{0,14})$/.exec(pathname)?.[1] ?? 0) || null;
   const state = useMemo(
     () =>
-      parseBoardParams(new URLSearchParams(params.toString()), {
+      parseBoardParams(new URLSearchParams(params), {
         first: FIRST_SEASON,
         current: now,
       }),

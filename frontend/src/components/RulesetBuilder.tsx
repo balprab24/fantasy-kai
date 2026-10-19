@@ -64,7 +64,7 @@ export function RulesetBuilder({
         e.preventDefault();
         onSave(name, doc);
       }}
-      className="mt-8 border-t border-line pt-8"
+      className="mt-6"
     >
       <label className="block max-w-sm">
         <span className="text-sm text-mute">Ruleset name</span>

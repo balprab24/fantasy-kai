@@ -52,6 +52,8 @@ export function RuleMixer() {
   const [touched, setTouched] = useState(false);
   const [announced, setAnnounced] = useState("");
   const frame = useRef<HTMLDivElement>(null);
+  // Read inside the demo's timer, which outlives the render that armed it.
+  const touchedRef = useRef(false);
   const recName = useId();
   const tdName = useId();
 
@@ -75,6 +77,7 @@ export function RuleMixer() {
     setRec(nextRec);
     setPassTd(nextTd);
     if (byVisitor) {
+      touchedRef.current = true;
       setTouched(true);
       const top3 = BOARDS[next]
         .slice(0, 3)
@@ -95,9 +98,11 @@ export function RuleMixer() {
       ([entry]) => {
         if (entry.isIntersecting && timer === undefined) {
           timer = window.setTimeout(() => {
+            io.disconnect();
+            // A visitor who reached a dial first has the board; the demo yields.
+            if (touchedRef.current) return;
             setPrevious("0.5|4");
             setRec(1);
-            io.disconnect();
           }, DEMO_AT_MS);
         }
       },
@@ -158,7 +163,7 @@ export function RuleMixer() {
       <div className="mt-4 border-t border-line">
         <div
           aria-hidden
-          className="relative h-[calc(var(--rows)*var(--row))] select-none [--row:3rem] [--rows:8] sm:[--row:3.25rem] sm:[--rows:10]"
+          className="relative h-[calc(var(--rows)*var(--row))] overflow-hidden select-none [--row:3rem] [--rows:8] sm:[--row:3.25rem] sm:[--rows:10]"
         >
           {CAST.map((id) => {
             const slot = slotOn(board, id, TOP);

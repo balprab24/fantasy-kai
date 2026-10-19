@@ -220,6 +220,7 @@ export function PlayerWorkspace({
             season={season}
             selected={selected}
             careerLoading={career.isLoading || (profileId === null && !career.data)}
+            careerFailed={!!career.error && !career.data}
             scoringLabel={scoringLabel}
             stale={careerStale}
             scored={ranked}

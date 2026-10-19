@@ -41,13 +41,17 @@ export function FormatBar({
     <fieldset className={`min-w-0 max-w-full ${className}`}>
       <legend className="sr-only">{legend}</legend>
       {/* Three to a row on a phone, so five rulesets are two even rows; from
-          sm, one row that is as wide as its options and wraps if a member has
-          many rulesets. */}
-      <div className="grid max-w-full grid-cols-3 gap-1 rounded-control bg-well p-1 shadow-[inset_0_0_0_1px_var(--color-line)] sm:flex sm:w-fit sm:flex-wrap">
+          sm, columns of at least 8.5rem that wrap into even rows, the whole
+          bar no wider than its options need -- so a member with many rulesets
+          gets a second even row, not one stretched straggler. */}
+      <div
+        className="grid max-w-full grid-cols-3 gap-1 rounded-control bg-well p-1 shadow-[inset_0_0_0_1px_var(--color-line)] sm:max-w-[min(100%,calc(var(--n)*9.75rem_+_0.5rem))] sm:grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))]"
+        style={{ "--n": profiles.length } as React.CSSProperties}
+      >
         {profiles.map((p) => {
           const checked = p.id === selected;
           return (
-            <label key={p.id} className="relative min-w-0 sm:min-w-[8.5rem] sm:flex-1">
+            <label key={p.id} className="relative min-w-0">
               <input
                 type="radio"
                 name={name}
