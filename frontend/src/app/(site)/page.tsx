@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EmailStart } from "@/components/landing/EmailStart";
-import { FeatureSection, SectionCopy, SectionTitle } from "@/components/landing/FeatureSection";
-import { HeroDemo } from "@/components/landing/HeroDemo";
-import { OneBoard } from "@/components/landing/OneBoard";
-import { PlayersBand } from "@/components/landing/PlayersBand";
+import { FOLLOWED, RECEIPT_GAME } from "@/components/landing/heroData";
+import { PlayerShowcase } from "@/components/landing/PlayerShowcase";
+import { Receipt } from "@/components/landing/Receipt";
+import { RuleMixer } from "@/components/landing/RuleMixer";
+import { RulesSheet } from "@/components/landing/RulesSheet";
 import { BUTTON_JOIN } from "@/components/ui/buttons";
+import { formatPoints } from "@/lib/board";
 import { CLOSING_ID, HERO_JOIN_ID } from "@/lib/landing";
+import { matchup } from "@/lib/player";
 
 export const metadata: Metadata = {
   title: "fantasy-kai",
@@ -14,122 +17,167 @@ export const metadata: Metadata = {
     "Fantasy football rankings and player pages, scored by your league's exact settings: PPR, half PPR, 0 PPR or your own. Free, with no ads.",
 };
 
+const WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen", "Twenty"];
+/** A small count as a word for a headline; a larger one as digits. */
+const word = (n: number) => WORDS[n] ?? String(n);
+
+/** The page's one container: 1440 wide, the product's own gutters. */
+const CONTAINER = "mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8";
+
 /**
- * The front door, for people deciding whether to join -- in Daylight, the
- * public pages' mode (app/(site)/layout.tsx). The product itself is behind an
- * account (app/(app)/layout.tsx), so this page shows it rather than serving
- * it, and every figure on it is captured from the real API (`heroData.ts` and
- * `previewData.ts` name the requests).
+ * The front door, for people deciding whether to join. The product is behind
+ * an account, so this page shows it rather than serving it, and every figure
+ * on it is a capture from the real API (`heroData.ts`, written by
+ * `scripts/capture-landing.mjs`, which lists the requests).
  *
- * The order is hook, product, difference, depth, ask -- recognition first,
- * then understanding:
- *   - the hero (paper): what this is, in words, beside the product itself --
- *     the rankings page for the season being played, in its own dark skin,
- *     running off the page's edge, under a member's own ruleset ("My league"):
- *     its scoring switch works, and a short loop shows the rows re-sorting
- *     between PPR and My league -- your league's rules rewrite the board;
- *   - one board, three rulesets (paper): what a catch is worth, alone --
- *     2025's board, which waits for the visitor, following one player;
- *   - every player, every game (the stage: a full-width band of Prime time):
- *     that player opened, with the player page's own scoring switch live;
- *   - the last ask at full width, with what is coming said in one line.
+ * One argument, told four ways, each with its own composition:
+ *   - the hero: your league's rules rewrite the rankings -- the season's real
+ *     board with two settings as dials;
+ *   - the receipt: why -- one real game, stat by stat, priced three ways;
+ *   - the player: what a member opens -- one season, week by week and under
+ *     every ruleset;
+ *   - your league, everywhere: build it once and every page follows; then the
+ *     ask.
  *
- * Each section has its own composition, so the page changes pace instead of
- * repeating one heading-paragraph-chart template down the scroll.
+ * Same night ground as the product: the landing is the product's front room,
+ * not a different building.
  */
 export default function Landing() {
+  const g = RECEIPT_GAME;
   return (
     <>
-      <section className="overflow-x-clip">
-        <div className="mx-auto grid max-w-[1320px] items-center gap-x-14 px-4 pt-6 pb-16 sm:px-6 sm:pt-10 lg:px-8 lg:pt-14 lg:grid-cols-[minmax(0,37fr)_minmax(0,63fr)] lg:pb-20">
+      <section aria-labelledby="hero-title" className="relative isolate overflow-x-clip">
+        <Strokes />
+        <div className={`${CONTAINER} grid items-center gap-x-14 gap-y-10 pt-8 pb-16 sm:pt-14 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:pt-16 lg:pb-24`}>
           <div className="min-w-0">
-            <h1 className="type-display text-[clamp(4.25rem,11vw,7rem)] text-ink lg:text-[clamp(5rem,7.4vw,6.6rem)]">
+            <h1 id="hero-title" className="type-display text-[clamp(3.75rem,10vw,7.25rem)] text-ink">
               <span className="block">Ranked by</span>
               <span className="block">your rules.</span>
             </h1>
-            <p className="mt-5 max-w-[30rem] text-[17px] leading-[1.55] text-pretty text-mute sm:mt-6 sm:text-[19px]">
-              <span className="text-ink">Fantasy football rankings and player pages, scored by your league&rsquo;s exact
-              settings</span>: PPR, half PPR, 0 PPR or your own.
-              {/* A phone's first screen is for the ask; the rest is said again below. */}
-              <span className="hidden sm:inline"> Every NFL game since 2020, updated every morning of the season.</span>
+            <p className="mt-6 max-w-[32rem] text-[17px] leading-[1.6] text-pretty text-mute sm:text-[19px]">
+              Fantasy football rankings and player pages, scored by your league&rsquo;s exact settings. Change one
+              rule and the whole board changes with it.
             </p>
-            <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3 sm:mt-8">
+            <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
               <Link id={HERO_JOIN_ID} href="/register" className={`${BUTTON_JOIN} w-full sm:w-auto`}>
                 Join the Kai
               </Link>
-              <p className="text-[15px] text-mute">Free account. No ads, no paywall.</p>
+              <p className="text-[15px] text-mute">Free. No ads, no paywall.</p>
             </div>
-            <a
-              href="#rankings"
-              className="mt-6 hidden text-[15px] text-ink underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-energy sm:inline-block"
-            >
-              See how scoring changes the board <span aria-hidden>&darr;</span>
-            </a>
+            <p className="mt-8 max-w-[32rem] border-t border-line pt-5 text-[14px] leading-relaxed text-mute">
+              Every NFL game since 2020, scored when you ask against the rules you choose, and refreshed every
+              morning of the season.
+            </p>
           </div>
-          {/* The product runs off the page: full width on a phone, to the browser's right edge from lg. */}
-          <div className="-mx-4 mt-10 min-w-0 sm:mx-0 sm:mt-12 lg:mt-0 lg:-mr-[max(2rem,calc((100vw-1320px)/2+2rem))]">
-            <HeroDemo />
+          <div id="rankings" className="min-w-0 scroll-mt-24">
+            <RuleMixer />
           </div>
         </div>
       </section>
 
-      {/* Mirrored against the hero: the working part on the left, the words on the right. */}
-      <FeatureSection id="rankings" className="pb-16 sm:pb-24 lg:pb-28">
-        <div className="grid items-start gap-x-16 gap-y-10 border-t border-line pt-14 sm:pt-16 lg:grid-cols-[minmax(0,8fr)_minmax(0,4fr)] lg:pt-20">
+      {/* Mirrored against the hero: the working part on the left. */}
+      <section id="scoring" aria-labelledby="scoring-title" className="scroll-mt-16 border-t border-line">
+        <div className={`${CONTAINER} grid items-center gap-x-16 gap-y-10 py-16 sm:py-20 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:py-28`}>
           <div className="min-w-0 lg:order-2">
-            <SectionTitle id="rankings">
-              <span className="block">One board.</span>
-              <span className="block">Three rulesets.</span>
-            </SectionTitle>
-            <SectionCopy className="mt-6">
-              <p>
-                2025, the last full season. The three presets differ in one number, what a catch is worth, and Puka
-                Nacua goes from <strong>20th</strong> to <strong>11th</strong> to <strong>2nd</strong>.
-              </p>
-            </SectionCopy>
-            <Provenance className="mt-8 hidden lg:block" />
+            <h2 id="scoring-title" className="type-display text-[clamp(2.75rem,5.4vw,4.25rem)] text-ink">
+              <span className="block">{word(g.stats.rec)} catches.</span>
+              <span className="block">Three answers.</span>
+            </h2>
+            <p className="mt-6 max-w-[34rem] text-[17px] leading-[1.65] text-pretty text-mute">
+              Week {g.week} {matchup(g.opponent, g.home)}, {FOLLOWED.name} caught {g.stats.rec} passes for{" "}
+              {g.stats.rec_yd} yards. Under 0 PPR that game is worth{" "}
+              <span className="font-semibold text-ink">{formatPoints(g.points[0])}</span> points; under PPR,{" "}
+              <span className="font-semibold text-ink">{formatPoints(g.points[1])}</span>. Same game, same stats: one
+              line of your league&rsquo;s settings decides.
+            </p>
+            <p className="mt-5 max-w-[34rem] text-[14px] leading-relaxed text-mute">
+              No point is stored. Every one is computed from the box score when you ask, so changing a rule
+              re-prices every game at once.
+            </p>
           </div>
           <div className="min-w-0 lg:order-1">
-            <OneBoard />
+            <Receipt />
           </div>
-          {/* Below lg the board comes straight after its heading, and where its numbers come from follows it. */}
-          <Provenance className="lg:hidden" />
         </div>
-      </FeatureSection>
+      </section>
 
-      <PlayersBand />
-
-      {/* One last ask, at full width: the headline at the hero's scale, the form on one line under it. */}
-      <section id={CLOSING_ID} aria-labelledby="join-title" className="scroll-mt-16">
-        <div className="mx-auto max-w-[1320px] px-4 sm:px-6 lg:px-8">
-          <div className="pt-16 pb-20 sm:pt-20 sm:pb-24 lg:pt-24 lg:pb-28">
-            <h2 id="join-title" className="type-display text-[clamp(4.25rem,11vw,8rem)] text-ink">
-              Join the Kai.
+      <section id="players" aria-labelledby="players-title" className="scroll-mt-16 border-t border-line">
+        <div className={`${CONTAINER} py-16 sm:py-20 lg:py-28`}>
+          <div className="grid items-end gap-x-16 gap-y-5 lg:grid-cols-[minmax(0,6fr)_minmax(0,6fr)]">
+            <h2 id="players-title" className="type-display text-[clamp(2.75rem,5.4vw,4.25rem)] text-ink">
+              <span className="block">Every player.</span>
+              <span className="block">Every week.</span>
             </h2>
-            <p className="mt-5 max-w-[36rem] text-[17px] leading-[1.6] text-pretty text-mute sm:text-[19px]">
-              Free, and it stays that way: no ads, no paywall, nothing to upgrade to.
-            </p>
-            <div className="mt-10">
-              <EmailStart />
-            </div>
-            {/* What is coming, as a footnote to the ask rather than a pitch of its own. */}
-            <p className="mt-12 max-w-[44rem] text-[14px] leading-relaxed text-pretty text-mute">
-              Coming next: projections, ESPN and Sleeper league import, start/sit and waivers, trades. None of it is
-              built yet.
+            <p className="max-w-[36rem] text-[17px] leading-[1.65] text-pretty text-mute lg:pb-2">
+              Open anyone on the board: his season under your scoring, every week charted, every game in the log,
+              and the same stats under every ruleset you use, side by side.
             </p>
           </div>
+          <div className="mt-10 lg:mt-12">
+            <PlayerShowcase />
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="league-title" className="border-t border-line">
+        <div className={`${CONTAINER} grid items-center gap-x-16 gap-y-10 py-16 sm:py-20 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:py-28`}>
+          <div className="min-w-0">
+            <h2 id="league-title" className="type-display text-[clamp(2.75rem,5.4vw,4.25rem)] text-ink">
+              <span className="block">Your league.</span>
+              <span className="block">Everywhere.</span>
+            </h2>
+            <p className="mt-6 max-w-[32rem] text-[17px] leading-[1.65] text-pretty text-mute">
+              Set the rates your league actually uses and save them once. The rankings, every player page and
+              every game log are then scored by them, not by a generic 12-team PPR.
+            </p>
+            <p className="mt-5 max-w-[32rem] text-[14px] leading-relaxed text-mute">
+              No expert picks go in, now or later. The numbers are the box scores and your rules.
+            </p>
+          </div>
+          <div className="min-w-0">
+            <RulesSheet />
+          </div>
+        </div>
+      </section>
+
+      {/* One last ask, at full width. */}
+      <section id={CLOSING_ID} aria-labelledby="join-title" className="scroll-mt-16 border-t border-line">
+        <div className={`${CONTAINER} pt-16 pb-20 sm:pt-20 sm:pb-24 lg:pt-24 lg:pb-28`}>
+          <h2 id="join-title" className="type-display text-[clamp(3.75rem,10vw,7.25rem)] text-ink">
+            Join the Kai.
+          </h2>
+          <p className="mt-5 max-w-[36rem] text-[17px] leading-[1.6] text-pretty text-mute sm:text-[19px]">
+            Free, and it stays that way: no ads, no paywall, nothing to upgrade to.
+          </p>
+          <div className="mt-10">
+            <EmailStart />
+          </div>
+          {/* What is coming, as a footnote to the ask rather than a pitch of its own. */}
+          <p className="mt-12 max-w-[44rem] text-[14px] leading-relaxed text-pretty text-mute">
+            Coming next: projections, ESPN and Sleeper league import, start/sit and waivers, trades. None of it is
+            built yet.
+          </p>
         </div>
       </section>
     </>
   );
 }
 
-/** Where the board's numbers come from: beside the words from lg, after the board below it. */
-function Provenance({ className }: { className: string }) {
+/**
+ * The logo's two strokes, enormous and nearly the colour of the night behind
+ * the hero: the product's mark as the stage, not decoration borrowed from
+ * anywhere. From lg only, where the hero has a second column to stand behind.
+ */
+function Strokes() {
   return (
-    <p className={`max-w-[30rem] border-t border-line pt-4 text-[14px] leading-relaxed text-pretty text-mute ${className}`}>
-      Box scores from nflverse for every game since 2020, scored when you ask and never stored as points. No expert
-      picks go in, now or later.
-    </p>
+    <svg
+      aria-hidden
+      viewBox="0 0 26 26"
+      preserveAspectRatio="xMaxYMid slice"
+      className="pointer-events-none absolute top-0 right-[-12%] -z-10 h-full w-[85%] text-[#0c1426] max-lg:hidden"
+    >
+      <path d="M9 3h6L9 23H3z" fill="currentColor" />
+      <path d="M18 3h5l-6 20h-5z" fill="currentColor" />
+    </svg>
   );
 }

@@ -30,6 +30,10 @@ export function PlayerOverlay({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const el = dialog.current;
     if (!el) return;
+    // Whatever opened the overlay -- a row's name, a mover -- gets focus back
+    // when it closes. The dialog's own return-focus cannot do it: by the time
+    // this cleanup runs the dialog has left the document.
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (!el.open) el.showModal();
     // The board under the overlay must not scroll with the wheel meant for the
     // overlay; the gutter keeps the board from shifting sideways when its
@@ -42,6 +46,9 @@ export function PlayerOverlay({ children }: { children: React.ReactNode }) {
       root.style.overflow = before.overflow;
       root.style.scrollbarGutter = before.gutter;
       if (el.open) el.close();
+      requestAnimationFrame(() => {
+        if (opener?.isConnected) opener.focus({ preventScroll: true });
+      });
     };
   }, []);
 

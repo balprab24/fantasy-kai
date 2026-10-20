@@ -29,8 +29,8 @@ const PAGE_ASKS = [HERO_JOIN_ID, CLOSING_ID];
  * button, the closing form) and becomes the orange primary once neither is:
  * one orange action on screen at a time, and always one within reach.
  *
- * In Daylight it rests on the page itself, with no edge; once the page scrolls
- * under it, one blue hairline says where the bar ends. Nothing else changes.
+ * It rests on the page itself, with no edge; once the page scrolls under it,
+ * one hairline says where the bar ends. Nothing else changes.
  *
  * A member who arrives at `/` is sent on to the board: the landing page is
  * for people deciding whether to join. While the session is still being
@@ -72,7 +72,7 @@ export function SiteHeader() {
         scrolled ? "shadow-[0_1px_0_var(--color-line)]" : ""
       }`}
     >
-      <div className="mx-auto flex h-16 max-w-[1320px] items-center gap-4 px-4 sm:px-6 md:gap-10 lg:px-8">
+      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 sm:px-6 md:gap-8 lg:px-8">
         <Wordmark />
         {/* Only on the landing page: on sign-in the page is the task, and links into
             another page's sections read as places a visitor cannot go yet. */}
@@ -88,7 +88,7 @@ export function SiteHeader() {
                       aria-current={current ? "location" : undefined}
                       className={`relative flex h-16 items-center px-3 text-[15px] whitespace-nowrap transition-colors ${
                         current
-                          ? "text-ink after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-energy"
+                          ? "text-ink after:slash after:absolute after:inset-x-2.5 after:bottom-0 after:h-[3px] after:bg-energy"
                           : "text-mute hover:text-ink"
                       }`}
                     >

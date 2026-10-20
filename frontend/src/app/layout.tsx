@@ -55,7 +55,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // The cost, measured before it shipped, is in docs/map.md §5.
   await connection();
   return (
-    <html lang="en" className={`${sofiaExtra.variable} ${sofiaSemi.variable} ${sofia.variable}`}>
+    <html
+      lang="en"
+      // Smooth scrolling is for in-page anchors; Next turns it off around route changes when told it is on.
+      data-scroll-behavior="smooth"
+      className={`${sofiaExtra.variable} ${sofiaSemi.variable} ${sofia.variable}`}
+    >
       <body className="min-h-dvh bg-canvas text-ink antialiased">
         {/* Providers only. The two route groups choose their own frame: the
             landing and auth pages sit under a site header, the product under
