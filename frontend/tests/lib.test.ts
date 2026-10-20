@@ -26,6 +26,7 @@ import { CUTOUT_ASPECT, headshotCutoutUrl, headshotUrl } from "../src/lib/headsh
 import { LANDING_SECTIONS, safeNext } from "../src/lib/landing.ts";
 import { CATCH_RATES, PASS_TDS, castOf, describeMix, formatRate, mixKey, slotOn } from "../src/lib/mixer.ts";
 import { presetRates, priceLine } from "../src/lib/receipt.ts";
+import { SHEET, sheetRows, sheetValue } from "../src/lib/rulesSheet.ts";
 import {
   MEMBER_HINT_MAX_AGE,
   clearedMemberHintCookie,
@@ -581,6 +582,17 @@ describe("the landing's captures (heroData.ts)", () => {
     assert.equal(FOLLOWED.position, row.position);
   });
 
+  it("charts weeks that add up to the season the board ranks him by", () => {
+    // The showcase's chart and its season figures are one capture: a week
+    // missing or doubled would show a total the bars do not add up to.
+    const weeks = FOLLOWED_SEASON.weeks;
+    assert.equal(weeks.length, FOLLOWED_SEASON.gamesPlayed);
+    assert.equal(new Set(weeks.map((w) => w.week)).size, weeks.length, "a week is repeated");
+    const sum = weeks.reduce((t, w) => t + w.points, 0);
+    // Each week is rounded to 0.1 at the API boundary; the season is rounded once.
+    assert.ok(Math.abs(sum - FOLLOWED_SEASON.points) <= 0.05 * weeks.length, `${sum} vs ${FOLLOWED_SEASON.points}`);
+  });
+
   it("prices the receipt's game into the API's own points under every preset", () => {
     for (const c of CATCH_RATES as readonly CatchRate[]) {
       const { total, lines } = priceLine(RECEIPT_GAME.stats, presetRates(c));
@@ -670,5 +682,64 @@ describe("the landing page's sections", () => {
   it("are all on the page the header links into", () => {
     const page = readFileSync(new URL("../src/app/(site)/page.tsx", import.meta.url), "utf8");
     for (const { id } of LANDING_SECTIONS) assert.match(page, new RegExp(`id="${id}"`), id);
+  });
+});
+
+describe("the landing's ruleset sheet", () => {
+  // "Your league. Everywhere." shows a saved ruleset and says it is Half PPR
+  // with 6-point passing touchdowns. Its values are worked out from rates, so
+  // they are held here to V3's Half PPR row, with the passing TD changed.
+  const sql = readFileSync(
+    new URL("../../backend/src/main/resources/db/migration/V3__seed_scoring_presets.sql", import.meta.url),
+    "utf8",
+  );
+  const half = new Map(
+    [...sql.matchAll(/\(NULL, '([^']+)', TRUE, '(\{[\s\S]*?\})'::jsonb\)/g)].map((m) => [m[1], JSON.parse(m[2])]),
+  ).get("Half PPR");
+
+  it("names every scorable stat exactly once", () => {
+    const named = SHEET.flatMap((g) => g.rows.flatMap((r) => r.stats));
+    assert.equal(new Set(named).size, named.length, "a stat is on the sheet twice");
+    assert.deepEqual([...named].sort(), Object.keys(half.base).sort());
+  });
+
+  it("says V3's Half PPR rates, with a passing touchdown at 6", () => {
+    const rows = Object.fromEntries(sheetRows({ ...half.base, pass_td: 6 }).flatMap((g) => g.rows.map(([l, v]) => [`${g.heading} ${l}`, v])));
+    assert.deepEqual(rows, {
+      "Passing Yards": "1 per 25",
+      "Passing Touchdown": "6",
+      "Passing Interception": "−2",
+      "Rushing Yards": "1 per 10",
+      "Rushing Touchdown": "6",
+      "Receiving Catch": "½",
+      "Receiving Yards": "1 per 10",
+      "Receiving Touchdown": "6",
+      "Other Fumble lost": "−2",
+      "Other Return touchdown": "6",
+      "Other 2-pt conversion": "2",
+    });
+    // The page renders from presetRates, which must be the same rates.
+    assert.deepEqual(sheetRows({ ...presetRates(0.5), pass_td: 6 }), sheetRows({ ...half.base, pass_td: 6 }));
+  });
+
+  it("refuses to merge stats into one row once their rates differ", () => {
+    assert.throws(() => sheetRows({ ...half.base, rush_2pt: 1 }), /2-pt conversion/);
+    assert.equal(sheetValue("rec", 1), "1");
+    assert.equal(sheetValue("rec_yd", 0.04), "1 per 25");
+  });
+});
+
+describe("the board's URL writes", () => {
+  // Next 16 follows a bare history.replaceState by keeping the route tree it
+  // rendered for the old query. A player opened from that board then fails the
+  // overlay's interception and loads as a full page -- measured after every
+  // filter and scoring change, 2026-10-20. This suite has no browser, so it
+  // pins the cause: the board writes through the router.
+  const source = readFileSync(new URL("../src/components/rankings/RankingsWorkspace.tsx", import.meta.url), "utf8");
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+
+  it("go through router.replace, never history.replaceState", () => {
+    assert.doesNotMatch(code, /history\.replaceState\(/);
+    assert.match(code, /router\.replace\(/);
   });
 });

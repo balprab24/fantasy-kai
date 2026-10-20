@@ -1,45 +1,17 @@
+import { presetRates } from "@/lib/receipt";
 import { LIMITS } from "@/lib/ruleset";
+import { sheetRows } from "@/lib/rulesSheet";
 
 /**
  * What a ruleset is, as the Scoring page builds one: every rate a league sets,
  * grouped the way a league's settings page groups them. The values are a real
  * ruleset -- Half PPR with 6-point passing touchdowns, the rules most of the
- * hero's mixer turns on -- and the two lines at the foot say what else the
- * builder takes, within the limits the server enforces (`LIMITS`). A sheet to
- * read, not a form: nothing on it is pressable.
+ * hero's mixer turns on -- worked out from V3's rates (`lib/rulesSheet.ts`,
+ * held to the migration by `tests/lib.test.ts`), not typed. The two lines at
+ * the foot say what else the builder takes, within the limits the server
+ * enforces (`LIMITS`). A sheet to read, not a form: nothing on it is pressable.
  */
-const GROUPS: { heading: string; rows: [string, string][] }[] = [
-  {
-    heading: "Passing",
-    rows: [
-      ["Yards", "1 per 25"],
-      ["Touchdown", "6"],
-      ["Interception", "−2"],
-    ],
-  },
-  {
-    heading: "Rushing",
-    rows: [
-      ["Yards", "1 per 10"],
-      ["Touchdown", "6"],
-    ],
-  },
-  {
-    heading: "Receiving",
-    rows: [
-      ["Catch", "½"],
-      ["Yards", "1 per 10"],
-      ["Touchdown", "6"],
-    ],
-  },
-  {
-    heading: "Other",
-    rows: [
-      ["Fumble lost", "−2"],
-      ["2-pt conversion", "2"],
-    ],
-  },
-];
+const GROUPS = sheetRows({ ...presetRates(0.5), pass_td: 6 });
 
 export function RulesSheet() {
   return (

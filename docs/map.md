@@ -164,6 +164,8 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    on a board (parked under it when outside), the ruleset in words
   src/lib/receipt.ts               V3's preset rates and a stat line priced under them -- the
                                    landing's receipt only; npm test holds every total to the API's
+  src/lib/rulesSheet.ts            the landing's ruleset sheet: every stat once, its values worked
+                                   out from rates (npm test holds them to V3's Half PPR)
   src/lib/movers.ts                the biggest moves between two boards' API ranks (top 60)
   src/lib/boardSequence.ts         the board's visible order when a player was opened, for the
                                    player view's previous / next (sessionStorage)
@@ -203,7 +205,9 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    saying what it pays a catch), SegmentedControl (native radios),
                                    Tabs + TabPanel, PositionChip, SeasonSelect, SearchField,
                                    StatusMessage + Skeleton, buttons.ts (button, panel and link looks)
-    rankings/                      RankingsWorkspace (the /rankings page),
+    rankings/                      RankingsWorkspace (the /rankings page; its filters write the
+                                   URL through router.replace -- a bare replaceState broke the
+                                   overlay's interception, measured 2026-10-20),
                                    FilterBar, PlayerRow, TierHeader, PositionBadge, PlayerAvatar
                                    (headshot with a monogram fallback)
     player/                        PlayerWorkspace (the player view: a page, or the overlay over
