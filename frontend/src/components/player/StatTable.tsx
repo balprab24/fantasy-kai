@@ -25,15 +25,17 @@ export interface LeadColumn<R> {
 
 /**
  * A tile's ground on the four-step scale (`HeatStep`: green, yellow, orange,
- * red), tinted so the figure printed on it stays ink. A tile with no step --
- * a stat with no league cut-off for the position, a summary row -- sits on
- * the table's own faint ground.
+ * red), solid, with its figure in the canvas colour (5.5:1 at the least, on
+ * red). A tile with no step -- a stat with no league cut-off for the
+ * position, a summary row -- sits on the table's own faint ground in ink.
+ * Cells print their figure without a colour of their own, so they take
+ * whichever the tile sets.
  */
 export const TILE: Record<HeatStep, string> = {
-  0: "bg-heat-green/50",
-  1: "bg-heat-yellow/45",
-  2: "bg-heat-orange/50",
-  3: "bg-heat-red/50",
+  0: "bg-heat-green text-canvas",
+  1: "bg-heat-yellow text-canvas",
+  2: "bg-heat-orange text-canvas",
+  3: "bg-heat-red text-canvas",
 };
 export const NEUTRAL_TILE = "bg-ink/[0.025]";
 
@@ -111,7 +113,7 @@ export function StatTable<R>({
             return (
               <td
                 key={c.key}
-                className={`${tile} tabular text-right ${ground} ${v === 0 && step === null ? "text-faint" : "text-ink"} ${isFoot ? "font-semibold" : ""} ${ci === 0 ? "border-l-[6px] border-l-transparent bg-clip-padding" : ""}`}
+                className={`${tile} tabular text-right ${ground} ${step !== null ? "" : v === 0 ? "text-faint" : "text-ink"} ${isFoot ? "font-semibold" : ""} ${ci === 0 ? "border-l-[6px] border-l-transparent bg-clip-padding" : ""}`}
               >
                 {formatCount(v)}
               </td>

@@ -186,7 +186,7 @@ export function GameLog({
       tone: (r) => (scored && r.kind === "week" ? finishTone(rankOf(r.week)) : undefined),
       cell: (r) =>
         scored ? (
-          <span className="tabular font-semibold text-ink">
+          <span className="tabular font-semibold">
             {formatPoints(r.kind === "week" ? r.week.points : r.season.points)}
           </span>
         ) : (
@@ -218,7 +218,7 @@ export function GameLog({
       },
       cell: (r) =>
         r.kind === "week" && r.week.snapPct !== null ? (
-          <span className="tabular text-ink">{Math.round(r.week.snapPct)}%</span>
+          <span className="tabular">{Math.round(r.week.snapPct)}%</span>
         ) : (
           <span className="text-faint">—</span>
         ),
@@ -334,7 +334,7 @@ export function CareerTable({
             tone: (s: CareerSeason) => (scored ? finishTone(s.posRank) : undefined),
             cell: (s: CareerSeason) =>
               scored ? (
-                <span className="tabular font-semibold text-ink">{formatPoints(s.points)}</span>
+                <span className="tabular font-semibold">{formatPoints(s.points)}</span>
               ) : (
                 <span className="text-faint">—</span>
               ),
@@ -349,7 +349,7 @@ export function CareerTable({
       tone: (s) => (scored ? finishTone(s.posRank) : undefined),
       cell: (s) =>
         scored ? (
-          <span className={`tabular ${mode === "game" ? "font-semibold text-ink" : "text-ink"}`}>{formatPoints(s.pointsPerGame)}</span>
+          <span className={`tabular ${mode === "game" ? "font-semibold" : ""}`}>{formatPoints(s.pointsPerGame)}</span>
         ) : (
           <span className="text-faint">—</span>
         ),
@@ -385,7 +385,7 @@ export function CareerTable({
 }
 
 /**
- * "RB3", in ink on its tile -- the tile carries the colour -- with the band in
+ * "RB3", in the tile's own text colour -- the tile carries the band -- with it in
  * words in the tooltip, so the colour is never the only cue.
  */
 export function RankCell({ position, rank }: { position: string; rank: number | null }) {
@@ -393,7 +393,7 @@ export function RankCell({ position, rank }: { position: string; rank: number | 
   const step = finishStep(rank);
   const words = step === null ? "" : ["1st to 12th", "13th to 24th", "25th to 36th", "37th or lower"][step];
   return (
-    <span title={`${position}${rank}${words ? ` — ${words} among ${position}s` : ""}`} className="tabular font-semibold text-ink">
+    <span title={`${position}${rank}${words ? ` — ${words} among ${position}s` : ""}`} className="tabular font-semibold">
       {position}
       {rank}
     </span>

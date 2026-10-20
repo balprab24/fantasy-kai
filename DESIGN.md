@@ -186,7 +186,7 @@ Rejected on purpose:
 - **Chart Slate** (#5d667c): a bar with no rank to colour it.
 - **The heat scale** (player view only): Heat Green (#36b37e), Yellow (#e3c04b), Orange (#ee8a3c)
   and Red (#e5574f) -- top band to bottom, for where a figure falls (see Heat tables). Solid on the
-  performance chart's bars and their figures; at 45-50% as a tile's ground under ink. Data colours,
+  performance chart's bars and their figures; solid as a tile's ground, its figure in canvas. Data colours,
   never a control or the brand. Red and green are not told apart by every eye, so a figure is always
   printed on its colour and a legend names the bands.
 
@@ -340,7 +340,8 @@ the season, three to a row on a phone.
 ### Heat tables
 The game log and the career are grids of tiles, 2px apart, every figure on its own small ground in
 the four-step data scale -- green, yellow, orange, red (`--color-heat-*`, owner decision
-2026-10-20). Fantasy tiles (points, rank) by where the figure finished at his position, in a 12-team
+2026-10-20) -- solid, with the figure in canvas. Tinted grounds under ink were tried first and
+dropped: over the night ground yellow reads olive and orange brown. Fantasy tiles (points, rank) by where the figure finished at his position, in a 12-team
 league's terms: 1st-12th green, 13th-24th yellow, 25th-36th orange, below that red. Box-score tiles
 against the league's games: the quartiles of every regular-season game, 2023-25, by each season's
 fantasy-relevant players by volume (top 24 QBs by attempts, 48 RBs by carries plus catches, 72 WRs
