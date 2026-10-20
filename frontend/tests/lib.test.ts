@@ -97,17 +97,23 @@ describe("profileCaption", () => {
 });
 
 describe("headshotUrl", () => {
-  it("is off without permission for public display: no URL for any id, so every avatar is initials", () => {
-    assert.equal(HEADSHOTS_ENABLED, false);
-    for (const id of ["4429795", "3117251", "1"]) {
-      assert.equal(headshotUrl(id, 64), null, id);
-      assert.equal(headshotCutoutUrl(id, 600), null, id);
-    }
+  it("is on, by owner decision with the risk known -- the switch is the kill switch", () => {
+    assert.equal(HEADSHOTS_ENABLED, true);
+  });
+  it("builds a resized ESPN crop from a digits-only id", () => {
+    assert.equal(
+      headshotUrl("4429795", 64),
+      "https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/4429795.png&w=64&h=64&scale=crop&cquality=80",
+    );
   });
   it("gives no URL for a missing or malformed id, so the monogram shows", () => {
     for (const bad of [null, undefined, "", "4262921.0", "123abc", "../x", "1".repeat(13)]) {
       assert.equal(headshotUrl(bad, 64), null, String(bad));
     }
+  });
+  it("clamps the requested size", () => {
+    assert.match(headshotUrl("1", 9999)!, /w=512&h=512/);
+    assert.match(headshotUrl("1", 1)!, /w=16&h=16/);
   });
 });
 
@@ -445,17 +451,34 @@ describe("contentSecurityPolicy", () => {
     assert.ok(style.includes("'unsafe-inline'"));
     assert.ok(!style.some((source) => source.startsWith("'nonce-")));
   });
-  it("names exactly two sources off the site: the API and ESPN's team logos", () => {
+  it("names only the API and ESPN's two image paths off the site, never a whole image host", () => {
     const hosts = new Set(prod.split(/[ ;]+/).filter((token) => /^https?:\/\//.test(token)));
-    assert.deepEqual([...hosts].sort(), ["https://a.espncdn.com/i/teamlogos/", "https://api.fantasykai.com"]);
+    assert.deepEqual([...hosts].sort(), [
+      "https://a.espncdn.com/combiner/i",
+      "https://a.espncdn.com/i/teamlogos/",
+      "https://api.fantasykai.com",
+    ]);
     assert.deepEqual(directive(prod, "connect-src"), ["'self'", "https://api.fantasykai.com"]);
-    assert.deepEqual(directive(prod, "img-src"), ["'self'", "data:", "blob:", "https://a.espncdn.com/i/teamlogos/"]);
+    assert.deepEqual(directive(prod, "img-src"), [
+      "'self'",
+      "data:",
+      "blob:",
+      "https://a.espncdn.com/i/teamlogos/",
+      "https://a.espncdn.com/combiner/i",
+    ]);
   });
-  it("admits a team logo and not a headshot: headshots are off without permission", () => {
-    // A CSP source ending in "/" admits exactly the paths that start with it.
-    const espn = directive(prod, "img-src")!.find((s) => s.includes("espncdn"))!;
-    assert.ok("https://a.espncdn.com/i/teamlogos/nfl/500/sea.png".startsWith(espn));
-    assert.ok(!"https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/1.png".startsWith(espn));
+  it("admits exactly the URLs the app builds: a team logo and a headshot", () => {
+    // CSP path matching: a source ending in "/" admits every path under it; one
+    // without admits that exact path, whatever the query string.
+    const sources = directive(prod, "img-src")!.filter((s) => s.includes("espncdn"));
+    const admitted = (url: string) => {
+      const u = new URL(url);
+      return sources.some((s) => (s.endsWith("/") ? (u.origin + u.pathname).startsWith(s) : u.origin + u.pathname === s));
+    };
+    assert.ok(admitted("https://a.espncdn.com/i/teamlogos/nfl/500/sea.png"));
+    assert.ok(admitted(headshotUrl("4429795", 64)!));
+    assert.ok(admitted(headshotCutoutUrl("3117251", 600)!));
+    assert.ok(!admitted("https://a.espncdn.com/i/headshots/nfl/players/full/1.png"), "the raw headshot path is not needed");
   });
   it("has no wildcard or scheme-only source anywhere, which would allow every host", () => {
     for (const source of prod.split("; ").flatMap((d) => d.split(" ").slice(1))) {
@@ -546,8 +569,17 @@ describe("member hint", () => {
 });
 
 describe("headshotCutoutUrl", () => {
-  it("keeps the cut-out's aspect, so the initials' box is the photo's shape", () => {
+  it("asks for the whole cut-out at its own aspect, not a square crop", () => {
+    assert.equal(
+      headshotCutoutUrl("3117251", 600),
+      "https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/3117251.png&w=600&h=436",
+    );
+    assert.doesNotMatch(headshotCutoutUrl("3117251", 300)!, /scale=crop/);
     assert.equal(Math.round(300 * CUTOUT_ASPECT), 218);
+  });
+  it("never asks past the native 600px, which would only upscale", () => {
+    assert.match(headshotCutoutUrl("1", 5000)!, /w=600&h=436$/);
+    assert.match(headshotCutoutUrl("1", 10)!, /w=120&h=87$/);
   });
   it("gives no URL for a missing or malformed id, so the initials show", () => {
     for (const bad of [null, undefined, "", "4262921.0", "123abc", "../x"]) {

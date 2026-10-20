@@ -90,10 +90,9 @@
   --color-q-good: #6fcf97;
   --color-q-mid: #d9c162;
 
-  /* The weekly chart's two fills: a week inside the position's starter line,
-     and every other week. An emphasis pair: CVD dE 16.6, normal-vision dE
-     20.1, both >= 3:1 on the canvas (dataviz validator, 2026-09-29). */
-  --color-chart-starter: #3fa877;
+  /* The performance chart's bar for a game with no weekly rank to colour it;
+     ranked games take the heat scale below. (Its green partner, chart-starter,
+     went with the two-colour chart on 2026-10-20.) */
   --color-chart-rest: #5d667c;
 
   /* The player view's four-step data scale (owner decision, 2026-10-20): where

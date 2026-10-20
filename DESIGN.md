@@ -23,7 +23,6 @@ colors:
   pos-te: "#ff8fd4"
   q-good: "#6fcf97"
   q-mid: "#d9c162"
-  chart-starter: "#3fa877"
   chart-rest: "#5d667c"
   heat-green: "#36b37e"
   heat-yellow: "#e3c04b"
@@ -292,12 +291,12 @@ cut-out, in the position's hue at 26%; and the overlay's dimmed board (the scrim
 - **The slash:** `clip-path` on the logo's slant (`slash` in globals.css), never a skew transform, so
   the letters inside stay upright. Small marks only: position chips, tier plates, the chosen tab's
   and nav item's 3px bar.
-- **Imagery:** no player photos. ESPN headshots are off until there is permission for public display
-  (owner decision 2026-10-20; `HEADSHOTS_ENABLED` in `lib/headshot.ts`), so the player plate shows
-  his initials as outlined display type in his hue and the board's row avatar a monogram. Were a
-  licensed photo to arrive, it is the whole cut-out standing on the plate with its flat crop line as
-  the floor, never a circle cropped from it at display size (the 36px row avatar excepted). The
-  landing shows no real player's likeness (owner decision 2026-09-28, kept).
+- **Imagery:** a player's photo is ESPN's whole cut-out, standing on the card's plate so its flat crop line
+  is the floor; never a circle cropped from it at display size (the 36px row avatar excepted). With
+  no headshot the plate shows his initials as outlined display type in his hue. Headshots are
+  hotlinked by owner decision (2026-10-20) with the licensing risk known; `HEADSHOTS_ENABLED` in
+  `lib/headshot.ts` is the kill switch, and initials are what it falls back to. The landing shows no
+  real player's likeness (owner decision 2026-09-28, kept), and so uses exactly that fallback.
 
 ## Components
 

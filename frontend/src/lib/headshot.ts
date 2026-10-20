@@ -14,14 +14,16 @@
 const ESPN_ID = /^[0-9]{1,12}$/;
 
 /**
- * Off: no permission for public display (owner decision, 2026-10-20). ESPN's
- * terms allow personal, noncommercial use, and a public site is neither.
- * While false both URLs below are null, so the board's avatar and the player's
- * cut-out draw their initials -- the fallback a missing headshot always had --
- * and the CSP no longer admits ESPN's headshot path (`lib/csp.ts`). Turning
- * them back on takes this line, the CSP, and the tests that pin both.
+ * On, by owner decision (2026-10-20), with the risk known: ESPN's terms allow
+ * personal, noncommercial use, there is no licence for public display, and
+ * the owner chose to keep hotlinking as other fantasy sites do. This is the
+ * kill switch: set it false (a takedown request, ESPN blocking hotlinks) and
+ * both URLs below are null, so the board's avatar and the player's cut-out draw
+ * their initials -- the fallback a missing headshot always had. Then drop
+ * `https://a.espncdn.com/combiner/i` from the CSP (`lib/csp.ts`) and update the
+ * tests that pin both.
  */
-export const HEADSHOTS_ENABLED: boolean = false;
+export const HEADSHOTS_ENABLED: boolean = true;
 
 export function headshotUrl(espnId: string | null | undefined, px: number): string | null {
   // The API already sends digits or null; checked again because this string is

@@ -82,9 +82,10 @@ enough to act on it, because every number can be traced to the stat lines that p
   touchdowns), one followed player's season and his most-catches game under the three presets.
   Written by `frontend/scripts/capture-landing.mjs`, which lists every request; the page says which
   week it runs through.
-- No player photos: ESPN headshots are off until there is permission for public display (owner
-  decision 2026-10-20), and players show as initials. Team logos are hotlinked from ESPN and never
-  stored, inside the member area only (docs/map.md §5).
+- ESPN headshots (600×436 transparent cut-outs) and team logos, hotlinked and never stored, inside
+  the member area only. Kept by owner decision (2026-10-20) knowing ESPN's terms allow personal,
+  noncommercial use only and there is no licence; a one-line switch falls back to initials
+  (docs/map.md §5).
 - No licensed player photography, no testimonials, no customer logos, no usage numbers. None may be
   invented, and no metric the product does not compute may be shown.
 
