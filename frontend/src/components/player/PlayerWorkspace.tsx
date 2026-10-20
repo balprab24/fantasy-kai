@@ -365,45 +365,29 @@ export function PlayerWorkspace({
           />
         )}
 
+        {/* The whole table, at full width. It shared the row with the season
+            bars, which squeezed it into a sideways scroll at 1440px (the
+            rushing columns were cut off), and the bars are the Overview's
+            Seasons panel already. */}
         {shownTab === "career" && (
-          <div className="grid gap-5 lg:grid-cols-12">
-            <Panel title="By season" meta="Points per game, regular season" className="lg:col-span-4">
-              {career.error ? (
-                <CareerError error={career.error} onRetry={() => void career.refetch()} />
-              ) : !career.data ? (
-                <TableSkeleton rows={4} />
-              ) : seasons.length === 0 ? (
-                <p className="py-4 text-[15px] text-mute">No regular-season games on record.</p>
-              ) : (
-                <CareerSnapshot
-                  seasons={seasons}
-                  position={position}
-                  selected={season}
-                  onSelect={(s) => write({ season: String(s) })}
-                  scored={ranked}
-                  stale={careerStale}
-                />
-              )}
-            </Panel>
-            <Panel title="Career" meta="Regular season, newest first" className="lg:col-span-8" bodyClassName="pb-0">
-              {career.error ? (
-                <div className="px-5 pb-5"><CareerError error={career.error} onRetry={() => void career.refetch()} /></div>
-              ) : !career.data ? (
-                <div className="px-5 pb-5"><TableSkeleton rows={4} /></div>
-              ) : seasons.length === 0 ? (
-                <p className="px-5 pb-5 text-[15px] text-mute sm:px-6">No regular-season games on record.</p>
-              ) : (
-                <CareerTable
-                  position={position}
-                  scored={ranked}
-                  seasons={seasons}
-                  selected={season}
-                  onSelect={(s) => write({ season: String(s) })}
-                  stale={careerStale}
-                />
-              )}
-            </Panel>
-          </div>
+          <Panel title="Career" meta="Regular season, newest first" bodyClassName="pb-0">
+            {career.error ? (
+              <div className="px-5 pb-5"><CareerError error={career.error} onRetry={() => void career.refetch()} /></div>
+            ) : !career.data ? (
+              <div className="px-5 pb-5"><TableSkeleton rows={4} /></div>
+            ) : seasons.length === 0 ? (
+              <p className="px-5 pb-5 text-[15px] text-mute sm:px-6">No regular-season games on record.</p>
+            ) : (
+              <CareerTable
+                position={position}
+                scored={ranked}
+                seasons={seasons}
+                selected={season}
+                onSelect={(s) => write({ season: String(s) })}
+                stale={careerStale}
+              />
+            )}
+          </Panel>
         )}
       </TabPanel>
     </Frame>

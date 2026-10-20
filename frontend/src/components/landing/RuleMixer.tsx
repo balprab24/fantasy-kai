@@ -134,6 +134,7 @@ export function RuleMixer() {
         <Dial
           name={recName}
           legend="Points per catch"
+          short="Per catch"
           options={CATCH_RATES}
           value={rec}
           onChange={(v) => change(v as Catch, passTd, true)}
@@ -219,12 +220,15 @@ export function RuleMixer() {
 function Dial({
   name,
   legend,
+  short,
   options,
   value,
   onChange,
 }: {
   name: string;
   legend: string;
+  /** Shown instead of the legend under 360px, where the full one truncated. */
+  short?: string;
   options: readonly number[];
   value: number;
   onChange: (value: number) => void;
@@ -233,7 +237,14 @@ function Dial({
     <fieldset className="flex min-w-0 items-center justify-between gap-3 rounded-control bg-well py-1 pr-1 pl-3.5 shadow-[inset_0_0_0_1px_var(--color-line)]">
       <legend className="sr-only">{legend}</legend>
       <span aria-hidden className="truncate text-[13px] text-mute">
-        {legend}
+        {short ? (
+          <>
+            <span className="max-[359px]:hidden">{legend}</span>
+            <span className="min-[360px]:hidden">{short}</span>
+          </>
+        ) : (
+          legend
+        )}
       </span>
       <span className="flex shrink-0 gap-1">
         {options.map((o) => (

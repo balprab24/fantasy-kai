@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 /**
  * Which of the landing page's sections is under the middle of the screen, or
- * null above the first one. The header underlines it and the phone shows it.
+ * null when none is. The header underlines it and the phone shows it.
  *
  * One thin band across the middle of the viewport, not a visibility ratio: a
  * tall section and a short one are then judged the same way, and exactly one
@@ -19,17 +19,21 @@ export function useActiveSection(ids: readonly string[]): string | null {
       .filter((el): el is HTMLElement => el !== null);
     if (targets.length === 0) return;
 
+    // Any section crossing the band is the cue to look again at all of them,
+    // rather than trusting the one entry that crossed: a jump (an anchor, a
+    // fast fling) can carry the page past a section without it ever touching
+    // the band, and the old per-entry reading then left the hero's link lit
+    // three sections down (seen 2026-10-20). Nothing under the band -- above
+    // the first section, between named ones, past the last -- is nothing lit:
+    // a lit link there points at the wrong place.
     const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) setActive(entry.target.id);
-          // Scrolling back above the first section leaves nothing current, and so
-          // does scrolling on past the last: the page has gone on to parts the
-          // header does not name, and a lit link there points at the wrong place.
-          else if (entry.target === targets[0] && entry.boundingClientRect.top > 0) setActive(null);
-          else if (entry.target === targets[targets.length - 1] && entry.boundingClientRect.top < 0)
-            setActive(null);
-        }
+      () => {
+        const line = window.innerHeight * 0.45;
+        const under = targets.find((el) => {
+          const box = el.getBoundingClientRect();
+          return box.top <= line && box.bottom > line;
+        });
+        setActive(under ? under.id : null);
       },
       { rootMargin: "-45% 0px -54% 0px" },
     );

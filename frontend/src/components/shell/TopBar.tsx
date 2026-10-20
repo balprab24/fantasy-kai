@@ -25,7 +25,9 @@ export function TopBar() {
     <header className="sticky top-0 z-30 border-b border-line bg-veil backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-3 px-4 sm:px-6 md:gap-8 lg:px-8">
         <Wordmark href="/rankings" />
-        <nav aria-label="Primary" className="flex min-w-0 items-center">
+        {/* Under 360px the two links ran under the menu button (measured: 31px
+            of overlap at 320). The menu lists both, so they step away there. */}
+        <nav aria-label="Primary" className="flex min-w-0 items-center max-[359px]:hidden">
           {PRIMARY_NAV.map((item) => {
             const active = isActive(item.href, pathname);
             return (

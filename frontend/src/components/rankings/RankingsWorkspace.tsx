@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import { BoardSkeleton, RankingsBoard } from "@/components/RankingsBoard";
 import { BUTTON_SECONDARY, LINK_QUIET } from "@/components/ui/buttons";
 import { FormatBar } from "@/components/ui/FormatBar";
@@ -29,15 +29,25 @@ const FIND_DEBOUNCE_MS = 300;
  * Every filter lives in the URL and is read back from it on each render --
  * never copied into state, which would be a second source of truth. That is
  * what lets a board survive a trip to a player page and back, a refresh, or
- * being sent to someone. Writes use `history.replaceState`, which Next keeps
- * in step with `useSearchParams`: a filter change is not a history entry, so
- * back from a player page lands on the board you left rather than walking
- * through every filter you tried on the way.
+ * being sent to someone. A filter change replaces the URL rather than adding
+ * a history entry, so back from a player lands on the board you left rather
+ * than walking through every filter you tried on the way.
+ *
+ * Writes go through `router.replace`, not `history.replaceState`. Next 16
+ * follows a bare replaceState by moving the URL but keeping the route tree it
+ * rendered for the old query, and a player opened from that board then fails
+ * the overlay's interception twice and falls back to a full page load
+ * (measured: after any filter or scoring change, never on a fresh load). A
+ * router write keeps the tree and the URL in step. It waits on the server for
+ * the new query, so the controls answer from an optimistic copy of the URL
+ * until it lands, and nothing on screen waits for the round trip.
  */
 export function RankingsWorkspace() {
+  const router = useRouter();
   const liveParams = useSearchParams();
   const pathname = usePathname();
   const now = currentSeason();
+  const [, startTransition] = useTransition();
 
   // A player opened from the board shows over it on its own URL
   // (/players/[id], an intercepted route), and while it does, the search
@@ -47,7 +57,9 @@ export function RankingsWorkspace() {
   // documents state derived from a changing input.
   // Compared as text, so a fresh params object for the same URL is no change.
   const onBoard = pathname === "/rankings";
-  const live = liveParams.toString();
+  // What the URL says, or is about to say: a write shows at once, and gives
+  // way to the real URL when the router has caught up.
+  const [live, showWrite] = useOptimistic(liveParams.toString());
   const [frozen, setFrozen] = useState(live);
   if (onBoard && live !== frozen) setFrozen(live);
   const params = onBoard ? live : frozen;
@@ -63,18 +75,29 @@ export function RankingsWorkspace() {
   const { season, position, scope } = state;
   const { profiles, profileId } = useSelectedProfile(state.profileId);
 
-  // Merged into what the URL says *now*, not what this render saw: a debounced
-  // search can land after a filter click whose re-render has not committed
-  // yet, and a stale copy of the state would quietly undo that click.
+  // Merged into the newest write, not what this render saw: a debounced search
+  // can land after a filter click whose navigation has not committed yet (the
+  // address bar still shows the old query until it does), and a stale copy
+  // would quietly undo that click.
+  const latest = useRef<string | null>(null);
+  const committed = liveParams.toString();
+  useEffect(() => {
+    if (latest.current === committed) latest.current = null;
+  }, [committed]);
+  const currentQuery = useCallback(() => latest.current ?? window.location.search.replace(/^\?/, ""), []);
   const write = useCallback(
     (change: Partial<BoardState>) => {
-      const current = parseBoardParams(new URLSearchParams(window.location.search), {
-        first: FIRST_SEASON,
-        current: now,
+      const base = currentQuery();
+      const current = parseBoardParams(new URLSearchParams(base), { first: FIRST_SEASON, current: now });
+      const search = boardSearch({ ...current, ...change }, now);
+      const query = search.replace(/^\?/, "");
+      latest.current = query;
+      startTransition(() => {
+        showWrite(query);
+        router.replace(pathname + search, { scroll: false });
       });
-      window.history.replaceState(null, "", pathname + boardSearch({ ...current, ...change }, now));
     },
-    [pathname, now],
+    [pathname, now, router, showWrite, currentQuery],
   );
 
   // The box answers every keystroke; the URL follows a moment later. Safari
@@ -127,8 +150,9 @@ export function RankingsWorkspace() {
       setWritten(find);
       write({ q: find });
     }
+    const query = currentQuery();
     saveBoardReturn({
-      board: window.location.pathname + window.location.search,
+      board: window.location.pathname + (query ? `?${query}` : ""),
       player: href.split("?")[0],
       scrollY: window.scrollY,
       rows: rowsLoaded,
