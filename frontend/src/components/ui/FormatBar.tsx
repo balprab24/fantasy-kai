@@ -35,19 +35,19 @@ export function FormatBar({
   className?: string;
 }) {
   const name = useId();
-  const face =
-    size === "md"
-      ? "min-h-14 min-w-[6.25rem] px-3.5 py-2 sm:min-w-[7.5rem]"
-      : "min-h-11 min-w-[5.5rem] px-3 py-1.5";
+  const face = size === "md" ? "min-h-14 px-3 py-2 sm:px-4" : "min-h-11 px-3 py-1.5";
 
   return (
     <fieldset className={`min-w-0 max-w-full ${className}`}>
       <legend className="sr-only">{legend}</legend>
-      <div className="flex max-w-full flex-wrap gap-1 rounded-control bg-well p-1 shadow-[inset_0_0_0_1px_var(--color-line)]">
+      {/* Three to a row on a phone, so five rulesets are two even rows; from
+          sm, one row that is as wide as its options and wraps if a member has
+          many rulesets. */}
+      <div className="grid max-w-full grid-cols-3 gap-1 rounded-control bg-well p-1 shadow-[inset_0_0_0_1px_var(--color-line)] sm:flex sm:w-fit sm:flex-wrap">
         {profiles.map((p) => {
           const checked = p.id === selected;
           return (
-            <label key={p.id} className="relative min-w-0 flex-1">
+            <label key={p.id} className="relative min-w-0 sm:min-w-[8.5rem] sm:flex-1">
               <input
                 type="radio"
                 name={name}

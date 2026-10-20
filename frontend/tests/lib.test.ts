@@ -33,6 +33,8 @@ import {
 } from "../src/components/landing/previewData.ts";
 import { assignTiers, band, bandFor, formatPoints, starterWeeks, toBoardRows } from "../src/lib/board.ts";
 import { boardSearch, parseBoardParams } from "../src/lib/boardParams.ts";
+import { neighbours } from "../src/lib/boardSequence.ts";
+import { biggestMovers } from "../src/lib/movers.ts";
 import { apiOriginOf, contentSecurityPolicy } from "../src/lib/csp.ts";
 import { lastPlace, movedBetween, skipsTo, slotOf } from "../src/lib/oneBoard.ts";
 import { HERO_BEATS, HERO_LOOP_MS, HERO_MAX_LOOPS, HERO_POSTER, boardLayout, castOf, rulesetAfter } from "../src/lib/heroDemo.ts";
@@ -227,6 +229,48 @@ describe("board URL state", () => {
       boardSearch({ season: 2026, position: null, scope: "season", profileId: null, q: "" }, 2026),
       "",
     );
+  });
+});
+
+describe("biggestMovers", () => {
+  const row = (playerId: number, rank: number) => ({ playerId, name: `P${playerId}`, position: "WR", rank });
+
+  it("names the biggest gains and losses, best current rank first on a tie", () => {
+    const rows = [row(1, 1), row(2, 2), row(3, 3), row(4, 4), row(5, 5)];
+    const previous = new Map([[1, 9], [2, 2], [3, 1], [4, 12], [5, 4]]);
+    const { up, down } = biggestMovers(rows, previous);
+    assert.deepEqual(up.map((m) => [m.playerId, m.delta]), [[1, 8], [4, 8]]);
+    assert.deepEqual(down.map((m) => [m.playerId, m.delta]), [[3, -2], [5, -1]]);
+  });
+
+  it("ignores moves wholly below the window, and anyone with no previous rank", () => {
+    const rows = [row(1, 70), row(2, 59), row(3, 10)];
+    const previous = new Map([[1, 120], [2, 90]]);
+    const { up } = biggestMovers(rows, previous, { window: 60 });
+    // 120 -> 70 is outside the window both times; 90 -> 59 ends inside it; 3 was not loaded before.
+    assert.deepEqual(up.map((m) => m.playerId), [2]);
+  });
+
+  it("keeps at most `count` either way", () => {
+    const rows = Array.from({ length: 10 }, (_, i) => row(i + 1, i + 1));
+    const previous = new Map(rows.map((r) => [r.playerId, r.rank + 5]));
+    assert.equal(biggestMovers(rows, previous, { count: 2 }).up.length, 2);
+  });
+});
+
+describe("board sequence neighbours", () => {
+  const seq = { search: "?season=2026", players: [1, 2, 3].map((id) => ({ playerId: id, name: `P${id}`, rank: id })) };
+  it("finds the players either side, and nothing past the ends", () => {
+    assert.deepEqual(
+      [neighbours(seq, 2).previous?.playerId, neighbours(seq, 2).next?.playerId],
+      [1, 3],
+    );
+    assert.equal(neighbours(seq, 1).previous, null);
+    assert.equal(neighbours(seq, 3).next, null);
+  });
+  it("offers nothing for a player not on it, or with no sequence at all", () => {
+    assert.deepEqual(neighbours(seq, 9), { previous: null, next: null });
+    assert.deepEqual(neighbours(null, 1), { previous: null, next: null });
   });
 });
 

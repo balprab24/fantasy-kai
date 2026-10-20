@@ -63,6 +63,7 @@ export function SegmentedControl({
   hideLegend = false,
   variant = "track",
   thumbFrom,
+  fill = false,
 }: {
   legend: string;
   options: Segment[];
@@ -80,17 +81,19 @@ export function SegmentedControl({
    * Omitted, the thumb is simply where the value is.
    */
   thumbFrom?: number;
+  /** Below sm, stretch to the row and share it equally (a phone's filter rows). */
+  fill?: boolean;
 }) {
   const name = useId();
   const chosen = options.findIndex((o) => o.value === value);
 
   return (
-    <fieldset className="min-w-0 max-w-full">
+    <fieldset className={`min-w-0 max-w-full ${fill ? "w-full sm:w-auto" : ""}`}>
       <legend className={hideLegend ? "sr-only" : "type-label mb-1.5 text-mute"}>{legend}</legend>
       {/* Wraps rather than scrolls: a clipped option behind a hidden
           scrollbar is an option nobody knows is there -- and a signed-in
           user's own rulesets are exactly the ones that would fall off. */}
-      <div className={`max-w-full ${TRACK[variant]}`}>
+      <div className={`max-w-full ${TRACK[variant]} ${fill ? "max-sm:w-full max-sm:flex-nowrap" : ""}`}>
         {variant === "stops" && chosen >= 0 && (
           // Placed by `left`, not a transform: at rest on a fractional
           // translateX it showed a 1px seam partway down its left edge in
@@ -112,7 +115,7 @@ export function SegmentedControl({
           />
         )}
         {options.map((option) => (
-          <label key={option.value} title={option.title} className="relative">
+          <label key={option.value} title={option.title} className={`relative ${fill ? "max-sm:min-w-0 max-sm:flex-1" : ""}`}>
             <input
               type="radio"
               name={name}
@@ -122,7 +125,7 @@ export function SegmentedControl({
               className="peer sr-only"
             />
             <span
-              className={`flex cursor-pointer transition-[color,background-color,box-shadow] select-none peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-energy ${OPTION[variant]} ${option.className ?? ""}`}
+              className={`flex cursor-pointer justify-center transition-[color,background-color,box-shadow] select-none peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-energy ${OPTION[variant]} ${option.className ?? ""}`}
             >
               {option.label}
             </span>
