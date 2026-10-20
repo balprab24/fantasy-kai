@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import { BoardSkeleton, RankingsBoard } from "@/components/RankingsBoard";
-import { BUTTON_SECONDARY } from "@/components/ui/buttons";
+import { BUTTON_SECONDARY, LINK_QUIET } from "@/components/ui/buttons";
+import { FormatBar } from "@/components/ui/FormatBar";
+import { Icon } from "@/components/ui/Icon";
 import { boardSearch, parseBoardParams, type BoardState } from "@/lib/boardParams";
 import { clearBoardReturn, readBoardReturn, saveBoardReturn } from "@/lib/boardReturn";
 import { profileLabel } from "@/lib/profiles";
@@ -27,18 +29,44 @@ const FIND_DEBOUNCE_MS = 300;
  * Every filter lives in the URL and is read back from it on each render --
  * never copied into state, which would be a second source of truth. That is
  * what lets a board survive a trip to a player page and back, a refresh, or
- * being sent to someone. Writes use `history.replaceState`, which Next keeps
- * in step with `useSearchParams`: a filter change is not a history entry, so
- * back from a player page lands on the board you left rather than walking
- * through every filter you tried on the way.
+ * being sent to someone. A filter change replaces the URL rather than adding
+ * a history entry, so back from a player lands on the board you left rather
+ * than walking through every filter you tried on the way.
+ *
+ * Writes go through `router.replace`, not `history.replaceState`. Next 16
+ * follows a bare replaceState by moving the URL but keeping the route tree it
+ * rendered for the old query, and a player opened from that board then fails
+ * the overlay's interception twice and falls back to a full page load
+ * (measured: after any filter or scoring change, never on a fresh load). A
+ * router write keeps the tree and the URL in step. It waits on the server for
+ * the new query, so the controls answer from an optimistic copy of the URL
+ * until it lands, and nothing on screen waits for the round trip.
  */
 export function RankingsWorkspace() {
-  const params = useSearchParams();
+  const router = useRouter();
+  const liveParams = useSearchParams();
   const pathname = usePathname();
   const now = currentSeason();
+  const [, startTransition] = useTransition();
+
+  // A player opened from the board shows over it on its own URL
+  // (/players/[id], an intercepted route), and while it does, the search
+  // params are the player view's -- not the board's. The board keeps the last
+  // ones it saw on its own route, so the rows underneath never re-sort to
+  // whatever the player view's URL says. Adjusted during render, the way React
+  // documents state derived from a changing input.
+  // Compared as text, so a fresh params object for the same URL is no change.
+  const onBoard = pathname === "/rankings";
+  // What the URL says, or is about to say: a write shows at once, and gives
+  // way to the real URL when the router has caught up.
+  const [live, showWrite] = useOptimistic(liveParams.toString());
+  const [frozen, setFrozen] = useState(live);
+  if (onBoard && live !== frozen) setFrozen(live);
+  const params = onBoard ? live : frozen;
+  const openPlayerId = onBoard ? null : Number(/^\/players\/([1-9][0-9]{0,14})$/.exec(pathname)?.[1] ?? 0) || null;
   const state = useMemo(
     () =>
-      parseBoardParams(new URLSearchParams(params.toString()), {
+      parseBoardParams(new URLSearchParams(params), {
         first: FIRST_SEASON,
         current: now,
       }),
@@ -47,18 +75,29 @@ export function RankingsWorkspace() {
   const { season, position, scope } = state;
   const { profiles, profileId } = useSelectedProfile(state.profileId);
 
-  // Merged into what the URL says *now*, not what this render saw: a debounced
-  // search can land after a filter click whose re-render has not committed
-  // yet, and a stale copy of the state would quietly undo that click.
+  // Merged into the newest write, not what this render saw: a debounced search
+  // can land after a filter click whose navigation has not committed yet (the
+  // address bar still shows the old query until it does), and a stale copy
+  // would quietly undo that click.
+  const latest = useRef<string | null>(null);
+  const committed = liveParams.toString();
+  useEffect(() => {
+    if (latest.current === committed) latest.current = null;
+  }, [committed]);
+  const currentQuery = useCallback(() => latest.current ?? window.location.search.replace(/^\?/, ""), []);
   const write = useCallback(
     (change: Partial<BoardState>) => {
-      const current = parseBoardParams(new URLSearchParams(window.location.search), {
-        first: FIRST_SEASON,
-        current: now,
+      const base = currentQuery();
+      const current = parseBoardParams(new URLSearchParams(base), { first: FIRST_SEASON, current: now });
+      const search = boardSearch({ ...current, ...change }, now);
+      const query = search.replace(/^\?/, "");
+      latest.current = query;
+      startTransition(() => {
+        showWrite(query);
+        router.replace(pathname + search, { scroll: false });
       });
-      window.history.replaceState(null, "", pathname + boardSearch({ ...current, ...change }, now));
     },
-    [pathname, now],
+    [pathname, now, router, showWrite, currentQuery],
   );
 
   // The box answers every keystroke; the URL follows a moment later. Safari
@@ -111,8 +150,9 @@ export function RankingsWorkspace() {
       setWritten(find);
       write({ q: find });
     }
+    const query = currentQuery();
     saveBoardReturn({
-      board: window.location.pathname + window.location.search,
+      board: window.location.pathname + (query ? `?${query}` : ""),
       player: href.split("?")[0],
       scrollY: window.scrollY,
       rows: rowsLoaded,
@@ -132,15 +172,20 @@ export function RankingsWorkspace() {
     }
   }, [rowsLoaded]);
 
+  const labelFor = (key: string) => {
+    const p = profiles.data?.find((x) => String(x.id) === key);
+    return p ? profileLabel(p) : undefined;
+  };
+
   return (
-    <div className="mx-auto max-w-[1440px] px-4 pt-7 pb-10 sm:px-6 lg:px-8">
-      <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-2">
+    <div className="mx-auto max-w-[1440px] px-4 pt-8 pb-10 sm:px-6 lg:px-8">
+      <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
         <div className="min-w-0">
-          <h1 className="type-title">Rankings</h1>
+          <h1 className="type-display text-[clamp(2.75rem,6vw,3.75rem)] text-ink">Rankings</h1>
           {/* The board's recipe, said in a sentence: which rules, which
               season, which window. A ranking without its ruleset is a number
               with no meaning here. */}
-          <p className="mt-2 text-[15px] text-mute">
+          <p className="mt-3 text-[16px] text-mute">
             {profile ? (
               <>
                 Scored under <span className="font-semibold text-ink">{profileLabel(profile)}</span>{" "}
@@ -151,26 +196,23 @@ export function RankingsWorkspace() {
               <>The {season} season, {scopePhrase}.</>
             )}
           </p>
-          {/* The one colour the board gives a figure, keyed where it can be
-              read -- not in a tooltip a phone cannot reach. */}
-          <p className="mt-1.5 flex items-center gap-2 text-[13px] text-mute">
-            <span aria-hidden className="size-2 shrink-0 rounded-full bg-q-good" />
-            Per-game figures in green are inside a 12-team league&rsquo;s starters at that position.
-          </p>
         </div>
-        <Link
-          href="/profiles"
-          className="pb-0.5 text-sm text-energy-text underline decoration-energy/40 underline-offset-4 transition-colors hover:decoration-energy-text"
-        >
-          Edit scoring
+        <Link href="/profiles" className={`inline-flex items-center gap-1.5 pb-1 text-sm ${LINK_QUIET}`}>
+          <Icon name="scoring" size={16} className="text-mute" />
+          Build your league&rsquo;s ruleset
         </Link>
       </header>
 
       <div className="mt-6">
+        {profiles.data ? (
+          <FormatBar profiles={profiles.data} selected={profileId} onSelect={(id) => write({ profileId: id })} />
+        ) : (
+          <div aria-hidden className="skeleton h-16 rounded-control" />
+        )}
+      </div>
+
+      <div className="mt-4">
         <FilterBar
-          profiles={profiles.data}
-          profileId={profileId}
-          onProfile={(id) => write({ profileId: id })}
           season={season}
           onSeason={(s) => write({ season: s })}
           scope={scope}
@@ -182,7 +224,14 @@ export function RankingsWorkspace() {
         />
       </div>
 
-      <div className="mt-2">
+      {/* The one colour the board gives a figure, keyed where it can be
+          read -- not in a tooltip a phone cannot reach. */}
+      <p className="mt-4 flex items-center gap-2 text-[13px] text-mute">
+        <span aria-hidden className="size-2 shrink-0 rounded-full bg-q-good" />
+        Per-game figures in green are inside a 12-team league&rsquo;s starters at that position.
+      </p>
+
+      <div className="mt-3">
         <RankingsBoard
           rows={rows}
           comparisonKey={String(profileId)}
@@ -198,11 +247,13 @@ export function RankingsWorkspace() {
           onSeason={(s) => write({ season: s })}
           find={find}
           onOpenPlayer={onOpenPlayer}
+          openPlayerId={openPlayerId}
+          labelFor={labelFor}
         />
       </div>
 
       {rows && total !== undefined && rows.length > 0 && (
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm">
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm">
           <span className="tabular text-mute" aria-live="polite">
             {board.hasNextPage ? `Showing 1–${rows.length} of ${total}` : `All ${total} players shown`}
           </span>
@@ -242,20 +293,15 @@ export function RankingsWorkspace() {
  */
 export function RankingsWorkspaceFallback() {
   return (
-    <div className="mx-auto max-w-[1440px] px-4 pt-7 pb-10 sm:px-6 lg:px-8" aria-busy>
-      <h1 className="type-title">Rankings</h1>
-      {/* The recipe sentence and the colour key: 56px under the title, 128px
-          on a 390px phone, where both wrap and "Edit scoring" drops below. */}
-      <div aria-hidden className="mt-2 h-30 sm:h-12" />
-      {/* The console as it wraps, measured on the 2025 board with the four
-          presets: 196px at 390, 148px at 640, 84px at 768 and 1024, one 44px
-          row at 1280. A member's own rulesets add segments, so these are the
-          floor. */}
-      <div
-        aria-hidden
-        className="mt-6 h-[12.25rem] rounded-control bg-surface sm:h-[9.25rem] md:h-[5.25rem] xl:h-11"
-      />
-      <div role="status" aria-label="Loading" className="mt-2">
+    <div className="mx-auto max-w-[1440px] px-4 pt-8 pb-10 sm:px-6 lg:px-8" aria-busy>
+      <h1 className="type-display text-[clamp(2.75rem,6vw,3.75rem)] text-ink">Rankings</h1>
+      {/* The recipe sentence, the scoring switch, the filters and the key, at
+          their heights on a wide screen; they wrap taller on a phone. */}
+      <div aria-hidden className="mt-3 h-6" />
+      <div aria-hidden className="skeleton mt-6 h-16 rounded-control" />
+      <div aria-hidden className="skeleton mt-4 h-10 rounded-control" />
+      <div aria-hidden className="mt-4 h-5" />
+      <div role="status" aria-label="Loading" className="mt-3">
         <BoardSkeleton />
       </div>
     </div>

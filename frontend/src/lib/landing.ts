@@ -17,6 +17,7 @@ export interface LandingSection {
  */
 export const LANDING_SECTIONS: readonly LandingSection[] = [
   { id: "rankings", label: "Rankings" },
+  { id: "scoring", label: "Scoring" },
   { id: "players", label: "Players" },
 ];
 

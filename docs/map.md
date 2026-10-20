@@ -149,8 +149,8 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    no page pins a season literal again
   src/lib/profiles.ts              profileLabel(): presets Standard -> "0 PPR", Full PPR -> "PPR"
                                    (display only; stored names unchanged)
-  src/lib/headshot.ts              ESPN headshot URL from the stored espn id -- never stored;
-                                   headshotCutoutUrl() the whole 600x436 alpha cut-out
+  src/lib/headshot.ts              ESPN headshot URLs from the stored espn id -- never stored;
+                                   HEADSHOTS_ENABLED is the kill switch (on since 2026-10-20)
   src/lib/playerStats.ts           the position-aware box-score columns, one definition for
                                    the game log, the career table and the season line
   src/lib/player.ts                age, season to open on, playoff round names, matchup text
@@ -160,60 +160,71 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    page) and safeNext() -- the sign-in redirect, resolved twice
                                    so `/..//evil` cannot come out as a host
   src/lib/useNextParam.ts          ?next= read without useSearchParams (prerendered routes)
-  src/lib/heroDemo.ts              the hero board as data: boardLayout() (each row's and tier
-                                   divider's place, in rows and dividers, under a scoring; the
-                                   rest parked below), castOf(), and the loop's beats
-  src/lib/oneBoard.ts              the landing's one board, derived: each player's slot (the top
-                                   eight + one more that follows a player when he is outside
-                                   them), whether that slot skips places, the place it names,
-                                   and how far a player moved
+  src/lib/mixer.ts                 the landing's rule mixer as data: the dials, each row's slot
+                                   on a board (parked under it when outside), the ruleset in words
+  src/lib/receipt.ts               V3's preset rates and a stat line priced under them -- the
+                                   landing's receipt only; npm test holds every total to the API's
+  src/lib/heatBands.ts             generated: the heat tables' box-score cut-offs, from 2023-25
+                                   regular-season games by fantasy-relevant players
+                                   (scripts/heat-bands.sql | heat-bands.mjs regenerates it)
+  src/lib/rulesSheet.ts            the landing's ruleset sheet: every stat once, its values worked
+                                   out from rates (npm test holds them to V3's Half PPR)
+  src/lib/movers.ts                the biggest moves between two boards' API ranks (top 60)
+  src/lib/boardSequence.ts         the board's visible order when a player was opened, for the
+                                   player view's previous / next (sessionStorage)
+  src/lib/playerView.ts            the player view's derived facts: ?tab= (the section opened
+                                   on), week slots and gaps, the last 17 games across seasons,
+                                   starter weeks, a figure's step on the four-step heat scale
   src/lib/authErrors.ts            one wording for a failed sign-in or sign-up
-  src/app/globals.css              the design tokens (DESIGN.md): Prime time in @theme -- true-black
-                                   canvas < surface < well < lift, blue rising with elevation;
-                                   ki orange = brand/best/the one action, energy blue = you are
-                                   here -- and .daylight (the public pages: paper, one cool band) / .primetime
-                                   (the product shown on them) redeclaring the same tokens; type
-                                   roles as @utility; motion gated on no-preference, including
-                                   the landing's one re-sort. Every text pair measured for contrast
-  src/components/                  RulesetSwitch (the hero), RankingsBoard, RulesetBuilder,
-                                   RateInput, Movement, Attribution, AuthForm
+  src/app/fonts/                   Sofia Sans in three widths (Fontsource latin subsets, OFL),
+                                   self-hosted through next/font/local
+  src/app/globals.css              the design tokens (DESIGN.md): one night ground -- canvas <
+                                   surface < well < lift, blue rising with elevation; ki orange =
+                                   brand/best/the one action, energy blue = you are here; radii by
+                                   hierarchy; the `slash` utility; type roles as @utility; motion
+                                   gated on no-preference. Every text pair measured for contrast
+  src/app/(app)/@modal/            the overlay slot: (.)players/[id] shows a player over the board
+                                   (an intercepted route on his own URL); rankings/ and profiles/
+                                   clear it when the bar's links are followed; default.tsx for loads
+  src/components/                  RankingsBoard (+ the movers strip), RulesetBuilder, RateInput,
+                                   Movement, Attribution, AuthForm
     shell/                         AppShell, TopBar (the product's bar: wordmark, Rankings,
                                    Scoring, ComingMenu -- a native popover of the six unbuilt
                                    sections, never links -- and AccountButton), Wordmark (logo
-                                   mark + the orb-dotted i), MobileNav (<dialog> below md),
-                                   nav.ts -- one nav definition. RequireAccount -- the website's
-                                   sign-in gate
-    landing/                       the public pages, in Daylight: SiteHeader (links scroll to
-                                   the landing's sections; its join turns orange only while
-                                   neither of the page's asks is on screen), EmailStart (email
-                                   and password in one row, the password waiting for step two),
-                                   HeroDemo (the hero: a member's own ruleset, "My league", its
-                                   live switch, a loop to PPR and back, Pause/Play under it, still
-                                   under reduced motion) over HeroBoard (the 2026 rankings page cut
-                                   to its scoring switch and rows that travel between four
-                                   captured states, moves counted vs PPR; no avatars), OneBoard (the
-                                   2025 top eight under the chosen preset, rows travelling on a
-                                   switch, Nacua followed 20th -> 11th -> 2nd; waits for the
-                                   visitor), PlayersBand
-                                   (a full-width Prime time band: Nacua's plate, WeeklyChart and
-                                   game log through StatTable, the page's RulesetSwitch live),
-                                   heroImage (no likeness until one
-                                   is licensed), StillPlate (the board, still, beside sign-in and
-                                   register), heroData (the 2026 capture, its week derived from its
-                                   rows) and previewData
-                                   (captured 2025 data), each with the GETs that make them; npm
-                                   test holds them to their own totals, to V3's rates, and every
-                                   game's receipt to the API's)
-    ui/                            Icon (inline SVG), SegmentedControl (native radios; track /
-                                   bare / stops), SeasonSelect, SearchField, StatusMessage +
-                                   Skeleton, buttons.ts (the shared button looks)
-    rankings/                      RankingsWorkspace (the /rankings page),
+                                   mark + the orb-dotted i), MobileNav (<dialog> below md: the live
+                                   sections, what is coming, the account), nav.ts -- one nav
+                                   definition. RequireAccount -- the website's sign-in gate
+    landing/                       the public pages: SiteHeader (links scroll to the landing's
+                                   sections; its join turns orange only while neither of the page's
+                                   asks is on screen), RuleMixer (the hero: six captured boards
+                                   under two dials, rows travelling; one automatic turn, never
+                                   under reduced motion), Receipt (one real game priced three
+                                   ways), PlayerShowcase (the player view's parts over captured
+                                   rows, both tabs working, no likeness), RulesSheet (what a
+                                   ruleset holds), EmailStart, StillPlate (the board beside
+                                   sign-in and register), heroImage (no likeness until one is
+                                   licensed), heroData (every capture, written by
+                                   scripts/capture-landing.mjs)
+    ui/                            Icon (inline SVG), FormatBar (the scoring switch, each ruleset
+                                   saying what it pays a catch), SegmentedControl (native radios),
+                                   Tabs + TabPanel, PositionChip, SeasonSelect, SearchField,
+                                   StatusMessage + Skeleton, buttons.ts (button, panel and link looks)
+    rankings/                      RankingsWorkspace (the /rankings page; its filters write the
+                                   URL through router.replace -- a bare replaceState broke the
+                                   overlay's interception, measured 2026-10-20),
                                    FilterBar, PlayerRow, TierHeader, PositionBadge, PlayerAvatar
                                    (headshot with a monogram fallback)
-    player/                        PlayerWorkspace (the /players/[id] page), PlayerIdentity
-                                   (the plate), PlayerCutout (ESPN's whole cut-out, initials on
-                                   a 404), WeeklyChart (dependency-free columns), StatTable
-                                   (game log and career share it)
+    player/                        PlayerWorkspace (the player view: a page, or the overlay over
+                                   the board -- a sticky sidebar and a column of panels under
+                                   section links that follow the scroll), PlayerOverlay (the
+                                   <dialog>, closed through history), PlayerSidebar (the player
+                                   card: name, plate, seven figures; the scoring card),
+                                   PlayerTables + StatTable (the game log and career as heat
+                                   tables; career per game or totals), PerformanceChart (last 17
+                                   games across seasons, or one season; dependency-free columns),
+                                   ScoringCompare (one season under every ruleset), PlayerCutout
+                                   (ESPN's whole cut-out, outlined initials on a 404), PlayerPanels
+                                   (the panel shell)
   src/app/                         (site): / /login /register -- the site header
                                    (app): /rankings /players/[id] /profiles -- the top bar, and
                                    behind RequireAccount
@@ -383,7 +394,7 @@ colour. Recorded, deliberately not fixed in that milestone.
 
 | Follow-up | Detail |
 |---|---|
-| Hotlinked ESPN images | Headshots and team logos load from `a.espncdn.com`. Nothing is copied or stored, and the footer says where they come from — but no doc decides image rights. An owner call for `north-star.md`; the monogram fallback means dropping them costs one line in `lib/headshot.ts` |
+| Hotlinked ESPN images | Headshots and team logos load from `a.espncdn.com`, never copied or stored, and the footer says so. **Kept by owner decision (2026-10-20) with the risk known:** ESPN's terms allow personal, noncommercial use, and there is no licence for public display. Free, properly licensed photos (Wikimedia Commons) cover 290 of 512 active players and are mismatched (college, action, interview shots); a licensed feed (SportsDataIO, Sportradar) is quote-only. The CSP admits ESPN's two paths, not the host. On a takedown: `HEADSHOTS_ENABLED = false` in `lib/headshot.ts`, drop `/combiner/i` from `lib/csp.ts`, update the tests that pin both |
 | No historical team or position | `players.team_id` and `players.position` are current only. The board's Team column is today's team on every season's board (its header says so), and a past season is ranked under today's position — on the board and in `/career` alike, so the two agree, and are equally wrong for a player who moved |
 | Byes and missed games look the same | Only played games have rows, so the chart's gap and the log's missing week cannot say which. The schedule (`games`) could, per team, for a player who was not traded |
 | "Home" is the designated home side | nflverse's `location` (neutral site) is not stored |
@@ -396,12 +407,12 @@ colour. Recorded, deliberately not fixed in that milestone.
 | Follow-up | Detail |
 |---|---|
 | ~~The API is still public~~ | **Closed 2026-09-29** (`feat/members-only-api`, owner decision): every read needs a token, proven by `ReadApiTests.everyReadNeedsAnAccount` across all 6 GETs; the signed-in app reads 200 everywhere (measured in a browser). Production is public until the backend redeploys |
-| The hero wants a real player, and has none | `components/landing/heroImage.ts` is `null` until an image clears copyright (an agency's editorial licence does not cover promotion) **and** the player's consent. Since 2026-09-30 the hero shows no one at all: the real 2025 numbers stand in (`HeroPlate`, since 2026-10-06 McCaffrey's season as three stops over the board), and a licensed cut-out would stand at the right edge of the plate's head, beside his name. An owner call, next to the ESPN one above |
+| The hero wants a real player, and has none | `components/landing/heroImage.ts` is `null` until an image clears copyright (an agency's editorial licence does not cover promotion) **and** the player's consent. Since 2026-09-30 the hero shows no one at all; since 2026-10-19 it is the rule mixer (the real board under two dials), and the landing's player showcase stands his outlined initials on the stage -- the product's own fallback for a missing headshot. A licensed cut-out would take that stage. An owner call, next to the ESPN one above |
 | ~~Every anonymous page load spends an auth token~~ | **Closed 2026-09-29, twice over.** A visitor with no `fk_member` hint makes no `/auth/refresh` call at all (measured: 0 on the landing page), and a member's refreshes spend their own 30/min bucket, not login's 5/min (measured: 8 refreshes, then a login still judged on its password) |
 | ~~A member can glimpse the landing page~~ | **Closed 2026-09-29.** `proxy.ts` reads the hint and answers `/` with a 307 to `/rankings` before anything renders (measured: the landing form never mounted). A never-signed-in visitor's deep link likewise goes straight to sign-in. One-time cost: a member who signed in before this shipped has no hint, and signs in once more |
 | ~~Two tabs refreshing at once sign the member out~~ | **Closed 2026-09-29** (`fix/refresh-rotation-races`). Pre-existing, found testing the hint: two refreshes presenting one cookie revoked the whole family — the race path silently — and so did a reload that aborted a rotation. Now: the browser serializes refreshes across tabs (Web Locks) and sends them `keepalive`; the server exchanges a token consumed ≤10 s ago once more if its family has not moved on, and logs every revocation. Measured in a browser: 8 rapid reloads → one clean chain, 0 grace reuses needed; two uncoordinated concurrent refreshes → both 200, 1 grace reuse logged; the same pair under the lock → serialized, none. **The trade:** a thief replaying within 10 s, before the owner refreshes again, is let through |
-| Daylight on a browser without `color-mix` | Tailwind compiles an opacity-modified colour (`bg-ink/60`) to a literal Prime time value, and uses the variable only inside `@supports (color-mix)`. A browser older than about 2023 therefore shows Prime time's value for those colours on the public pages. The site header was moved to a token (`--color-veil`); the week chart's average line and faded axis labels still take the fallback. Minor, recorded in `DESIGN.md`, not fixed |
-| The preview does not update | `previewData.ts` is captured 2025 data on purpose (the season is over, so none of it goes stale). Re-capture with the GETs in its header if the scoring presets ever change. It carries a third copy of the PPR rates for the receipt, and `npm test` fails if they stop adding up to the captured total -- a check that moved there from the component once every page rendered per request |
+| ~~Daylight on a browser without `color-mix`~~ | **Gone with Daylight, 2026-10-19.** One set of tokens now, so an opacity modifier's literal fallback is the same colour the variable holds |
+| The landing goes stale weekly | Every figure on it is a capture of the current season (`heroData.ts`). `frontend/scripts/capture-landing.mjs` rewrites it from a running API in one command (a throwaway local account; it saves the mixer's three 6-point rulesets there if missing), and `session-check.sh` warns once a newer week has finished. `lib/receipt.ts` carries a copy of V3's preset rates for the receipt; `npm test` fails if they stop matching the migration or adding up to the API's totals |
 | Sign-up on a Vercel preview fails | The landing page renders there, because its data is static, but the API's CORS allowlist is the real domain only, the same as every other call |
 | Magic-link sign-in | Not built. It needs an email provider, SPF/DKIM at Porkbun, and a one-time token table. The landing form asks for the email first and the password second, which keeps north-star §2's "an email and a password" true |
 

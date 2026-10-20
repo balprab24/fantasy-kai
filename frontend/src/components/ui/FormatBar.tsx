@@ -24,6 +24,7 @@ export function FormatBar({
   selected,
   onSelect,
   size = "md",
+  layout = "grid",
   legend = "Scoring",
   className = "",
 }: {
@@ -31,23 +32,66 @@ export function FormatBar({
   selected: number | null;
   onSelect: (id: number) => void;
   size?: "md" | "sm";
+  /**
+   * `grid`: side by side, wrapping into even rows -- the board's header.
+   * `list`: one ruleset a row, name left and what it pays a catch right --
+   * a narrow column like the player view's sidebar.
+   */
+  layout?: "grid" | "list";
   legend?: string;
   className?: string;
 }) {
   const name = useId();
-  const face =
-    size === "md"
-      ? "min-h-14 min-w-[6.25rem] px-3.5 py-2 sm:min-w-[7.5rem]"
-      : "min-h-11 min-w-[5.5rem] px-3 py-1.5";
+  const face = size === "md" ? "min-h-14 px-3 py-2 sm:px-4" : "min-h-11 px-2.5 py-1.5 sm:px-3";
+
+  if (layout === "list") {
+    return (
+      <fieldset className={`min-w-0 ${className}`}>
+        <legend className="sr-only">{legend}</legend>
+        <div className="grid gap-0.5">
+          {profiles.map((p) => {
+            const checked = p.id === selected;
+            return (
+              <label key={p.id} className="relative min-w-0">
+                <input
+                  type="radio"
+                  name={name}
+                  value={p.id}
+                  checked={checked}
+                  onChange={() => onSelect(p.id)}
+                  className="peer sr-only"
+                />
+                <span
+                  className={`flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-[6px] py-1.5 pr-2.5 pl-3 transition-colors duration-150 select-none peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-energy ${
+                    checked ? "bg-lift text-ink shadow-[inset_3px_0_0_var(--color-energy)]" : "text-mute hover:bg-well hover:text-ink"
+                  }`}
+                >
+                  <span className={`min-w-0 truncate text-[14px] ${checked ? "font-semibold" : "font-medium"}`}>{profileLabel(p)}</span>
+                  <span className={`shrink-0 text-[12px] ${checked ? "text-mute" : "text-faint"}`}>{profileCaption(p)}</span>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+    );
+  }
 
   return (
     <fieldset className={`min-w-0 max-w-full ${className}`}>
       <legend className="sr-only">{legend}</legend>
-      <div className="flex max-w-full flex-wrap gap-1 rounded-control bg-well p-1 shadow-[inset_0_0_0_1px_var(--color-line)]">
+      {/* Three to a row on a phone, so five rulesets are two even rows; from
+          sm, columns of at least 8.5rem that wrap into even rows, the whole
+          bar no wider than its options need -- so a member with many rulesets
+          gets a second even row, not one stretched straggler. */}
+      <div
+        className="grid max-w-full grid-cols-3 gap-1 rounded-control bg-well p-1 shadow-[inset_0_0_0_1px_var(--color-line)] sm:max-w-[min(100%,calc(var(--n)*9.75rem_+_0.5rem))] sm:grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))]"
+        style={{ "--n": profiles.length } as React.CSSProperties}
+      >
         {profiles.map((p) => {
           const checked = p.id === selected;
           return (
-            <label key={p.id} className="relative min-w-0 flex-1">
+            <label key={p.id} className="relative min-w-0">
               <input
                 type="radio"
                 name={name}
@@ -64,7 +108,7 @@ export function FormatBar({
                 <span className={`block max-w-[11rem] truncate leading-tight ${size === "md" ? "text-[15px]" : "text-[14px]"} ${checked ? "font-semibold" : "font-medium"}`}>
                   {profileLabel(p)}
                 </span>
-                <span className={`mt-0.5 block truncate text-[12px] leading-tight ${checked ? "text-mute" : "text-faint"}`}>
+                <span className={`mt-0.5 block truncate text-[11px] leading-tight sm:text-[12px] ${checked ? "text-mute" : "text-faint"}`}>
                   {profileCaption(p)}
                 </span>
                 <span

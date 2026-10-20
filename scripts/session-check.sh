@@ -49,7 +49,7 @@ EXPECT_TESTS=197            # baseline
 EXPECT_ENDPOINTS=13         # baseline (6 GET, members only + 4 auth + 3 mutations)
 EXPECT_MIGRATIONS=6         # baseline ("V1 … V6")
 EXPECT_BACKEND_FILES=81     # baseline
-EXPECT_FRONTEND_FILES=79    # baseline (.ts/.tsx under frontend/src)
+EXPECT_FRONTEND_FILES=90    # baseline (.ts/.tsx under frontend/src)
 EXPECT_JDK=25               # docs/development.md "Commands" · README · pom.xml enforcer
 
 # The deployed API's hostname, and it is deliberately empty until Phase 5d has
@@ -447,10 +447,11 @@ check_data() {
 }
 
 # The landing hero is a capture: real boards, frozen in heroData.ts, and the page
-# says "through Week N" -- read off the rows (HERO_THROUGH_WEEK is the highest
-# gamesPlayed), so it is never wrong, only old. Nothing refreshes it; re-capturing
-# is by hand (docs/map.md §4, "Re-capturing the landing hero"), and this row is
-# what stops that being forgotten. A warn, never a FAIL: an old capture still
+# says "through week N" -- read off the rows (HERO_THROUGH_WEEK is the highest
+# gamesPlayed), so it is never wrong, only old. Nothing refreshes it on its own;
+# re-capturing is one command (frontend/scripts/capture-landing.mjs, against a
+# local API and a throwaway account), and this row is what stops that being
+# forgotten. A warn, never a FAIL: an old capture still
 # names its own week truthfully.
 #
 # "Finished" is read off the schedule, not the stats -- every game of the week
@@ -459,11 +460,14 @@ check_data() {
 # the third number: the last week every one of whose games has stat rows.
 check_hero() {
     local file="${FK_HERO_DATA:-$repo/frontend/src/components/landing/heroData.ts}"
-    local season week
+    local season week rows_week
     season="$(sed -n 's/^export const HERO_SEASON = \([0-9]\{4\}\);.*/\1/p' "$file" 2>/dev/null | head -1)"
-    week="$(grep -oE 'gamesPlayed: [0-9]+' "$file" 2>/dev/null | awk '{print $2}' | sort -n | tail -1)"
-    if [[ -z "$season" || -z "$week" ]]; then
-        unknown "hero" "could not read HERO_SEASON and gamesPlayed from ${file#"$repo"/}"
+    # HERO_THROUGH_WEEK is written by scripts/capture-landing.mjs from the rows'
+    # own gamesPlayed; the rows are read too, so a hand edit of either shows.
+    week="$(sed -n 's/^export const HERO_THROUGH_WEEK = \([0-9]\{1,2\}\);.*/\1/p' "$file" 2>/dev/null | head -1)"
+    rows_week="$(grep -oE '"?gamesPlayed"?: [0-9]+' "$file" 2>/dev/null | awk '{print $2}' | sort -n | tail -1)"
+    if [[ -z "$season" || -z "$week" || "$week" != "$rows_week" ]]; then
+        unknown "hero" "could not read HERO_SEASON, HERO_THROUGH_WEEK and the rows' gamesPlayed (agreeing) from ${file#"$repo"/}"
         return
     fi
     if (( ! db_up )); then

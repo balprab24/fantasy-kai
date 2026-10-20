@@ -31,11 +31,13 @@ export function contentSecurityPolicy({ nonce, apiOrigin, dev }: CspInput): stri
     ["script-src", "'self'", `'nonce-${nonce}'`, "'strict-dynamic'", ...(dev ? ["'unsafe-eval'"] : [])],
     // No nonce here, deliberately, and this is where the Next.js example differs:
     // a nonce in style-src makes browsers IGNORE 'unsafe-inline', and React's
-    // style={} attributes (PlayerRow, WeeklyChart) cannot carry one. Injected
+    // style={} attributes (PlayerRow, PerformanceChart) cannot carry one. Injected
     // CSS is the accepted residue; injected script is not.
     ["style-src", "'self'", "'unsafe-inline'"],
-    // Headshots and team logos -- both a.espncdn.com, measured 2026-09-29.
-    ["img-src", "'self'", "data:", "blob:", "https://a.espncdn.com"],
+    // ESPN's two image paths, not its whole host: team logos (a folder, so the
+    // trailing slash) and the resizing endpoint headshots come through (one
+    // path; CSP ignores the query string). Headshots: lib/headshot.ts.
+    ["img-src", "'self'", "data:", "blob:", "https://a.espncdn.com/i/teamlogos/", "https://a.espncdn.com/combiner/i"],
     ["font-src", "'self'"],
     // Where an injected script would send a stolen token, if it ran anyway.
     ["connect-src", "'self'", ...(apiOrigin ? [apiOrigin] : []), ...(dev ? ["ws:"] : [])],

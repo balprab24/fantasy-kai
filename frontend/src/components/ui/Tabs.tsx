@@ -47,7 +47,7 @@ export function Tabs<K extends string>({
     <div
       role="tablist"
       aria-label={label}
-      className={`flex max-w-full gap-1 overflow-x-auto [scrollbar-width:none] ${className}`}
+      className={`flex max-w-full gap-0.5 overflow-x-auto [scrollbar-width:none] sm:gap-1 ${className}`}
     >
       {items.map((item, i) => {
         const selected = item.key === value;
@@ -73,12 +73,12 @@ export function Tabs<K extends string>({
               else return;
               e.preventDefault();
             }}
-            className={`relative flex h-12 shrink-0 items-center gap-2 rounded-control px-3.5 text-[15px] whitespace-nowrap transition-colors focus-visible:outline-offset-[-2px] sm:px-4 ${
+            className={`relative flex h-12 shrink-0 items-center gap-2 rounded-control px-2.5 text-[14px] whitespace-nowrap transition-colors focus-visible:outline-offset-[-2px] sm:px-4 sm:text-[15px] ${
               selected ? "font-semibold text-ink" : "text-mute hover:bg-well hover:text-ink"
             }`}
           >
             {item.label}
-            {item.meta && <span className="text-[13px] font-normal text-faint">{item.meta}</span>}
+            {item.meta && <span className="text-[13px] font-normal text-faint max-sm:hidden">{item.meta}</span>}
             <span
               aria-hidden
               className={`slash absolute inset-x-2.5 bottom-0 h-[3px] bg-energy transition-opacity duration-200 ${selected ? "opacity-100" : "opacity-0"}`}

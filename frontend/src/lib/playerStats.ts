@@ -122,8 +122,20 @@ export function columnsFor(position: string, rows: StatSource[]): ColumnGroup[] 
   return out;
 }
 
+const COUNT_DIGITS = { maximumFractionDigits: 1 } as const;
+
 /** A count for a table cell: thousands separated, a real minus sign. */
 export function formatCount(n: number): string {
-  const s = Math.abs(n).toLocaleString("en-US", { maximumFractionDigits: 1 });
+  const s = Math.abs(n).toLocaleString("en-US", COUNT_DIGITS);
   return n < 0 ? `−${s}` : s;
+}
+
+/**
+ * The value `formatCount` prints, as a number: what a heat tile is graded on,
+ * so its colour always agrees with the figure on it. Graded unrounded, a
+ * per-game 34.06 printed as 34.1 sat yellow under a 34.07 cut-off (measured
+ * on the career table).
+ */
+export function printedCount(n: number): number {
+  return Math.sign(n) * Number(Math.abs(n).toLocaleString("en-US", { ...COUNT_DIGITS, useGrouping: false }));
 }

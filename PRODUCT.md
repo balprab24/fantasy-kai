@@ -64,12 +64,9 @@ enough to act on it, because every number can be traced to the stat lines that p
   anything interactive. The two never trade jobs.
 - Position colours are semantic data colours (QB purple, RB red, WR blue/cyan, TE pink/magenta),
   never decoration.
-- Two modes (owner decision 2026-09-30): Daylight on the public pages (the landing, sign-in,
-  register) -- a paper ground with one cool band, and navy ink (owner brief 2026-10-05) -- and Prime
-  time in the product: near-black, with deep blue-black where separation is needed. Wherever a
-  public page shows the product, the product keeps its own dark skin -- on the landing at most twice,
-  the hero's plate and one full-width product band; signing in is the moment the whole screen turns
-  dark.
+- One ground (owner brief 2026-10-19, replacing the Daylight / Prime time split of 2026-09-30):
+  night-game navy on every page, public and member alike, with deep blue-black steps for depth and
+  rounded panels for a page's sections. The landing is the product's front room.
 - Identity, in this order: premium fantasy analytics, sports broadcast / data terminal, subtle anime
   energy. The anime influence stays subtle enough that someone unfamiliar with anime still reads the
   product as a sports product; no copyrighted characters.
@@ -80,12 +77,15 @@ enough to act on it, because every number can be traced to the stat lines that p
 
 ## Evidence on Hand
 
-- Real captured API rows for the landing page, 2025 regular season:
-  `frontend/src/components/landing/previewData.ts` (request lines documented there); the hero's
-  2026 boards, captured 2026-10-07 and labelled on the page by the week they run through, in
-  `heroData.ts`.
+- Real captured API rows for the landing page, in `frontend/src/components/landing/heroData.ts`:
+  the current season's board under six rulesets (0 / 0.5 / 1 a catch, 4- or 6-point passing
+  touchdowns), one followed player's season and his most-catches game under the three presets.
+  Written by `frontend/scripts/capture-landing.mjs`, which lists every request; the page says which
+  week it runs through.
 - ESPN headshots (600×436 transparent cut-outs) and team logos, hotlinked and never stored, inside
-  the member area only. Whether that use is acceptable is an open owner call (docs/map.md §5).
+  the member area only. Kept by owner decision (2026-10-20) knowing ESPN's terms allow personal,
+  noncommercial use only and there is no licence; a one-line switch falls back to initials
+  (docs/map.md §5).
 - No licensed player photography, no testimonials, no customer logos, no usage numbers. None may be
   invented, and no metric the product does not compute may be shown.
 

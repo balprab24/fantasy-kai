@@ -53,8 +53,8 @@
   --color-ki: #ff8a3d;
   --color-on-ki: #140a02;
   /* Orange read as a figure rather than laid down as a fill: the S tier
-     letter. The same orange here; Daylight deepens it, because #ff8a3d on
-     paper is 2.1:1. */
+     letter. Kept as its own token so a light ground could deepen it (#ff8a3d
+     on paper is 2.1:1) without touching the fill. */
   --color-ki-text: #ff8a3d;
   --color-energy: #3d8bff;
   --color-energy-text: #8ab8ff;
@@ -71,7 +71,6 @@
   /* The backdrop behind a dialog: the board stays visible, dimmed, so the
      player overlay is a room off the board rather than a new page. */
   --color-scrim: rgb(2 4 9 / 0.72);
-  --color-band: #0b1120;
 
   /* Positions: QB purple, RB red, WR cyan, TE pink. Data colours. Their
      letters always travel with them, so colour is never the only cue -- as
@@ -91,11 +90,30 @@
   --color-q-good: #6fcf97;
   --color-q-mid: #d9c162;
 
-  /* The weekly chart's two fills: a week inside the position's starter line,
-     and every other week. An emphasis pair: CVD dE 16.6, normal-vision dE
-     20.1, both >= 3:1 on the canvas (dataviz validator, 2026-09-29). */
-  --color-chart-starter: #3fa877;
+  /* The performance chart's bar for a game with no weekly rank to colour it;
+     ranked games take the heat scale below. (Its green partner, chart-starter,
+     went with the two-colour chart on 2026-10-20.) */
   --color-chart-rest: #5d667c;
+
+  /* The player view's four-step data scale (owner decision, 2026-10-20): where
+     a figure falls, top band to bottom. Fantasy figures by where the week
+     finished at his position (1-12, 13-24, 25-36, 37+); box-score figures
+     against the league's games (lib/heatBands.ts). Each on canvas/surface:
+     green 7.5/7.1, yellow 11.2/10.7, orange 7.9/7.5, red 5.5/5.2 -- every bar
+     and label clears 3:1 and 4.5:1. A tile is the colour at 20% over surface
+     with its figure in the colour: green 5.2, yellow 7.1, orange 5.5, and red
+     4.2 -- short of 4.5, so a red figure takes heat-red-text (5.6). Tried and
+     dropped: ink on a half-strength tint (yellow turns olive and orange brown
+     over this blue, and the scale stops reading as its names), and solid tiles
+     under canvas figures (correct, and too loud for a table of them).
+     Red and green are not told apart by every eye, so every tile and bar
+     prints its figure and the legend names the bands: the colour is never the
+     only cue. Data colours only -- never a control, never the brand. */
+  --color-heat-green: #36b37e;
+  --color-heat-yellow: #e3c04b;
+  --color-heat-orange: #ee8a3c;
+  --color-heat-red: #e5574f;
+  --color-heat-red-text: #f07a72;
 
   --font-display: var(--font-sofia-extra), ui-sans-serif, system-ui, sans-serif;
   --font-label: var(--font-sofia-semi), ui-sans-serif, system-ui, sans-serif;
@@ -120,131 +138,11 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ---- Two modes ---------------------------------------------------------------
-   Prime time (the @theme above) is the product: the board under the lights.
-   Daylight is the public pages -- the landing, sign-in, register -- where a
-   visitor decides in daylight whether to trust the tool: the pre-game studio.
-   Same type, same components, same two accents; the tokens change value, so
-   every component under `.daylight` follows without knowing which mode it is
-   in. `.primetime` puts the product's own values back for the one place a
-   daylight page shows the product as it is (the landing's hero plate and its
-   product band).
-
-   Daylight's ground is paper: a white with the faintest warmth, far short of
-   cream. One section at a time may sit on the band, a cool light grey, so the
-   page has a rhythm rather than one long sheet; the product's own band is
-   Prime time (`.primetime`). White is for what floats or is typed into; blue
-   rises into the hairlines, so the structure itself is faintly electric.
-   Measured (WCAG 2) on canvas (paper) / band / surface / lift, 2026-10-05:
-     ink 17.3 / 15.9 / 18.0 / 14.8 · mute 7.5 / 6.9 / 7.9 / 6.4
-     faint 5.4 / 5.0 / 5.7 / 4.65
-     energy 4.5 / 4.1 / 4.7 / 3.8 (marks and large text) · energy-text 6.4 / 5.9 / 6.6 / 5.4
-     ki-text 4.8 / 4.4 / 5.0 / 4.1 (on the band, only at stat size) · danger 5.2 / 4.8 / 5.4 / 4.5
-     q-good 5.1 / 4.7 / 5.4 / 4.4 · q-mid 5.1 / 4.7 / 5.4 / 4.4
-     pos-* 5.1 (wr and rb, the lowest) / 4.7 / 5.3 / 4.4
-     line-strong 3.6 / 3.3 / 3.7 / 3.05 -- the 3:1 edge of every input and button
-   pos-*, q-* and danger fall under 4.5 on lift, so, as with Prime time's faint,
-   none of them sits there: lift holds a selected segment, a tooltip and the
-   landing's followed row (OneBoard), in ink -- energy-text, 5.4, for that row's place.
-   ki stays #ff8a3d as a fill (on-ki over it is 8.3:1); as text on paper it is
-   2.25:1, which is why ki-text exists. Daylight's WR is teal, not Prime time's
-   cyan, so a receiver's letters cannot be read as energy's "you are here".
-
-   In Daylight the brief gives data to blue: a week inside the starter line is
-   blue (#1f5fe0, a step deeper than energy, so a bar never reads as a control)
-   and any other week slate. Validated for chalk with the dataviz validator:
-   CVD dE 17.5, normal-vision dE 19.7, both >= 3:1 -- the slate is low-chroma
-   on purpose, as in Prime time, whose green-and-slate pair is unchanged.
-
-   `tests/lib.test.ts` holds `.primetime` to @theme, value for value, and
-   holds `.daylight` to overriding every colour that must change. */
-.daylight {
-  color-scheme: light;
-  --color-canvas: #fbfaf7;
-  --color-band: #edf1f7;
-  --color-surface: #ffffff;
-  --color-well: #ffffff;
-  --color-lift: #e2e9f6;
-
-  --color-ink: #0b1530;
-  --color-mute: #46526a;
-  --color-faint: #5c6780;
-  --color-line: rgb(36 104 255 / 0.16);
-  --color-line-strong: #7a8599;
-
-  --color-ki-text: #bd4c08;
-  --color-energy: #2468ff;
-  --color-energy-text: #1c52d0;
-  --color-danger: #c2362c;
-
-  --color-track: rgb(11 21 48 / 0.08);
-  --color-highlight: rgb(255 255 255 / 0.9);
-  --color-veil: rgb(251 250 247 / 0.85);
-  --color-scrim: rgb(11 21 48 / 0.4);
-
-  --color-pos-qb: #6a44d8;
-  --color-pos-rb: #c92d3a;
-  --color-pos-wr: #0a7684;
-  --color-pos-te: #b3237c;
-
-  --color-q-good: #1b7a47;
-  --color-q-mid: #866600;
-
-  --color-chart-starter: #1f5fe0;
-  --color-chart-rest: #7e889f;
-
-  /* Height on a light ground is a soft navy shadow, never black. */
-  --shadow-float: 0 22px 44px -22px rgb(11 21 48 / 0.34), 0 2px 8px -2px rgb(11 21 48 / 0.1);
-}
-
-.primetime {
-  color-scheme: dark;
-  --color-canvas: #060a12;
-  --color-surface: #0b1120;
-  --color-well: #121a2c;
-  --color-lift: #1b2640;
-
-  --color-ink: #eef2fa;
-  --color-mute: #9aa6bd;
-  --color-faint: #7d8aa3;
-  --color-line: rgb(148 170 210 / 0.12);
-  --color-line-strong: #64718c;
-
-  --color-ki: #ff8a3d;
-  --color-on-ki: #140a02;
-  --color-ki-text: #ff8a3d;
-  --color-energy: #3d8bff;
-  --color-energy-text: #8ab8ff;
-  --color-danger: #f28b8b;
-
-  --color-track: rgb(255 255 255 / 0.06);
-  --color-highlight: rgb(255 255 255 / 0.07);
-  --color-veil: rgb(6 10 18 / 0.82);
-  --color-scrim: rgb(2 4 9 / 0.72);
-  --color-band: #0b1120;
-
-  --color-pos-qb: #c3a6ff;
-  --color-pos-rb: #ff6b6b;
-  --color-pos-wr: #5cc8ff;
-  --color-pos-te: #ff8fd4;
-
-  --color-q-good: #6fcf97;
-  --color-q-mid: #d9c162;
-
-  --color-chart-starter: #3fa877;
-  --color-chart-rest: #5d667c;
-
-  --shadow-float: 0 24px 48px -20px rgb(0 0 0 / 0.9), 0 2px 8px -2px rgb(0 0 0 / 0.6);
-}
-
-
-/* The parts of the page no component draws: the ground an overscroll shows,
-   the scrollbar, the browser's own controls. The value is Daylight's canvas. */
-html:has(.daylight) {
-  background: #fbfaf7;
-  color-scheme: light;
-  scrollbar-color: #b7c1d4 #fbfaf7;
-}
+/* ---- One mode ---------------------------------------------------------------
+   Until 2026-10-19 the public pages ran a light "Daylight" token set and showed
+   the product in islands of its own dark skin. The landing now stands on the
+   product's own night ground, so there is one set of tokens, the @theme above,
+   and nothing to keep in parity. */
 
 /* ---- Type roles -------------------------------------------------------------
    Size lives with the role where the role has one size (titles, headings,
@@ -446,81 +344,18 @@ a {
   }
 }
 
-/* The landing's one orchestrated moment: the season rises, the route is drawn
-   over it, the chips settle. */
-@keyframes rise {
+/* The player view arriving over the board: it rises a little and the board
+   dims behind it. The one entrance in the product, because it is the one place
+   the member moves into another room. */
+@keyframes overlay-in {
   from {
-    transform: scaleY(0);
-  }
-  to {
-    transform: scaleY(1);
+    transform: translateY(18px);
+    opacity: 0;
   }
 }
 
-@keyframes appear {
+@keyframes scrim-in {
   from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* A board's one-time re-sort -- the landing hero's entrance until 2026-10-07, and
-   unused since (the hero's rows now travel by transition): played once, the board stands
-   in 0 PPR order with its 0 PPR figures, holds long enough to be read, then
-   travels into PPR order while each figure turns into its PPR value. Every
-   keyframe set names only its start; the end is the element's own style, the
-   PPR board the server rendered -- so with no animation (reduced motion, no
-   CSS) the page shows the finished board, never a hidden or half-sorted one.
-   Per-row start places and opacities, and the chosen format's starting
-   step, come in as custom properties. One timeline for all of it: 200ms in,
-   1400ms long, the hold is the first 43% (600ms). */
-@keyframes resort {
-  0%,
-  43% {
-    transform: translateY(var(--y0));
-    opacity: var(--o0);
-    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
-  }
-  /* Rows in flight step back, so a row passing another never prints over it. */
-  72% {
-    opacity: var(--o-mid, 0.45);
-  }
-}
-
-@keyframes thumb-resort {
-  0%,
-  43% {
-    transform: var(--thumb-from);
-    animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
-  }
-}
-
-/* A figure from the board being left: shown for the hold, gone as the rows
-   leave. Its resting style is opacity 0, so outside the entrance it is never seen. */
-@keyframes fig-then {
-  0%,
-  43% {
-    opacity: 1;
-  }
-  62% {
-    opacity: 0;
-  }
-}
-
-/* A figure from the board being arrived at: in as the rows travel. */
-@keyframes fig-now {
-  0%,
-  62% {
-    opacity: 0;
-  }
-}
-
-/* What only makes sense once the rows have landed: the moves. */
-@keyframes settle-in {
-  0%,
-  88% {
     opacity: 0;
   }
 }
@@ -544,49 +379,19 @@ a {
     animation: settle 900ms ease-out;
   }
 
+  .player-overlay[open] {
+    animation: overlay-in 340ms var(--ease-out);
+  }
+
+  .player-overlay[open]::backdrop {
+    animation: scrim-in 240ms ease-out;
+  }
+
   .skeleton {
     animation: shimmer 1.4s linear infinite;
   }
 
   .sweep {
     animation: sweep 1.1s ease-in-out infinite;
-  }
-
-  .rise {
-    transform-origin: bottom;
-    animation: rise 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: calc(var(--i, 0) * 32ms + 120ms);
-  }
-
-  .appear {
-    animation: appear 280ms ease-out both;
-    animation-delay: var(--appear-delay, 0ms);
-  }
-
-  .arrive {
-    animation: arrive 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: calc(var(--i, 0) * 90ms + 1500ms);
-  }
-
-  /* Backwards fill only: before it starts the row stands at its 0 PPR place,
-     and once it ends nothing of it lingers to fight a visitor's own switch. */
-  .resort {
-    animation: resort 1400ms 200ms backwards;
-  }
-
-  .thumb-entrance {
-    animation: thumb-resort 1400ms 200ms backwards;
-  }
-
-  .fig-then {
-    animation: fig-then 1400ms 200ms backwards;
-  }
-
-  .fig-now {
-    animation: fig-now 1400ms 200ms ease-out backwards;
-  }
-
-  .settle-in {
-    animation: settle-in 1400ms 200ms ease-out backwards;
   }
 }

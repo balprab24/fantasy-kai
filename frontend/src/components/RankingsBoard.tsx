@@ -1,12 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { assignTiers, toBoardRows, type BoardRow, type Metric } from "@/lib/board";
 import { ApiError } from "@/lib/api";
+import { saveBoardSequence } from "@/lib/boardSequence";
+import { biggestMovers, type Mover } from "@/lib/movers";
 import { FIRST_SEASON } from "@/lib/season";
 import type { RankingRow, Scope } from "@/lib/types";
 import { COL, COLUMN_COUNT, PlayerRow } from "./rankings/PlayerRow";
 import { TierHeader } from "./rankings/TierHeader";
+import { PositionChip } from "./ui/PositionChip";
 import { Skeleton, StatusMessage } from "./ui/StatusMessage";
 
 const QUALITY_KEY =
@@ -33,7 +37,7 @@ function usePreviousRanks(
   board: string,
   stale: boolean,
 ) {
-  const [previous, setPrevious] = useState<Map<number, number> | null>(null);
+  const [previous, setPrevious] = useState<{ ranks: Map<number, number>; key: string } | null>(null);
   const lastKey = useRef<string | null>(null);
   const lastBoard = useRef<string | null>(null);
   const lastRanks = useRef<Map<number, number> | null>(null);
@@ -42,8 +46,8 @@ function usePreviousRanks(
     if (!rows || stale) return;
     if (lastBoard.current !== null && lastBoard.current !== board) {
       setPrevious(null);
-    } else if (lastKey.current !== null && lastKey.current !== key) {
-      setPrevious(lastRanks.current);
+    } else if (lastKey.current !== null && lastKey.current !== key && lastRanks.current) {
+      setPrevious({ ranks: lastRanks.current, key: lastKey.current });
     }
     lastKey.current = key;
     lastBoard.current = board;
@@ -89,6 +93,8 @@ export function RankingsBoard({
   onSeason,
   find = "",
   onOpenPlayer,
+  openPlayerId = null,
+  labelFor,
 }: {
   rows: RankingRow[] | undefined;
   /** Changes whenever the thing being compared changes (the ruleset). */
@@ -112,12 +118,23 @@ export function RankingsBoard({
   find?: string;
   /** A player row's link is being followed. */
   onOpenPlayer?: (href: string) => void;
+  /** The player whose view is open over the board, if any. */
+  openPlayerId?: number | null;
+  /** A comparison key (a profile id) as a ruleset's name, for the movers line. */
+  labelFor?: (key: string) => string | undefined;
 }) {
   const metric: Metric = scope === "per_game" ? "pointsPerGame" : "points";
-  const previous = usePreviousRanks(rows, comparisonKey, boardKey, stale);
+  const prior = usePreviousRanks(rows, comparisonKey, boardKey, stale);
+  const previous = prior?.ranks ?? null;
   const board = useMemo(() => toBoardRows(rows ?? [], metric), [rows, metric]);
   const { tiers, rest } = useMemo(() => assignTiers(board), [board]);
   const needle = normalize(find);
+
+  const hrefFor = (playerId: number) => `/players/${playerId}?season=${season}&profileId=${profileId ?? ""}`;
+  const movers = useMemo(
+    () => (previous && rows && !stale ? biggestMovers(toBoardRows(rows, metric), previous) : null),
+    [previous, rows, stale, metric],
+  );
 
   const failure = error ? (
     <StatusMessage
@@ -173,6 +190,14 @@ export function RankingsBoard({
     }))
     .filter((g) => g.shown.length > 0);
 
+  // The order a member sees, filters and search applied: what "next player"
+  // means in the player view.
+  const sequence = groups.flatMap((g) => g.shown.map((r) => ({ playerId: r.playerId, name: r.name, rank: r.rank })));
+  const open = (playerId: number) => {
+    saveBoardSequence(sequence, playerId, `?season=${season}&profileId=${profileId ?? ""}`);
+    onOpenPlayer?.(hrefFor(playerId));
+  };
+
   const perGame = metric === "pointsPerGame";
   const delta = (row: BoardRow) => {
     if (!previous) return 0;
@@ -184,95 +209,177 @@ export function RankingsBoard({
     <div className="relative">
       {failure && <div className="mb-4">{failure}</div>}
 
-      {fetching && (
-        <div aria-hidden className="absolute inset-x-0 top-0 z-20 h-0.5 overflow-hidden">
-          <div className="sweep h-full w-2/5 bg-energy" />
-        </div>
+      {movers && (movers.up.length > 0 || movers.down.length > 0) && prior && (
+        <MoversStrip
+          from={labelFor?.(prior.key)}
+          to={labelFor?.(comparisonKey)}
+          movers={movers}
+          hrefFor={hrefFor}
+          onOpen={open}
+        />
       )}
 
       {groups.length === 0 ? (
         <StatusMessage tone="info" title={`No player matching “${find.trim()}” on this board.`}>
-          The search covers the {rows.length} players loaded so far, not the whole league.
+          The search covers the {rows.length} players loaded so far, not the whole league. Try part of a
+          surname, or load more of the board below.
         </StatusMessage>
       ) : (
-        <table aria-busy={fetching} className="w-full border-separate border-spacing-0 text-sm">
-          <caption className="sr-only">
-            Player rankings for the {season} season under the selected scoring ruleset, grouped
-            into tiers
-          </caption>
-          {/* The column labels stay in view while the board scrolls, pinned
-              under the bar. Plain labels, not boxes: they are read every time
-              the eye comes back up, and a box around each one was eight more
-              containers between the eye and the names. */}
-          <thead>
-            <tr className="text-left [&>th]:sticky [&>th]:top-14 [&>th]:z-10 [&>th]:h-9 [&>th]:border-b [&>th]:border-line [&>th]:bg-canvas [&>th]:font-label [&>th]:text-[12px] [&>th]:font-semibold [&>th]:text-mute">
-              <th scope="col" className={COL.rank}>
-                #
-              </th>
-              <th scope="col" className={COL.player}>
-                Player
-              </th>
-              <th scope="col" className={COL.pos}>
-                Pos
-              </th>
-              <th scope="col" className={COL.team}>
-                {/* Current, on every season's board: team history is not
-                    stored, so a player traded since shows his new team. */}
-                <span title="Current team">Team</span>
-              </th>
-              <th scope="col" className={COL.games}>
-                <abbr title="Games played" className="no-underline">
-                  G
-                </abbr>
-              </th>
-              {/* The headline column is whatever the board is sorted by; the
-                  other figure steps down beside it. */}
-              <th scope="col" className={COL.primary}>
-                {perGame ? <span title={QUALITY_KEY}>Per game</span> : "Points"}
-              </th>
-              <th scope="col" className={COL.secondary}>
-                {perGame ? (
-                  "Total"
-                ) : (
-                  <abbr title={`Points per game. ${QUALITY_KEY}`} className="no-underline">
-                    Per G
+        <div className="relative rounded-panel border border-line bg-surface">
+          {fetching && (
+            <div aria-hidden className="absolute inset-x-4 top-0 z-20 h-0.5 overflow-hidden rounded-full">
+              <div className="sweep h-full w-2/5 bg-energy" />
+            </div>
+          )}
+          <table aria-busy={fetching} className="w-full border-separate border-spacing-0 text-sm">
+            <caption className="sr-only">
+              Player rankings for the {season} season under the selected scoring ruleset, grouped
+              into tiers
+            </caption>
+            {/* The column labels stay in view while the board scrolls, pinned
+                under the bar, on the panel's own ground. */}
+            <thead>
+              <tr className="text-left [&>th]:sticky [&>th]:top-14 [&>th]:z-10 [&>th]:h-11 [&>th]:border-b [&>th]:border-line [&>th]:bg-surface [&>th]:font-label [&>th]:text-[12px] [&>th]:font-semibold [&>th]:text-mute [&>th:first-child]:rounded-tl-panel [&>th:last-child]:rounded-tr-panel">
+                <th scope="col" className={COL.rank}>
+                  #
+                </th>
+                <th scope="col" className={COL.player}>
+                  Player
+                </th>
+                <th scope="col" className={COL.pos}>
+                  Pos
+                </th>
+                <th scope="col" className={COL.team}>
+                  {/* Current, on every season's board: team history is not
+                      stored, so a player traded since shows his new team. */}
+                  <span title="Current team">Team</span>
+                </th>
+                <th scope="col" className={COL.games}>
+                  <abbr title="Games played" className="no-underline">
+                    G
                   </abbr>
+                </th>
+                {/* The headline column is whatever the board is sorted by; the
+                    other figure steps down beside it. */}
+                <th scope="col" className={COL.primary}>
+                  {perGame ? <span title={QUALITY_KEY}>Per game</span> : "Points"}
+                </th>
+                <th scope="col" className={COL.secondary}>
+                  {perGame ? (
+                    "Total"
+                  ) : (
+                    <abbr title={`Points per game. ${QUALITY_KEY}`} className="no-underline">
+                      Per G
+                    </abbr>
+                  )}
+                </th>
+                {previous && (
+                  <th scope="col" className={COL.move}>
+                    <span title="Places moved since the ruleset you were last viewing">Move</span>
+                  </th>
                 )}
-              </th>
-              <th scope="col" className={COL.move}>
-                <span title="Places moved since the ruleset you were last viewing">Move</span>
-              </th>
-            </tr>
-          </thead>
-          {groups.map((g) => (
-            <tbody key={g.key}>
-              <TierHeader
-                letter={g.letter}
-                count={g.rows.length}
-                high={g.high}
-                low={g.low}
-                unit={perGame ? "pts a game" : "pts"}
-                colSpan={COLUMN_COUNT}
-              />
-              {g.shown.map((row) => {
-                const href = `/players/${row.playerId}?season=${season}&profileId=${profileId ?? ""}`;
-                return (
+              </tr>
+            </thead>
+            {groups.map((g, gi) => (
+              <tbody key={g.key}>
+                <TierHeader
+                  letter={g.letter}
+                  count={g.rows.length}
+                  high={g.high}
+                  low={g.low}
+                  unit={perGame ? "pts a game" : "pts"}
+                  colSpan={previous ? COLUMN_COUNT : COLUMN_COUNT - 1}
+                  first={gi === 0}
+                />
+                {g.shown.map((row) => (
                   <PlayerRow
                     key={row.playerId}
                     row={row}
                     delta={delta(row)}
                     baseline={previous?.size ?? 0}
                     metric={metric}
-                    href={href}
-                    onOpen={onOpenPlayer ? () => onOpenPlayer(href) : undefined}
+                    href={hrefFor(row.playerId)}
+                    onOpen={() => open(row.playerId)}
+                    open={row.playerId === openPlayerId}
+                    showMove={previous !== null}
                   />
-                );
-              })}
-            </tbody>
-          ))}
-        </table>
+                ))}
+              </tbody>
+            ))}
+          </table>
+        </div>
       )}
     </div>
+  );
+}
+
+/**
+ * After a switch, the moves worth knowing about, said in a line: the biggest
+ * gains and losses inside the tiered top of the board, each a link to the
+ * player. Derived from the two boards' ranks (`lib/movers.ts`), nothing else.
+ */
+function MoversStrip({
+  from,
+  to,
+  movers,
+  hrefFor,
+  onOpen,
+}: {
+  from: string | undefined;
+  to: string | undefined;
+  movers: { up: Mover[]; down: Mover[] };
+  hrefFor: (playerId: number) => string;
+  onOpen: (playerId: number) => void;
+}) {
+  const chip = (m: Mover) => (
+    <li key={m.playerId} className="min-w-0">
+      <Link
+        href={hrefFor(m.playerId)}
+        scroll={false}
+        onClick={() => onOpen(m.playerId)}
+        className="flex h-10 min-w-0 items-center gap-2 rounded-control bg-well pr-3 pl-2 text-[13px] text-ink shadow-[inset_0_0_0_1px_var(--color-line)] transition-colors hover:bg-lift sm:h-9"
+        title={`${m.name}: ${m.previous} to ${m.rank}`}
+      >
+        <span className={`inline-flex items-center gap-1 font-semibold tabular ${m.delta > 0 ? "text-ink" : "text-mute"}`}>
+          <svg aria-hidden width="8" height="8" viewBox="0 0 8 8">
+            <path d={m.delta > 0 ? "M4 1 7.5 7h-7z" : "M.5 1h7L4 7z"} fill="currentColor" />
+          </svg>
+          <span className="sr-only">{m.delta > 0 ? "up" : "down"}</span>
+          {Math.abs(m.delta)}
+        </span>
+        <span className="min-w-0 truncate font-medium">{m.name}</span>
+        <PositionChip position={m.position} className="max-sm:hidden" />
+        <span className="tabular text-mute max-sm:hidden">
+          {m.previous}
+          <span aria-hidden> &rarr; </span>
+          <span className="sr-only"> to </span>
+          {m.rank}
+        </span>
+      </Link>
+    </li>
+  );
+  return (
+    <section aria-label="Biggest moves" className="mb-4 rounded-panel border border-line bg-surface px-4 py-3.5 sm:px-5">
+      <p className="text-[14px] text-mute">
+        {from && to ? (
+          <>
+            From <span className="font-semibold text-ink">{from}</span> to{" "}
+            <span className="font-semibold text-ink">{to}</span>, the biggest moves in the top 60:
+          </>
+        ) : (
+          <>The biggest moves in the top 60 since the last ruleset:</>
+        )}
+      </p>
+      {/* Gains and losses as two columns on a phone, one wrapping line from sm. */}
+      <div className="mt-2.5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <ul aria-label="Up the board" className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap">
+          {movers.up.map(chip)}
+        </ul>
+        <ul aria-label="Down the board" className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap">
+          {movers.down.map(chip)}
+        </ul>
+      </div>
+    </section>
   );
 }
 
@@ -283,16 +390,19 @@ export function RankingsBoard({
  */
 export function BoardSkeleton() {
   return (
-    <div aria-hidden>
-      <div className="h-9 border-b border-line" />
-      <div className="h-[4.25rem]" />
+    <div aria-hidden className="rounded-panel border border-line bg-surface">
+      <div className="h-11 border-b border-line" />
+      <div className="flex h-[3.75rem] items-center gap-3 pl-3 sm:pl-4">
+        <Skeleton className="h-8 w-11" />
+        <Skeleton className="h-3.5 w-48 max-w-[40%]" />
+      </div>
       {Array.from({ length: 10 }, (_, i) => (
-        <div key={i} className="flex h-12 items-center gap-3 border-b border-line sm:h-11">
-          <div className="w-10 sm:w-12" />
-          <Skeleton className="size-8 rounded-full" />
-          <Skeleton className="h-3.5 w-40 max-w-[40%]" />
+        <div key={i} className="flex h-[3.75rem] items-center gap-3 border-t border-line pr-4 sm:h-[3.25rem]">
+          <div className="w-11 sm:w-16" />
+          <Skeleton className="size-9 rounded-full" />
+          <Skeleton className="h-3.5 w-44 max-w-[40%]" />
           <Skeleton className="ml-auto h-3.5 w-12" />
-          <Skeleton className="mr-3 h-3.5 w-10" />
+          <Skeleton className="h-3.5 w-10" />
         </div>
       ))}
     </div>

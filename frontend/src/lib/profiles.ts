@@ -33,7 +33,7 @@ const PRESET_CAPTIONS: Record<string, string> = {
   Standard: "0 per catch",
   "Half PPR": "½ per catch",
   "Full PPR": "1 per catch",
-  "TE Premium": "TEs 1.5 per catch",
+  "TE Premium": "TE 1.5 per catch",
 };
 
 export function profileCaption(profile: Pick<ScoringProfile, "name" | "preset">): string {
