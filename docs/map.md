@@ -164,6 +164,9 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    on a board (parked under it when outside), the ruleset in words
   src/lib/receipt.ts               V3's preset rates and a stat line priced under them -- the
                                    landing's receipt only; npm test holds every total to the API's
+  src/lib/heatBands.ts             generated: the heat tables' box-score cut-offs, from 2023-25
+                                   regular-season games by fantasy-relevant players
+                                   (scripts/heat-bands.sql | heat-bands.mjs regenerates it)
   src/lib/rulesSheet.ts            the landing's ruleset sheet: every stat once, its values worked
                                    out from rates (npm test holds them to V3's Half PPR)
   src/lib/movers.ts                the biggest moves between two boards' API ranks (top 60)
@@ -171,7 +174,7 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    player view's previous / next (sessionStorage)
   src/lib/playerView.ts            the player view's derived facts: ?tab= (the section opened
                                    on), week slots and gaps, the last 17 games across seasons,
-                                   starter weeks, a heat tile's step
+                                   starter weeks, a figure's step on the four-step heat scale
   src/lib/authErrors.ts            one wording for a failed sign-in or sign-up
   src/app/fonts/                   Sofia Sans in three widths (Fontsource latin subsets, OFL),
                                    self-hosted through next/font/local

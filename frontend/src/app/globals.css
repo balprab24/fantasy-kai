@@ -96,6 +96,21 @@
   --color-chart-starter: #3fa877;
   --color-chart-rest: #5d667c;
 
+  /* The player view's four-step data scale (owner decision, 2026-10-20): where
+     a figure falls, top band to bottom. Fantasy figures by where the week
+     finished at his position (1-12, 13-24, 25-36, 37+); box-score figures
+     against the league's games (lib/heatBands.ts). Each on canvas/surface:
+     green 7.5/7.1, yellow 11.2/10.7, orange 7.9/7.5, red 5.5/5.2 -- every bar
+     and label clears 3:1 and 4.5:1. As a tile ground (yellow at 45% over
+     surface, the others at 50%) ink reads 6.4 / 5.6 / 6.3 / 8.0.
+     Red and green are not told apart by every eye, so every tile and bar
+     prints its figure and the legend names the bands: the colour is never the
+     only cue. Data colours only -- never a control, never the brand. */
+  --color-heat-green: #36b37e;
+  --color-heat-yellow: #e3c04b;
+  --color-heat-orange: #ee8a3c;
+  --color-heat-red: #e5574f;
+
   --font-display: var(--font-sofia-extra), ui-sans-serif, system-ui, sans-serif;
   --font-label: var(--font-sofia-semi), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-sofia), ui-sans-serif, system-ui, sans-serif;

@@ -1,10 +1,10 @@
 "use client";
 
 import { useId, useState } from "react";
-import { STARTERS, formatPoints } from "@/lib/board";
+import { formatPoints } from "@/lib/board";
 import { matchup } from "@/lib/player";
-import { lastGames, weekSlots, type ChartGame } from "@/lib/playerView";
-import type { CareerSeason, CareerWeek, Position } from "@/lib/types";
+import { finishStep, lastGames, weekSlots, type ChartGame, type HeatStep } from "@/lib/playerView";
+import type { CareerSeason, CareerWeek } from "@/lib/types";
 import { SegmentedControl } from "../ui/SegmentedControl";
 
 /** A round axis step: 5, 10, 20, 25, 50... whichever gives three to five lines. */
@@ -20,6 +20,11 @@ function ordinal(n: number) {
   return `${n}${({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th"}`;
 }
 
+/** A bar, its figure and its zero ring in the colour of where the week finished. */
+const BAR: Record<HeatStep, string> = { 0: "bg-heat-green", 1: "bg-heat-yellow", 2: "bg-heat-orange", 3: "bg-heat-red" };
+const LABEL: Record<HeatStep, string> = { 0: "text-heat-green", 1: "text-heat-yellow", 2: "text-heat-orange", 3: "text-heat-red" };
+const RING: Record<HeatStep, string> = { 0: "border-heat-green", 1: "border-heat-yellow", 2: "border-heat-orange", 3: "border-heat-red" };
+
 /** "Last 17" across seasons, or one season. */
 export type ChartPeriod = "last" | number;
 const LAST = 17;
@@ -32,12 +37,12 @@ const SEASON_CHOICES = 4;
  * Built from plain elements rather than SVG: a column chart is a row of boxes
  * with heights, and boxes lay themselves out at any width without measuring.
  *
- * Two fills and only two, named in the legend: a game inside the position's
- * starter line that week (`STARTERS`, the 12-team line the board colours
- * per-game figures against) and every other game. The weekly rank behind it
- * is the API's; this component draws, it does not score. The one figure it
- * works out is the average line over the last 17, the mean of the 17 figures
- * on screen; a season's line is the API's own points per game.
+ * Each bar is coloured by where the game finished at his position that week,
+ * in a 12-team league's terms -- 1st to 12th green, 13th to 24th yellow, 25th
+ * to 36th orange, below that red -- and named so in the legend. The weekly
+ * rank behind it is the API's; this component draws, it does not score. The
+ * one figure it works out is the average line over the last 17, the mean of
+ * the 17 figures on screen; a season's line is the API's own points per game.
  *
  * In one season every week from 1 to the last one played has a slot, and the
  * two kinds of "nothing" never look alike: a week with no game recorded is a
@@ -71,7 +76,6 @@ export function PerformanceChart({
     period === "last" ? lastGames(seasons, LAST) : one ? weekSlots(one).map((s) => ({ season: one.season, ...s })) : [];
   const games = slots.flatMap((s) => (s.game ? [s.game] : []));
 
-  const line = Object.hasOwn(STARTERS, position) ? STARTERS[position as Position] : undefined;
   const average = one ? one.pointsPerGame : games.length ? games.reduce((t, g) => t + g.points, 0) / games.length : 0;
   const values = games.map((g) => g.points);
   const high = values.length ? Math.max(...values) : 0;
@@ -94,7 +98,13 @@ export function PerformanceChart({
   const breaks = slots.map((s, i) => i > 0 && s.season !== slots[i - 1].season);
   const highAt = values.length ? slots.findIndex((s) => s.game?.points === high) : -1;
 
-  const starter = (w: CareerWeek) => line !== undefined && w.posRank !== null && w.posRank <= line;
+  const stepOf = (w: CareerWeek) => finishStep(w.posRank);
+  const steps = new Set(games.map((g) => stepOf(g)));
+  // An unranked game (no weekly rank came back) is slate, and says so in the legend.
+  const paint = (w: CareerWeek, by: Record<HeatStep, string>, none: string) => {
+    const st = stepOf(w);
+    return st === null ? none : by[st];
+  };
   const describe = (s: ChartGame) =>
     s.game
       ? `${period === "last" ? `${s.season}, ` : ""}week ${s.week}, ${matchup(s.game.opponent, s.game.home)}: ${formatPoints(s.game.points)} points` +
@@ -136,21 +146,22 @@ export function PerformanceChart({
           <span />
         )}
         <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-mute">
-          {line !== undefined && (
-            <>
-              <span className="inline-flex items-center gap-1.5">
-                <span aria-hidden className="size-2.5 rounded-[2px] bg-chart-starter" />
-                Top-{line} {position} week
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span aria-hidden className="size-2.5 rounded-[2px] bg-chart-rest" />
-                Other week
-              </span>
-            </>
+          {([0, 1, 2, 3] as HeatStep[]).map((step) => (
+            <span key={step} className="inline-flex items-center gap-1.5">
+              <span aria-hidden className={`size-2.5 rounded-[2px] ${BAR[step]}`} />
+              {["1–12", "13–24", "25–36", "37+"][step]}
+              {step === 0 ? ` ${position}` : ""}
+            </span>
+          ))}
+          {steps.has(null) && (
+            <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden className="size-2.5 rounded-[2px] bg-chart-rest" />
+              Not ranked
+            </span>
           )}
           {hasZero && (
             <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="size-2.5 rounded-full border-2 border-chart-rest" />
+              <span aria-hidden className="size-2.5 rounded-full border-2 border-mute" />
               Zero points
             </span>
           )}
@@ -248,14 +259,14 @@ export function PerformanceChart({
                         {w && w.points === 0 ? (
                           <span
                             aria-hidden
-                            className="absolute left-1/2 size-2.5 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-chart-rest bg-surface"
+                            className={`absolute left-1/2 size-2.5 -translate-x-1/2 translate-y-1/2 rounded-full border-2 bg-surface ${paint(w, RING, "border-chart-rest")}`}
                             style={{ bottom: `${y(0)}%` }}
                           />
                         ) : w ? (
                           <span
                             className={`absolute left-1/2 w-[46%] max-w-5 -translate-x-1/2 transition-[filter] group-hover:brightness-125 group-focus-visible:brightness-125 ${
                               w.points >= 0 ? "rounded-t-[3px]" : "rounded-b-[3px]"
-                            } ${starter(w) ? "bg-chart-starter" : "bg-chart-rest"}`}
+                            } ${paint(w, BAR, "bg-chart-rest")}`}
                             style={{ bottom: `${barBottom}%`, height: `max(${barHeight}%, 2px)` }}
                           />
                         ) : (
@@ -271,7 +282,7 @@ export function PerformanceChart({
                             // Every bar's figure from sm; on a phone only the best game's, where
                             // seventeen labels would run into each other.
                             className={`tabular absolute left-1/2 -translate-x-1/2 text-[10px] font-semibold whitespace-nowrap ${
-                              starter(w) ? "text-q-good" : "text-mute"
+                              paint(w, LABEL, "text-mute")
                             } ${i === highAt ? "" : "max-sm:hidden"}`}
                             style={{ bottom: `calc(${y(Math.max(0, w.points))}% + 3px)` }}
                           >

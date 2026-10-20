@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useOptimistic, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { ApiError } from "@/lib/api";
-import { STARTERS } from "@/lib/board";
 import { clearBoardReturn, readBoardReturn } from "@/lib/boardReturn";
 import { boardSequenceSnapshot, neighbours, parseBoardSequence, type SequenceEntry } from "@/lib/boardSequence";
 import { pickSeason } from "@/lib/player";
@@ -20,7 +19,7 @@ import { Skeleton, StatusMessage } from "../ui/StatusMessage";
 import { PerformanceChart } from "./PerformanceChart";
 import { Panel } from "./PlayerPanels";
 import { IdentityCard, ScoringCard } from "./PlayerSidebar";
-import { CareerError, CareerTable, GameLog, TableSkeleton, type CareerMode } from "./PlayerTables";
+import { CareerError, CareerTable, GameLog, HeatLegend, TableSkeleton, type CareerMode } from "./PlayerTables";
 import { ScoringCompare } from "./ScoringCompare";
 
 const RANKED = ["QB", "RB", "WR", "TE"];
@@ -301,7 +300,6 @@ export function PlayerWorkspace({
     { key: "career" as const, label: "Career" },
     ...(ranked ? [{ key: "scoring" as const, label: "Scoring" }] : []),
   ];
-  const line = Object.hasOwn(STARTERS, position) ? STARTERS[position as keyof typeof STARTERS] : undefined;
 
   return (
     <Frame variant={variant}>
@@ -369,20 +367,10 @@ export function PlayerWorkspace({
                 meta={season !== null ? `${season}, every game, playoffs included` : undefined}
                 bodyClassName="pb-3"
               >
-                {ranked && line !== undefined && (
-                  <p className="-mt-1 mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 px-5 text-[12px] text-mute sm:px-6">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span aria-hidden className="size-2.5 rounded-[2px] bg-q-good/40" />
-                      A top-{line} {position} week
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <span aria-hidden className="flex">
-                        <span className="size-2.5 rounded-l-[2px] bg-ink/[0.06]" />
-                        <span className="size-2.5 rounded-r-[2px] bg-ink/[0.22]" />
-                      </span>
-                      Box score: deeper is a bigger game, by his own season
-                    </span>
-                  </p>
+                {ranked && (
+                  <div className="-mt-1 mb-3 px-5 sm:px-6">
+                    <HeatLegend position={position} per="game" />
+                  </div>
                 )}
                 <GameLog
                   position={position}
@@ -444,15 +432,22 @@ export function PlayerWorkspace({
                 ) : seasons.length === 0 ? (
                   <p className="px-5 pb-2 text-[15px] text-mute sm:px-6">No regular-season games on record.</p>
                 ) : (
-                  <CareerTable
-                    position={position}
-                    scored={ranked}
-                    seasons={seasons}
-                    selected={season}
-                    onSelect={(s) => write({ season: String(s) })}
-                    stale={careerStale}
-                    mode={careerMode}
-                  />
+                  <>
+                    {ranked && (
+                      <div className="-mt-1 mb-3 px-5 sm:px-6">
+                        <HeatLegend position={position} per="season" />
+                      </div>
+                    )}
+                    <CareerTable
+                      position={position}
+                      scored={ranked}
+                      seasons={seasons}
+                      selected={season}
+                      onSelect={(s) => write({ season: String(s) })}
+                      stale={careerStale}
+                      mode={careerMode}
+                    />
+                  </>
                 )}
               </Panel>
             </div>

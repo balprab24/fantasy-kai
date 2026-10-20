@@ -37,7 +37,8 @@ import {
   routeFor,
 } from "../src/lib/memberHint.ts";
 import { ageOn, matchup, pickSeason, playoffRound } from "../src/lib/player.ts";
-import { heatStep, lastGames, lastWeekPlayed, parseTab, recentGames, starterShare, weekSlots } from "../src/lib/playerView.ts";
+import { finishStep, lastGames, lastWeekPlayed, parseTab, recentGames, starterShare, statStep, weekSlots } from "../src/lib/playerView.ts";
+import { HEAT_INVERTED, HEAT_PER_GAME, HEAT_WEEK } from "../src/lib/heatBands.ts";
 import { COLUMNS, columnsFor, formatCount, type StatSource } from "../src/lib/playerStats.ts";
 import { profileCaption, profileLabel } from "../src/lib/profiles.ts";
 
@@ -296,14 +297,39 @@ describe("the player view's derived facts", () => {
     assert.deepEqual(lastGames([], 17), []);
   });
 
-  it("shades a box-score cell by its share of the column's biggest value, and nothing for nothing", () => {
-    assert.equal(heatStep(0, 10), 0);
-    assert.equal(heatStep(-2, 10), 0, "a negative figure is not a big game");
-    assert.equal(heatStep(5, 0), 0);
-    assert.equal(heatStep(1, 100), 1, "anything at all is at least the first step");
-    assert.equal(heatStep(50, 100), 2);
-    assert.equal(heatStep(100, 100), 4);
-    assert.equal(heatStep(130, 100), 4, "never past the last step");
+  it("colours a finish by a 12-team league's strings: 1-12, 13-24, 25-36, below", () => {
+    assert.deepEqual([1, 12, 13, 24, 25, 36, 37, 90].map(finishStep), [0, 0, 1, 1, 2, 2, 3, 3]);
+    assert.equal(finishStep(null), null, "a bye or a playoff game has no rank to colour");
+    assert.equal(finishStep(0), null);
+  });
+
+  it("places a box-score figure against the league's cut-offs, either way round", () => {
+    const yards: [number, number, number] = [76, 47, 25];
+    assert.deepEqual([134, 76, 75, 47, 25, 24, 0].map((v) => statStep(v, yards)), [0, 0, 1, 1, 2, 3, 3]);
+    const picks: [number, number, number] = [0, 0, 1];
+    assert.deepEqual([0, 1, 2].map((v) => statStep(v, picks, true)), [0, 2, 3], "no interceptions is the top band");
+  });
+
+  it("holds league cut-offs for every stat a position's tables lead with, in band order", () => {
+    const primary: Record<string, string[]> = {
+      QB: ["pass_cmp", "pass_att", "pass_yd", "pass_td", "pass_int", "rush_att", "rush_yd", "rush_td"],
+      RB: ["rush_att", "rush_yd", "rush_td", "targets", "rec", "rec_yd", "rec_td"],
+      WR: ["targets", "rec", "rec_yd", "rec_td"],
+      TE: ["targets", "rec", "rec_yd", "rec_td"],
+    };
+    // Every key must be a box-score column the tables actually draw, or it would never be used.
+    const keys = new Set(COLUMNS.map((c) => c.key).concat("snap"));
+    for (const table of [HEAT_WEEK, HEAT_PER_GAME]) {
+      for (const [pos, stats] of Object.entries(primary)) {
+        for (const st of stats) assert.ok(table[pos]?.[st], `${pos} ${st} has no cut-off`);
+        for (const [st, [g, y, o]] of Object.entries(table[pos])) {
+          assert.ok(keys.has(st), `${pos} ${st} is not a column`);
+          if (HEAT_INVERTED.includes(st)) assert.ok(g <= y && y <= o, `${pos} ${st} out of order`);
+          else assert.ok(g >= y && y >= o, `${pos} ${st} out of order`);
+        }
+      }
+    }
+    assert.equal(HEAT_WEEK.QB.snap, undefined, "a quarterback's snap share is not shaded");
   });
 
   it("counts starter weeks against the position's 12-team line, and says nothing for an unranked position", () => {

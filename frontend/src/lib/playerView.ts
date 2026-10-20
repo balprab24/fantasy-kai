@@ -83,11 +83,29 @@ export function lastGames(seasons: readonly Pick<CareerSeason, "season" | "weeks
 }
 
 /**
- * How strongly to shade a box-score cell: 0 for nothing, then 1 to `steps` by
- * its share of the biggest value in its column (`max`) -- his own range, not
- * the league's, which the API does not send. A negative or empty column is 0.
+ * The four-step scale the player view colours figures by: 0 is the top band
+ * (green), then yellow, orange, and 3 the bottom (red).
  */
-export function heatStep(value: number, max: number, steps = 4): number {
-  if (!(value > 0) || !(max > 0)) return 0;
-  return Math.max(1, Math.min(steps, Math.ceil((value / max) * steps)));
+export type HeatStep = 0 | 1 | 2 | 3;
+
+/**
+ * Where a week (or a season) finished at his position, in a 12-team league's
+ * terms: the 1st to 12th, 13th to 24th, 25th to 36th, or below. Null when
+ * there is no rank -- a bye, a playoff game, a position v1 does not rank.
+ */
+export function finishStep(rank: number | null): HeatStep | null {
+  if (rank === null || !(rank >= 1)) return null;
+  return rank <= 12 ? 0 : rank <= 24 ? 1 : rank <= 36 ? 2 : 3;
+}
+
+/**
+ * Where a box-score figure falls against the league's cut-offs
+ * (`lib/heatBands.ts`, passed in so this module stays import-free):
+ * [green, yellow, orange], at or above each -- or at or below each, for a
+ * stat where fewer is better.
+ */
+export function statStep(value: number, cuts: readonly [number, number, number], fewerIsBetter = false): HeatStep {
+  const [g, y, o] = cuts;
+  if (fewerIsBetter) return value <= g ? 0 : value <= y ? 1 : value <= o ? 2 : 3;
+  return value >= g ? 0 : value >= y ? 1 : value >= o ? 2 : 3;
 }

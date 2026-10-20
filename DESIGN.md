@@ -25,6 +25,10 @@ colors:
   q-mid: "#d9c162"
   chart-starter: "#3fa877"
   chart-rest: "#5d667c"
+  heat-green: "#36b37e"
+  heat-yellow: "#e3c04b"
+  heat-orange: "#ee8a3c"
+  heat-red: "#e5574f"
   track: "rgb(255 255 255 / 0.06)"
   highlight: "rgb(255 255 255 / 0.07)"
   veil: "rgb(6 10 18 / 0.82)"
@@ -175,11 +179,16 @@ Rejected on purpose:
   Data colours. They colour a position's letters, and may tint that position's own chip at 14%
   behind them. Never a chart series on their own: as marks they fail colour-blind separation (WR
   against QB is dE 0.5 under deuteranopia, dataviz validator).
-- **Starter Green** (#6fcf97): the single quality colour -- inside a 12-team league's starters at
-  that position.
+- **Starter Green** (#6fcf97): the board's single quality colour -- inside a 12-team league's
+  starters at that position.
 - **Notice Amber** (#d9c162): a roster status, a playoff round.
 - **Danger** (#f28b8b): errors.
-- **Chart pair**: Chart Green (#3fa877) for a starter week, Chart Slate (#5d667c) for any other.
+- **Chart Slate** (#5d667c): a bar with no rank to colour it.
+- **The heat scale** (player view only): Heat Green (#36b37e), Yellow (#e3c04b), Orange (#ee8a3c)
+  and Red (#e5574f) -- top band to bottom, for where a figure falls (see Heat tables). Solid on the
+  performance chart's bars and their figures; at 45-50% as a tile's ground under ink. Data colours,
+  never a control or the brand. Red and green are not told apart by every eye, so a figure is always
+  printed on its colour and a legend names the bands.
 
 ### Neutral
 - **Night** (#060a12): every page background, and the board's rows on a phone.
@@ -329,13 +338,17 @@ they are for. The second card is the scoring: one ruleset a row (the Format Bar'
 the season, three to a row on a phone.
 
 ### Heat tables
-The game log and the career are grids of tiles, 2px apart, every figure on its own small ground.
-Fantasy tiles (points, rank) take their ground from where the figure finished at his position: a
-starter's week on the quality green, the bench range a step up from the table, anything below it the
-table itself. Box-score tiles deepen in five steps of ink with his own range in that column -- the
-API sends no league distribution to shade against, and the legend says so; snap share is shaded
-against the whole of the offense's snaps. Every value is printed, so the shade is never the only
-cue. The career has a per-game view (counts divided by games played; points per game are the API's).
+The game log and the career are grids of tiles, 2px apart, every figure on its own small ground in
+the four-step data scale -- green, yellow, orange, red (`--color-heat-*`, owner decision
+2026-10-20). Fantasy tiles (points, rank) by where the figure finished at his position, in a 12-team
+league's terms: 1st-12th green, 13th-24th yellow, 25th-36th orange, below that red. Box-score tiles
+against the league's games: the quartiles of every regular-season game, 2023-25, by each season's
+fantasy-relevant players by volume (top 24 QBs by attempts, 48 RBs by carries plus catches, 72 WRs
+and 24 TEs by targets) -- `lib/heatBands.ts`, written by `scripts/heat-bands.mjs` from the
+database. Interceptions run the other way, and none is always the top band. A stat the position has
+no cut-off for (a receiver's carries, a quarterback's snaps, fumbles) sits on the table's faint
+ground. The career colours by the per-game rate in both its per-game and totals views. A legend over
+each table names both scales; every value is printed, so the colour is never the only cue.
 
 ### The player overlay
 Opened from the board, the player view is an intercepted route on the player's own URL, shown in a
@@ -346,9 +359,10 @@ back button agree with the URL. Previous and next step through the board's visib
 
 ### The performance chart
 Columns with their figures on top: his last 17 regular-season games across seasons, with a rule and
-the two seasons' names where one ends, or any of his four latest seasons week by week. A starter
-week is green, any other slate; in one season a week with no game recorded is a dashed empty slot; a
-zero-point game is a ring on the zero line. A dashed average, labelled (the season's own points per
+the two seasons' names where one ends, or any of his four latest seasons week by week. Each bar and
+its figure take the four-step scale by where the week finished at his position (1-12 green, 13-24
+yellow, 25-36 orange, 37+ red); an unranked game is slate. In one season a week with no game
+recorded is a dashed empty slot; a zero-point game is a ring on the zero line. A dashed average, labelled (the season's own points per
 game, or the mean of the 17 figures shown). One Tab stop; arrows walk the games.
 
 ### The rule mixer (landing)
@@ -367,7 +381,8 @@ own total for that game (held by a test), with the three totals side by side und
 - **Do** put every page on the night ground and separate sections with panels.
 - **Do** state a board's recipe in a sentence wherever a ranking appears.
 - **Do** keep one orange action per view.
-- **Do** colour a position's letters, and keep quality to green, ink and faint.
+- **Do** colour a position's letters, and keep the board's quality to green, ink and faint; the
+  four-step heat scale belongs to the player view's tables and chart.
 - **Do** measure every new text pair against the surface it sits on, and record it in
   `globals.css`.
 

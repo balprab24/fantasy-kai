@@ -5,7 +5,7 @@ import {
   type ColumnGroup,
   type StatSource,
 } from "@/lib/playerStats";
-import { heatStep } from "@/lib/playerView";
+import type { HeatStep } from "@/lib/playerView";
 
 /** A column before the box score: week, opponent, points, rank... */
 export interface LeadColumn<R> {
@@ -24,12 +24,18 @@ export interface LeadColumn<R> {
 }
 
 /**
- * The shade of a box-score tile, from nothing to his biggest game in that
- * column (`heatStep`). Ink at rising strength rather than a hue: the hues are
- * taken (blue is "you are here", green is "a starter's week"), and a ramp of
- * one neutral reads the same to every eye.
+ * A tile's ground on the four-step scale (`HeatStep`: green, yellow, orange,
+ * red), tinted so the figure printed on it stays ink. A tile with no step --
+ * a stat with no league cut-off for the position, a summary row -- sits on
+ * the table's own faint ground.
  */
-export const HEAT = ["bg-ink/[0.025]", "bg-ink/[0.06]", "bg-ink/[0.1]", "bg-ink/[0.15]", "bg-ink/[0.22]"];
+export const TILE: Record<HeatStep, string> = {
+  0: "bg-heat-green/50",
+  1: "bg-heat-yellow/45",
+  2: "bg-heat-orange/50",
+  3: "bg-heat-red/50",
+};
+export const NEUTRAL_TILE = "bg-ink/[0.025]";
 
 /**
  * The game log and the career table are one table with a different first few
@@ -37,13 +43,12 @@ export const HEAT = ["bg-ink/[0.025]", "bg-ink/[0.06]", "bg-ink/[0.1]", "bg-ink/
  * `columnsFor` (lib/playerStats.ts), decided over every row, and line up the
  * same way in both.
  *
- * A grid of tiles: every figure sits on its own small ground, shaded so the
- * big games stand out of the column without being read one by one. The
- * box-score tiles are shaded against his own range in that column (the API
- * sends no league distribution to shade against, and the legend says so);
- * lead columns bring their own ground (`tone`), which the fantasy columns use
- * for where the week finished at his position. Every value is printed, so the
- * shade is never the only cue.
+ * A grid of tiles: every figure sits on its own small ground, coloured by
+ * where it falls -- green, yellow, orange, red -- so the big games and the
+ * quiet ones stand out of a column without being read one by one. The caller
+ * decides the step (`shade` for the box score, `tone` for a lead column);
+ * this table only paints it. Every value is printed, so the colour is never
+ * the only cue.
  *
  * Wide by nature -- a running back's log is eleven numbers a week -- so it
  * scrolls sideways inside its own box on a narrow screen, with the first
@@ -58,6 +63,7 @@ export function StatTable<R>({
   rowKey,
   rowProps,
   foot,
+  shade,
 }: {
   caption: string;
   lead: LeadColumn<R>[];
@@ -68,6 +74,8 @@ export function StatTable<R>({
   rowProps?: (row: R) => { className?: string; "aria-current"?: boolean };
   /** A summary row -- supplied whole by the caller, never summed here. */
   foot?: { row: R; label: string };
+  /** A box-score tile's step on the scale, or null for the faint ground. */
+  shade?: (key: string, value: number, row: R) => HeatStep | null;
 }) {
   // Lead group headers: merge runs of the same label.
   const leadGroups: { label: string; span: number }[] = [];
@@ -76,11 +84,6 @@ export function StatTable<R>({
     if (last && last.label === col.group) last.span++;
     else leadGroups.push({ label: col.group, span: 1 });
   }
-
-  // Each column's biggest value over the body rows (never the summary row,
-  // which would flatten every week against a season total).
-  const columns = groups.flatMap((g) => g.columns);
-  const max = new Map(columns.map((c) => [c.key, Math.max(0, ...rows.map((r) => c.value(source(r))))]));
 
   const tile = "h-8 rounded-[3px] px-2 whitespace-nowrap";
   // Pinned and opaque, so the columns scrolling under it on a phone do not
@@ -93,7 +96,7 @@ export function StatTable<R>({
         <td
           key={col.key}
           className={`${tile} ${col.align === "left" ? "text-left" : "text-right"} ${
-            i === 0 ? pin : isFoot ? "bg-ink/[0.06]" : (col.tone?.(row) ?? "bg-ink/[0.025]")
+            i === 0 ? pin : isFoot ? "bg-ink/[0.06]" : (col.tone?.(row) ?? NEUTRAL_TILE)
           } ${isFoot ? "font-semibold" : ""}`}
         >
           {isFoot && i === 0 && foot ? foot.label : col.cell(row)}
@@ -103,11 +106,12 @@ export function StatTable<R>({
         groups.flatMap((g) =>
           g.columns.map((c, ci) => {
             const v = c.value(stats);
-            const shade = isFoot ? "bg-ink/[0.06]" : HEAT[heatStep(v, max.get(c.key) ?? 0)];
+            const step = isFoot ? null : (shade?.(c.key, v, row) ?? null);
+            const ground = isFoot ? "bg-ink/[0.06]" : step === null ? NEUTRAL_TILE : TILE[step];
             return (
               <td
                 key={c.key}
-                className={`${tile} tabular text-right ${shade} ${v === 0 ? "text-faint" : "text-ink"} ${isFoot ? "font-semibold" : ""} ${ci === 0 ? "border-l-[6px] border-l-transparent bg-clip-padding" : ""}`}
+                className={`${tile} tabular text-right ${ground} ${v === 0 && step === null ? "text-faint" : "text-ink"} ${isFoot ? "font-semibold" : ""} ${ci === 0 ? "border-l-[6px] border-l-transparent bg-clip-padding" : ""}`}
               >
                 {formatCount(v)}
               </td>

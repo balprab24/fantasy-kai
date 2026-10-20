@@ -1,23 +1,60 @@
 "use client";
 
 import { ApiError } from "@/lib/api";
-import { bandFor, formatPoints } from "@/lib/board";
+import { formatPoints } from "@/lib/board";
 import { matchup, playoffRound } from "@/lib/player";
 import { columnsFor, type StatSource } from "@/lib/playerStats";
-import { heatStep } from "@/lib/playerView";
+import { HEAT_INVERTED, HEAT_PER_GAME, HEAT_SEASONS, HEAT_WEEK } from "@/lib/heatBands";
+import { finishStep, statStep, type HeatStep } from "@/lib/playerView";
 import type { CareerSeason, GamelogWeek, StatKey, Usage } from "@/lib/types";
-import { QUALITY_TEXT, QUALITY_WORDS } from "../rankings/PlayerRow";
 import { Skeleton, StatusMessage } from "../ui/StatusMessage";
-import { HEAT, StatTable, type LeadColumn } from "./StatTable";
+import { NEUTRAL_TILE, StatTable, TILE, type LeadColumn } from "./StatTable";
 
 /**
- * A fantasy tile's ground, by where the figure finished at his position: a
- * starter's week (inside a 12-team league's line) on the one quality hue, the
- * bench range a step up from the table, anything below it the table itself.
+ * A fantasy tile's ground, by where the figure finished at his position: 1st
+ * to 12th green, 13th to 24th yellow, 25th to 36th orange, below that red --
+ * a 12-team league's first, second and third string, and the rest.
  */
-export function finishTone(rank: number | null, position: string): string {
-  const q = bandFor(rank, position);
-  return q === "good" ? "bg-q-good/[0.16]" : q === "mid" ? "bg-ink/[0.07]" : "bg-ink/[0.025]";
+export function finishTone(rank: number | null): string {
+  const step = finishStep(rank);
+  return step === null ? NEUTRAL_TILE : TILE[step];
+}
+
+/** A box-score figure's step against the league's games, or null where the position has no cut-off for it. */
+function leagueStep(table: typeof HEAT_WEEK, position: string, key: string, value: number): HeatStep | null {
+  const cuts = table[position]?.[key];
+  return cuts ? statStep(value, cuts, HEAT_INVERTED.includes(key)) : null;
+}
+
+/** What the colours in a heat table mean: shown above the game log and the career. */
+export function HeatLegend({ position, per }: { position: string; per: "game" | "season" }) {
+  const relevant = position === "QB" ? 24 : position === "RB" ? 48 : position === "WR" ? 72 : 24;
+  const swatch = (step: HeatStep, label: string) => (
+    <span className="inline-flex items-center gap-1.5">
+      <span aria-hidden className={`size-2.5 rounded-[2px] ${TILE[step]} ring-1 ring-inset ring-ink/10`} />
+      {label}
+    </span>
+  );
+  return (
+    <div className="flex flex-col gap-1.5 text-[12px] text-mute">
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-ink">{per === "game" ? "Points and rank, where the week finished" : "Rank and points, where the season finished"} among {position}s:</span>
+        {swatch(0, "1–12")}
+        {swatch(1, "13–24")}
+        {swatch(2, "25–36")}
+        {swatch(3, "37+")}
+      </p>
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-ink">
+          {per === "game" ? "Box score, against every game" : "Box score per game, against every season"} by the top {relevant} {position}s, {HEAT_SEASONS.replace("-", "–")}:
+        </span>
+        {swatch(0, "top quarter")}
+        {swatch(1, "second")}
+        {swatch(2, "third")}
+        {swatch(3, "bottom")}
+      </p>
+    </div>
+  );
 }
 
 /**
@@ -146,7 +183,7 @@ export function GameLog({
       label: "Pts",
       title: "Fantasy points under the selected scoring",
       group: "Fantasy",
-      tone: (r) => (scored && r.kind === "week" ? finishTone(rankOf(r.week), position) : undefined),
+      tone: (r) => (scored && r.kind === "week" ? finishTone(rankOf(r.week)) : undefined),
       cell: (r) =>
         scored ? (
           <span className="tabular font-semibold text-ink">
@@ -161,7 +198,7 @@ export function GameLog({
       label: "Rank",
       title: `Place among every ${position} that week; the season row is by season points. Playoff games are not ranked.`,
       group: "Fantasy",
-      tone: (r) => (r.kind === "week" ? finishTone(rankOf(r.week), position) : undefined),
+      tone: (r) => (r.kind === "week" ? finishTone(rankOf(r.week)) : undefined),
       cell: (r) =>
         r.kind === "week" ? (
           <RankCell position={position} rank={rankOf(r.week)} />
@@ -174,8 +211,11 @@ export function GameLog({
       label: "Snap%",
       title: "Share of the offense's snaps he was on the field for",
       group: "Fantasy",
-      // Shaded against the whole of the offense's snaps, not his own range.
-      tone: (r) => (r.kind === "week" && r.week.snapPct !== null ? HEAT[heatStep(r.week.snapPct, 100)] : undefined),
+      tone: (r) => {
+        if (r.kind !== "week" || r.week.snapPct === null) return undefined;
+        const step = leagueStep(HEAT_WEEK, position, "snap", r.week.snapPct);
+        return step === null ? undefined : TILE[step];
+      },
       cell: (r) =>
         r.kind === "week" && r.week.snapPct !== null ? (
           <span className="tabular text-ink">{Math.round(r.week.snapPct)}%</span>
@@ -194,6 +234,7 @@ export function GameLog({
         rows={rows}
         source={(r) => (r.kind === "week" ? r.week : r.season)}
         rowKey={(r) => (r.kind === "week" ? `${r.week.season}-${r.week.week}` : "season")}
+        shade={(key, value, r) => (r.kind === "week" ? leagueStep(HEAT_WEEK, position, key, value) : null)}
         rowProps={(r) =>
           r.kind === "week" && r.week.seasonType !== "REG" ? { className: "[&>td]:text-mute" } : {}
         }
@@ -280,7 +321,7 @@ export function CareerTable({
       label: "Rank",
       title: `Place among every ${position} by season points`,
       group: "Fantasy",
-      tone: (s) => finishTone(s.posRank, position),
+      tone: (s) => finishTone(s.posRank),
       cell: (s) => <RankCell position={position} rank={s.posRank} />,
     },
     ...(mode === "total"
@@ -290,7 +331,7 @@ export function CareerTable({
             label: "Pts",
             title: "Fantasy points under the selected scoring",
             group: "Fantasy",
-            tone: (s: CareerSeason) => (scored ? finishTone(s.posRank, position) : undefined),
+            tone: (s: CareerSeason) => (scored ? finishTone(s.posRank) : undefined),
             cell: (s: CareerSeason) =>
               scored ? (
                 <span className="tabular font-semibold text-ink">{formatPoints(s.points)}</span>
@@ -305,7 +346,7 @@ export function CareerTable({
       label: "PPG",
       title: "Fantasy points per game",
       group: "Fantasy",
-      tone: (s) => (scored && mode === "game" ? finishTone(s.posRank, position) : undefined),
+      tone: (s) => (scored ? finishTone(s.posRank) : undefined),
       cell: (s) =>
         scored ? (
           <span className={`tabular ${mode === "game" ? "font-semibold text-ink" : "text-ink"}`}>{formatPoints(s.pointsPerGame)}</span>
@@ -323,6 +364,11 @@ export function CareerTable({
         groups={columnsFor(position, seasons)}
         rows={seasons}
         source={mode === "game" ? perGame : (s) => s}
+        // Coloured by the per-game rate in both views, so a short season's
+        // totals are not marked down for the games it has not played yet.
+        shade={(key, value, s) =>
+          leagueStep(HEAT_PER_GAME, position, key, mode === "game" ? value : value / Math.max(1, s.gamesPlayed))
+        }
         rowKey={(s) => String(s.season)}
         rowProps={(s) =>
           s.season === selected
@@ -339,16 +385,15 @@ export function CareerTable({
 }
 
 /**
- * "RB3", coloured by where it falls against the position's starter line --
- * the board's one quality hue, on the same 12-team assumption -- with the
- * words in the tooltip so the colour is never the only cue.
+ * "RB3", in ink on its tile -- the tile carries the colour -- with the band in
+ * words in the tooltip, so the colour is never the only cue.
  */
 export function RankCell({ position, rank }: { position: string; rank: number | null }) {
   if (rank === null) return <span className="text-faint">—</span>;
-  const quality = bandFor(rank, position);
-  const words = quality ? QUALITY_WORDS[quality] : "not judged";
+  const step = finishStep(rank);
+  const words = step === null ? "" : ["1st to 12th", "13th to 24th", "25th to 36th", "37th or lower"][step];
   return (
-    <span title={`${position}${rank} — ${words}`} className={`tabular ${quality ? QUALITY_TEXT[quality] : ""}`}>
+    <span title={`${position}${rank}${words ? ` — ${words} among ${position}s` : ""}`} className="tabular font-semibold text-ink">
       {position}
       {rank}
     </span>

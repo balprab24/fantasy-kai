@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { STARTERS, bandFor, formatPoints } from "@/lib/board";
+import { STARTERS, formatPoints } from "@/lib/board";
 import { ageOn } from "@/lib/player";
-import { lastWeekPlayed, starterShare } from "@/lib/playerView";
+import { finishStep, lastWeekPlayed, starterShare, type HeatStep } from "@/lib/playerView";
 import type { CareerSeason, PlayerDetail, ScoringProfile } from "@/lib/types";
 import { positionGlow, positionHue, positionName } from "../rankings/PositionBadge";
-import { QUALITY_TEXT } from "../rankings/PlayerRow";
 import { FormatBar } from "../ui/FormatBar";
 import { PositionChip } from "../ui/PositionChip";
 import { SeasonSelect } from "../ui/SeasonSelect";
@@ -21,6 +20,14 @@ const STATUS: Record<string, string> = {
   DEV: "Practice squad",
   RET: "Retired",
   UFA: "Free agent",
+};
+
+/** A season's positional finish on the four-step scale, as text: 1-12 green down to 37+ red. */
+const FINISH_TEXT: Record<HeatStep, string> = {
+  0: "text-heat-green",
+  1: "text-heat-yellow",
+  2: "text-heat-orange",
+  3: "text-heat-red",
 };
 
 export interface OverallRank {
@@ -80,7 +87,7 @@ export function IdentityCard({
   const line = Object.hasOwn(STARTERS, player.position) ? STARTERS[player.position as keyof typeof STARTERS] : undefined;
   const starts = selected ? starterShare(selected.weeks, line) : null;
   const through = selected && selected.season === current ? lastWeekPlayed(selected) : null;
-  const quality = selected ? bandFor(selected.posRank, player.position) : null;
+  const finish = selected ? finishStep(selected.posRank) : null;
   const [first, rest] = splitName(player.name);
 
   return (
@@ -141,7 +148,7 @@ export function IdentityCard({
                 {selected.posRank !== null ? (
                   <>
                     <span className={positionHue(player.position).text}>{player.position}</span>
-                    <span className={quality ? QUALITY_TEXT[quality] : "text-ink"}>{selected.posRank}</span>
+                    <span className={finish === null ? "text-ink" : FINISH_TEXT[finish]}>{selected.posRank}</span>
                   </>
                 ) : (
                   <span className="text-faint" title="v1 ranks QB, RB, WR and TE">—</span>
