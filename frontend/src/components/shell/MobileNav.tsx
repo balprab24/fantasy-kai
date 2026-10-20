@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { AccountButton } from "./AccountButton";
-import { COMING } from "./nav";
+import { COMING, PRIMARY_NAV, isActive } from "./nav";
 
 /**
  * Below md the bar keeps the wordmark and the two live sections; this menu
@@ -17,6 +19,7 @@ import { COMING } from "./nav";
 export function MobileNav() {
   const dialog = useRef<HTMLDialogElement>(null);
   const close = () => dialog.current?.close();
+  const pathname = usePathname();
 
   return (
     <>
@@ -38,7 +41,7 @@ export function MobileNav() {
         onClick={(e) => {
           if (e.target === e.currentTarget) close();
         }}
-        className="m-0 ml-auto h-dvh max-h-none w-[min(320px,86vw)] max-w-none flex-col bg-surface text-ink backdrop:bg-black/70 open:flex"
+        className="m-0 ml-auto h-dvh max-h-none w-[min(320px,86vw)] max-w-none flex-col border-l border-line bg-surface text-ink backdrop:bg-scrim open:flex"
       >
         <div className="flex h-14 items-center justify-between px-4">
           <span className="type-heading text-ink">Menu</span>
@@ -51,7 +54,29 @@ export function MobileNav() {
             <span className="sr-only">Close menu</span>
           </button>
         </div>
-        <section aria-labelledby="coming-title" className="px-4 pt-2">
+        <nav aria-label="Sections" className="px-2">
+          <ul>
+            {PRIMARY_NAV.map((item) => {
+              const active = isActive(item.href, pathname);
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={close}
+                    aria-current={active ? "page" : undefined}
+                    className={`flex h-12 items-center gap-3 rounded-control px-2 text-base transition-colors hover:bg-well ${
+                      active ? "font-semibold text-ink" : "text-mute"
+                    }`}
+                  >
+                    <Icon name={item.icon} size={20} className={active ? "text-energy-text" : "text-faint"} />
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+        <section aria-labelledby="coming-title" className="mx-4 mt-4 border-t border-line pt-4">
           <h2 id="coming-title" className="type-label text-mute">
             Planned. None of these is built yet.
           </h2>

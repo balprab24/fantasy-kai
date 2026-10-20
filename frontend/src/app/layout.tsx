@@ -1,39 +1,42 @@
 import type { Metadata } from "next";
-import {
-  Sofia_Sans,
-  Sofia_Sans_Extra_Condensed,
-  Sofia_Sans_Semi_Condensed,
-} from "next/font/google";
+import localFont from "next/font/local";
 import { connection } from "next/server";
 import { Providers } from "./providers";
 import "./globals.css";
 
-// One superfamily in three widths, self-hosted by next/font (the CSP allows
-// fonts from this site only). Chosen by setting the real copy and the real
-// numbers side by side: its tabular figures keep "1,202" and "365.6" tight,
-// where the previous face opened a gap around every comma and point.
-// All three are variable on weight, so no weight is named.
+// One superfamily in three widths, self-hosted from files in this repo
+// (app/fonts, SIL OFL 1.1 -- OFL.txt beside them). The CSP allows fonts from
+// this site only, and next/font serves these from it. Local files rather than
+// next/font/google: the build no longer reaches fonts.googleapis.com, so a
+// build in a network-restricted place (CI, a sandbox) sets the real type
+// instead of silently falling back to a system face. The files are
+// Fontsource's latin subsets of the same variable fonts Google serves.
+// Every one is variable on weight (1-1000), so no weight is named below.
 
 // The voice: extra-condensed, heavy, italic -- headlines, titles, the name.
-const sofiaExtra = Sofia_Sans_Extra_Condensed({
-  subsets: ["latin"],
-  style: ["italic"],
+const sofiaExtra = localFont({
+  src: "./fonts/SofiaSansExtraCondensed-latin-wght-italic.woff2",
+  style: "italic",
+  weight: "1 1000",
   variable: "--font-sofia-extra",
   display: "swap",
 });
 
 // Labels, column headers, ranks and stat figures.
-const sofiaSemi = Sofia_Sans_Semi_Condensed({
-  subsets: ["latin"],
-  style: ["normal", "italic"],
+const sofiaSemi = localFont({
+  src: [
+    { path: "./fonts/SofiaSansSemiCondensed-latin-wght.woff2", style: "normal", weight: "1 1000" },
+    { path: "./fonts/SofiaSansSemiCondensed-latin-wght-italic.woff2", style: "italic", weight: "1 1000" },
+  ],
   variable: "--font-sofia-semi",
   display: "swap",
 });
 
 // Everything you read and operate: body, controls, table data.
-const sofia = Sofia_Sans({
-  subsets: ["latin"],
-  style: ["normal"],
+const sofia = localFont({
+  src: "./fonts/SofiaSans-latin-wght.woff2",
+  style: "normal",
+  weight: "1 1000",
   variable: "--font-sofia",
   display: "swap",
 });

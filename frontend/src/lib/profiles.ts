@@ -20,3 +20,22 @@ const PRESET_LABELS: Record<string, string> = {
 export function profileLabel(profile: Pick<ScoringProfile, "name" | "preset">): string {
   return (profile.preset && PRESET_LABELS[profile.name]) || profile.name;
 }
+
+/**
+ * What a preset pays for the one thing the presets disagree on: a catch
+ * (V3__seed_scoring_presets.sql; `tests/lib.test.ts` parses the migration and
+ * holds these words to its rates). Shown under each option of the scoring
+ * switch, so the choice explains itself. A member's own ruleset says only
+ * that it is theirs -- its rules are not readable back from the API, and a
+ * caption guessed from its name would be a claim the product cannot back.
+ */
+const PRESET_CAPTIONS: Record<string, string> = {
+  Standard: "0 per catch",
+  "Half PPR": "½ per catch",
+  "Full PPR": "1 per catch",
+  "TE Premium": "TEs 1.5 per catch",
+};
+
+export function profileCaption(profile: Pick<ScoringProfile, "name" | "preset">): string {
+  return (profile.preset && PRESET_CAPTIONS[profile.name]) || "Your ruleset";
+}

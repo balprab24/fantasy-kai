@@ -22,7 +22,7 @@ export function SearchField({
       <Icon
         name="search"
         size={17}
-        className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint"
+        className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-faint"
       />
       <input
         type="search"
@@ -32,7 +32,7 @@ export function SearchField({
         autoComplete="off"
         maxLength={maxLength}
         spellCheck={false}
-        className="h-10 w-full rounded-control border border-line-strong bg-well pr-3 pl-9 text-sm text-ink transition-colors placeholder:text-faint hover:border-mute focus-visible:border-energy md:h-8"
+        className="h-10 w-full rounded-control border border-line-strong bg-well pr-3 pl-10 text-base text-ink transition-colors placeholder:text-faint hover:border-mute focus-visible:border-energy sm:text-sm"
       />
     </label>
   );

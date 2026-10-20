@@ -93,7 +93,7 @@ export function PlayerWorkspace({ playerId }: { playerId: number }) {
     const missing =
       playerId <= 0 || (player.error instanceof ApiError && player.error.status === 404);
     return (
-      <div className="mx-auto max-w-[1320px] px-4 pt-5 pb-10 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1440px] px-4 pt-5 pb-10 sm:px-6 lg:px-8">
         <BackToBoard season={validSeason} profileId={profileId} now={now} />
         <div className="mt-4">
           <StatusMessage
@@ -116,7 +116,7 @@ export function PlayerWorkspace({ playerId }: { playerId: number }) {
   // wait on a request that is never sent. Say so, with a way out.
   if (profiles.error) {
     return (
-      <div className="mx-auto max-w-[1320px] px-4 pt-5 pb-10 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1440px] px-4 pt-5 pb-10 sm:px-6 lg:px-8">
         <BackToBoard season={validSeason} profileId={null} now={now} />
         <div className="mt-4">
           <StatusMessage
@@ -138,7 +138,7 @@ export function PlayerWorkspace({ playerId }: { playerId: number }) {
   const careerStale = career.isPlaceholderData;
 
   return (
-    <div className="mx-auto max-w-[1320px] px-4 pt-5 pb-10 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-[1440px] px-4 pt-5 pb-10 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         <BackToBoard season={validSeason} profileId={profileId} now={now} />
         {/* The page's two choices on one console strip, as on the board. */}

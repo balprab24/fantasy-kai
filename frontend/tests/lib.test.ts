@@ -49,7 +49,7 @@ import {
 } from "../src/lib/memberHint.ts";
 import { ageOn, matchup, pickSeason, playoffRound } from "../src/lib/player.ts";
 import { COLUMNS, columnsFor, formatCount, type StatSource } from "../src/lib/playerStats.ts";
-import { profileLabel } from "../src/lib/profiles.ts";
+import { profileCaption, profileLabel } from "../src/lib/profiles.ts";
 
 const ZERO_STATS = {
   pass_yd: 0, pass_td: 0, pass_int: 0, pass_2pt: 0,
@@ -74,6 +74,34 @@ describe("profileLabel", () => {
   });
   it("leaves a user's own ruleset its own name, even one called Standard", () => {
     assert.equal(profileLabel({ name: "Standard", preset: false }), "Standard");
+  });
+});
+
+describe("profileCaption", () => {
+  // The scoring switch says what each preset pays a catch. The migration is the
+  // source: parse its rule objects, and hold every caption's number to them.
+  const sql = readFileSync(
+    new URL("../../backend/src/main/resources/db/migration/V3__seed_scoring_presets.sql", import.meta.url),
+    "utf8",
+  );
+  const seeded = new Map(
+    [...sql.matchAll(/\(NULL, '([^']+)', TRUE, '(\{[\s\S]*?\})'::jsonb\)/g)].map((m) => [m[1], JSON.parse(m[2])]),
+  );
+  const number = (caption: string) => Number(caption.match(/(\d+(?:\.\d+)?|½)/)![1].replace("½", "0.5"));
+
+  it("names every preset V3 seeds, by the rate a catch is paid", () => {
+    assert.equal(seeded.size, 4, "V3 did not parse into four presets");
+    for (const [name, rules] of seeded) {
+      const caption = profileCaption({ name, preset: true });
+      assert.notEqual(caption, "Your ruleset", `${name} has no caption`);
+      const te = rules.position_overrides?.TE?.rec;
+      assert.equal(number(caption), te ?? rules.base.rec, name);
+      if (te !== undefined) assert.match(caption, /^TEs /, name);
+    }
+  });
+
+  it("claims nothing about a member's own ruleset", () => {
+    assert.equal(profileCaption({ name: "Half PPR", preset: false }), "Your ruleset");
   });
 });
 
