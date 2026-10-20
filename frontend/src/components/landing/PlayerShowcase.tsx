@@ -5,7 +5,7 @@ import { STARTERS, bandFor, formatPoints } from "@/lib/board";
 import { CATCH_RATES, PASS_TDS, describeMix, mixKey } from "@/lib/mixer";
 import { ageOn } from "@/lib/player";
 import { starterShare } from "@/lib/playerView";
-import { WeeklyChart } from "../player/WeeklyChart";
+import { PerformanceChart } from "../player/PerformanceChart";
 import { positionGlow, positionHue } from "../rankings/PositionBadge";
 import { QUALITY_TEXT } from "../rankings/PlayerRow";
 import { initials } from "../rankings/PlayerAvatar";
@@ -17,7 +17,7 @@ type Tab = "weeks" | "rules";
 
 /**
  * The player view, shown: the followed player's season as a member opens it,
- * built from the product's own parts (the stage's figures, `WeeklyChart`, the
+ * built from the product's own parts (the sidebar's figures, `PerformanceChart`, the
  * Scoring tab's ladder) over captured rows. Both tabs work. No likeness -- the
  * stage carries his initials in his position's hue, which is also exactly what
  * the product shows for a player without a headshot.
@@ -104,7 +104,7 @@ export function PlayerShowcase() {
 
       <TabPanel tabsId={tabsId} tab={tab} className="px-5 py-6 focus-visible:outline-none sm:px-7">
         {tab === "weeks" ? (
-          <WeeklyChart season={s} position={FOLLOWED.position} scoringLabel="Half PPR" caption={false} />
+          <PerformanceChart seasons={[s]} position={FOLLOWED.position} scoringLabel="Half PPR" periods={false} initial={s.season} />
         ) : (
           <ul className="space-y-1">
             {ladder.map((l) => (

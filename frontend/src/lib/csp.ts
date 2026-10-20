@@ -31,7 +31,7 @@ export function contentSecurityPolicy({ nonce, apiOrigin, dev }: CspInput): stri
     ["script-src", "'self'", `'nonce-${nonce}'`, "'strict-dynamic'", ...(dev ? ["'unsafe-eval'"] : [])],
     // No nonce here, deliberately, and this is where the Next.js example differs:
     // a nonce in style-src makes browsers IGNORE 'unsafe-inline', and React's
-    // style={} attributes (PlayerRow, WeeklyChart) cannot carry one. Injected
+    // style={} attributes (PlayerRow, PerformanceChart) cannot carry one. Injected
     // CSS is the accepted residue; injected script is not.
     ["style-src", "'self'", "'unsafe-inline'"],
     // Headshots and team logos -- both a.espncdn.com, measured 2026-09-29.

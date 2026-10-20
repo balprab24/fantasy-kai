@@ -67,7 +67,7 @@ export function PlayerOverlay({ children }: { children: React.ReactNode }) {
         onClick={(e) => {
           if (e.target === e.currentTarget) close();
         }}
-        className="player-overlay fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none overflow-y-auto overscroll-contain bg-canvas text-ink backdrop:bg-scrim md:inset-x-0 md:top-6 md:mx-auto md:h-[calc(100dvh-1.5rem)] md:w-[min(1280px,calc(100vw-3rem))] md:rounded-t-plate md:border md:border-b-0 md:border-line md:shadow-float"
+        className="player-overlay fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none overflow-y-auto overscroll-contain bg-canvas text-ink backdrop:bg-scrim md:inset-x-0 md:top-6 md:mx-auto md:h-[calc(100dvh-1.5rem)] md:w-[min(1600px,calc(100vw-5rem))] md:rounded-t-plate md:border md:border-b-0 md:border-line md:shadow-float"
       >
         <div className="min-h-full">{children}</div>
       </dialog>

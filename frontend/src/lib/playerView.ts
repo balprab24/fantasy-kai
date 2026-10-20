@@ -7,7 +7,12 @@ import type { CareerSeason, CareerWeek, GamelogWeek } from "./types";
  * scores, adds or rounds a fantasy point: every point shown is the API's.
  */
 
-export const PLAYER_TABS = ["overview", "log", "scoring", "career"] as const;
+/**
+ * The player view's sections, in page order. They are one scrolling column,
+ * not panes: `?tab=` names the section the view opens scrolled to, and
+ * "overview" is the top of it.
+ */
+export const PLAYER_TABS = ["overview", "log", "performance", "career", "scoring"] as const;
 export type PlayerTab = (typeof PLAYER_TABS)[number];
 
 /** `?tab=` as typed by whoever typed it: anything unknown is the overview. */
@@ -55,4 +60,34 @@ export function weekSlots(season: Pick<CareerSeason, "weeks">): { week: number; 
   const last = lastWeekPlayed(season) ?? 0;
   const byWeek = new Map(season.weeks.map((w) => [w.week, w]));
   return Array.from({ length: last }, (_, i) => ({ week: i + 1, game: byWeek.get(i + 1) ?? null }));
+}
+
+/** One game on the performance chart: his season and week, and the API's figures for it. */
+export interface ChartGame {
+  season: number;
+  week: number;
+  game: CareerWeek | null;
+}
+
+/**
+ * His last `count` regular-season games across every season the career holds,
+ * oldest first -- what "Last 17" draws. Games only: a week with no game is not
+ * a game, so it takes no slot here (a single season's chart shows those gaps).
+ * `seasons` is the career's own list, newest first.
+ */
+export function lastGames(seasons: readonly Pick<CareerSeason, "season" | "weeks">[], count = 17): ChartGame[] {
+  const all = [...seasons]
+    .sort((a, b) => a.season - b.season)
+    .flatMap((s) => [...s.weeks].sort((a, b) => a.week - b.week).map((game) => ({ season: s.season, week: game.week, game })));
+  return all.slice(Math.max(0, all.length - count));
+}
+
+/**
+ * How strongly to shade a box-score cell: 0 for nothing, then 1 to `steps` by
+ * its share of the biggest value in its column (`max`) -- his own range, not
+ * the league's, which the API does not send. A negative or empty column is 0.
+ */
+export function heatStep(value: number, max: number, steps = 4): number {
+  if (!(value > 0) || !(max > 0)) return 0;
+  return Math.max(1, Math.min(steps, Math.ceil((value / max) * steps)));
 }

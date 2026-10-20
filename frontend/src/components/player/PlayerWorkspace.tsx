@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useId, useMemo, useSyncExternalStore } from "react";
+import { useEffect, useId, useMemo, useOptimistic, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { ApiError } from "@/lib/api";
+import { STARTERS } from "@/lib/board";
 import { clearBoardReturn, readBoardReturn } from "@/lib/boardReturn";
 import { boardSequenceSnapshot, neighbours, parseBoardSequence, type SequenceEntry } from "@/lib/boardSequence";
 import { pickSeason } from "@/lib/player";
@@ -11,15 +12,16 @@ import { parseTab, type PlayerTab } from "@/lib/playerView";
 import { profileLabel } from "@/lib/profiles";
 import { useCareer, useCareers, useGamelog, useOverallRank, usePlayer, useSelectedProfile } from "@/lib/queries";
 import { FIRST_SEASON, currentSeason } from "@/lib/season";
+import { PlayerAvatar } from "../rankings/PlayerAvatar";
 import { BUTTON_ICON } from "../ui/buttons";
 import { Icon } from "../ui/Icon";
+import { SegmentedControl } from "../ui/SegmentedControl";
 import { Skeleton, StatusMessage } from "../ui/StatusMessage";
-import { TabPanel, Tabs } from "../ui/Tabs";
-import { CareerSnapshot, Panel, RecentGames, SeasonLine } from "./PlayerPanels";
-import { PlayerStage } from "./PlayerStage";
-import { CareerError, CareerTable, GameLog, TableSkeleton } from "./PlayerTables";
+import { PerformanceChart } from "./PerformanceChart";
+import { Panel } from "./PlayerPanels";
+import { IdentityCard, ScoringCard } from "./PlayerSidebar";
+import { CareerError, CareerTable, GameLog, TableSkeleton, type CareerMode } from "./PlayerTables";
 import { ScoringCompare } from "./ScoringCompare";
-import { WeeklyChart } from "./WeeklyChart";
 
 const RANKED = ["QB", "RB", "WR", "TE"];
 
@@ -28,10 +30,6 @@ const noSubscription = () => () => {};
 
 function int(raw: string | null): number | null {
   return raw !== null && /^[1-9][0-9]{0,9}$/.test(raw) ? Number(raw) : null;
-}
-
-function games(n: number) {
-  return `${n} ${n === 1 ? "game" : "games"}`;
 }
 
 /**
@@ -45,13 +43,25 @@ function games(n: number) {
  * the board without leaving it, with the previous and next player on the
  * board one step away.
  *
+ * The layout is a sidebar and a column. The sidebar is who he is and what his
+ * season is worth (`IdentityCard`), and the two choices behind every number,
+ * ruleset and season (`ScoringCard`). The column is the evidence, one panel
+ * under another -- the game log, his games charted, his career, and the same
+ * season under every ruleset -- with a bar of section links pinned above it
+ * that follows the scroll and, once the sidebar has scrolled away, carries
+ * his face and name.
+ *
  * Requests: the player (a primary-key read); the career under the chosen
- * ruleset (feeds the stage, the chart and the career); the season's game log;
- * the board's first page for his overall rank (shared with the board's cache);
- * and, only while the Scoring tab is open, the career under every other
- * ruleset. Season, scoring and tab live in the URL, written with
- * `replaceState`: a refresh or a shared link opens the same view, and back
- * goes to wherever you came from rather than through every season you tried.
+ * ruleset (feeds the sidebar, the chart and the career); the season's game
+ * log; the board's first page for his overall rank (shared with the board's
+ * cache); and, only once the Scoring panel is near the screen, the career
+ * under every other ruleset. Season, scoring and section live in the URL,
+ * replaced rather than pushed: a refresh or a shared link opens the same view,
+ * and back goes to wherever you came from rather than through every season
+ * you tried. The writes go through `router.replace` with `scroll: false`: after
+ * a bare `replaceState` Next scrolled the view back to its top (measured: a
+ * section link clicked halfway down landed at 2px instead of on the career),
+ * and a scoring change halfway down now keeps its place.
  */
 export function PlayerWorkspace({
   playerId,
@@ -62,11 +72,16 @@ export function PlayerWorkspace({
   variant?: "page" | "overlay";
   onClose?: () => void;
 }) {
-  const params = useSearchParams();
+  // What the URL says, or is about to say: a write shows at once, and gives
+  // way to the real URL when the router has caught up.
+  const liveParams = useSearchParams();
+  const [query, showQuery] = useOptimistic(liveParams.toString());
+  const params = useMemo(() => new URLSearchParams(query), [query]);
+  const [, startTransition] = useTransition();
   const pathname = usePathname();
   const router = useRouter();
   const now = currentSeason();
-  const tabsId = useId();
+  const sectionsId = useId();
 
   const requestedSeason = int(params.get("season"));
   const validSeason =
@@ -92,11 +107,15 @@ export function PlayerWorkspace({
   const ranked = RANKED.includes(position);
   const overall = useOverallRank(playerId, profileId, season, ranked && !!player.data);
   const allProfiles = profiles.data ?? [];
+  // The same season under every ruleset: fetched once the Scoring panel comes
+  // near the screen (or the URL opens on it), not for every player opened.
+  const [scoringNear, setScoringNear] = useState(tab === "scoring");
   const careers = useCareers(
     playerId,
     allProfiles.map((p) => p.id),
-    tab === "scoring" && ranked,
+    scoringNear && ranked,
   );
+  const [careerMode, setCareerMode] = useState<CareerMode>("total");
 
   const selected = seasons.find((s) => s.season === season) ?? null;
   const profile = profiles.data?.find((p) => p.id === profileId);
@@ -123,16 +142,92 @@ export function PlayerWorkspace({
     return () => window.removeEventListener("pagehide", clearBoardReturn);
   }, []);
 
+  // Merged into the newest write, not this render's: two quick changes (a
+  // section link, then a ruleset) must not undo each other while the first is
+  // still on its way.
+  const latest = useRef<string | null>(null);
+  const committed = liveParams.toString();
+  useEffect(() => {
+    if (latest.current === committed) latest.current = null;
+  }, [committed]);
   const write = (change: Record<string, string | null>) => {
-    const nextParams = new URLSearchParams(params.toString());
+    const nextParams = new URLSearchParams(latest.current ?? committed);
     for (const [key, value] of Object.entries(change)) {
       if (value === null) nextParams.delete(key);
       else nextParams.set(key, value);
     }
-    const query = nextParams.toString();
-    window.history.replaceState(null, "", `${pathname}${query ? `?${query}` : ""}`);
+    const next = nextParams.toString();
+    latest.current = next;
+    startTransition(() => {
+      showQuery(next);
+      router.replace(`${pathname}${next ? `?${next}` : ""}`, { scroll: false });
+    });
   };
   const setTab = (t: PlayerTab) => write({ tab: t === "overview" ? null : t });
+
+  // The section links follow the scroll: the current section is the last one
+  // whose top has passed just under the pinned bar. The same pass notes when
+  // the sidebar's card has scrolled away (the bar then carries his name) and
+  // when the Scoring panel is near (its requests go out then). Measured on the
+  // overlay's own scroll, or the window's on a page.
+  const mainRef = useRef<HTMLDivElement>(null);
+  const identityRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState<PlayerTab>(tab === "overview" ? "log" : tab);
+  const [pastIdentity, setPastIdentity] = useState(false);
+  const scrollMargin = variant === "page" ? "scroll-mt-[7.5rem]" : "scroll-mt-16";
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    const dialog = main.closest("dialog");
+    const scroller: HTMLElement | Window = dialog ?? window;
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const top = dialog ? dialog.getBoundingClientRect().top : 0;
+      const height = dialog ? dialog.clientHeight : window.innerHeight;
+      const barLine = top + (variant === "page" ? 140 : 90);
+      let current: PlayerTab = "log";
+      for (const key of ["log", "performance", "career", "scoring"] as const) {
+        const el = document.getElementById(`${sectionsId}-${key}`);
+        if (el && el.getBoundingClientRect().top <= barLine) current = key;
+      }
+      setActive(current);
+      const card = identityRef.current?.getBoundingClientRect();
+      setPastIdentity(!!card && card.bottom < top + (variant === "page" ? 112 : 56));
+      const scoring = document.getElementById(`${sectionsId}-scoring`);
+      if (scoring && scoring.getBoundingClientRect().top < top + height + 480) setScoringNear(true);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(measure);
+    };
+    measure();
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      scroller.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [sectionsId, variant, career.data, gamelog.data]);
+
+  const pick = (key: PlayerTab) => {
+    setTab(key);
+    if (key === "scoring") setScoringNear(true);
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document.getElementById(`${sectionsId}-${key}`)?.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+  };
+
+  // A link that names a section opens scrolled to it, once its panels have
+  // something in them to scroll to.
+  const opened = useRef(false);
+  const ready = !!career.data && (season === null || !!gamelog.data);
+  useEffect(() => {
+    if (opened.current || !ready) return;
+    opened.current = true;
+    if (tab !== "overview" && tab !== "log") {
+      document.getElementById(`${sectionsId}-${tab}`)?.scrollIntoView({ block: "start" });
+    }
+  }, [ready, tab, sectionsId]);
 
   // Previous and next keep the view's own rules and tab: stepping through the
   // board is for comparing players under the same scoring.
@@ -200,197 +295,251 @@ export function PlayerWorkspace({
     );
   }
 
-  const tabs = [
-    { key: "overview" as const, label: "Overview" },
-    { key: "log" as const, label: "Game log", meta: gamelog.data ? String(gamelog.data.weeks.length) : undefined },
+  const sections = [
+    { key: "log" as const, label: "Game log" },
+    ...(ranked ? [{ key: "performance" as const, label: "Performance" }] : []),
+    { key: "career" as const, label: "Career" },
     ...(ranked ? [{ key: "scoring" as const, label: "Scoring" }] : []),
-    { key: "career" as const, label: "Career", meta: seasons.length ? String(seasons.length) : undefined },
   ];
-  // A position v1 does not score has no Scoring tab; a URL asking for one gets the overview.
-  const shownTab: PlayerTab = !ranked && tab === "scoring" ? "overview" : tab;
+  const line = Object.hasOwn(STARTERS, position) ? STARTERS[position as keyof typeof STARTERS] : undefined;
 
   return (
     <Frame variant={variant}>
       {chrome}
 
-      <div className="mt-3">
-        {player.data ? (
-          <PlayerStage
-            player={player.data}
-            season={season}
-            selected={selected}
-            careerLoading={career.isLoading || (profileId === null && !career.data)}
-            careerFailed={!!career.error && !career.data}
-            scoringLabel={scoringLabel}
-            stale={careerStale}
-            scored={ranked}
-            overall={overall}
+      <div className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[19.5rem_minmax(0,1fr)] lg:items-start lg:gap-5 xl:grid-cols-[21rem_minmax(0,1fr)]">
+        {/* From lg the sidebar stays put while the column scrolls -- who he is
+            and how he is scored never leave the screen -- and scrolls on its
+            own if a long list of rulesets makes it taller than the window. */}
+        <aside
+          aria-label="Player"
+          className={`grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 lg:sticky lg:overflow-y-auto lg:overscroll-contain lg:[scrollbar-width:thin] ${
+            variant === "page" ? "lg:top-[4.5rem] lg:max-h-[calc(100dvh-5.5rem)]" : "lg:top-3 lg:max-h-[calc(100dvh-3rem)]"
+          }`}
+        >
+          <div ref={identityRef}>
+            {player.data ? (
+              <IdentityCard
+                player={player.data}
+                season={season}
+                selected={selected}
+                careerLoading={career.isLoading || (profileId === null && !career.data)}
+                careerFailed={!!career.error && !career.data}
+                scoringLabel={scoringLabel}
+                stale={careerStale}
+                scored={ranked}
+                overall={overall}
+                current={now}
+              />
+            ) : (
+              <Skeleton className="h-[34rem] rounded-panel" />
+            )}
+          </div>
+          <ScoringCard
             profiles={profiles.data}
             profileId={profileId}
             onProfile={(id) => write({ profileId: String(id) })}
             seasons={played}
+            season={season}
             onSeason={(s) => write({ season: String(s) })}
-            current={now}
           />
-        ) : (
-          <Skeleton className="h-[26rem] rounded-plate" />
-        )}
-      </div>
+        </aside>
 
-      {/* The sections stay in reach while a long log scrolls: pinned under the
-          site's bar on a page, at the top of the overlay's own scroll. */}
-      <div
-        className={`sticky z-20 -mx-4 mt-6 border-b border-line bg-veil px-4 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 ${variant === "page" ? "top-14" : "top-0"}`}
-      >
-        <Tabs id={tabsId} label="Player sections" items={tabs} value={shownTab} onChange={setTab} />
-      </div>
+        <div ref={mainRef} className="min-w-0">
+          <SectionNav
+            id={sectionsId}
+            sections={sections}
+            active={active}
+            variant={variant}
+            onPick={pick}
+            mini={pastIdentity && player.data ? player.data : null}
+          />
 
-      {!ranked && player.data && (
-        <p className="mt-5 text-sm text-mute">
-          fantasy-kai scores and ranks QB, RB, WR and TE. {position} lines are shown as recorded, without
-          points or positional ranks.
-        </p>
-      )}
+          {!ranked && player.data && (
+            <p className="mt-4 text-sm text-mute">
+              fantasy-kai scores and ranks QB, RB, WR and TE. {position} lines are shown as recorded, without
+              points or positional ranks.
+            </p>
+          )}
 
-      <TabPanel tabsId={tabsId} tab={shownTab} className="mt-6 focus-visible:outline-none">
-        {shownTab === "overview" && (
-          <div className="grid gap-5 lg:grid-cols-12">
-            <Panel
-              title="Performance"
-              meta={selected ? `${selected.season}, ${games(selected.gamesPlayed)}, ${scoringLabel}` : undefined}
-              className="lg:col-span-8"
-            >
-              {career.error ? (
-                <CareerError error={career.error} onRetry={() => void career.refetch()} />
-              ) : !career.data ? (
-                <Skeleton className="h-[270px]" />
-              ) : selected && ranked ? (
-                <WeeklyChart
-                  key={`${selected.season}-${profileId}`}
-                  season={selected}
+          <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4">
+            <div id={`${sectionsId}-log`} className={scrollMargin}>
+              <Panel
+                title="Game log"
+                meta={season !== null ? `${season}, every game, playoffs included` : undefined}
+                bodyClassName="pb-3"
+              >
+                {ranked && line !== undefined && (
+                  <p className="-mt-1 mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 px-5 text-[12px] text-mute sm:px-6">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span aria-hidden className="size-2.5 rounded-[2px] bg-q-good/40" />
+                      A top-{line} {position} week
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span aria-hidden className="flex">
+                        <span className="size-2.5 rounded-l-[2px] bg-ink/[0.06]" />
+                        <span className="size-2.5 rounded-r-[2px] bg-ink/[0.22]" />
+                      </span>
+                      Box score: deeper is a bigger game, by his own season
+                    </span>
+                  </p>
+                )}
+                <GameLog
                   position={position}
-                  scoringLabel={scoringLabel}
-                  stale={careerStale}
-                  caption={false}
-                />
-              ) : (
-                <p className="py-8 text-[15px] text-mute">
-                  {seasons.length === 0
-                    ? "No regular-season games on record."
-                    : `No regular-season games in ${season}. Pick another season above.`}
-                </p>
-              )}
-            </Panel>
-
-            <Panel title="Recent games" meta={season !== null ? `${season}, newest first` : undefined} className="lg:col-span-4">
-              {gamelog.error ? (
-                <StatusMessage tone="error" title="The game log could not be loaded." action={{ label: "Try again", onClick: () => void gamelog.refetch() }}>
-                  {gamelog.error instanceof ApiError ? gamelog.error.message : "The API did not answer."}
-                </StatusMessage>
-              ) : (
-                <RecentGames
-                  weeks={season === null && career.data ? [] : gamelog.data?.weeks}
-                  position={position}
-                  season={selected}
                   scored={ranked}
+                  // No season to show once the career is back means no games at all:
+                  // an empty log, not a skeleton waiting on a request never sent.
+                  weeks={season === null && career.data ? [] : gamelog.data?.weeks}
                   loading={gamelog.isLoading}
+                  error={gamelog.error}
+                  onRetry={() => void gamelog.refetch()}
+                  season={selected}
                   stale={gamelog.isPlaceholderData}
                 />
-              )}
-              {gamelog.data && gamelog.data.weeks.length > 5 && (
-                <button
-                  type="button"
-                  onClick={() => setTab("log")}
-                  className="mt-3 w-full rounded-control py-2 text-[14px] text-energy-text transition-colors hover:bg-well"
-                >
-                  Every game in the log
-                </button>
-              )}
-            </Panel>
-
-            {selected && (
-              <Panel title="Season line" meta={`${selected.season} regular season, box score`} className="lg:col-span-8">
-                <SeasonLine position={position} season={selected} />
               </Panel>
+            </div>
+
+            {ranked && (
+              <div id={`${sectionsId}-performance`} className={scrollMargin}>
+                <Panel title="Performance" meta={`Fantasy points by game, ${scoringLabel}`}>
+                  {career.error ? (
+                    <CareerError error={career.error} onRetry={() => void career.refetch()} />
+                  ) : !career.data ? (
+                    <Skeleton className="h-[300px]" />
+                  ) : (
+                    <PerformanceChart
+                      key={`${playerId}-${profileId}`}
+                      seasons={seasons}
+                      position={position}
+                      scoringLabel={scoringLabel}
+                      stale={careerStale}
+                    />
+                  )}
+                </Panel>
+              </div>
             )}
 
-            {seasons.length > 0 && (
-              <Panel title="Seasons" meta="Points per game" className={selected ? "lg:col-span-4" : "lg:col-span-12"}>
-                <CareerSnapshot
-                  seasons={seasons}
-                  position={position}
-                  selected={season}
-                  onSelect={(s) => write({ season: String(s) })}
-                  scored={ranked}
-                  stale={careerStale}
-                />
+            <div id={`${sectionsId}-career`} className={scrollMargin}>
+              <Panel
+                title="Career"
+                meta="Regular season, newest first"
+                action={
+                  <SegmentedControl
+                    legend="Career figures"
+                    hideLegend
+                    options={[
+                      { value: "game", label: "Per game" },
+                      { value: "total", label: "Totals" },
+                    ]}
+                    value={careerMode}
+                    onChange={(v) => setCareerMode(v as CareerMode)}
+                  />
+                }
+                bodyClassName="pb-3"
+              >
+                {career.error ? (
+                  <div className="px-5 pb-2"><CareerError error={career.error} onRetry={() => void career.refetch()} /></div>
+                ) : !career.data ? (
+                  <div className="px-5 pb-2"><TableSkeleton rows={4} /></div>
+                ) : seasons.length === 0 ? (
+                  <p className="px-5 pb-2 text-[15px] text-mute sm:px-6">No regular-season games on record.</p>
+                ) : (
+                  <CareerTable
+                    position={position}
+                    scored={ranked}
+                    seasons={seasons}
+                    selected={season}
+                    onSelect={(s) => write({ season: String(s) })}
+                    stale={careerStale}
+                    mode={careerMode}
+                  />
+                )}
               </Panel>
+            </div>
+
+            {ranked && season !== null && (
+              <div id={`${sectionsId}-scoring`} className={scrollMargin}>
+                <ScoringCompare
+                  season={season}
+                  position={position}
+                  scored={allProfiles.map((p, i) => ({
+                    profile: p,
+                    data: careers[i]?.data,
+                    loading: careers[i]?.isLoading ?? true,
+                    error: !!careers[i]?.error,
+                  }))}
+                  selectedId={profileId}
+                  onSelect={(id) => write({ profileId: String(id) })}
+                />
+              </div>
             )}
           </div>
-        )}
-
-        {shownTab === "log" && (
-          <Panel
-            title="Game log"
-            meta={season !== null ? `${season}, every game, playoffs included` : undefined}
-            bodyClassName="pb-0"
-          >
-            <GameLog
-              position={position}
-              scored={ranked}
-              // No season to show once the career is back means no games at all:
-              // an empty log, not a skeleton waiting on a request never sent.
-              weeks={season === null && career.data ? [] : gamelog.data?.weeks}
-              loading={gamelog.isLoading}
-              error={gamelog.error}
-              onRetry={() => void gamelog.refetch()}
-              season={selected}
-              stale={gamelog.isPlaceholderData}
-            />
-          </Panel>
-        )}
-
-        {shownTab === "scoring" && season !== null && (
-          <ScoringCompare
-            season={season}
-            position={position}
-            scored={allProfiles.map((p, i) => ({
-              profile: p,
-              data: careers[i]?.data,
-              loading: careers[i]?.isLoading ?? true,
-              error: !!careers[i]?.error,
-            }))}
-            selectedId={profileId}
-            onSelect={(id) => write({ profileId: String(id) })}
-          />
-        )}
-
-        {/* The whole table, at full width. It shared the row with the season
-            bars, which squeezed it into a sideways scroll at 1440px (the
-            rushing columns were cut off), and the bars are the Overview's
-            Seasons panel already. */}
-        {shownTab === "career" && (
-          <Panel title="Career" meta="Regular season, newest first" bodyClassName="pb-0">
-            {career.error ? (
-              <div className="px-5 pb-5"><CareerError error={career.error} onRetry={() => void career.refetch()} /></div>
-            ) : !career.data ? (
-              <div className="px-5 pb-5"><TableSkeleton rows={4} /></div>
-            ) : seasons.length === 0 ? (
-              <p className="px-5 pb-5 text-[15px] text-mute sm:px-6">No regular-season games on record.</p>
-            ) : (
-              <CareerTable
-                position={position}
-                scored={ranked}
-                seasons={seasons}
-                selected={season}
-                onSelect={(s) => write({ season: String(s) })}
-                stale={careerStale}
-              />
-            )}
-          </Panel>
-        )}
-      </TabPanel>
+        </div>
+      </div>
     </Frame>
+  );
+}
+
+/**
+ * The pinned bar over the column: a link to each section, the current one
+ * marked as the scroll passes it. Links, not tabs -- every panel is on the
+ * page, and a link scrolls to its panel and names it in the URL. Once the
+ * sidebar's card has scrolled away, the bar's left end carries his face,
+ * name and position, so a long scroll never loses whose page it is.
+ */
+function SectionNav({
+  id,
+  sections,
+  active,
+  variant,
+  onPick,
+  mini,
+}: {
+  id: string;
+  sections: { key: PlayerTab; label: string }[];
+  active: PlayerTab;
+  variant: "page" | "overlay";
+  onPick: (key: PlayerTab) => void;
+  mini: { name: string; position: string; espnId: string | null; team: string | null } | null;
+}) {
+  return (
+    <div
+      className={`sticky z-20 -mx-4 border-b border-line bg-surface px-4 sm:mx-0 sm:rounded-control sm:border sm:px-2 ${variant === "page" ? "top-14" : "top-0"}`}
+    >
+      <div className="flex items-center gap-2 sm:gap-4">
+        {/* Below lg the sidebar is the top of the page and scrolls away; his
+            face then rides at the bar's left end. From lg the sidebar stays. */}
+        {mini && (
+          <span title={mini.name} className="flex shrink-0 items-center gap-2 pl-0.5 lg:hidden">
+            <PlayerAvatar name={mini.name} espnId={mini.espnId} size="sm" />
+            <span className="sr-only">{mini.name}</span>
+          </span>
+        )}
+        <nav aria-label="Player sections" className="-mb-px flex min-w-0 gap-1 overflow-x-auto">
+          {sections.map((sec) => {
+            const current = sec.key === active;
+            return (
+              <a
+                key={sec.key}
+                href={`#${id}-${sec.key}`}
+                aria-current={current ? "location" : undefined}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onPick(sec.key);
+                }}
+                className={`relative flex h-11 shrink-0 items-center px-2.5 text-[14px] whitespace-nowrap transition-colors sm:px-3 ${
+                  current
+                    ? "font-semibold text-ink after:slash after:absolute after:inset-x-2 after:bottom-0 after:h-[3px] after:bg-energy"
+                    : "text-mute hover:text-ink"
+                }`}
+              >
+                {sec.label}
+              </a>
+            );
+          })}
+        </nav>
+      </div>
+    </div>
   );
 }
 

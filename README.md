@@ -20,7 +20,7 @@ Docker Compose on Oracle Cloud · Vercel
 | Feature | What it does |
 |---|---|
 | **League-specific rankings** | QB/RB/WR/TE boards for any season from 2020 to the current one, by season total, per-game average or the last four weeks, with tiers and positional ranks. Switching the ruleset re-scores the whole board and names the biggest moves it made. |
-| **Player pages** | Opened over the board or on their own URL: the season's line, weekly chart, recent games, full game log, season-by-season career with positional ranks, and the same season under every ruleset side by side -- all scored under the selected ruleset. |
+| **Player pages** | Opened over the board or on their own URL: a player card with the season in figures and the scoring beside it, then the game log and career as heat tables (career per game or in totals), his last 17 games charted across seasons, and the same season under every ruleset side by side -- all scored under the selected ruleset. |
 | **Scoring-rule builder** | Build and save your own rulesets: per-stat rates, threshold bonuses and per-position overrides. They are private to your account. |
 | **Accounts** | Email sign-up and sign-in. Every data read requires an account. |
 | **Daily data** | Production pulls nflverse and Sleeper data at 06:00 ET every day, so in-season weeks fill in as stat corrections land. |

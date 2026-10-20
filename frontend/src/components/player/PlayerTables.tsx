@@ -3,11 +3,22 @@
 import { ApiError } from "@/lib/api";
 import { bandFor, formatPoints } from "@/lib/board";
 import { matchup, playoffRound } from "@/lib/player";
-import { columnsFor } from "@/lib/playerStats";
-import type { CareerSeason, GamelogWeek } from "@/lib/types";
+import { columnsFor, type StatSource } from "@/lib/playerStats";
+import { heatStep } from "@/lib/playerView";
+import type { CareerSeason, GamelogWeek, StatKey, Usage } from "@/lib/types";
 import { QUALITY_TEXT, QUALITY_WORDS } from "../rankings/PlayerRow";
 import { Skeleton, StatusMessage } from "../ui/StatusMessage";
-import { StatTable, type LeadColumn } from "./StatTable";
+import { HEAT, StatTable, type LeadColumn } from "./StatTable";
+
+/**
+ * A fantasy tile's ground, by where the figure finished at his position: a
+ * starter's week (inside a 12-team league's line) on the one quality hue, the
+ * bench range a step up from the table, anything below it the table itself.
+ */
+export function finishTone(rank: number | null, position: string): string {
+  const q = bandFor(rank, position);
+  return q === "good" ? "bg-q-good/[0.16]" : q === "mid" ? "bg-ink/[0.07]" : "bg-ink/[0.025]";
+}
 
 /**
  * The player view's two long tables -- the game log and the career -- and the
@@ -79,6 +90,8 @@ export function GameLog({
   }
 
   const weeklyRank = new Map(season?.weeks.map((w) => [w.week, w.posRank]) ?? []);
+  // The API ranks the regular season only: a playoff game has no weekly rank.
+  const rankOf = (w: GamelogWeek) => (w.seasonType === "REG" ? (weeklyRank.get(w.week) ?? null) : null);
   const traded = new Set(weeks.map((w) => w.team)).size > 1;
   const rows: LogRow[] = weeks.map((week) => ({ kind: "week", week }));
 
@@ -133,6 +146,7 @@ export function GameLog({
       label: "Pts",
       title: "Fantasy points under the selected scoring",
       group: "Fantasy",
+      tone: (r) => (scored && r.kind === "week" ? finishTone(rankOf(r.week), position) : undefined),
       cell: (r) =>
         scored ? (
           <span className="tabular font-semibold text-ink">
@@ -147,12 +161,10 @@ export function GameLog({
       label: "Rank",
       title: `Place among every ${position} that week; the season row is by season points. Playoff games are not ranked.`,
       group: "Fantasy",
+      tone: (r) => (r.kind === "week" ? finishTone(rankOf(r.week), position) : undefined),
       cell: (r) =>
         r.kind === "week" ? (
-          <RankCell
-            position={position}
-            rank={r.week.seasonType === "REG" ? (weeklyRank.get(r.week.week) ?? null) : null}
-          />
+          <RankCell position={position} rank={rankOf(r.week)} />
         ) : (
           <RankCell position={position} rank={r.season.posRank} />
         ),
@@ -162,9 +174,11 @@ export function GameLog({
       label: "Snap%",
       title: "Share of the offense's snaps he was on the field for",
       group: "Fantasy",
+      // Shaded against the whole of the offense's snaps, not his own range.
+      tone: (r) => (r.kind === "week" && r.week.snapPct !== null ? HEAT[heatStep(r.week.snapPct, 100)] : undefined),
       cell: (r) =>
         r.kind === "week" && r.week.snapPct !== null ? (
-          <span className="tabular text-mute">{Math.round(r.week.snapPct)}%</span>
+          <span className="tabular text-ink">{Math.round(r.week.snapPct)}%</span>
         ) : (
           <span className="text-faint">—</span>
         ),
@@ -191,6 +205,16 @@ export function GameLog({
   );
 }
 
+/** A season's box score divided by its games: per-game counts for the career's "Per game" view. */
+function perGame(s: CareerSeason): StatSource {
+  const g = Math.max(1, s.gamesPlayed);
+  const stats = Object.fromEntries(Object.entries(s.stats).map(([k, v]) => [k, v / g])) as Record<StatKey, number>;
+  const usage = Object.fromEntries(Object.entries(s.usage).map(([k, v]) => [k, v / g])) as unknown as Usage;
+  return { stats, usage };
+}
+
+export type CareerMode = "game" | "total";
+
 export function CareerTable({
   position,
   scored,
@@ -198,6 +222,7 @@ export function CareerTable({
   selected,
   onSelect,
   stale,
+  mode = "total",
 }: {
   position: string;
   scored: boolean;
@@ -205,6 +230,8 @@ export function CareerTable({
   selected: number | null;
   onSelect: (season: number) => void;
   stale: boolean;
+  /** Season totals, or every count divided by games played. Points are the API's either way. */
+  mode?: CareerMode;
 }) {
   const lead: LeadColumn<CareerSeason>[] = [
     {
@@ -253,28 +280,35 @@ export function CareerTable({
       label: "Rank",
       title: `Place among every ${position} by season points`,
       group: "Fantasy",
+      tone: (s) => finishTone(s.posRank, position),
       cell: (s) => <RankCell position={position} rank={s.posRank} />,
     },
-    {
-      key: "pts",
-      label: "Pts",
-      title: "Fantasy points under the selected scoring",
-      group: "Fantasy",
-      cell: (s) =>
-        scored ? (
-          <span className="tabular font-semibold text-ink">{formatPoints(s.points)}</span>
-        ) : (
-          <span className="text-faint">—</span>
-        ),
-    },
+    ...(mode === "total"
+      ? [
+          {
+            key: "pts",
+            label: "Pts",
+            title: "Fantasy points under the selected scoring",
+            group: "Fantasy",
+            tone: (s: CareerSeason) => (scored ? finishTone(s.posRank, position) : undefined),
+            cell: (s: CareerSeason) =>
+              scored ? (
+                <span className="tabular font-semibold text-ink">{formatPoints(s.points)}</span>
+              ) : (
+                <span className="text-faint">—</span>
+              ),
+          },
+        ]
+      : []),
     {
       key: "ppg",
       label: "PPG",
       title: "Fantasy points per game",
       group: "Fantasy",
+      tone: (s) => (scored && mode === "game" ? finishTone(s.posRank, position) : undefined),
       cell: (s) =>
         scored ? (
-          <span className="tabular">{formatPoints(s.pointsPerGame)}</span>
+          <span className={`tabular ${mode === "game" ? "font-semibold text-ink" : "text-ink"}`}>{formatPoints(s.pointsPerGame)}</span>
         ) : (
           <span className="text-faint">—</span>
         ),
@@ -284,18 +318,17 @@ export function CareerTable({
   return (
     <div className={`transition-opacity ${stale ? "opacity-60" : ""}`}>
       <StatTable
-        caption="Career: every regular season on record, scored under the selected ruleset"
+        caption={`Career: every regular season on record, scored under the selected ruleset${mode === "game" ? ", box score per game" : ""}`}
         lead={lead}
         groups={columnsFor(position, seasons)}
         rows={seasons}
-        source={(s) => s}
+        source={mode === "game" ? perGame : (s) => s}
         rowKey={(s) => String(s.season)}
         rowProps={(s) =>
           s.season === selected
             ? {
-                // The whole row on the opaque `well` step -- opaque, so the
-                // pinned first cell still hides what scrolls under it.
-                className: "[&>td]:bg-well [&>td:first-child]:shadow-[inset_3px_0_0_var(--color-energy)]",
+                // The season the page is on: an energy edge on its pinned cell.
+                className: "[&>td:first-child]:shadow-[inset_3px_0_0_var(--color-energy)]",
                 "aria-current": true,
               }
             : {}

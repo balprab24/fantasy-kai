@@ -37,7 +37,7 @@ import {
   routeFor,
 } from "../src/lib/memberHint.ts";
 import { ageOn, matchup, pickSeason, playoffRound } from "../src/lib/player.ts";
-import { lastWeekPlayed, parseTab, recentGames, starterShare, weekSlots } from "../src/lib/playerView.ts";
+import { heatStep, lastGames, lastWeekPlayed, parseTab, recentGames, starterShare, weekSlots } from "../src/lib/playerView.ts";
 import { COLUMNS, columnsFor, formatCount, type StatSource } from "../src/lib/playerStats.ts";
 import { profileCaption, profileLabel } from "../src/lib/profiles.ts";
 
@@ -268,6 +268,7 @@ describe("the player view's derived facts", () => {
   it("opens the overview for any tab it does not know", () => {
     assert.equal(parseTab("scoring"), "scoring");
     assert.equal(parseTab("log"), "log");
+    assert.equal(parseTab("performance"), "performance");
     assert.equal(parseTab("projections"), "overview");
     assert.equal(parseTab(null), "overview");
   });
@@ -278,6 +279,31 @@ describe("the player view's derived facts", () => {
     assert.deepEqual(weekSlots({ weeks: [] }), []);
     assert.equal(lastWeekPlayed({ weeks: [wk(3), wk(9)] }), 9);
     assert.equal(lastWeekPlayed({ weeks: [] }), null);
+  });
+
+  it("charts his last games across seasons, oldest first, games only", () => {
+    const g = (week: number) => ({ week, opponent: "X", home: true, points: week, posRank: null });
+    const seasons = [
+      { season: 2026, weeks: [g(3), g(1), g(2)] },
+      { season: 2025, weeks: [g(16), g(18), g(17)] },
+      { season: 2024, weeks: [g(1)] },
+    ];
+    assert.deepEqual(
+      lastGames(seasons, 5).map((x) => `${x.season}-${x.week}`),
+      ["2025-17", "2025-18", "2026-1", "2026-2", "2026-3"],
+    );
+    assert.equal(lastGames(seasons, 17).length, 7, "fewer games than asked is all of them");
+    assert.deepEqual(lastGames([], 17), []);
+  });
+
+  it("shades a box-score cell by its share of the column's biggest value, and nothing for nothing", () => {
+    assert.equal(heatStep(0, 10), 0);
+    assert.equal(heatStep(-2, 10), 0, "a negative figure is not a big game");
+    assert.equal(heatStep(5, 0), 0);
+    assert.equal(heatStep(1, 100), 1, "anything at all is at least the first step");
+    assert.equal(heatStep(50, 100), 2);
+    assert.equal(heatStep(100, 100), 4);
+    assert.equal(heatStep(130, 100), 4, "never past the last step");
   });
 
   it("counts starter weeks against the position's 12-team line, and says nothing for an unranked position", () => {
@@ -510,7 +536,7 @@ describe("text colours are used at full strength", () => {
 
   it("finds the colours and the sources it checks", () => {
     assert.ok(colours.includes("faint") && colours.includes("ink"), "no colour tokens parsed from globals.css");
-    assert.ok(files.some((f) => f.endsWith("WeeklyChart.tsx")), "no component sources found");
+    assert.ok(files.some((f) => f.endsWith("PerformanceChart.tsx")), "no component sources found");
   });
 
   it("never fades a text colour with an opacity modifier", () => {

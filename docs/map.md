@@ -169,8 +169,9 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
   src/lib/movers.ts                the biggest moves between two boards' API ranks (top 60)
   src/lib/boardSequence.ts         the board's visible order when a player was opened, for the
                                    player view's previous / next (sessionStorage)
-  src/lib/playerView.ts            the player view's derived facts: ?tab=, week slots and gaps,
-                                   recent games, starter weeks
+  src/lib/playerView.ts            the player view's derived facts: ?tab= (the section opened
+                                   on), week slots and gaps, the last 17 games across seasons,
+                                   starter weeks, a heat tile's step
   src/lib/authErrors.ts            one wording for a failed sign-in or sign-up
   src/app/fonts/                   Sofia Sans in three widths (Fontsource latin subsets, OFL),
                                    self-hosted through next/font/local
@@ -211,13 +212,16 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    FilterBar, PlayerRow, TierHeader, PositionBadge, PlayerAvatar
                                    (headshot with a monogram fallback)
     player/                        PlayerWorkspace (the player view: a page, or the overlay over
-                                   the board), PlayerOverlay (the <dialog>, closed through
-                                   history), PlayerStage (the plate and the season line),
-                                   PlayerPanels (recent games, season line, seasons), PlayerTables
-                                   (game log, career), ScoringCompare (one season under every
-                                   ruleset), PlayerCutout (ESPN's whole cut-out, outlined initials
-                                   on a 404), WeeklyChart (dependency-free columns), StatTable
-                                   (game log and career share it)
+                                   the board -- a sticky sidebar and a column of panels under
+                                   section links that follow the scroll), PlayerOverlay (the
+                                   <dialog>, closed through history), PlayerSidebar (the player
+                                   card: name, plate, seven figures; the scoring card),
+                                   PlayerTables + StatTable (the game log and career as heat
+                                   tables; career per game or totals), PerformanceChart (last 17
+                                   games across seasons, or one season; dependency-free columns),
+                                   ScoringCompare (one season under every ruleset), PlayerCutout
+                                   (ESPN's whole cut-out, outlined initials on a 404), PlayerPanels
+                                   (the panel shell)
   src/app/                         (site): / /login /register -- the site header
                                    (app): /rankings /players/[id] /profiles -- the top bar, and
                                    behind RequireAccount

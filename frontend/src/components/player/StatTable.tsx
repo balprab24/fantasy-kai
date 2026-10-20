@@ -5,6 +5,7 @@ import {
   type ColumnGroup,
   type StatSource,
 } from "@/lib/playerStats";
+import { heatStep } from "@/lib/playerView";
 
 /** A column before the box score: week, opponent, points, rank... */
 export interface LeadColumn<R> {
@@ -18,13 +19,31 @@ export interface LeadColumn<R> {
   /** A width hint, so a short column does not soak up a wide table's slack. */
   width?: string;
   cell: (row: R) => React.ReactNode;
+  /** The cell's ground: a tile shaded by what the value means (a week's finish). */
+  tone?: (row: R) => string | undefined;
 }
+
+/**
+ * The shade of a box-score tile, from nothing to his biggest game in that
+ * column (`heatStep`). Ink at rising strength rather than a hue: the hues are
+ * taken (blue is "you are here", green is "a starter's week"), and a ramp of
+ * one neutral reads the same to every eye.
+ */
+export const HEAT = ["bg-ink/[0.025]", "bg-ink/[0.06]", "bg-ink/[0.1]", "bg-ink/[0.15]", "bg-ink/[0.22]"];
 
 /**
  * The game log and the career table are one table with a different first few
  * columns, so they are one component: the box-score columns come from
  * `columnsFor` (lib/playerStats.ts), decided over every row, and line up the
  * same way in both.
+ *
+ * A grid of tiles: every figure sits on its own small ground, shaded so the
+ * big games stand out of the column without being read one by one. The
+ * box-score tiles are shaded against his own range in that column (the API
+ * sends no league distribution to shade against, and the legend says so);
+ * lead columns bring their own ground (`tone`), which the fantasy columns use
+ * for where the week finished at his position. Every value is printed, so the
+ * shade is never the only cue.
  *
  * Wide by nature -- a running back's log is eleven numbers a week -- so it
  * scrolls sideways inside its own box on a narrow screen, with the first
@@ -58,17 +77,24 @@ export function StatTable<R>({
     else leadGroups.push({ label: col.group, span: 1 });
   }
 
-  const cellBase = "h-10 px-2.5 whitespace-nowrap";
+  // Each column's biggest value over the body rows (never the summary row,
+  // which would flatten every week against a season total).
+  const columns = groups.flatMap((g) => g.columns);
+  const max = new Map(columns.map((c) => [c.key, Math.max(0, ...rows.map((r) => c.value(source(r))))]));
+
+  const tile = "h-8 rounded-[3px] px-2 whitespace-nowrap";
   // Pinned and opaque, so the columns scrolling under it on a phone do not
-  // show through; it follows the row's hover to the same opaque step.
-  const pin = "sticky left-0 z-[1] bg-surface group-hover:bg-well";
+  // show through.
+  const pin = "sticky left-0 z-[1] bg-surface";
   const renderRow = (row: R, isFoot: boolean) => {
     const stats = source(row);
     return lead
       .map((col, i) => (
         <td
           key={col.key}
-          className={`${cellBase} ${col.align === "left" ? "text-left" : "text-right"} ${i === 0 ? `${pin} pl-5 sm:pl-6` : ""} ${isFoot ? "font-medium" : ""}`}
+          className={`${tile} ${col.align === "left" ? "text-left" : "text-right"} ${
+            i === 0 ? pin : isFoot ? "bg-ink/[0.06]" : (col.tone?.(row) ?? "bg-ink/[0.025]")
+          } ${isFoot ? "font-semibold" : ""}`}
         >
           {isFoot && i === 0 && foot ? foot.label : col.cell(row)}
         </td>
@@ -77,10 +103,11 @@ export function StatTable<R>({
         groups.flatMap((g) =>
           g.columns.map((c, ci) => {
             const v = c.value(stats);
+            const shade = isFoot ? "bg-ink/[0.06]" : HEAT[heatStep(v, max.get(c.key) ?? 0)];
             return (
               <td
                 key={c.key}
-                className={`${cellBase} tabular text-right ${v === 0 ? "text-faint" : "text-ink"} ${ci === 0 ? "pl-4" : ""}`}
+                className={`${tile} tabular text-right ${shade} ${v === 0 ? "text-faint" : "text-ink"} ${isFoot ? "font-semibold" : ""} ${ci === 0 ? "border-l-[6px] border-l-transparent bg-clip-padding" : ""}`}
               >
                 {formatCount(v)}
               </td>
@@ -91,20 +118,19 @@ export function StatTable<R>({
   };
 
   return (
-    <div className="overflow-x-auto rounded-b-panel">
-      {/* Separate borders, drawn on cells: a sticky cell in a collapsed-border
-          table leaves a hairline seam that scrolled columns show through.
-          Groups are told apart by a wider gap, not a vertical rule. */}
-      <table className="w-full border-separate border-spacing-0 text-[14px]">
+    <div className="overflow-x-auto px-3 pb-1 sm:px-4">
+      {/* Separate borders and a 2px gap: each figure is a tile. Groups are
+          told apart by a wider gap before their first column. */}
+      <table className="w-full border-separate border-spacing-[2px] text-[13px]">
         <caption className="sr-only">{caption}</caption>
         <thead>
-          <tr className="font-label text-[12px] font-semibold text-faint">
+          <tr className="font-label text-[11px] font-semibold text-faint">
             {leadGroups.map((g, i) => (
               <th
                 key={`${g.label}-${i}`}
                 scope="colgroup"
                 colSpan={g.span}
-                className={`h-8 px-2.5 text-left ${i === 0 ? `${pin} pl-5 sm:pl-6` : ""}`}
+                className={`h-6 px-2 text-left ${i === 0 ? pin : ""}`}
               >
                 {g.label}
               </th>
@@ -114,19 +140,19 @@ export function StatTable<R>({
                 key={g.group}
                 scope="colgroup"
                 colSpan={g.columns.length}
-                className="h-7 px-2 pl-4 text-left"
+                className="h-6 border-l-[6px] border-l-transparent px-2 text-left"
               >
                 {GROUP_LABELS[g.group]}
               </th>
             ))}
           </tr>
-          <tr className="font-label text-[12px] text-mute [&>th]:border-b [&>th]:border-line [&>th:last-child]:pr-5 sm:[&>th:last-child]:pr-6">
+          <tr className="font-label text-[11px] text-mute">
             {lead.map((col, i) => (
               <th
                 key={col.key}
                 scope="col"
                 title={col.title}
-                className={`h-9 px-2.5 font-semibold whitespace-nowrap ${col.width ?? ""} ${col.align === "left" ? "text-left" : "text-right"} ${i === 0 ? `${pin} pl-5 sm:pl-6` : ""}`}
+                className={`h-7 px-2 font-semibold whitespace-nowrap ${col.width ?? ""} ${col.align === "left" ? "text-left" : "text-right"} ${i === 0 ? pin : ""}`}
               >
                 {col.label}
               </th>
@@ -138,7 +164,7 @@ export function StatTable<R>({
                     key={c.key}
                     scope="col"
                     title={c.title}
-                    className={`h-8 px-2 text-right font-semibold whitespace-nowrap ${ci === 0 ? "pl-4" : ""}`}
+                    className={`h-7 px-2 text-right font-semibold whitespace-nowrap ${ci === 0 ? "border-l-[6px] border-l-transparent" : ""}`}
                   >
                     <abbr title={c.title} className="no-underline">
                       {c.label}
@@ -156,7 +182,7 @@ export function StatTable<R>({
               <tr
                 key={rowKey(row)}
                 aria-current={extra["aria-current"] || undefined}
-                className={`group [&>td]:border-b [&>td]:border-line [&>td]:transition-colors [&>td:last-child]:pr-5 sm:[&>td:last-child]:pr-6 hover:[&>td]:bg-well ${extra.className ?? ""}`}
+                className={`group [&>td]:transition-[filter] hover:[&>td]:brightness-125 ${extra.className ?? ""}`}
               >
                 {renderRow(row, false)}
               </tr>
@@ -165,10 +191,7 @@ export function StatTable<R>({
         </tbody>
         {foot && (
           <tfoot>
-            {/* Opaque, so the pinned first cell hides what scrolls under it. */}
-            <tr className="[&>td]:bg-well [&>td]:font-semibold [&>td:last-child]:pr-5 sm:[&>td:last-child]:pr-6">
-              {renderRow(foot.row, true)}
-            </tr>
+            <tr>{renderRow(foot.row, true)}</tr>
           </tfoot>
         )}
       </table>

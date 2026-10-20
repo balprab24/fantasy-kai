@@ -125,7 +125,7 @@ components:
 A prime-time broadcast package for one idea: your rules decide the order. Night-game navy is the
 stage, for the product and the public pages alike. Depth comes from four blue-black steps. A page's
 sections are rounded panels, so the pieces read as deliberate and separate; the rows inside them stay
-lines. Each page earns one focal plate: the landing's rule mixer, the player's stage. The voice is a
+lines. Each page earns one focal plate: the landing's rule mixer, the player's card. The voice is a
 heavy extra-condensed italic that leans forward like the logo's two strokes, and the logo's slant is
 cut into every mark that says "this one".
 
@@ -168,7 +168,7 @@ Rejected on purpose:
 ### Secondary
 - **Energy Blue** (#3d8bff), with **Energy Text** (#8ab8ff) for text. "You are here" and "live": a
   chosen segment's base line, the chosen tab's slash, the active nav item, the focus ring, links, the
-  board's fetching sweep, the open player's row on the board, the chosen ruleset in the Scoring tab.
+  board's fetching sweep, the open player's row on the board, the chosen ruleset in the Scoring panel.
 
 ### Tertiary
 - **Position hues**: QB Violet (#c3a6ff), RB Red (#ff6b6b), WR Cyan (#5cc8ff), TE Magenta (#ff8fd4).
@@ -183,7 +183,7 @@ Rejected on purpose:
 
 ### Neutral
 - **Night** (#060a12): every page background, and the board's rows on a phone.
-- **Surface** (#0b1120): a panel -- a section of a page, the board, the player stage, the mixer,
+- **Surface** (#0b1120): a panel -- a section of a page, the board, the player card, the mixer,
   the sticky table header, popovers.
 - **Well** (#121a2c): things you type into or pick from, and row hover.
 - **Lift** (#1b2640): the chosen one -- a chosen segment or ruleset, a tooltip.
@@ -223,7 +223,7 @@ site only and the build must not depend on reaching Google.
 - **Body** (400, 15-17px, line-height 1.55-1.65), the landing lead at 19px; measures near 36rem.
 - **Label** (600 semi-condensed, 12-13px, sentence case): column headers, captions, a figure's
   name. Never tracked capitals.
-- **Figure** (750 semi-condensed italic): a number that leads -- the stage's season line, a rank
+- **Figure** (750 semi-condensed italic): a number that leads -- the player card's figures, a rank
   in a column, a tier plate.
 
 ### Named Rules
@@ -247,8 +247,11 @@ under Half PPR for the 2026 season, by season total").
 - **Rankings:** the title and the recipe sentence; then the scoring switch on a row of its own (the
   Format Bar); then position, window, season and find; then, after a switch, the moves it made; then
   the board, one panel, its column header pinned under the bar.
-- **The player:** the stage (a plate); a tab bar pinned while the page scrolls; each tab a set of
-  panels. Opened from the board, it is an overlay over the board (below); opened cold, a page.
+- **The player:** a sidebar and a column. The sidebar -- who he is, his season in figures, and the
+  ruleset and season behind every number -- stays put from lg while the column scrolls; the column
+  is the evidence, one panel under another (game log, performance, career, every ruleset) under a
+  pinned bar of section links. Opened from the board, it is an overlay over the board (below);
+  opened cold, a page.
 
 ### The landing
 - **Pace:** hook, why, depth, everywhere, ask -- and no two sections in a row share a split:
@@ -267,20 +270,20 @@ Flat, by tone. One shadow exists, **Float** (`0 24px 48px -20px rgb(0 0 0 / 0.9)
 rgb(0 0 0 / 0.6)`), for what floats: popovers, tooltips, the player overlay, the landing's mixer
 and the sign-in page's still board. Nothing glows.
 
-The two gradients the product draws are light, not decoration: the player stage's light behind the
+The two gradients the product draws are light, not decoration: the player card's light behind the
 cut-out, in the position's hue at 26%; and the overlay's dimmed board (the scrim).
 
 ## Shapes
 
-- **Radius by hierarchy:** 0 for structure (rows, cells, rules); 2px for a control inside a control;
+- **Radius by hierarchy:** 0 for structure (rows, rules); 3px for a heat table's tiles; 2px for a control inside a control;
   8px for anything you operate; 16px for a panel; 24px for the focal plate; a full pill only for
   circular marks (avatars, the chart's zero ring).
 - **The slash:** `clip-path` on the logo's slant (`slash` in globals.css), never a skew transform, so
   the letters inside stay upright. Small marks only: position chips, tier plates, the chosen tab's
   and nav item's 3px bar.
-- **Imagery:** a player's photo is ESPN's whole cut-out, standing on the stage so its flat crop line
+- **Imagery:** a player's photo is ESPN's whole cut-out, standing on the card's plate so its flat crop line
   is the floor; never a circle cropped from it at display size (the 36px row avatar excepted). With
-  no headshot the stage shows his initials as outlined display type in his hue. The landing shows no
+  no headshot the plate shows his initials as outlined display type in his hue. The landing shows no
   real player's likeness (owner decision 2026-09-28, kept), and so uses exactly that fallback.
 
 ## Components
@@ -300,9 +303,12 @@ Three to a row on a phone; as wide as its options from sm.
 `PositionChip`: the letters on the slash, tinted in their hue, with the positional rank after them in
 ink ("WR 1").
 
-### Tabs
+### Tabs and section links
 `Tabs` + `TabPanel`: the WAI-ARIA tablist (roving focus, arrows, Home and End, automatic
-activation). The chosen tab is ink, semibold and carries the energy slash.
+activation), for panes that replace each other (the landing's showcase). Where every panel is on the
+page -- the player view -- the bar is section links instead: each scrolls to its panel and names it
+in the URL, and the current one follows the scroll. Either way the chosen item is ink, semibold and
+carries the energy slash.
 
 ### Status
 `StatusMessage`: a panel with an icon that names the kind (info or alert), a title that says what
@@ -314,22 +320,36 @@ team, games, a neutral gauge, points, per game in the quality hue, and -- once t
 ruleset -- movement. Tier dividers are plates on the slash; S is orange. The open player's row keeps
 an energy edge.
 
-### The player stage (signature)
-A plate: the cut-out lit in the position's hue in front of the logo's two strokes; the position chip,
-team, age and any roster status; the name at display size; the Format Bar and the season; and a
-season line of six figures -- position rank (quality-coloured), overall rank, points, per game,
-games, weeks inside a 12-team league's starters.
+### The player card (signature)
+The sidebar's first card: the position chip, team and any roster status; the first name small over
+the surname at display size; the cut-out on a plate lit in the position's hue in front of the logo's
+two strokes; then seven figures in two rows -- overall rank, position rank (quality-coloured), per
+game, age; points, games, weeks inside a 12-team league's starters -- and the season and ruleset
+they are for. The second card is the scoring: one ruleset a row (the Format Bar's list layout) and
+the season, three to a row on a phone.
+
+### Heat tables
+The game log and the career are grids of tiles, 2px apart, every figure on its own small ground.
+Fantasy tiles (points, rank) take their ground from where the figure finished at his position: a
+starter's week on the quality green, the bench range a step up from the table, anything below it the
+table itself. Box-score tiles deepen in five steps of ink with his own range in that column -- the
+API sends no league distribution to shade against, and the legend says so; snap share is shaded
+against the whole of the offense's snaps. Every value is printed, so the shade is never the only
+cue. The career has a per-game view (counts divided by games played; points per game are the API's).
 
 ### The player overlay
 Opened from the board, the player view is an intercepted route on the player's own URL, shown in a
-native `<dialog>` over the dimmed board -- 1280px wide on a desktop, the whole screen on a phone.
+native `<dialog>` over the dimmed board -- up to 1600px wide on a desktop, with the board showing at
+its edges, and the whole screen on a phone.
 Closing is always the browser's back, so Escape, the close button, a click on the board and the
 back button agree with the URL. Previous and next step through the board's visible order.
 
-### The weekly chart
-Columns, one per regular-season week up to the last played. A starter week is green, any other slate;
-a week with no game recorded is a dashed empty slot; a zero-point game is a ring on the zero line.
-A dashed season average, labelled. One Tab stop; arrows walk the weeks.
+### The performance chart
+Columns with their figures on top: his last 17 regular-season games across seasons, with a rule and
+the two seasons' names where one ends, or any of his four latest seasons week by week. A starter
+week is green, any other slate; in one season a week with no game recorded is a dashed empty slot; a
+zero-point game is a ring on the zero line. A dashed average, labelled (the season's own points per
+game, or the mean of the 17 figures shown). One Tab stop; arrows walk the games.
 
 ### The rule mixer (landing)
 The season's real board under two dials -- points per catch (0, ½, 1) and passing touchdown (4, 6) --
