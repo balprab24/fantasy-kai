@@ -22,7 +22,7 @@ import { boardSearch, parseBoardParams } from "../src/lib/boardParams.ts";
 import { neighbours } from "../src/lib/boardSequence.ts";
 import { biggestMovers } from "../src/lib/movers.ts";
 import { apiOriginOf, contentSecurityPolicy } from "../src/lib/csp.ts";
-import { CUTOUT_ASPECT, headshotCutoutUrl, headshotUrl } from "../src/lib/headshot.ts";
+import { CUTOUT_ASPECT, HEADSHOTS_ENABLED, headshotCutoutUrl, headshotUrl } from "../src/lib/headshot.ts";
 import { LANDING_SECTIONS, safeNext } from "../src/lib/landing.ts";
 import { CATCH_RATES, PASS_TDS, castOf, describeMix, formatRate, mixKey, slotOn } from "../src/lib/mixer.ts";
 import { presetRates, priceLine } from "../src/lib/receipt.ts";
@@ -97,20 +97,17 @@ describe("profileCaption", () => {
 });
 
 describe("headshotUrl", () => {
-  it("builds a resized ESPN crop from a digits-only id", () => {
-    assert.equal(
-      headshotUrl("4429795", 64),
-      "https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/4429795.png&w=64&h=64&scale=crop&cquality=80",
-    );
+  it("is off without permission for public display: no URL for any id, so every avatar is initials", () => {
+    assert.equal(HEADSHOTS_ENABLED, false);
+    for (const id of ["4429795", "3117251", "1"]) {
+      assert.equal(headshotUrl(id, 64), null, id);
+      assert.equal(headshotCutoutUrl(id, 600), null, id);
+    }
   });
   it("gives no URL for a missing or malformed id, so the monogram shows", () => {
     for (const bad of [null, undefined, "", "4262921.0", "123abc", "../x", "1".repeat(13)]) {
       assert.equal(headshotUrl(bad, 64), null, String(bad));
     }
-  });
-  it("clamps the requested size", () => {
-    assert.match(headshotUrl("1", 9999)!, /w=512&h=512/);
-    assert.match(headshotUrl("1", 1)!, /w=16&h=16/);
   });
 });
 
@@ -328,7 +325,7 @@ describe("the player view's derived facts", () => {
       TE: ["targets", "rec", "rec_yd", "rec_td"],
     };
     // Every key must be a box-score column the tables actually draw, or it would never be used.
-    const keys = new Set(COLUMNS.map((c) => c.key));
+    const keys = new Set(COLUMNS.map((c) => c.key).concat("snap"));
     for (const table of [HEAT_WEEK, HEAT_PER_GAME]) {
       for (const [pos, stats] of Object.entries(primary)) {
         for (const st of stats) assert.ok(table[pos]?.[st], `${pos} ${st} has no cut-off`);
@@ -340,9 +337,15 @@ describe("the player view's derived facts", () => {
       }
     }
     for (const pos of Object.keys(HEAT_WEEK)) {
-      assert.equal(HEAT_WEEK[pos].snap ?? HEAT_WEEK[pos].snap_pct, undefined, `${pos} snap share is opportunity, not graded`);
+      const snap = HEAT_WEEK[pos].snap;
+      assert.ok(snap && snap.every((c) => typeof c === "number"), `${pos} snap share has a full set of weekly cut-offs`);
+      assert.equal(HEAT_PER_GAME[pos].snap, undefined, "the career has no snap column");
       assert.ok(HEAT_RELEVANT[pos] > 0, `${pos} has no comparison-set size for the legend`);
     }
+    // A quarterback plays every snap in most games: every snap is the top band,
+    // and anything less is not.
+    assert.equal(statStep(100, HEAT_WEEK.QB.snap), 0);
+    assert.notEqual(statStep(99, HEAT_WEEK.QB.snap), 0);
   });
 
   it("counts starter weeks against the position's 12-team line, and says nothing for an unranked position", () => {
@@ -442,11 +445,17 @@ describe("contentSecurityPolicy", () => {
     assert.ok(style.includes("'unsafe-inline'"));
     assert.ok(!style.some((source) => source.startsWith("'nonce-")));
   });
-  it("names exactly two hosts off the site: the API and ESPN's images", () => {
+  it("names exactly two sources off the site: the API and ESPN's team logos", () => {
     const hosts = new Set(prod.split(/[ ;]+/).filter((token) => /^https?:\/\//.test(token)));
-    assert.deepEqual([...hosts].sort(), ["https://a.espncdn.com", "https://api.fantasykai.com"]);
+    assert.deepEqual([...hosts].sort(), ["https://a.espncdn.com/i/teamlogos/", "https://api.fantasykai.com"]);
     assert.deepEqual(directive(prod, "connect-src"), ["'self'", "https://api.fantasykai.com"]);
-    assert.deepEqual(directive(prod, "img-src"), ["'self'", "data:", "blob:", "https://a.espncdn.com"]);
+    assert.deepEqual(directive(prod, "img-src"), ["'self'", "data:", "blob:", "https://a.espncdn.com/i/teamlogos/"]);
+  });
+  it("admits a team logo and not a headshot: headshots are off without permission", () => {
+    // A CSP source ending in "/" admits exactly the paths that start with it.
+    const espn = directive(prod, "img-src")!.find((s) => s.includes("espncdn"))!;
+    assert.ok("https://a.espncdn.com/i/teamlogos/nfl/500/sea.png".startsWith(espn));
+    assert.ok(!"https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/1.png".startsWith(espn));
   });
   it("has no wildcard or scheme-only source anywhere, which would allow every host", () => {
     for (const source of prod.split("; ").flatMap((d) => d.split(" ").slice(1))) {
@@ -537,17 +546,8 @@ describe("member hint", () => {
 });
 
 describe("headshotCutoutUrl", () => {
-  it("asks for the whole cut-out at its own aspect, not a square crop", () => {
-    assert.equal(
-      headshotCutoutUrl("3117251", 600),
-      "https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/3117251.png&w=600&h=436",
-    );
-    assert.doesNotMatch(headshotCutoutUrl("3117251", 300)!, /scale=crop/);
+  it("keeps the cut-out's aspect, so the initials' box is the photo's shape", () => {
     assert.equal(Math.round(300 * CUTOUT_ASPECT), 218);
-  });
-  it("never asks past the native 600px, which would only upscale", () => {
-    assert.match(headshotCutoutUrl("1", 5000)!, /w=600&h=436$/);
-    assert.match(headshotCutoutUrl("1", 10)!, /w=120&h=87$/);
   });
   it("gives no URL for a missing or malformed id, so the initials show", () => {
     for (const bad of [null, undefined, "", "4262921.0", "123abc", "../x"]) {

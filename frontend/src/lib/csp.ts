@@ -34,8 +34,10 @@ export function contentSecurityPolicy({ nonce, apiOrigin, dev }: CspInput): stri
     // style={} attributes (PlayerRow, PerformanceChart) cannot carry one. Injected
     // CSS is the accepted residue; injected script is not.
     ["style-src", "'self'", "'unsafe-inline'"],
-    // Headshots and team logos -- both a.espncdn.com, measured 2026-09-29.
-    ["img-src", "'self'", "data:", "blob:", "https://a.espncdn.com"],
+    // Team logos only: ESPN's logo path, not the host. Headshots are off
+    // (lib/headshot.ts) and their path (/combiner/) is no longer admitted, so
+    // one cannot load even if something asks for it.
+    ["img-src", "'self'", "data:", "blob:", "https://a.espncdn.com/i/teamlogos/"],
     ["font-src", "'self'"],
     // Where an injected script would send a stolen token, if it ran anyway.
     ["connect-src", "'self'", ...(apiOrigin ? [apiOrigin] : []), ...(dev ? ["ws:"] : [])],

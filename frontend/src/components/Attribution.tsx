@@ -31,8 +31,8 @@ export function Attribution({ variant = "product" }: { variant?: "product" | "si
       <a href="https://fantasyfootballcalculator.com/" className={LINK_QUIET}>
         Fantasy Football Calculator
       </a>
-      . Player headshots and team logos load from ESPN&rsquo;s image servers, keyed by the ESPN id nflverse
-      publishes; nothing is copied or stored here.
+      . Team logos load from ESPN&rsquo;s image servers; nothing is copied or stored here. Players are shown
+      by their initials.
     </p>
   );
   const independence = (

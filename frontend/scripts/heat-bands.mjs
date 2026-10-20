@@ -16,20 +16,22 @@
  */
 import { readFileSync } from "node:fs";
 
-// Production only. Snap share is opportunity, not output -- a low share in a
-// big game is not a poor game -- so it is never graded (owner decision,
-// 2026-10-20).
+// Snap share is graded at every position (owner decision, 2026-10-20): it is
+// how a rookie's role grows and how a backfield splits. It is graded per game
+// only -- the career has no snap column.
 const STATS = {
-  QB: ["pass_cmp", "pass_att", "pass_yd", "pass_td", "pass_int", "rush_att", "rush_yd", "rush_td"],
-  RB: ["rush_att", "rush_yd", "rush_td", "targets", "rec", "rec_yd", "rec_td"],
-  WR: ["targets", "rec", "rec_yd", "rec_td"],
-  TE: ["targets", "rec", "rec_yd", "rec_td"],
+  QB: ["snap_pct", "pass_cmp", "pass_att", "pass_yd", "pass_td", "pass_int", "rush_att", "rush_yd", "rush_td"],
+  RB: ["snap_pct", "rush_att", "rush_yd", "rush_td", "targets", "rec", "rec_yd", "rec_td"],
+  WR: ["snap_pct", "targets", "rec", "rec_yd", "rec_td"],
+  TE: ["snap_pct", "targets", "rec", "rec_yd", "rec_td"],
 };
 // Players per position per season in the comparison set: must match the
 // LIMITs in heat-bands.sql, and is checked against the rows below.
 const RELEVANT = { QB: 24, RB: 48, WR: 72, TE: 24 };
 // Fewer is better.
 const INVERT = new Set(["pass_int"]);
+// The tables' key for a column whose name differs from the query's.
+const KEY = { snap_pct: "snap" };
 
 const [header, ...lines] = readFileSync(0, "utf8").trim().split("\n");
 const cols = header.split(",");
@@ -39,14 +41,27 @@ if (rows.length < 1000) throw new Error(`only ${rows.length} rows: is the databa
 const lowerBound = (xs, v) => { let lo = 0, hi = xs.length; while (lo < hi) { const m = (lo + hi) >> 1; if (xs[m] < v) lo = m + 1; else hi = m; } return lo; };
 const upperBound = (xs, v) => { let lo = 0, hi = xs.length; while (lo < hi) { const m = (lo + hi) >> 1; if (xs[m] <= v) lo = m + 1; else hi = m; } return lo; };
 
+// Each distinct value with its mid-rank among `xs` (sorted).
+function midRanks(xs) {
+  const pr = (v) => (lowerBound(xs, v) + 0.5 * (upperBound(xs, v) - lowerBound(xs, v))) / xs.length;
+  return [...new Set(xs)].map((v) => [v, pr(v)]);
+}
+
 function weekCuts(values, invert) {
   const xs = [...values].sort((a, b) => a - b);
-  const n = xs.length;
-  const pr = (v) => (lowerBound(xs, v) + 0.5 * (upperBound(xs, v) - lowerBound(xs, v))) / n;
-  const seen = [...new Set(xs)].map((v) => [v, pr(v)]);
+  const seen = midRanks(xs);
   if (!invert) {
-    const first = (t) => seen.find(([, p]) => p >= t)?.[0] ?? null;
-    return [first(0.75), first(0.5), first(0.25)];
+    const first = (t, set = seen) => set.find(([, p]) => p >= t)?.[0] ?? null;
+    const green = first(0.75);
+    if (green !== null) return [green, first(0.5), first(0.25)];
+    // More than half the games share the best value, so no value reaches the
+    // top quarter and quartiles cannot split them -- a quarterback is on the
+    // field for every snap in 77% of games (measured 2026-10-20). Nothing beats
+    // the best value, so it is the top band, and the games below it split into
+    // the other three by thirds.
+    const best = xs.at(-1);
+    const below = midRanks(xs.filter((v) => v < best));
+    return [best, first(2 / 3, below), first(1 / 3, below)];
   }
   const last = (t) => seen.filter(([, p]) => p <= t).at(-1)?.[0] ?? null;
   // Nothing beats none: the best possible count is always the top band.
@@ -76,7 +91,8 @@ for (const [pos, stats] of Object.entries(STATS)) {
   week[pos] = {}; rate[pos] = {};
   for (const st of stats) {
     const values = mine.filter((r) => r[st] !== "").map((r) => Number(r[st]));
-    week[pos][st] = weekCuts(values, INVERT.has(st));
+    week[pos][KEY[st] ?? st] = weekCuts(values, INVERT.has(st));
+    if (st === "snap_pct") continue; // the career has no snap column
     const perGame = [...bySeason.values()]
       .map((g) => g.filter((r) => r[st] !== "").map((r) => Number(r[st])))
       .filter((v) => v.length)
@@ -102,7 +118,9 @@ process.stdout.write(`/**
  *
  * Each entry is [green, yellow, orange]: a figure at or above the first is
  * green, at or above the second yellow, at or above the third orange, and
- * anything below is red. Interceptions run the other way (at or below).
+ * anything below is red. Interceptions run the other way (at or below). Where
+ * more than half the games share the best value -- a quarterback's every snap
+ * -- that value alone is green and the games below it split by thirds.
  * \`week\` is one game; \`perGame\` is a season's per-game average.
  */
 export const HEAT_SEASONS = ${JSON.stringify(`${seasons[0]}-${seasons.at(-1)}`)};

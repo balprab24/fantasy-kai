@@ -138,7 +138,8 @@ column types are justified by — do not re-derive them either:
 
 **"1,243 skill players" is a six-season union.** No single season clears 700. Say "across six seasons" or the claim breaks the moment someone asks whether it is one year.
 
-**Player identity, measured 2026-09-28** (what the player workspace's headshots, ages and logos
+**Player identity, measured 2026-09-28** (what the player workspace's ages and logos -- and its
+headshots, off since 2026-10-20 for want of permission --
 rest on — the source files and the loaded database, not a guess):
 
 | | |

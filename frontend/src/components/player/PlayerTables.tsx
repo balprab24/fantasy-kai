@@ -53,7 +53,7 @@ export function HeatLegend({ position, per }: { position: string; per: "game" | 
       {relevant !== undefined && (
         <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
           <span className="mr-1.5">
-            <span className="font-semibold text-ink">Box score</span>:{" "}
+            <span className="font-semibold text-ink">{per === "game" ? "Snaps and box score" : "Box score"}</span>:{" "}
             {per === "game" ? "against every game" : "per game, against every season"} by the top {relevant}{" "}
             {position}s, {HEAT_SEASONS.replace("-", "–")}
           </span>
@@ -61,9 +61,7 @@ export function HeatLegend({ position, per }: { position: string; per: "game" | 
           {key(1, "25–50%")}
           {key(2, "50–75%")}
           {key(3, "Bottom 25%")}
-          <span className="ml-1.5">
-            Uncoloured: not graded{per === "game" ? ". Snap share is opportunity, not output" : ""}.
-          </span>
+          <span className="ml-1.5">Uncoloured: not graded.</span>
         </p>
       )}
     </div>
@@ -222,9 +220,14 @@ export function GameLog({
     {
       key: "snap",
       label: "Snap%",
-      // Never graded: snap share is opportunity, not output.
       title: "Share of the offense's snaps he was on the field for",
       group: "Fantasy",
+      // Graded like the box score, against the same games. No reading is not a low one.
+      tone: (r) => {
+        if (r.kind !== "week" || r.week.snapPct === null) return undefined;
+        const step = leagueStep(HEAT_WEEK, position, "snap", Math.round(r.week.snapPct));
+        return step === null ? undefined : TILE[step];
+      },
       cell: (r) =>
         r.kind === "week" && r.week.snapPct !== null ? (
           <span className="tabular">{Math.round(r.week.snapPct)}%</span>

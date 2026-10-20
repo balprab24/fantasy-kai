@@ -149,8 +149,8 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    no page pins a season literal again
   src/lib/profiles.ts              profileLabel(): presets Standard -> "0 PPR", Full PPR -> "PPR"
                                    (display only; stored names unchanged)
-  src/lib/headshot.ts              ESPN headshot URL from the stored espn id -- never stored;
-                                   headshotCutoutUrl() the whole 600x436 alpha cut-out
+  src/lib/headshot.ts              ESPN headshot URLs from the stored espn id -- OFF
+                                   (HEADSHOTS_ENABLED = false, 2026-10-20): both return null
   src/lib/playerStats.ts           the position-aware box-score columns, one definition for
                                    the game log, the career table and the season line
   src/lib/player.ts                age, season to open on, playoff round names, matchup text
@@ -213,7 +213,7 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    URL through router.replace -- a bare replaceState broke the
                                    overlay's interception, measured 2026-10-20),
                                    FilterBar, PlayerRow, TierHeader, PositionBadge, PlayerAvatar
-                                   (headshot with a monogram fallback)
+                                   (a monogram while headshots are off)
     player/                        PlayerWorkspace (the player view: a page, or the overlay over
                                    the board -- a sticky sidebar and a column of panels under
                                    section links that follow the scroll), PlayerOverlay (the
@@ -223,7 +223,7 @@ frontend/                          Phase 5c. Next.js 16 App Router, TypeScript 6
                                    tables; career per game or totals), PerformanceChart (last 17
                                    games across seasons, or one season; dependency-free columns),
                                    ScoringCompare (one season under every ruleset), PlayerCutout
-                                   (ESPN's whole cut-out, outlined initials on a 404), PlayerPanels
+                                   (outlined initials while headshots are off), PlayerPanels
                                    (the panel shell)
   src/app/                         (site): / /login /register -- the site header
                                    (app): /rankings /players/[id] /profiles -- the top bar, and
@@ -394,7 +394,7 @@ colour. Recorded, deliberately not fixed in that milestone.
 
 | Follow-up | Detail |
 |---|---|
-| Hotlinked ESPN images | Headshots and team logos load from `a.espncdn.com`. Nothing is copied or stored, and the footer says where they come from — but no doc decides image rights. An owner call for `north-star.md`; the monogram fallback means dropping them costs one line in `lib/headshot.ts` |
+| Hotlinked ESPN images | **Headshots are off** (owner decision 2026-10-20): no permission for public display, so `HEADSHOTS_ENABLED` in `lib/headshot.ts` is false, every player shows as initials, and the CSP admits only `a.espncdn.com/i/teamlogos/`. Team logos still load from there, never copied or stored, and the footer says so — their rights are undecided too. Re-enabling headshots takes the flag, the CSP and the tests that pin both, and permission first |
 | No historical team or position | `players.team_id` and `players.position` are current only. The board's Team column is today's team on every season's board (its header says so), and a past season is ranked under today's position — on the board and in `/career` alike, so the two agree, and are equally wrong for a player who moved |
 | Byes and missed games look the same | Only played games have rows, so the chart's gap and the log's missing week cannot say which. The schedule (`games`) could, per team, for a player who was not traded |
 | "Home" is the designated home side | nflverse's `location` (neutral site) is not stored |

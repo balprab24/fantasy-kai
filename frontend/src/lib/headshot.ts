@@ -13,10 +13,20 @@
  */
 const ESPN_ID = /^[0-9]{1,12}$/;
 
+/**
+ * Off: no permission for public display (owner decision, 2026-10-20). ESPN's
+ * terms allow personal, noncommercial use, and a public site is neither.
+ * While false both URLs below are null, so the board's avatar and the player's
+ * cut-out draw their initials -- the fallback a missing headshot always had --
+ * and the CSP no longer admits ESPN's headshot path (`lib/csp.ts`). Turning
+ * them back on takes this line, the CSP, and the tests that pin both.
+ */
+export const HEADSHOTS_ENABLED: boolean = false;
+
 export function headshotUrl(espnId: string | null | undefined, px: number): string | null {
   // The API already sends digits or null; checked again because this string is
   // about to become part of a URL.
-  if (!espnId || !ESPN_ID.test(espnId)) return null;
+  if (!HEADSHOTS_ENABLED || !espnId || !ESPN_ID.test(espnId)) return null;
   const size = Math.max(16, Math.min(512, Math.round(px)));
   return (
     "https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/" +
@@ -35,7 +45,7 @@ export const CUTOUT_ASPECT = 436 / 600;
  * `px` -- device pixels wide -- is capped there.
  */
 export function headshotCutoutUrl(espnId: string | null | undefined, px: number): string | null {
-  if (!espnId || !ESPN_ID.test(espnId)) return null;
+  if (!HEADSHOTS_ENABLED || !espnId || !ESPN_ID.test(espnId)) return null;
   const w = Math.max(120, Math.min(600, Math.round(px)));
   const h = Math.round(w * CUTOUT_ASPECT);
   return `https://a.espncdn.com/combiner/i?img=/i/headshots/nfl/players/full/${espnId}.png&w=${w}&h=${h}`;

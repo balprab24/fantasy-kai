@@ -28,7 +28,7 @@ export interface LeadColumn<R> {
  * red): a deep ground of the colour with the figure in the colour itself, so
  * a table of them stays quiet and the hue is carried by the number (5.2:1 at
  * the least, on green). A tile with no step -- a stat with no league cut-off
- * for the position, snap share, a summary row -- sits on the table's own
+ * for the position, a game with no snap reading, a summary row -- sits on the table's own
  * faint ground in ink.
  * Cells print their figure without a colour of their own, so they take
  * whichever the tile sets.

@@ -292,10 +292,12 @@ cut-out, in the position's hue at 26%; and the overlay's dimmed board (the scrim
 - **The slash:** `clip-path` on the logo's slant (`slash` in globals.css), never a skew transform, so
   the letters inside stay upright. Small marks only: position chips, tier plates, the chosen tab's
   and nav item's 3px bar.
-- **Imagery:** a player's photo is ESPN's whole cut-out, standing on the card's plate so its flat crop line
-  is the floor; never a circle cropped from it at display size (the 36px row avatar excepted). With
-  no headshot the plate shows his initials as outlined display type in his hue. The landing shows no
-  real player's likeness (owner decision 2026-09-28, kept), and so uses exactly that fallback.
+- **Imagery:** no player photos. ESPN headshots are off until there is permission for public display
+  (owner decision 2026-10-20; `HEADSHOTS_ENABLED` in `lib/headshot.ts`), so the player plate shows
+  his initials as outlined display type in his hue and the board's row avatar a monogram. Were a
+  licensed photo to arrive, it is the whole cut-out standing on the plate with its flat crop line as
+  the floor, never a circle cropped from it at display size (the 36px row avatar excepted). The
+  landing shows no real player's likeness (owner decision 2026-09-28, kept).
 
 ## Components
 
@@ -346,16 +348,18 @@ the four-step data scale -- green, yellow, orange, red (`--color-heat-*`, owner 
 stays quiet and the number carries the hue (the owner's reference is Flock's tables). Tried and
 dropped: ink on a half-strength tint (over the night ground yellow reads olive and orange brown) and
 solid tiles under dark figures (too loud for a table). Fantasy tiles (points, rank) by where the figure finished at his position, in a 12-team
-league's terms: 1st-12th green, 13th-24th yellow, 25th-36th orange, below that red. Box-score tiles
-against the league's games: the quartiles of every regular-season game, 2023-25, by each season's
-fantasy-relevant players by volume (top 24 QBs by attempts, 48 RBs by carries plus catches, 72 WRs
-and 24 TEs by targets) -- `lib/heatBands.ts`, written by `scripts/heat-bands.mjs` from the
-database. Interceptions run the other way, and none is always the top band. Snap share is never
-graded -- it is opportunity, not output, and a low share in a big game is not a poor game -- and nor
-is a stat the position has no cut-off for (a receiver's carries, fumbles): both sit on the table's
-faint ground in ink, as does a game with no rank. The career colours by the per-game rate in both its
+league's terms: 1st-12th green, 13th-24th yellow, 25th-36th orange, below that red. Snap-share and
+box-score tiles against the league's games: the quartiles of every regular-season game, 2023-25, by
+each season's fantasy-relevant players by volume (top 24 QBs by attempts, 48 RBs by carries plus
+catches, 72 WRs and 24 TEs by targets) -- `lib/heatBands.ts`, written by `scripts/heat-bands.mjs`
+from the database. Interceptions run the other way, and none is always the top band. Snap share is
+graded at every position (owner decision 2026-10-20: it is how a rookie's role grows and how a
+backfield splits); a quarterback plays every snap in 77% of those games, so for him every snap alone
+is green and the games below it split by thirds. A stat the position has no cut-off for (a
+receiver's carries, fumbles) sits on the table's faint ground in ink, as does a game with no rank or
+no snap reading. The career colours by the per-game rate in both its
 per-game and totals views. A legend over each table names the two scales apart -- fantasy figures
-by positional rank tier, the box score by percentile against history -- with each key drawn as the
+by positional rank tier, snaps and the box score by percentile against history -- with each key drawn as the
 tile it explains; every value is printed, so the colour is never the only cue.
 
 ### The player overlay

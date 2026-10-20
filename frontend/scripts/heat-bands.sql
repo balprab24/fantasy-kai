@@ -20,6 +20,6 @@ pop AS (
   SELECT season, player_id, position FROM ranked
   WHERE r <= CASE position WHEN 'QB' THEN 24 WHEN 'RB' THEN 48 WHEN 'WR' THEN 72 ELSE 24 END
 )
-SELECT reg.position, reg.season, reg.player_id, reg.pass_cmp, reg.pass_att, reg.pass_yd, reg.pass_td, reg.pass_int,
+SELECT reg.position, reg.season, reg.player_id, reg.snap_pct, reg.pass_cmp, reg.pass_att, reg.pass_yd, reg.pass_td, reg.pass_int,
        reg.rush_att, reg.rush_yd, reg.rush_td, reg.targets, reg.rec, reg.rec_yd, reg.rec_td
 FROM reg JOIN pop USING (season, player_id, position);

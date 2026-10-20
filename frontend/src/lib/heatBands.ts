@@ -11,7 +11,9 @@
  *
  * Each entry is [green, yellow, orange]: a figure at or above the first is
  * green, at or above the second yellow, at or above the third orange, and
- * anything below is red. Interceptions run the other way (at or below).
+ * anything below is red. Interceptions run the other way (at or below). Where
+ * more than half the games share the best value -- a quarterback's every snap
+ * -- that value alone is green and the games below it split by thirds.
  * `week` is one game; `perGame` is a season's per-game average.
  */
 export const HEAT_SEASONS = "2023-2025";
@@ -26,6 +28,7 @@ export const HEAT_RELEVANT: Record<string, number> = {
 
 export const HEAT_WEEK: Record<string, Record<string, [number, number, number]>> = {
   "QB": {
+    "snap": [100, 94, 84],
     "pass_cmp": [25, 22, 18],
     "pass_att": [38, 32, 27],
     "pass_yd": [282, 234, 183],
@@ -36,6 +39,7 @@ export const HEAT_WEEK: Record<string, Record<string, [number, number, number]>>
     "rush_td": [1, 1, 0]
   },
   "RB": {
+    "snap": [70, 56, 40],
     "rush_att": [17, 13, 8],
     "rush_yd": [76, 48, 27],
     "rush_td": [1, 1, 0],
@@ -45,12 +49,14 @@ export const HEAT_WEEK: Record<string, Record<string, [number, number, number]>>
     "rec_td": [1, 1, 0]
   },
   "WR": {
+    "snap": [90, 81, 68],
     "targets": [9, 7, 5],
     "rec": [6, 4, 3],
     "rec_yd": [76, 47, 25],
     "rec_td": [1, 1, 0]
   },
   "TE": {
+    "snap": [87, 77, 64],
     "targets": [8, 6, 4],
     "rec": [6, 4, 3],
     "rec_yd": [61, 39, 22],
