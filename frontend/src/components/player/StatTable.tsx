@@ -58,17 +58,17 @@ export function StatTable<R>({
     else leadGroups.push({ label: col.group, span: 1 });
   }
 
-  const cellBase = "h-9 px-2 whitespace-nowrap";
+  const cellBase = "h-10 px-2.5 whitespace-nowrap";
   // Pinned and opaque, so the columns scrolling under it on a phone do not
   // show through; it follows the row's hover to the same opaque step.
-  const pin = "sticky left-0 z-[1] bg-canvas group-hover:bg-well";
+  const pin = "sticky left-0 z-[1] bg-surface group-hover:bg-well";
   const renderRow = (row: R, isFoot: boolean) => {
     const stats = source(row);
     return lead
       .map((col, i) => (
         <td
           key={col.key}
-          className={`${cellBase} ${col.align === "left" ? "text-left" : "text-right"} ${i === 0 ? `${pin} pl-3` : ""} ${isFoot ? "font-medium" : ""}`}
+          className={`${cellBase} ${col.align === "left" ? "text-left" : "text-right"} ${i === 0 ? `${pin} pl-5 sm:pl-6` : ""} ${isFoot ? "font-medium" : ""}`}
         >
           {isFoot && i === 0 && foot ? foot.label : col.cell(row)}
         </td>
@@ -91,11 +91,11 @@ export function StatTable<R>({
   };
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-b-panel">
       {/* Separate borders, drawn on cells: a sticky cell in a collapsed-border
           table leaves a hairline seam that scrolled columns show through.
           Groups are told apart by a wider gap, not a vertical rule. */}
-      <table className="w-full border-separate border-spacing-0 text-[13px]">
+      <table className="w-full border-separate border-spacing-0 text-[14px]">
         <caption className="sr-only">{caption}</caption>
         <thead>
           <tr className="font-label text-[12px] font-semibold text-faint">
@@ -104,7 +104,7 @@ export function StatTable<R>({
                 key={`${g.label}-${i}`}
                 scope="colgroup"
                 colSpan={g.span}
-                className={`h-7 px-2 text-left ${i === 0 ? `${pin} pl-3` : ""}`}
+                className={`h-8 px-2.5 text-left ${i === 0 ? `${pin} pl-5 sm:pl-6` : ""}`}
               >
                 {g.label}
               </th>
@@ -120,13 +120,13 @@ export function StatTable<R>({
               </th>
             ))}
           </tr>
-          <tr className="font-label text-[12px] text-mute [&>th]:border-b [&>th]:border-line">
+          <tr className="font-label text-[12px] text-mute [&>th]:border-b [&>th]:border-line [&>th:last-child]:pr-5 sm:[&>th:last-child]:pr-6">
             {lead.map((col, i) => (
               <th
                 key={col.key}
                 scope="col"
                 title={col.title}
-                className={`h-8 px-2 font-semibold whitespace-nowrap ${col.width ?? ""} ${col.align === "left" ? "text-left" : "text-right"} ${i === 0 ? `${pin} pl-3` : ""}`}
+                className={`h-9 px-2.5 font-semibold whitespace-nowrap ${col.width ?? ""} ${col.align === "left" ? "text-left" : "text-right"} ${i === 0 ? `${pin} pl-5 sm:pl-6` : ""}`}
               >
                 {col.label}
               </th>
@@ -156,7 +156,7 @@ export function StatTable<R>({
               <tr
                 key={rowKey(row)}
                 aria-current={extra["aria-current"] || undefined}
-                className={`group [&>td]:border-b [&>td]:border-line [&>td]:transition-colors hover:[&>td]:bg-well ${extra.className ?? ""}`}
+                className={`group [&>td]:border-b [&>td]:border-line [&>td]:transition-colors [&>td:last-child]:pr-5 sm:[&>td:last-child]:pr-6 hover:[&>td]:bg-well ${extra.className ?? ""}`}
               >
                 {renderRow(row, false)}
               </tr>
@@ -166,7 +166,7 @@ export function StatTable<R>({
         {foot && (
           <tfoot>
             {/* Opaque, so the pinned first cell hides what scrolls under it. */}
-            <tr className="[&>td]:bg-surface [&>td]:font-semibold">
+            <tr className="[&>td]:bg-well [&>td]:font-semibold [&>td:last-child]:pr-5 sm:[&>td:last-child]:pr-6">
               {renderRow(foot.row, true)}
             </tr>
           </tfoot>

@@ -335,6 +335,7 @@ function MoversStrip({
     <li key={m.playerId} className="min-w-0">
       <Link
         href={hrefFor(m.playerId)}
+        scroll={false}
         onClick={() => onOpen(m.playerId)}
         className="flex h-10 min-w-0 items-center gap-2 rounded-control bg-well pr-3 pl-2 text-[13px] text-ink shadow-[inset_0_0_0_1px_var(--color-line)] transition-colors hover:bg-lift sm:h-9"
         title={`${m.name}: ${m.previous} to ${m.rank}`}

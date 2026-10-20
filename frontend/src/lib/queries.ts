@@ -1,4 +1,4 @@
-import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 import { useAuth } from "./auth";
 import type {
@@ -127,6 +127,46 @@ export function useCareer(id: number, profileId: number | null) {
     enabled: id > 0 && profileId !== null,
     placeholderData: keepPreviousData,
   });
+}
+
+/**
+ * One player's career under several rulesets at once -- the player view's
+ * Scoring tab, which sets the same stat lines side by side under every ruleset
+ * the member can see. Each entry is the same request, and the same cache
+ * entry, as `useCareer` for that profile, so switching the page's scoring to
+ * one of them afterwards costs nothing. Only fired while `enabled`.
+ */
+export function useCareers(id: number, profileIds: number[], enabled: boolean) {
+  return useQueries({
+    queries: profileIds.map((profileId) => ({
+      queryKey: ["career", id, profileId],
+      queryFn: () => api<CareerResponse>(`/api/v1/players/${id}/career?profileId=${profileId}`),
+      enabled: enabled && id > 0,
+    })),
+  });
+}
+
+/**
+ * Where a player stands on the whole board -- every position, season total --
+ * for one season and ruleset: the API's own overall rank, read off the board's
+ * first page. The same query, and cache entry, as the rankings board opened on
+ * its defaults, so coming from the board costs nothing. Null while loading;
+ * `outside` when he is not in the first page (rank > 200), which the view says
+ * rather than guessing a number.
+ */
+export function useOverallRank(id: number, profileId: number | null, season: number | null, enabled: boolean) {
+  const board = useRankingsBoard({
+    profileId: enabled && season !== null ? profileId : null,
+    season: season ?? 0,
+    position: null,
+    scope: "season",
+  });
+  const first = board.data?.pages[0];
+  if (!first) return { rank: null, outside: false, loading: board.isLoading, stale: false };
+  const row = first.content.find((r) => r.playerId === id);
+  // While the next ruleset is scored the previous board stands in; its rank is
+  // shown dimmed, like every other figure that is about to change.
+  return { rank: row?.rank ?? null, outside: !row, loading: false, stale: board.isPlaceholderData };
 }
 
 /**

@@ -31,7 +31,7 @@ import {
   ZERO_PPR_TOP20_2025,
   type Ruleset,
 } from "../src/components/landing/previewData.ts";
-import { assignTiers, band, bandFor, formatPoints, starterWeeks, toBoardRows } from "../src/lib/board.ts";
+import { STARTERS, assignTiers, band, bandFor, formatPoints, starterWeeks, toBoardRows } from "../src/lib/board.ts";
 import { boardSearch, parseBoardParams } from "../src/lib/boardParams.ts";
 import { neighbours } from "../src/lib/boardSequence.ts";
 import { biggestMovers } from "../src/lib/movers.ts";
@@ -50,6 +50,7 @@ import {
   routeFor,
 } from "../src/lib/memberHint.ts";
 import { ageOn, matchup, pickSeason, playoffRound } from "../src/lib/player.ts";
+import { lastWeekPlayed, parseTab, recentGames, starterShare, weekSlots } from "../src/lib/playerView.ts";
 import { COLUMNS, columnsFor, formatCount, type StatSource } from "../src/lib/playerStats.ts";
 import { profileCaption, profileLabel } from "../src/lib/profiles.ts";
 
@@ -98,7 +99,7 @@ describe("profileCaption", () => {
       assert.notEqual(caption, "Your ruleset", `${name} has no caption`);
       const te = rules.position_overrides?.TE?.rec;
       assert.equal(number(caption), te ?? rules.base.rec, name);
-      if (te !== undefined) assert.match(caption, /^TEs /, name);
+      if (te !== undefined) assert.match(caption, /^TE /, name);
     }
   });
 
@@ -274,6 +275,36 @@ describe("board sequence neighbours", () => {
   });
 });
 
+describe("the player view's derived facts", () => {
+  const wk = (week: number, posRank: number | null = null) => ({ week, opponent: "BUF", home: true, points: 10, posRank });
+
+  it("opens the overview for any tab it does not know", () => {
+    assert.equal(parseTab("scoring"), "scoring");
+    assert.equal(parseTab("log"), "log");
+    assert.equal(parseTab("projections"), "overview");
+    assert.equal(parseTab(null), "overview");
+  });
+
+  it("gives every week a slot up to the last game, and a gap where there was none", () => {
+    const slots = weekSlots({ weeks: [wk(1), wk(2), wk(4)] });
+    assert.deepEqual(slots.map((s) => [s.week, s.game?.week ?? null]), [[1, 1], [2, 2], [3, null], [4, 4]]);
+    assert.deepEqual(weekSlots({ weeks: [] }), []);
+    assert.equal(lastWeekPlayed({ weeks: [wk(3), wk(9)] }), 9);
+    assert.equal(lastWeekPlayed({ weeks: [] }), null);
+  });
+
+  it("counts starter weeks against the position's 12-team line, and says nothing for an unranked position", () => {
+    assert.deepEqual(starterShare([wk(1, 36), wk(2, 37), wk(3, null)], STARTERS.WR), { starts: 1, games: 3, line: 36 });
+    assert.deepEqual(starterShare([wk(1, 12), wk(2, 13)], STARTERS.QB), { starts: 1, games: 2, line: 12 });
+    assert.equal(starterShare([wk(1, 1)], undefined), null);
+  });
+
+  it("lists the recent games newest first, playoffs included", () => {
+    const g = (week: number, seasonType = "REG") => ({ week, seasonType }) as unknown as Parameters<typeof recentGames>[0][number];
+    assert.deepEqual(recentGames([g(1), g(19, "WC"), g(18), g(2)], 3).map((w) => w.week), [19, 18, 2]);
+  });
+});
+
 describe("quality bands", () => {
   it("draws the line at a 12-team league's starters", () => {
     assert.equal(band(24, "RB"), "good");
@@ -443,8 +474,10 @@ describe("member hint", () => {
     }
   });
   it("knows every route under app/(app) -- a new members-only page cannot be forgotten", () => {
+    // A parallel-route slot (`@modal`) is not a URL segment: what it renders
+    // sits at the routes beside it, which this list already covers.
     const routes = readdirSync(new URL("../src/app/(app)/", import.meta.url), { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("@"))
       .map((entry) => `/${entry.name}`);
     assert.ok(routes.length >= 3, `found ${routes.join(", ")}`);
     for (const route of routes) assert.ok(isMemberRoute(route), `${route} is behind RequireAccount but not in MEMBER_ROUTES`);

@@ -2,60 +2,78 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useId, useMemo, useSyncExternalStore } from "react";
 import { ApiError } from "@/lib/api";
-import { bandFor, formatPoints } from "@/lib/board";
 import { clearBoardReturn, readBoardReturn } from "@/lib/boardReturn";
-import { matchup, pickSeason, playoffRound } from "@/lib/player";
-import { columnsFor } from "@/lib/playerStats";
+import { boardSequenceSnapshot, neighbours, parseBoardSequence, type SequenceEntry } from "@/lib/boardSequence";
+import { pickSeason } from "@/lib/player";
+import { parseTab, type PlayerTab } from "@/lib/playerView";
 import { profileLabel } from "@/lib/profiles";
-import { useCareer, useGamelog, usePlayer, useSelectedProfile } from "@/lib/queries";
+import { useCareer, useCareers, useGamelog, useOverallRank, usePlayer, useSelectedProfile } from "@/lib/queries";
 import { FIRST_SEASON, currentSeason } from "@/lib/season";
-import type { CareerSeason, GamelogWeek } from "@/lib/types";
-import { RulesetSwitch } from "../RulesetSwitch";
-import { QUALITY_TEXT } from "../rankings/PlayerRow";
+import { BUTTON_ICON } from "../ui/buttons";
 import { Icon } from "../ui/Icon";
-import { SeasonSelect } from "../ui/SeasonSelect";
 import { Skeleton, StatusMessage } from "../ui/StatusMessage";
-import { PlayerIdentity } from "./PlayerIdentity";
-import { StatTable, type LeadColumn } from "./StatTable";
+import { TabPanel, Tabs } from "../ui/Tabs";
+import { CareerSnapshot, Panel, RecentGames, SeasonLine } from "./PlayerPanels";
+import { PlayerStage } from "./PlayerStage";
+import { CareerError, CareerTable, GameLog, TableSkeleton } from "./PlayerTables";
+import { ScoringCompare } from "./ScoringCompare";
 import { WeeklyChart } from "./WeeklyChart";
 
 const RANKED = ["QB", "RB", "WR", "TE"];
 
-
-function games(n: number) {
-  return `${n} ${n === 1 ? "game" : "games"}`;
-}
+/** The sequence only changes when the board writes it, before this view mounts. */
+const noSubscription = () => () => {};
 
 function int(raw: string | null): number | null {
   return raw !== null && /^[1-9][0-9]{0,9}$/.test(raw) ? Number(raw) : null;
 }
 
+function games(n: number) {
+  return `${n} ${n === 1 ? "game" : "games"}`;
+}
+
 /**
- * A player, as a fantasy asset: who he is, what his season is worth under
- * your scoring, how it went week by week, and every season before it.
+ * A player, as a fantasy asset: who he is, what his season is worth under your
+ * scoring, how it went week by week, how every ruleset you can use prices the
+ * same games, and every season before it.
  *
- * Three requests. The player, a primary-key read. The career, one per
- * (player, profile), which feeds the identity tiles, the chart and the career
- * table and carries every rank on the page. The game log, one per season, a
- * primary-key read. Switching season refetches only the log; switching scoring
- * refetches the career and the log.
+ * Two shapes, one component. `page` is `/players/[id]` opened directly -- a
+ * shared link, a refresh -- with a way back to the board. `overlay` is the same
+ * URL opened from the board (an intercepted route, `PlayerOverlay`), shown over
+ * the board without leaving it, with the previous and next player on the
+ * board one step away.
  *
- * Season and scoring live in the URL, written with `replaceState`: a refresh
- * or a shared link opens the same view, and back goes to wherever you came
- * from rather than through every season you looked at.
+ * Requests: the player (a primary-key read); the career under the chosen
+ * ruleset (feeds the stage, the chart and the career); the season's game log;
+ * the board's first page for his overall rank (shared with the board's cache);
+ * and, only while the Scoring tab is open, the career under every other
+ * ruleset. Season, scoring and tab live in the URL, written with
+ * `replaceState`: a refresh or a shared link opens the same view, and back
+ * goes to wherever you came from rather than through every season you tried.
  */
-export function PlayerWorkspace({ playerId }: { playerId: number }) {
+export function PlayerWorkspace({
+  playerId,
+  variant = "page",
+  onClose,
+}: {
+  playerId: number;
+  variant?: "page" | "overlay";
+  onClose?: () => void;
+}) {
   const params = useSearchParams();
   const pathname = usePathname();
+  const router = useRouter();
   const now = currentSeason();
+  const tabsId = useId();
 
   const requestedSeason = int(params.get("season"));
   const validSeason =
     requestedSeason !== null && requestedSeason >= FIRST_SEASON && requestedSeason <= now
       ? requestedSeason
       : null;
+  const tab = parseTab(params.get("tab"));
   const { profiles, profileId } = useSelectedProfile(int(params.get("profileId")));
 
   const player = usePlayer(playerId);
@@ -63,38 +81,87 @@ export function PlayerWorkspace({ playerId }: { playerId: number }) {
   const seasons = career.data?.seasons ?? [];
   const regular = seasons.map((s) => s.season);
   // Every season with a game, so one reached only in January still has a
-  // switch -- its log shows the playoff games, its tiles say "no regular season".
+  // switch -- its log shows the playoff games, its line says "no regular season".
   const played = career.data?.seasonsPlayed ?? regular;
   const season = career.data
     ? pickSeason(validSeason, regular.length ? regular : played, now)
     : validSeason;
   const gamelog = useGamelog(playerId, profileId, season);
 
+  const position = player.data?.position ?? "";
+  const ranked = RANKED.includes(position);
+  const overall = useOverallRank(playerId, profileId, season, ranked && !!player.data);
+  const allProfiles = profiles.data ?? [];
+  const careers = useCareers(
+    playerId,
+    allProfiles.map((p) => p.id),
+    tab === "scoring" && ranked,
+  );
+
   const selected = seasons.find((s) => s.season === season) ?? null;
   const profile = profiles.data?.find((p) => p.id === profileId);
   const scoringLabel = profile ? profileLabel(profile) : "…";
+  const careerStale = career.isPlaceholderData;
+
+  // The board's order when this player was opened, for previous and next.
+  // sessionStorage does not exist on the server, so the server's answer is
+  // "none" and the browser's is read after hydration, without a mismatch.
+  const rawSequence = useSyncExternalStore(noSubscription, boardSequenceSnapshot, () => null);
+  const sequence = useMemo(() => parseBoardSequence(rawSequence), [rawSequence]);
+  // Only while the view is on the board's own rules: "next on the board" means
+  // the board the member left, and once the season or scoring here differs
+  // from it, that order no longer describes what is on screen.
+  const onBoardRules =
+    sequence !== null && sequence.search === `?season=${season ?? ""}&profileId=${profileId ?? ""}`;
+  const { previous, next } = onBoardRules ? neighbours(sequence, playerId) : { previous: null, next: null };
 
   // Leaving the site from here (another origin, a closed tab, a reload) means
   // the board is no longer the page before this one, so its "come back to me"
-  // note is dropped -- or the back link would go back to wherever that was.
-  // In-app navigation never fires pagehide, so the board's own return survives.
+  // note is dropped. In-app navigation never fires pagehide.
   useEffect(() => {
     window.addEventListener("pagehide", clearBoardReturn);
     return () => window.removeEventListener("pagehide", clearBoardReturn);
   }, []);
 
-  const write = (change: Record<string, string>) => {
-    const next = new URLSearchParams(params.toString());
-    for (const [key, value] of Object.entries(change)) next.set(key, value);
-    window.history.replaceState(null, "", `${pathname}?${next}`);
+  const write = (change: Record<string, string | null>) => {
+    const nextParams = new URLSearchParams(params.toString());
+    for (const [key, value] of Object.entries(change)) {
+      if (value === null) nextParams.delete(key);
+      else nextParams.set(key, value);
+    }
+    const query = nextParams.toString();
+    window.history.replaceState(null, "", `${pathname}${query ? `?${query}` : ""}`);
+  };
+  const setTab = (t: PlayerTab) => write({ tab: t === "overview" ? null : t });
+
+  // Previous and next keep the view's own rules and tab: stepping through the
+  // board is for comparing players under the same scoring.
+  const step = (to: SequenceEntry) => {
+    const q = new URLSearchParams();
+    if (season !== null) q.set("season", String(season));
+    if (profileId !== null) q.set("profileId", String(profileId));
+    if (tab !== "overview") q.set("tab", tab);
+    router.replace(`/players/${to.playerId}?${q}`, { scroll: false });
   };
 
+  const chrome = (
+    <ViewBar
+      variant={variant}
+      season={validSeason}
+      profileId={profileId}
+      now={now}
+      onClose={onClose}
+      previous={previous}
+      next={next}
+      onStep={step}
+    />
+  );
+
   if (player.error || playerId <= 0) {
-    const missing =
-      playerId <= 0 || (player.error instanceof ApiError && player.error.status === 404);
+    const missing = playerId <= 0 || (player.error instanceof ApiError && player.error.status === 404);
     return (
-      <div className="mx-auto max-w-[1440px] px-4 pt-5 pb-10 sm:px-6 lg:px-8">
-        <BackToBoard season={validSeason} profileId={profileId} now={now} />
+      <Frame variant={variant}>
+        {chrome}
         <div className="mt-4">
           <StatusMessage
             tone={missing ? "info" : "error"}
@@ -108,7 +175,7 @@ export function PlayerWorkspace({ playerId }: { playerId: number }) {
                 : "The API did not answer. Check that it is running."}
           </StatusMessage>
         </div>
-      </div>
+      </Frame>
     );
   }
 
@@ -116,8 +183,8 @@ export function PlayerWorkspace({ playerId }: { playerId: number }) {
   // wait on a request that is never sent. Say so, with a way out.
   if (profiles.error) {
     return (
-      <div className="mx-auto max-w-[1440px] px-4 pt-5 pb-10 sm:px-6 lg:px-8">
-        <BackToBoard season={validSeason} profileId={null} now={now} />
+      <Frame variant={variant}>
+        {chrome}
         <div className="mt-4">
           <StatusMessage
             tone="error"
@@ -129,47 +196,26 @@ export function PlayerWorkspace({ playerId }: { playerId: number }) {
               : "The API did not answer. Check that it is running."}
           </StatusMessage>
         </div>
-      </div>
+      </Frame>
     );
   }
 
-  const position = player.data?.position ?? "";
-  const ranked = RANKED.includes(position);
-  const careerStale = career.isPlaceholderData;
+  const tabs = [
+    { key: "overview" as const, label: "Overview" },
+    { key: "log" as const, label: "Game log", meta: gamelog.data ? String(gamelog.data.weeks.length) : undefined },
+    ...(ranked ? [{ key: "scoring" as const, label: "Scoring" }] : []),
+    { key: "career" as const, label: "Career", meta: seasons.length ? String(seasons.length) : undefined },
+  ];
+  // A position v1 does not score has no Scoring tab; a URL asking for one gets the overview.
+  const shownTab: PlayerTab = !ranked && tab === "scoring" ? "overview" : tab;
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 pt-5 pb-10 sm:px-6 lg:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <BackToBoard season={validSeason} profileId={profileId} now={now} />
-        {/* The page's two choices on one console strip, as on the board. */}
-        {(played.length > 0 || profiles.data) && (
-          <div className="flex max-w-full flex-wrap items-center gap-x-1 gap-y-2 rounded-control bg-surface p-1.5">
-            {played.length > 0 && season !== null && (
-              <SeasonSelect
-                value={season}
-                options={played}
-                onChange={(v) => write({ season: String(v) })}
-              />
-            )}
-            {played.length > 0 && season !== null && profiles.data && (
-              <span aria-hidden className="mx-1 hidden h-5 w-px bg-line md:block" />
-            )}
-            {profiles.data && (
-              <RulesetSwitch
-                profiles={profiles.data}
-                selected={profileId}
-                onSelect={(id) => write({ profileId: String(id) })}
-                hideLegend
-                variant="bare"
-              />
-            )}
-          </div>
-        )}
-      </div>
+    <Frame variant={variant}>
+      {chrome}
 
-      <div className="mt-4">
+      <div className="mt-3">
         {player.data ? (
-          <PlayerIdentity
+          <PlayerStage
             player={player.data}
             season={season}
             selected={selected}
@@ -177,85 +223,289 @@ export function PlayerWorkspace({ playerId }: { playerId: number }) {
             scoringLabel={scoringLabel}
             stale={careerStale}
             scored={ranked}
+            overall={overall}
+            profiles={profiles.data}
+            profileId={profileId}
+            onProfile={(id) => write({ profileId: String(id) })}
+            seasons={played}
+            onSeason={(s) => write({ season: String(s) })}
+            current={now}
           />
         ) : (
-          <Skeleton className="h-[300px] rounded-plate" />
+          <Skeleton className="h-[26rem] rounded-plate" />
         )}
       </div>
 
-      <Section title="Performance" meta={selected ? games(selected.gamesPlayed) : undefined}>
-        {!ranked && player.data && (
-          <p className="mb-3 text-sm text-mute">
-            fantasy-kai scores and ranks QB, RB, WR and TE. {position} lines are shown as recorded,
-            without positional ranks.
-          </p>
-        )}
-        {career.error ? (
-          <CareerError error={career.error} onRetry={() => void career.refetch()} />
-        ) : !career.data ? (
-          <Skeleton className="h-[248px]" />
-        ) : selected && !ranked ? null : selected ? (
-          <WeeklyChart
-            key={`${selected.season}-${profileId}`}
-            season={selected}
-            position={position}
-            scoringLabel={scoringLabel}
-            stale={careerStale}
-          />
-        ) : (
-          <p className="py-8 text-sm text-mute">
-            {seasons.length === 0
-              ? "No regular-season games on record."
-              : `No regular-season games in ${season}. Pick another season above.`}
-          </p>
-        )}
-      </Section>
-
-      <Section
-        title="Game log"
-        meta={season !== null ? `${season}, every game, playoffs included` : undefined}
+      {/* The sections stay in reach while a long log scrolls: pinned under the
+          site's bar on a page, at the top of the overlay's own scroll. */}
+      <div
+        className={`sticky z-20 -mx-4 mt-6 border-b border-line bg-veil px-4 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 ${variant === "page" ? "top-14" : "top-0"}`}
       >
-        <GameLog
-          position={position}
-          scored={ranked}
-          // No season to show once the career is back means no games at all:
-          // an empty log, not a skeleton waiting on a request never sent.
-          weeks={season === null && career.data ? [] : gamelog.data?.weeks}
-          loading={gamelog.isLoading}
-          error={gamelog.error}
-          onRetry={() => void gamelog.refetch()}
-          season={selected}
-          stale={gamelog.isPlaceholderData}
-        />
-      </Section>
+        <Tabs id={tabsId} label="Player sections" items={tabs} value={shownTab} onChange={setTab} />
+      </div>
 
-      <Section title="Career" meta="Regular season, newest first">
-        {career.error ? (
-          <CareerError error={career.error} onRetry={() => void career.refetch()} />
-        ) : !career.data ? (
-          <TableSkeleton rows={4} />
-        ) : seasons.length === 0 ? (
-          <p className="py-6 text-sm text-mute">No regular-season games on record.</p>
-        ) : (
-          <CareerTable
+      {!ranked && player.data && (
+        <p className="mt-5 text-sm text-mute">
+          fantasy-kai scores and ranks QB, RB, WR and TE. {position} lines are shown as recorded, without
+          points or positional ranks.
+        </p>
+      )}
+
+      <TabPanel tabsId={tabsId} tab={shownTab} className="mt-6 focus-visible:outline-none">
+        {shownTab === "overview" && (
+          <div className="grid gap-5 lg:grid-cols-12">
+            <Panel
+              title="Performance"
+              meta={selected ? `${selected.season}, ${games(selected.gamesPlayed)}, ${scoringLabel}` : undefined}
+              className="lg:col-span-8"
+            >
+              {career.error ? (
+                <CareerError error={career.error} onRetry={() => void career.refetch()} />
+              ) : !career.data ? (
+                <Skeleton className="h-[270px]" />
+              ) : selected && ranked ? (
+                <WeeklyChart
+                  key={`${selected.season}-${profileId}`}
+                  season={selected}
+                  position={position}
+                  scoringLabel={scoringLabel}
+                  stale={careerStale}
+                  caption={false}
+                />
+              ) : (
+                <p className="py-8 text-[15px] text-mute">
+                  {seasons.length === 0
+                    ? "No regular-season games on record."
+                    : `No regular-season games in ${season}. Pick another season above.`}
+                </p>
+              )}
+            </Panel>
+
+            <Panel title="Recent games" meta={season !== null ? `${season}, newest first` : undefined} className="lg:col-span-4">
+              {gamelog.error ? (
+                <StatusMessage tone="error" title="The game log could not be loaded." action={{ label: "Try again", onClick: () => void gamelog.refetch() }}>
+                  {gamelog.error instanceof ApiError ? gamelog.error.message : "The API did not answer."}
+                </StatusMessage>
+              ) : (
+                <RecentGames
+                  weeks={season === null && career.data ? [] : gamelog.data?.weeks}
+                  position={position}
+                  season={selected}
+                  scored={ranked}
+                  loading={gamelog.isLoading}
+                  stale={gamelog.isPlaceholderData}
+                />
+              )}
+              {gamelog.data && gamelog.data.weeks.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => setTab("log")}
+                  className="mt-3 w-full rounded-control py-2 text-[14px] text-energy-text transition-colors hover:bg-well"
+                >
+                  Every game in the log
+                </button>
+              )}
+            </Panel>
+
+            {selected && (
+              <Panel title="Season line" meta={`${selected.season} regular season, box score`} className="lg:col-span-8">
+                <SeasonLine position={position} season={selected} />
+              </Panel>
+            )}
+
+            {seasons.length > 0 && (
+              <Panel title="Seasons" meta="Points per game" className={selected ? "lg:col-span-4" : "lg:col-span-12"}>
+                <CareerSnapshot
+                  seasons={seasons}
+                  position={position}
+                  selected={season}
+                  onSelect={(s) => write({ season: String(s) })}
+                  scored={ranked}
+                  stale={careerStale}
+                />
+              </Panel>
+            )}
+          </div>
+        )}
+
+        {shownTab === "log" && (
+          <Panel
+            title="Game log"
+            meta={season !== null ? `${season}, every game, playoffs included` : undefined}
+            bodyClassName="pb-0"
+          >
+            <GameLog
+              position={position}
+              scored={ranked}
+              // No season to show once the career is back means no games at all:
+              // an empty log, not a skeleton waiting on a request never sent.
+              weeks={season === null && career.data ? [] : gamelog.data?.weeks}
+              loading={gamelog.isLoading}
+              error={gamelog.error}
+              onRetry={() => void gamelog.refetch()}
+              season={selected}
+              stale={gamelog.isPlaceholderData}
+            />
+          </Panel>
+        )}
+
+        {shownTab === "scoring" && season !== null && (
+          <ScoringCompare
+            season={season}
             position={position}
-            scored={ranked}
-            seasons={seasons}
-            selected={season}
-            onSelect={(s) => write({ season: String(s) })}
-            stale={careerStale}
+            scored={allProfiles.map((p, i) => ({
+              profile: p,
+              data: careers[i]?.data,
+              loading: careers[i]?.isLoading ?? true,
+              error: !!careers[i]?.error,
+            }))}
+            selectedId={profileId}
+            onSelect={(id) => write({ profileId: String(id) })}
           />
         )}
-      </Section>
+
+        {shownTab === "career" && (
+          <div className="grid gap-5 lg:grid-cols-12">
+            <Panel title="By season" meta="Points per game, regular season" className="lg:col-span-4">
+              {career.error ? (
+                <CareerError error={career.error} onRetry={() => void career.refetch()} />
+              ) : !career.data ? (
+                <TableSkeleton rows={4} />
+              ) : seasons.length === 0 ? (
+                <p className="py-4 text-[15px] text-mute">No regular-season games on record.</p>
+              ) : (
+                <CareerSnapshot
+                  seasons={seasons}
+                  position={position}
+                  selected={season}
+                  onSelect={(s) => write({ season: String(s) })}
+                  scored={ranked}
+                  stale={careerStale}
+                />
+              )}
+            </Panel>
+            <Panel title="Career" meta="Regular season, newest first" className="lg:col-span-8" bodyClassName="pb-0">
+              {career.error ? (
+                <div className="px-5 pb-5"><CareerError error={career.error} onRetry={() => void career.refetch()} /></div>
+              ) : !career.data ? (
+                <div className="px-5 pb-5"><TableSkeleton rows={4} /></div>
+              ) : seasons.length === 0 ? (
+                <p className="px-5 pb-5 text-[15px] text-mute sm:px-6">No regular-season games on record.</p>
+              ) : (
+                <CareerTable
+                  position={position}
+                  scored={ranked}
+                  seasons={seasons}
+                  selected={season}
+                  onSelect={(s) => write({ season: String(s) })}
+                  stale={careerStale}
+                />
+              )}
+            </Panel>
+          </div>
+        )}
+      </TabPanel>
+    </Frame>
+  );
+}
+
+/** The page's own width on a page; the overlay sets its own frame. */
+function Frame({ variant, children }: { variant: "page" | "overlay"; children: React.ReactNode }) {
+  return variant === "page" ? (
+    <div className="mx-auto max-w-[1440px] px-4 pt-5 pb-10 sm:px-6 lg:px-8">{children}</div>
+  ) : (
+    <div className="px-4 pt-3 pb-10 sm:px-6 lg:px-8">{children}</div>
+  );
+}
+
+/**
+ * The bar above the stage: back to the board (a page) or close (the overlay),
+ * and the previous and next player on the board, named, when the view was
+ * opened from it.
+ */
+function ViewBar({
+  variant,
+  season,
+  profileId,
+  now,
+  onClose,
+  previous,
+  next,
+  onStep,
+}: {
+  variant: "page" | "overlay";
+  season: number | null;
+  profileId: number | null;
+  now: number;
+  onClose?: () => void;
+  previous: SequenceEntry | null;
+  next: SequenceEntry | null;
+  onStep: (to: SequenceEntry) => void;
+}) {
+  return (
+    <div className="flex min-h-12 items-center justify-between gap-3">
+      {variant === "overlay" ? (
+        <button type="button" onClick={onClose} className="inline-flex h-10 items-center gap-2 rounded-control pr-3 pl-1.5 text-[15px] text-mute transition-colors hover:bg-well hover:text-ink">
+          <Icon name="arrowLeft" size={18} />
+          Rankings
+        </button>
+      ) : (
+        <BackToBoard season={season} profileId={profileId} now={now} />
+      )}
+      <div className="flex items-center gap-1">
+        {(previous || next) && (
+          <nav aria-label="Players on the board" className="flex items-center gap-1">
+            <StepButton dir="previous" to={previous} onStep={onStep} />
+            <StepButton dir="next" to={next} onStep={onStep} />
+          </nav>
+        )}
+        {variant === "overlay" && (
+          <button type="button" onClick={onClose} className={`${BUTTON_ICON} max-md:hidden`}>
+            <Icon name="close" />
+            <span className="sr-only">Close player view</span>
+          </button>
+        )}
+      </div>
     </div>
+  );
+}
+
+function StepButton({
+  dir,
+  to,
+  onStep,
+}: {
+  dir: "previous" | "next";
+  to: SequenceEntry | null;
+  onStep: (to: SequenceEntry) => void;
+}) {
+  const label = to ? `${dir === "previous" ? "Previous" : "Next"} on the board: ${to.name}, ranked ${to.rank}` : `No ${dir} player`;
+  return (
+    <button
+      type="button"
+      disabled={!to}
+      onClick={() => to && onStep(to)}
+      aria-label={label}
+      title={label}
+      className="inline-flex h-10 items-center gap-2 rounded-control px-2.5 text-[14px] text-mute transition-colors hover:bg-well hover:text-ink disabled:pointer-events-none disabled:opacity-40"
+    >
+      {dir === "previous" && <Icon name="chevronLeft" size={18} />}
+      {to && (
+        <span className="hidden max-w-[12rem] truncate md:inline">
+          <span className="type-figure mr-1.5 text-[13px] text-faint">{to.rank}</span>
+          {to.name}
+        </span>
+      )}
+      {dir === "next" && <Icon name="chevronRight" size={18} />}
+    </button>
   );
 }
 
 /**
  * Back to the board. When the board is the page this one was opened from --
  * it noted itself on the way out -- this is the browser's back, so the board
- * comes back exactly as it was left, scroll included. Otherwise (a shared link,
- * a new tab) it is a plain link to the board for this season and scoring.
+ * comes back exactly as it was left. Otherwise (a shared link, a new tab) it
+ * is a plain link to the board for this season and scoring.
  */
 function BackToBoard({
   season,
@@ -284,339 +534,9 @@ function BackToBoard({
           router.back();
         }
       }}
-      className="inline-flex h-9 items-center gap-2 text-sm text-mute transition-colors hover:text-ink"
+      className="inline-flex h-10 items-center gap-2 rounded-control pr-3 pl-1.5 text-[15px] text-mute transition-colors hover:bg-well hover:text-ink"
     >
-      <Icon name="arrowLeft" size={16} /> Rankings
+      <Icon name="arrowLeft" size={18} /> Rankings
     </Link>
-  );
-}
-
-/**
- * A segment of the report: its name in the display voice, what it covers, and
- * one hairline -- then the content straight on the page. No card: the heading
- * and the rule are the structure, the way a broadcast cuts to a new segment.
- */
-function Section({
-  title,
-  meta,
-  children,
-}: {
-  title: string;
-  meta?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section aria-label={title} className="mt-14">
-      <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line pb-3">
-        <h2 className="type-heading text-ink">{title}</h2>
-        {/* Not tabular: this is prose. */}
-        {meta && <p className="text-[13px] text-mute">{meta}</p>}
-      </header>
-      <div className="pt-5">{children}</div>
-    </section>
-  );
-}
-
-function CareerError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
-  return (
-    <StatusMessage
-      tone="error"
-      title="This player's seasons could not be scored."
-      action={{ label: "Try again", onClick: onRetry }}
-    >
-      {error instanceof ApiError ? error.message : "The API did not answer. Check that it is running."}
-    </StatusMessage>
-  );
-}
-
-function TableSkeleton({ rows }: { rows: number }) {
-  return (
-    <div role="status" aria-label="Loading" className="space-y-1">
-      <Skeleton className="h-12" />
-      {Array.from({ length: rows }, (_, i) => (
-        <Skeleton key={i} className="h-8" />
-      ))}
-    </div>
-  );
-}
-
-/** A week of the log, or the regular-season line beneath it. */
-type LogRow = { kind: "week"; week: GamelogWeek } | { kind: "season"; season: CareerSeason };
-
-function GameLog({
-  position,
-  scored,
-  weeks,
-  loading,
-  error,
-  onRetry,
-  season,
-  stale,
-}: {
-  position: string;
-  /** False for a position v1 does not score: points read "—", not 0.0. */
-  scored: boolean;
-  weeks: GamelogWeek[] | undefined;
-  loading: boolean;
-  error: unknown;
-  onRetry: () => void;
-  /** The career's regular season: weekly ranks, and the line under the log. */
-  season: CareerSeason | null;
-  stale: boolean;
-}) {
-  if (error) {
-    return (
-      <StatusMessage tone="error" title="The game log could not be loaded." action={{ label: "Try again", onClick: onRetry }}>
-        {error instanceof ApiError ? error.message : "The API did not answer. Check that it is running."}
-      </StatusMessage>
-    );
-  }
-  if (loading || !weeks) return <TableSkeleton rows={6} />;
-  if (weeks.length === 0) {
-    return <p className="py-6 text-sm text-mute">No games recorded this season.</p>;
-  }
-
-  const weeklyRank = new Map(season?.weeks.map((w) => [w.week, w.posRank]) ?? []);
-  const traded = new Set(weeks.map((w) => w.team)).size > 1;
-  const rows: LogRow[] = weeks.map((week) => ({ kind: "week", week }));
-
-  const lead: LeadColumn<LogRow>[] = [
-    {
-      key: "wk",
-      label: "Wk",
-      title: "Week",
-      group: "Game",
-      align: "left",
-      width: "w-16",
-      cell: (r) => {
-        if (r.kind !== "week") return null;
-        const round = playoffRound(r.week.seasonType);
-        return round ? (
-          <span title={`${round} playoff game`}>
-            {r.week.week} <span className="text-[11px] text-q-mid">{r.week.seasonType}</span>
-          </span>
-        ) : (
-          r.week.week
-        );
-      },
-    },
-    {
-      key: "opp",
-      label: "Opp",
-      title: "Opponent",
-      group: "Game",
-      align: "left",
-      width: "w-24",
-      cell: (r) =>
-        r.kind === "week" ? (
-          matchup(r.week.opponent, r.week.home)
-        ) : (
-          <span className="text-mute">{games(r.season.gamesPlayed)}</span>
-        ),
-    },
-    ...(traded
-      ? [
-          {
-            key: "team",
-            label: "Team",
-            title: "His team that week",
-            group: "Game",
-            align: "left" as const,
-            cell: (r: LogRow) => (r.kind === "week" ? r.week.team : r.season.teams.join("/")),
-          },
-        ]
-      : []),
-    {
-      key: "pts",
-      label: "Pts",
-      title: "Fantasy points under the selected scoring",
-      group: "Fantasy",
-      cell: (r) =>
-        scored ? (
-          <span className="tabular font-semibold text-ink">
-            {formatPoints(r.kind === "week" ? r.week.points : r.season.points)}
-          </span>
-        ) : (
-          <span className="text-faint">—</span>
-        ),
-    },
-    {
-      key: "rank",
-      label: "Rank",
-      title: `Place among every ${position} that week; the season row is by season points. Playoff games are not ranked.`,
-      group: "Fantasy",
-      cell: (r) =>
-        r.kind === "week" ? (
-          <RankCell
-            position={position}
-            rank={r.week.seasonType === "REG" ? (weeklyRank.get(r.week.week) ?? null) : null}
-          />
-        ) : (
-          <RankCell position={position} rank={r.season.posRank} />
-        ),
-    },
-    {
-      key: "snap",
-      label: "Snap%",
-      title: "Share of the offense's snaps he was on the field for",
-      group: "Fantasy",
-      cell: (r) =>
-        r.kind === "week" && r.week.snapPct !== null ? (
-          <span className="tabular text-mute">{Math.round(r.week.snapPct)}%</span>
-        ) : (
-          <span className="text-faint">—</span>
-        ),
-    },
-  ];
-
-  return (
-    <div className={`transition-opacity ${stale ? "opacity-60" : ""}`}>
-      <StatTable
-        caption="Game log: every game this season, with fantasy points under the selected scoring and the box score"
-        lead={lead}
-        groups={columnsFor(position, weeks)}
-        rows={rows}
-        source={(r) => (r.kind === "week" ? r.week : r.season)}
-        rowKey={(r) => (r.kind === "week" ? `${r.week.season}-${r.week.week}` : "season")}
-        rowProps={(r) =>
-          r.kind === "week" && r.week.seasonType !== "REG" ? { className: "[&>td]:text-mute" } : {}
-        }
-        // Not the sum of the rows above when playoff rows are there, so it says
-        // which season it is -- short, because it sits in the pinned column.
-        foot={season ? { row: { kind: "season", season }, label: "Reg. season" } : undefined}
-      />
-    </div>
-  );
-}
-
-function CareerTable({
-  position,
-  scored,
-  seasons,
-  selected,
-  onSelect,
-  stale,
-}: {
-  position: string;
-  scored: boolean;
-  seasons: CareerSeason[];
-  selected: number | null;
-  onSelect: (season: number) => void;
-  stale: boolean;
-}) {
-  const lead: LeadColumn<CareerSeason>[] = [
-    {
-      key: "season",
-      label: "Season",
-      group: "",
-      align: "left",
-      cell: (s) => (
-        <button
-          type="button"
-          onClick={() => onSelect(s.season)}
-          aria-pressed={s.season === selected}
-          title={`Show ${s.season} above`}
-          className={`tabular rounded-[2px] px-1 -mx-1 underline-offset-4 hover:text-energy-text hover:underline ${
-            s.season === selected ? "font-semibold text-energy-text" : "text-ink"
-          }`}
-        >
-          {s.season}
-        </button>
-      ),
-    },
-    {
-      key: "team",
-      label: "Team",
-      group: "",
-      align: "left",
-      cell: (s) => <span className="text-mute">{s.teams.join("/")}</span>,
-    },
-    {
-      key: "age",
-      label: "Age",
-      title: "Age on 1 September of the season",
-      group: "",
-      cell: (s) =>
-        s.age !== null ? <span className="tabular text-mute">{s.age}</span> : <span className="text-faint">—</span>,
-    },
-    {
-      key: "gp",
-      label: "GP",
-      title: "Regular-season games played",
-      group: "",
-      cell: (s) => <span className="tabular">{s.gamesPlayed}</span>,
-    },
-    {
-      key: "rank",
-      label: "Rank",
-      title: `Place among every ${position} by season points`,
-      group: "Fantasy",
-      cell: (s) => <RankCell position={position} rank={s.posRank} />,
-    },
-    {
-      key: "pts",
-      label: "Pts",
-      title: "Fantasy points under the selected scoring",
-      group: "Fantasy",
-      cell: (s) =>
-        scored ? (
-          <span className="tabular font-semibold text-ink">{formatPoints(s.points)}</span>
-        ) : (
-          <span className="text-faint">—</span>
-        ),
-    },
-    {
-      key: "ppg",
-      label: "PPG",
-      title: "Fantasy points per game",
-      group: "Fantasy",
-      cell: (s) =>
-        scored ? (
-          <span className="tabular">{formatPoints(s.pointsPerGame)}</span>
-        ) : (
-          <span className="text-faint">—</span>
-        ),
-    },
-  ];
-
-  return (
-    <div className={`transition-opacity ${stale ? "opacity-60" : ""}`}>
-      <StatTable
-        caption="Career: every regular season on record, scored under the selected ruleset"
-        lead={lead}
-        groups={columnsFor(position, seasons)}
-        rows={seasons}
-        source={(s) => s}
-        rowKey={(s) => String(s.season)}
-        rowProps={(s) =>
-          s.season === selected
-            ? {
-                // The whole row on the opaque `well` step -- opaque, so the
-                // pinned first cell still hides what scrolls under it.
-                className: "[&>td]:bg-well",
-                "aria-current": true,
-              }
-            : {}
-        }
-      />
-    </div>
-  );
-}
-
-/**
- * "RB3", coloured by where it falls against the position's starter line --
- * the board's one quality hue, on the same 12-team assumption -- with the
- * words in the tooltip so the colour is never the only cue.
- */
-function RankCell({ position, rank }: { position: string; rank: number | null }) {
-  if (rank === null) return <span className="text-faint">—</span>;
-  const quality = bandFor(rank, position);
-  const words =
-    quality === "good" ? "starter range" : quality === "mid" ? "bench range" : "below bench range";
-  return (
-    <span title={`${position}${rank} — ${words}`} className={`tabular ${quality ? QUALITY_TEXT[quality] : ""}`}>
-      {position}
-      {rank}
-    </span>
   );
 }
