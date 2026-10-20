@@ -29,6 +29,7 @@ colors:
   heat-yellow: "#e3c04b"
   heat-orange: "#ee8a3c"
   heat-red: "#e5574f"
+  heat-red-text: "#f07a72"
   track: "rgb(255 255 255 / 0.06)"
   highlight: "rgb(255 255 255 / 0.07)"
   veil: "rgb(6 10 18 / 0.82)"
@@ -186,7 +187,8 @@ Rejected on purpose:
 - **Chart Slate** (#5d667c): a bar with no rank to colour it.
 - **The heat scale** (player view only): Heat Green (#36b37e), Yellow (#e3c04b), Orange (#ee8a3c)
   and Red (#e5574f) -- top band to bottom, for where a figure falls (see Heat tables). Solid on the
-  performance chart's bars and their figures; solid as a tile's ground, its figure in canvas. Data colours,
+  performance chart's bars and their figures; at 20% as a tile's ground with the figure in the colour
+  (a red figure in Heat Red Text, #f07a72, to clear 4.5:1). Data colours,
   never a control or the brand. Red and green are not told apart by every eye, so a figure is always
   printed on its colour and a legend names the bands.
 
@@ -340,16 +342,21 @@ the season, three to a row on a phone.
 ### Heat tables
 The game log and the career are grids of tiles, 2px apart, every figure on its own small ground in
 the four-step data scale -- green, yellow, orange, red (`--color-heat-*`, owner decision
-2026-10-20) -- solid, with the figure in canvas. Tinted grounds under ink were tried first and
-dropped: over the night ground yellow reads olive and orange brown. Fantasy tiles (points, rank) by where the figure finished at his position, in a 12-team
+2026-10-20) -- a deep ground of the colour with the figure printed in it, so a table full of them
+stays quiet and the number carries the hue (the owner's reference is Flock's tables). Tried and
+dropped: ink on a half-strength tint (over the night ground yellow reads olive and orange brown) and
+solid tiles under dark figures (too loud for a table). Fantasy tiles (points, rank) by where the figure finished at his position, in a 12-team
 league's terms: 1st-12th green, 13th-24th yellow, 25th-36th orange, below that red. Box-score tiles
 against the league's games: the quartiles of every regular-season game, 2023-25, by each season's
 fantasy-relevant players by volume (top 24 QBs by attempts, 48 RBs by carries plus catches, 72 WRs
 and 24 TEs by targets) -- `lib/heatBands.ts`, written by `scripts/heat-bands.mjs` from the
-database. Interceptions run the other way, and none is always the top band. A stat the position has
-no cut-off for (a receiver's carries, a quarterback's snaps, fumbles) sits on the table's faint
-ground. The career colours by the per-game rate in both its per-game and totals views. A legend over
-each table names both scales; every value is printed, so the colour is never the only cue.
+database. Interceptions run the other way, and none is always the top band. Snap share is never
+graded -- it is opportunity, not output, and a low share in a big game is not a poor game -- and nor
+is a stat the position has no cut-off for (a receiver's carries, fumbles): both sit on the table's
+faint ground in ink, as does a game with no rank. The career colours by the per-game rate in both its
+per-game and totals views. A legend over each table names the two scales apart -- fantasy figures
+by positional rank tier, the box score by percentile against history -- with each key drawn as the
+tile it explains; every value is printed, so the colour is never the only cue.
 
 ### The player overlay
 Opened from the board, the player view is an intercepted route on the player's own URL, shown in a

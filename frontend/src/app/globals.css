@@ -101,10 +101,12 @@
      finished at his position (1-12, 13-24, 25-36, 37+); box-score figures
      against the league's games (lib/heatBands.ts). Each on canvas/surface:
      green 7.5/7.1, yellow 11.2/10.7, orange 7.9/7.5, red 5.5/5.2 -- every bar
-     and label clears 3:1 and 4.5:1. Tiles are solid with their figure in
-     canvas, the same pairs read the other way round: 7.5 / 11.2 / 7.9 / 5.5.
-     (Tinted tiles under ink were tried first: over this blue ground yellow
-     turns olive and orange brown, and the scale stops reading as its names.)
+     and label clears 3:1 and 4.5:1. A tile is the colour at 20% over surface
+     with its figure in the colour: green 5.2, yellow 7.1, orange 5.5, and red
+     4.2 -- short of 4.5, so a red figure takes heat-red-text (5.6). Tried and
+     dropped: ink on a half-strength tint (yellow turns olive and orange brown
+     over this blue, and the scale stops reading as its names), and solid tiles
+     under canvas figures (correct, and too loud for a table of them).
      Red and green are not told apart by every eye, so every tile and bar
      prints its figure and the legend names the bands: the colour is never the
      only cue. Data colours only -- never a control, never the brand. */
@@ -112,6 +114,7 @@
   --color-heat-yellow: #e3c04b;
   --color-heat-orange: #ee8a3c;
   --color-heat-red: #e5574f;
+  --color-heat-red-text: #f07a72;
 
   --font-display: var(--font-sofia-extra), ui-sans-serif, system-ui, sans-serif;
   --font-label: var(--font-sofia-semi), ui-sans-serif, system-ui, sans-serif;

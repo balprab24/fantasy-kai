@@ -16,16 +16,20 @@
  */
 import { readFileSync } from "node:fs";
 
+// Production only. Snap share is opportunity, not output -- a low share in a
+// big game is not a poor game -- so it is never graded (owner decision,
+// 2026-10-20).
 const STATS = {
-  // A quarterback is on the field for nearly every snap; his snap share says nothing, so it is not shaded.
   QB: ["pass_cmp", "pass_att", "pass_yd", "pass_td", "pass_int", "rush_att", "rush_yd", "rush_td"],
-  RB: ["snap_pct", "rush_att", "rush_yd", "rush_td", "targets", "rec", "rec_yd", "rec_td"],
-  WR: ["snap_pct", "targets", "rec", "rec_yd", "rec_td"],
-  TE: ["snap_pct", "targets", "rec", "rec_yd", "rec_td"],
+  RB: ["rush_att", "rush_yd", "rush_td", "targets", "rec", "rec_yd", "rec_td"],
+  WR: ["targets", "rec", "rec_yd", "rec_td"],
+  TE: ["targets", "rec", "rec_yd", "rec_td"],
 };
+// Players per position per season in the comparison set: must match the
+// LIMITs in heat-bands.sql, and is checked against the rows below.
+const RELEVANT = { QB: 24, RB: 48, WR: 72, TE: 24 };
 // Fewer is better.
 const INVERT = new Set(["pass_int"]);
-const KEY = { snap_pct: "snap" };
 
 const [header, ...lines] = readFileSync(0, "utf8").trim().split("\n");
 const cols = header.split(",");
@@ -65,11 +69,14 @@ for (const [pos, stats] of Object.entries(STATS)) {
     bySeason.get(k).push(r);
   }
   counts[pos] = { games: mine.length, playerSeasons: bySeason.size };
+  const seasonCount = new Set(mine.map((r) => r.season)).size;
+  if (bySeason.size !== RELEVANT[pos] * seasonCount) {
+    throw new Error(`${pos}: ${bySeason.size} player-seasons, expected ${RELEVANT[pos]} x ${seasonCount} -- RELEVANT and heat-bands.sql disagree`);
+  }
   week[pos] = {}; rate[pos] = {};
   for (const st of stats) {
     const values = mine.filter((r) => r[st] !== "").map((r) => Number(r[st]));
-    week[pos][KEY[st] ?? st] = weekCuts(values, INVERT.has(st));
-    if (st === "snap_pct") continue; // the career has no snap column
+    week[pos][st] = weekCuts(values, INVERT.has(st));
     const perGame = [...bySeason.values()]
       .map((g) => g.filter((r) => r[st] !== "").map((r) => Number(r[st])))
       .filter((v) => v.length)
@@ -99,6 +106,9 @@ process.stdout.write(`/**
  * \`week\` is one game; \`perGame\` is a season's per-game average.
  */
 export const HEAT_SEASONS = ${JSON.stringify(`${seasons[0]}-${seasons.at(-1)}`)};
+
+/** Players per position per season in the comparison set -- the legend names it. */
+export const HEAT_RELEVANT: Record<string, number> = ${json(RELEVANT)};
 
 export const HEAT_WEEK: Record<string, Record<string, [number, number, number]>> = ${json(week)};
 

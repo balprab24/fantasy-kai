@@ -25,17 +25,19 @@ export interface LeadColumn<R> {
 
 /**
  * A tile's ground on the four-step scale (`HeatStep`: green, yellow, orange,
- * red), solid, with its figure in the canvas colour (5.5:1 at the least, on
- * red). A tile with no step -- a stat with no league cut-off for the
- * position, a summary row -- sits on the table's own faint ground in ink.
+ * red): a deep ground of the colour with the figure in the colour itself, so
+ * a table of them stays quiet and the hue is carried by the number (5.2:1 at
+ * the least, on green). A tile with no step -- a stat with no league cut-off
+ * for the position, snap share, a summary row -- sits on the table's own
+ * faint ground in ink.
  * Cells print their figure without a colour of their own, so they take
  * whichever the tile sets.
  */
 export const TILE: Record<HeatStep, string> = {
-  0: "bg-heat-green text-canvas",
-  1: "bg-heat-yellow text-canvas",
-  2: "bg-heat-orange text-canvas",
-  3: "bg-heat-red text-canvas",
+  0: "bg-heat-green/20 text-heat-green",
+  1: "bg-heat-yellow/20 text-heat-yellow",
+  2: "bg-heat-orange/20 text-heat-orange",
+  3: "bg-heat-red/20 text-heat-red-text",
 };
 export const NEUTRAL_TILE = "bg-ink/[0.025]";
 

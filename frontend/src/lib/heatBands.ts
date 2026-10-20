@@ -16,6 +16,14 @@
  */
 export const HEAT_SEASONS = "2023-2025";
 
+/** Players per position per season in the comparison set -- the legend names it. */
+export const HEAT_RELEVANT: Record<string, number> = {
+  "QB": 24,
+  "RB": 48,
+  "WR": 72,
+  "TE": 24
+};
+
 export const HEAT_WEEK: Record<string, Record<string, [number, number, number]>> = {
   "QB": {
     "pass_cmp": [25, 22, 18],
@@ -28,7 +36,6 @@ export const HEAT_WEEK: Record<string, Record<string, [number, number, number]>>
     "rush_td": [1, 1, 0]
   },
   "RB": {
-    "snap": [70, 56, 40],
     "rush_att": [17, 13, 8],
     "rush_yd": [76, 48, 27],
     "rush_td": [1, 1, 0],
@@ -38,14 +45,12 @@ export const HEAT_WEEK: Record<string, Record<string, [number, number, number]>>
     "rec_td": [1, 1, 0]
   },
   "WR": {
-    "snap": [90, 81, 68],
     "targets": [9, 7, 5],
     "rec": [6, 4, 3],
     "rec_yd": [76, 47, 25],
     "rec_td": [1, 1, 0]
   },
   "TE": {
-    "snap": [87, 77, 64],
     "targets": [8, 6, 4],
     "rec": [6, 4, 3],
     "rec_yd": [61, 39, 22],

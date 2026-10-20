@@ -3,8 +3,8 @@
 import { ApiError } from "@/lib/api";
 import { formatPoints } from "@/lib/board";
 import { matchup, playoffRound } from "@/lib/player";
-import { columnsFor, type StatSource } from "@/lib/playerStats";
-import { HEAT_INVERTED, HEAT_PER_GAME, HEAT_SEASONS, HEAT_WEEK } from "@/lib/heatBands";
+import { columnsFor, printedCount, type StatSource } from "@/lib/playerStats";
+import { HEAT_INVERTED, HEAT_PER_GAME, HEAT_RELEVANT, HEAT_SEASONS, HEAT_WEEK } from "@/lib/heatBands";
 import { finishStep, statStep, type HeatStep } from "@/lib/playerView";
 import type { CareerSeason, GamelogWeek, StatKey, Usage } from "@/lib/types";
 import { Skeleton, StatusMessage } from "../ui/StatusMessage";
@@ -26,33 +26,46 @@ function leagueStep(table: typeof HEAT_WEEK, position: string, key: string, valu
   return cuts ? statStep(value, cuts, HEAT_INVERTED.includes(key)) : null;
 }
 
-/** What the colours in a heat table mean: shown above the game log and the career. */
+/**
+ * What the colours in a heat table mean, shown above the game log and the
+ * career. Two scales share four colours, so the legend names which is which:
+ * fantasy tiles are a positional rank tier (this week's, or this season's),
+ * box-score tiles a percentile against history. Each key is drawn as the tile
+ * it explains.
+ */
 export function HeatLegend({ position, per }: { position: string; per: "game" | "season" }) {
-  const relevant = position === "QB" ? 24 : position === "RB" ? 48 : position === "WR" ? 72 : 24;
-  const swatch = (step: HeatStep, label: string) => (
-    <span className="inline-flex items-center gap-1.5">
-      <span aria-hidden className={`size-2.5 rounded-[2px] ${TILE[step]} ring-1 ring-inset ring-ink/10`} />
-      {label}
-    </span>
+  const relevant = HEAT_RELEVANT[position];
+  const key = (step: HeatStep, label: string) => (
+    <span className={`tabular inline-flex h-5 items-center rounded-[3px] px-1.5 ${TILE[step]}`}>{label}</span>
   );
   return (
-    <div className="flex flex-col gap-1.5 text-[12px] text-mute">
-      <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="text-ink">{per === "game" ? "Points and rank, where the week finished" : "Rank and points, where the season finished"} among {position}s:</span>
-        {swatch(0, "1–12")}
-        {swatch(1, "13–24")}
-        {swatch(2, "25–36")}
-        {swatch(3, "37+")}
-      </p>
-      <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="text-ink">
-          {per === "game" ? "Box score, against every game" : "Box score per game, against every season"} by the top {relevant} {position}s, {HEAT_SEASONS.replace("-", "–")}:
+    <div className="flex flex-col gap-2 text-[12px] text-mute">
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
+        <span className="mr-1.5">
+          <span className="font-semibold text-ink">Fantasy points and rank</span>: his rank among {position}s that{" "}
+          {per === "game" ? "week" : "season"}
         </span>
-        {swatch(0, "top quarter")}
-        {swatch(1, "second")}
-        {swatch(2, "third")}
-        {swatch(3, "bottom")}
+        {key(0, `${position}1–12`)}
+        {key(1, "13–24")}
+        {key(2, "25–36")}
+        {key(3, "37+")}
       </p>
+      {relevant !== undefined && (
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
+          <span className="mr-1.5">
+            <span className="font-semibold text-ink">Box score</span>:{" "}
+            {per === "game" ? "against every game" : "per game, against every season"} by the top {relevant}{" "}
+            {position}s, {HEAT_SEASONS.replace("-", "–")}
+          </span>
+          {key(0, "Top 25%")}
+          {key(1, "25–50%")}
+          {key(2, "50–75%")}
+          {key(3, "Bottom 25%")}
+          <span className="ml-1.5">
+            Uncoloured: not graded{per === "game" ? ". Snap share is opportunity, not output" : ""}.
+          </span>
+        </p>
+      )}
     </div>
   );
 }
@@ -209,13 +222,9 @@ export function GameLog({
     {
       key: "snap",
       label: "Snap%",
+      // Never graded: snap share is opportunity, not output.
       title: "Share of the offense's snaps he was on the field for",
       group: "Fantasy",
-      tone: (r) => {
-        if (r.kind !== "week" || r.week.snapPct === null) return undefined;
-        const step = leagueStep(HEAT_WEEK, position, "snap", r.week.snapPct);
-        return step === null ? undefined : TILE[step];
-      },
       cell: (r) =>
         r.kind === "week" && r.week.snapPct !== null ? (
           <span className="tabular">{Math.round(r.week.snapPct)}%</span>
@@ -366,8 +375,9 @@ export function CareerTable({
         source={mode === "game" ? perGame : (s) => s}
         // Coloured by the per-game rate in both views, so a short season's
         // totals are not marked down for the games it has not played yet.
+        // Graded on the per-game figure as the per-game view prints it.
         shade={(key, value, s) =>
-          leagueStep(HEAT_PER_GAME, position, key, mode === "game" ? value : value / Math.max(1, s.gamesPlayed))
+          leagueStep(HEAT_PER_GAME, position, key, printedCount(mode === "game" ? value : value / Math.max(1, s.gamesPlayed)))
         }
         rowKey={(s) => String(s.season)}
         rowProps={(s) =>

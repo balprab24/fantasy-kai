@@ -38,8 +38,8 @@ import {
 } from "../src/lib/memberHint.ts";
 import { ageOn, matchup, pickSeason, playoffRound } from "../src/lib/player.ts";
 import { finishStep, lastGames, lastWeekPlayed, parseTab, recentGames, starterShare, statStep, weekSlots } from "../src/lib/playerView.ts";
-import { HEAT_INVERTED, HEAT_PER_GAME, HEAT_WEEK } from "../src/lib/heatBands.ts";
-import { COLUMNS, columnsFor, formatCount, type StatSource } from "../src/lib/playerStats.ts";
+import { HEAT_INVERTED, HEAT_PER_GAME, HEAT_RELEVANT, HEAT_WEEK } from "../src/lib/heatBands.ts";
+import { COLUMNS, columnsFor, formatCount, printedCount, type StatSource } from "../src/lib/playerStats.ts";
 import { profileCaption, profileLabel } from "../src/lib/profiles.ts";
 
 const ZERO_STATS = {
@@ -193,6 +193,16 @@ describe("formatting", () => {
     assert.equal(formatCount(-3), "−3");
     assert.equal(formatPoints(-1.6), "−1.6");
   });
+
+  it("grades a heat tile on the figure it prints, not the unrounded value", () => {
+    // 34.06 prints as 34.1: graded unrounded it fell short of a 34.07 cut-off.
+    assert.equal(formatCount(34.06), "34.1");
+    assert.equal(printedCount(34.06), 34.1);
+    assert.equal(statStep(printedCount(34.06), [34.07, 30, 25]), 0);
+    assert.equal(printedCount(1412.04), 1412, "no thousands separator to trip Number()");
+    assert.equal(printedCount(-2.25), -2.3);
+    assert.equal(printedCount(0), 0);
+  });
 });
 
 describe("board URL state", () => {
@@ -318,7 +328,7 @@ describe("the player view's derived facts", () => {
       TE: ["targets", "rec", "rec_yd", "rec_td"],
     };
     // Every key must be a box-score column the tables actually draw, or it would never be used.
-    const keys = new Set(COLUMNS.map((c) => c.key).concat("snap"));
+    const keys = new Set(COLUMNS.map((c) => c.key));
     for (const table of [HEAT_WEEK, HEAT_PER_GAME]) {
       for (const [pos, stats] of Object.entries(primary)) {
         for (const st of stats) assert.ok(table[pos]?.[st], `${pos} ${st} has no cut-off`);
@@ -329,7 +339,10 @@ describe("the player view's derived facts", () => {
         }
       }
     }
-    assert.equal(HEAT_WEEK.QB.snap, undefined, "a quarterback's snap share is not shaded");
+    for (const pos of Object.keys(HEAT_WEEK)) {
+      assert.equal(HEAT_WEEK[pos].snap ?? HEAT_WEEK[pos].snap_pct, undefined, `${pos} snap share is opportunity, not graded`);
+      assert.ok(HEAT_RELEVANT[pos] > 0, `${pos} has no comparison-set size for the legend`);
+    }
   });
 
   it("counts starter weeks against the position's 12-team line, and says nothing for an unranked position", () => {
