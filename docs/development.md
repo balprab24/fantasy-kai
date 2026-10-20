@@ -374,6 +374,15 @@ compares anything.
   order, so two players level on screen could swap between requests, and a career rank could
   disagree with the board's. `PointsTally` sums in week order; `PointsTallyTests` pins it with the
   textbook triple. Java-only — the §9 SQL is unchanged.
+- **An intercepting route catches the page it intercepts.** The player overlay is
+  `@modal/(.)players/[id]`, so a soft navigation to `/players/[id]` *from the full player page
+  itself* -- `router.replace` to change `?tab=` or `?profileId=` -- was intercepted too, and a
+  second copy of the player opened as an overlay over the page. Every section link and ruleset
+  change on a shared link or after a refresh did it; the overlay, which every review opened from
+  the board, never showed it. On a page the query is now written with `history.replaceState`, and
+  previous/next load a page. **The state argument must be `null`:** passing `history.state` (which
+  carries Next's tree) makes Next skip syncing `useSearchParams`, so the URL changed and the view
+  kept the old ruleset. Found by a scripted review counting `dialog[open]`, not by reading the code.
 - **`useSearchParams` on a prerendered route needs a `<Suspense>` boundary, and `next dev` hides
   it.** Dev renders on demand, so a missing boundary works there and fails `npm run build`. `/`
   and `/rankings` wrap the board; its fallback copies the header, control-row and row heights so

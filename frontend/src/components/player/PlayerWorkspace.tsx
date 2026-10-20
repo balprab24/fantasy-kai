@@ -57,10 +57,11 @@ function int(raw: string | null): number | null {
  * under every other ruleset. Season, scoring and section live in the URL,
  * replaced rather than pushed: a refresh or a shared link opens the same view,
  * and back goes to wherever you came from rather than through every season
- * you tried. The writes go through `router.replace` with `scroll: false`: after
- * a bare `replaceState` Next scrolled the view back to its top (measured: a
- * section link clicked halfway down landed at 2px instead of on the career),
- * and a scoring change halfway down now keeps its place.
+ * you tried. In the overlay the writes go through `router.replace` with
+ * `scroll: false`: after a bare `replaceState` there, Next scrolled the view
+ * back to its top (measured: a section link clicked halfway down landed at 2px
+ * instead of on the career). On a page they go to history directly, because a
+ * router navigation to this URL is intercepted (see `write`).
  */
 export function PlayerWorkspace({
   playerId,
@@ -157,9 +158,19 @@ export function PlayerWorkspace({
     }
     const next = nextParams.toString();
     latest.current = next;
+    const url = `${pathname}${next ? `?${next}` : ""}`;
     startTransition(() => {
       showQuery(next);
-      router.replace(`${pathname}${next ? `?${next}` : ""}`, { scroll: false });
+      // On a page, a soft navigation to /players/[id] is caught by the
+      // overlay's intercepting route, and a second copy of the player opened
+      // over the page (measured: a section link or a ruleset change on a
+      // shared link). Only the query changes, so on a page it is written to
+      // history directly -- Next syncs useSearchParams from it, and nothing
+      // navigates for the overlay to catch. The state must be null: Next
+      // skips its sync for a state carrying its own tree, and the view would
+      // keep the old query (measured).
+      if (variant === "page") window.history.replaceState(null, "", url);
+      else router.replace(url, { scroll: false });
     });
   };
   const setTab = (t: PlayerTab) => write({ tab: t === "overview" ? null : t });
@@ -235,7 +246,11 @@ export function PlayerWorkspace({
     if (season !== null) q.set("season", String(season));
     if (profileId !== null) q.set("profileId", String(profileId));
     if (tab !== "overview") q.set("tab", tab);
-    router.replace(`/players/${to.playerId}?${q}`, { scroll: false });
+    const url = `/players/${to.playerId}?${q}`;
+    // A page loads the next player as a page: a soft navigation from here
+    // would be intercepted and open him as an overlay over this one.
+    if (variant === "page") window.location.replace(url);
+    else router.replace(url, { scroll: false });
   };
 
   const chrome = (
