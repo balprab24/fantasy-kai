@@ -1,5 +1,6 @@
 "use client";
 
+import type { BoardView } from "@/lib/boardParams";
 import { seasons } from "@/lib/season";
 import type { Position, Scope, ScoringProfile } from "@/lib/types";
 import { RulesetSwitch } from "../RulesetSwitch";
@@ -18,6 +19,15 @@ export const SCOPES: { value: Scope; label: string; title: string; phrase: strin
   },
 ];
 
+const VIEWS: { value: BoardView; label: string; title: string }[] = [
+  { value: "performance", label: "Performance", title: "What happened: recorded games, scored" },
+  {
+    value: "projections",
+    label: "Projections",
+    title: "The stored week's projected stat lines, scored",
+  },
+];
+
 const POSITIONS: { value: string; label: string }[] = [
   { value: "ALL", label: "All" },
   { value: "QB", label: "QB" },
@@ -26,16 +36,23 @@ const POSITIONS: { value: string; label: string }[] = [
   { value: "TE", label: "TE" },
 ];
 
-/** A seam between control groups: structure, so a hairline, not a box. */
+/**
+ * A seam between control groups: structure, so a hairline, not a box. Only
+ * from 2xl, where the console fits on one line -- beside the sidebar it needs
+ * about 1,250px of strip, and a seam left at the end of a wrapped line divides
+ * nothing from nothing.
+ */
 function Seam() {
-  return <span aria-hidden className="mx-1 hidden h-5 w-px bg-line md:block" />;
+  return <span aria-hidden className="mx-1 hidden h-5 w-px bg-line 2xl:block" />;
 }
 
 /**
  * The console: every control on one strip of `surface`, the one separation
  * layer, instead of five separately bordered boxes. Scoring comes first -- it
- * is the product's argument -- then season, window, position and find, with a
- * hairline seam between groups.
+ * is the product's argument -- then the board's view, season, window,
+ * position and find, with a hairline seam between groups. Season and window
+ * describe recorded games only, so the projections view does not draw them:
+ * the view switch stands where they were.
  *
  * Every control here maps to a parameter the API actually takes. Format
  * (redraft/dynasty), single weeks and rest-of-season are absent because the
@@ -51,6 +68,8 @@ export function FilterBar({
   profiles,
   profileId,
   onProfile,
+  view,
+  onView,
   season,
   onSeason,
   scope,
@@ -63,6 +82,8 @@ export function FilterBar({
   profiles: ScoringProfile[] | undefined;
   profileId: number | null;
   onProfile: (id: number) => void;
+  view: BoardView;
+  onView: (view: BoardView) => void;
   season: number;
   onSeason: (season: number) => void;
   scope: Scope;
@@ -88,20 +109,35 @@ export function FilterBar({
 
       <Seam />
 
-      <SeasonSelect value={season} options={seasons()} onChange={onSeason} />
-
-      <Seam />
-
       <SegmentedControl
-        legend="Window"
-        options={SCOPES}
-        value={scope}
-        onChange={(v) => onScope(v as Scope)}
+        legend="Board"
+        options={VIEWS}
+        value={view}
+        onChange={(v) => onView(v as BoardView)}
         hideLegend
         variant="bare"
       />
 
       <Seam />
+
+      {view === "performance" && (
+        <>
+          <SeasonSelect value={season} options={seasons()} onChange={onSeason} />
+
+          <Seam />
+
+          <SegmentedControl
+            legend="Window"
+            options={SCOPES}
+            value={scope}
+            onChange={(v) => onScope(v as Scope)}
+            hideLegend
+            variant="bare"
+          />
+
+          <Seam />
+        </>
+      )}
 
       <SegmentedControl
         legend="Position"

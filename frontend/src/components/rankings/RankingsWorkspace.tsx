@@ -4,13 +4,18 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BoardSkeleton, RankingsBoard } from "@/components/RankingsBoard";
-import { BUTTON_SECONDARY } from "@/components/ui/buttons";
 import { boardSearch, parseBoardParams, type BoardState } from "@/lib/boardParams";
 import { clearBoardReturn, readBoardReturn, saveBoardReturn } from "@/lib/boardReturn";
 import { profileLabel } from "@/lib/profiles";
-import { BOARD_PAGE_SIZE, useRankingsBoard, useSelectedProfile } from "@/lib/queries";
+import {
+  useAllPages,
+  useProjectionBoard,
+  useRankingsBoard,
+  useSelectedProfile,
+} from "@/lib/queries";
 import { FIRST_SEASON, currentSeason } from "@/lib/season";
 import { FilterBar, SCOPES } from "./FilterBar";
+import { ProjectionBoard } from "./Projections";
 
 /** How long typing in the search box waits before the URL catches up. */
 const FIND_DEBOUNCE_MS = 300;
@@ -44,7 +49,8 @@ export function RankingsWorkspace() {
       }),
     [params, now],
   );
-  const { season, position, scope } = state;
+  const { view, season, position, scope } = state;
+  const performance = view === "performance";
   const { profiles, profileId } = useSelectedProfile(state.profileId);
 
   // Merged into what the URL says *now*, not what this render saw: a debounced
@@ -92,15 +98,38 @@ export function RankingsWorkspace() {
     if (pendingFind.current) clearTimeout(pendingFind.current);
   }, []);
 
-  const board = useRankingsBoard({ profileId, season, position, scope });
+  // One view's query runs at a time; the other waits, its pages kept in the
+  // cache for a switch back. Both load to the end (`useAllPages`).
+  const board = useRankingsBoard({
+    profileId: performance ? profileId : null,
+    season,
+    position,
+    scope,
+  });
+  // The projections search is the API's, over every projected player, so it
+  // follows the URL's debounced search rather than every keystroke.
+  const projections = useProjectionBoard({
+    profileId: performance ? null : profileId,
+    position,
+    find: state.q,
+  });
+  useAllPages(board, performance);
+  useAllPages(projections, !performance);
+
   // Memoized: a fresh array on every render would re-run the tiering on every
   // keystroke in the search box.
   const pages = board.data?.pages;
   const rows = useMemo(() => pages?.flatMap((p) => p.content), [pages]);
-  const rowsLoaded = rows?.length ?? 0;
+  const projectionPages = projections.data?.pages;
+  const projectionTotal = projectionPages?.[0]?.page.total;
+  const projectionsLoaded = projectionPages?.reduce((n, p) => n + p.page.content.length, 0) ?? 0;
+  const rowsLoaded = performance ? (rows?.length ?? 0) : projectionsLoaded;
   const total = board.data?.pages[0]?.total;
   const profile = profiles.data?.find((p) => p.id === profileId);
   const scopePhrase = SCOPES.find((s) => s.value === scope)?.phrase;
+  // The latest league week with a recorded game: said for the season being
+  // played, where it is news; a finished season's is always its last week.
+  const through = season === now ? rows?.[0]?.dataThrough : undefined;
 
   // Leaving for a player: make the URL current (a search still waiting on its
   // debounce would otherwise be lost) and note where on the board we were.
@@ -120,14 +149,16 @@ export function RankingsWorkspace() {
   };
 
   // Coming back: once the rows are on screen, go back to where we were --
-  // but only to this exact board, and only if as many rows are loaded as
-  // there were (the cache can have been evicted), or the offset means nothing.
+  // but only to this exact board (view included), and only once as many rows
+  // are loaded as there were. The pages arrive one at a time, so the note is
+  // kept until they have; going back to a short first page would land the
+  // scroll on rows that are not there yet.
   useLayoutEffect(() => {
     if (!rowsLoaded) return;
     const saved = readBoardReturn();
-    if (!saved) return;
-    if (saved.board === window.location.pathname + window.location.search) {
-      if (rowsLoaded >= saved.rows) window.scrollTo(0, saved.scrollY);
+    if (!saved || saved.board !== window.location.pathname + window.location.search) return;
+    if (rowsLoaded >= saved.rows) {
+      window.scrollTo(0, saved.scrollY);
       clearBoardReturn();
     }
   }, [rowsLoaded]);
@@ -141,11 +172,20 @@ export function RankingsWorkspace() {
               season, which window. A ranking without its ruleset is a number
               with no meaning here. */}
           <p className="mt-2 text-[15px] text-mute">
-            {profile ? (
+            {!performance ? (
+              <>
+                The stored week&rsquo;s projections, scored under{" "}
+                <span className="font-semibold text-ink">
+                  {profile ? profileLabel(profile) : "your scoring"}
+                </span>
+                .
+              </>
+            ) : profile ? (
               <>
                 Scored under <span className="font-semibold text-ink">{profileLabel(profile)}</span>{" "}
                 for the {season} season, {scopePhrase}.
                 {total !== undefined && total > 0 && <> {total} {total === 1 ? "player" : "players"}.</>}
+                {through !== undefined && through > 0 && <> Games through week {through}.</>}
               </>
             ) : (
               <>The {season} season, {scopePhrase}.</>
@@ -153,10 +193,12 @@ export function RankingsWorkspace() {
           </p>
           {/* The one colour the board gives a figure, keyed where it can be
               read -- not in a tooltip a phone cannot reach. */}
-          <p className="mt-1.5 flex items-center gap-2 text-[13px] text-mute">
-            <span aria-hidden className="size-2 shrink-0 rounded-full bg-q-good" />
-            Per-game figures in green are inside a 12-team league&rsquo;s starters at that position.
-          </p>
+          {performance && (
+            <p className="mt-1.5 flex items-center gap-2 text-[13px] text-mute">
+              <span aria-hidden className="size-2 shrink-0 rounded-full bg-q-good" />
+              Per-game figures in green are inside a 12-team league&rsquo;s starters at that position.
+            </p>
+          )}
         </div>
         <Link
           href="/profiles"
@@ -171,6 +213,8 @@ export function RankingsWorkspace() {
           profiles={profiles.data}
           profileId={profileId}
           onProfile={(id) => write({ profileId: id })}
+          view={view}
+          onView={(v) => write({ view: v })}
           season={season}
           onSeason={(s) => write({ season: s })}
           scope={scope}
@@ -183,49 +227,75 @@ export function RankingsWorkspace() {
       </div>
 
       <div className="mt-2">
-        <RankingsBoard
-          rows={rows}
-          comparisonKey={String(profileId)}
-          boardKey={`${season}|${position}|${scope}`}
-          scope={scope}
-          stale={board.isPlaceholderData}
-          season={season}
-          profileId={profileId}
-          loading={board.isLoading}
-          fetching={board.isFetching && !board.isFetchingNextPage && !board.isLoading}
-          error={board.error ?? profiles.error}
-          onRetry={() => void (profiles.error ? profiles.refetch() : board.refetch())}
-          onSeason={(s) => write({ season: s })}
-          find={find}
-          onOpenPlayer={onOpenPlayer}
-        />
+        {performance ? (
+          <RankingsBoard
+            rows={rows}
+            comparisonKey={String(profileId)}
+            boardKey={`${season}|${position}|${scope}`}
+            scope={scope}
+            stale={board.isPlaceholderData}
+            season={season}
+            profileId={profileId}
+            loading={board.isLoading}
+            fetching={board.isFetching && !board.isFetchingNextPage && !board.isLoading}
+            error={board.error ?? profiles.error}
+            onRetry={() => void (profiles.error ? profiles.refetch() : board.refetch())}
+            onSeason={(s) => write({ season: s })}
+            find={find}
+            onOpenPlayer={onOpenPlayer}
+          />
+        ) : (
+          <ProjectionBoard
+            pages={projectionPages}
+            error={projections.error ?? profiles.error}
+            fetching={
+              projections.isFetching && !projections.isFetchingNextPage && !projections.isLoading
+            }
+            onRetry={() => void (profiles.error ? profiles.refetch() : projections.refetch())}
+            find={state.q}
+            profileId={profileId}
+            onOpenPlayer={onOpenPlayer}
+          />
+        )}
       </div>
 
-      {rows && total !== undefined && rows.length > 0 && (
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm">
-          <span className="tabular text-mute" aria-live="polite">
-            {board.hasNextPage ? `Showing 1–${rows.length} of ${total}` : `All ${total} players shown`}
-          </span>
-          {board.hasNextPage && (
-            <button
-              type="button"
-              onClick={() => void board.fetchNextPage()}
-              disabled={board.isFetchingNextPage}
-              className={BUTTON_SECONDARY}
-            >
-              {board.isFetchingNextPage
-                ? "Scoring…"
-                : `Show next ${Math.min(BOARD_PAGE_SIZE, total - rows.length)}`}
-            </button>
-          )}
-        </div>
-      )}
+      <LoadedCount
+        loaded={rowsLoaded}
+        total={performance ? total : projectionTotal}
+        more={performance ? board.hasNextPage : projections.hasNextPage}
+        noun={performance ? "players" : "projected players"}
+      />
 
-      <p className="mt-8 text-[13px] text-faint">
-        No point on this board is stored. Every one is computed on request against the ruleset you
-        picked.
+      <p className="mt-8 max-w-[72ch] text-[13px] text-faint">
+        {performance
+          ? "No point on this board is stored. Every one is computed on request against the ruleset you picked. Last 4 is points per game over the league's last four regular-season weeks, against the season's; a dash is no recorded game, not zero points."
+          : "No projected point is stored either: a projection is a stat line, scored on request against the ruleset you picked. Players who are out, on a reserve list or off a roster keep their projection but are not ranked."}
       </p>
     </div>
+  );
+}
+
+/**
+ * How much of the board is here. Every page loads on its own
+ * (`useAllPages`), so this says progress while it does and the whole count
+ * once it has -- never a button for something already on its way.
+ */
+function LoadedCount({
+  loaded,
+  total,
+  more,
+  noun,
+}: {
+  loaded: number;
+  total: number | undefined;
+  more: boolean;
+  noun: string;
+}) {
+  if (!total || loaded === 0) return null;
+  return (
+    <p className="tabular mt-6 text-sm text-mute" aria-live="polite">
+      {more ? `Loading ${loaded} of ${total} ${noun}…` : `All ${total} ${noun} shown`}
+    </p>
   );
 }
 

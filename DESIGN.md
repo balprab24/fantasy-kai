@@ -350,11 +350,25 @@ page's recipe is said in a sentence ("Scored under Half PPR for the 2025 season,
 
 **Product pages**
 
-- **Top bar:** sticky, 56px tall, translucent black with a backdrop blur and no border.
+- **Navigation:** below md, the **top bar** -- sticky, 56px tall, translucent black with a backdrop
+  blur and no border. From md, a **sidebar** -- fixed, 176px wide, on the canvas with one hairline
+  for its edge: the wordmark, the two sections that exist, the one "Coming" entry (its popover
+  opens beside the rail), and the account at the foot. Real links only, no eyebrow, no tagline;
+  the current section takes the surface step and a 2px energy bar on its left edge (owner
+  direction 2026-10-28: a dense, Flock-like workspace, in the Prime time skin).
 - **Opening:** a page opens with its title, then its recipe line, then the console.
-- **The board:** a table whose header row sticks at 56px.
-  - Rows are 44px tall, and 48px below 640px.
+- **The console:** the ruleset first, then the board's view (Performance | Projections), then
+  season and window -- which the projections view does not draw -- then position and find.
+- **The board:** a table whose header row sticks under the top bar on a phone, and at the top from md.
+  - Rows are 44px tall, and 48px below 640px; on the member board, 56px from xl, where a second
+    line (volume a game, form's direction) joins the name and the recent figure.
+  - Each tier opens on a **band**: a full-width strip of the surface step, square, with the letter
+    in its own colour (S alone in Ki). The strip separates; it never ranks. The landing keeps the
+    letter-and-hairline divider.
   - Columns step away by importance, and what leaves a phone folds into a second line under the name.
+    The member board adds Last 4 (per game, with its direction against the season in words and an
+    arrow, never colour) and Recent weeks (four chips on the surface step, a dash for no game) from
+    xl, and narrows the player column from md to lg, where the sidebar takes its 176px.
   - At 390px the board fits without sideways scroll.
 
 **The landing (Daylight)**
@@ -475,10 +489,11 @@ tonal status block.
 Every board control sits on one Surface strip:
 
 - scoring first, since it is the product's argument;
-- then season, window, position and find, with hairline seams between groups.
+- then the board view, season, window, position and find, with hairline seams between groups.
 
 Segments have no track of their own. The selected one sits on Lift with a 2px blue base line. The
-strip wraps rather than scrolls.
+strip wraps rather than scrolls, and the seams show only from `2xl`, where it fits on one line: a
+seam left at the end of a wrapped line divides nothing.
 
 ### The Plate (signature)
 - **On the landing:** the product window -- the rankings page itself, in Prime time on the paper

@@ -430,6 +430,37 @@ class RankingsTests {
                 .formatted(playerId, season, profileId), GamelogResponse.class);
     }
 
+    @Test
+    void enrichedBoardAndPlayerContextAgree() {
+        var board=rest.getForObject("/api/v1/rankings/board?season=2025&profileId=2&scope=last4",com.fasterxml.jackson.databind.JsonNode.class);
+        assertThat(board.get("content").isArray()).isTrue();
+        var first=board.get("content").get(0);
+        var detail=rest.getForObject("/api/v1/players/"+first.get("playerId").asLong()+"/performance?season=2025&profileId=2&scope=last4",com.fasterxml.jackson.databind.JsonNode.class);
+        assertThat(detail.get("points")).isEqualTo(first.get("points"));
+        assertThat(detail.get("recentWeeks")).isEqualTo(first.get("recentWeeks"));
+    }
+    @Test
+    void storedProjectionScoresUnderSelectedRulesWithoutChangingRawLine(@Autowired JdbcTemplate jdbc) {
+        String columns=java.util.Arrays.stream(com.fantasykai.scoring.StatKey.values()).map(com.fantasykai.scoring.StatKey::json).collect(java.util.stream.Collectors.joining(","));
+        String values=java.util.Arrays.stream(com.fantasykai.scoring.StatKey.values()).map(k->k.json().equals("rec")?"4":"0").collect(java.util.stream.Collectors.joining(","));
+        jdbc.update("INSERT INTO player_week_projection (season,week,provider,player_id,game_id,team_id,"+columns+",pass_att,rush_att,targets,games_used,data_through_season,data_through_week,generated_at) SELECT s.season,s.week,'weighted-average-v1',s.player_id,s.game_id,s.team_id,"+values+",0,0,5,3,2024,18,now() FROM player_game_stats s WHERE s.player_id=? AND s.season=2025 LIMIT 1",seeded.allen());
+        try {
+            var half=rest.getForObject("/api/v1/players/"+seeded.allen()+"/projection?profileId="+ApiFixture.Seeded.HALF_PPR,com.fasterxml.jackson.databind.JsonNode.class);
+            var full=rest.getForObject("/api/v1/players/"+seeded.allen()+"/projection?profileId="+ApiFixture.Seeded.FULL_PPR,com.fasterxml.jackson.databind.JsonNode.class);
+            assertThat(full.get("projection").get("points").asDouble()-half.get("projection").get("points").asDouble()).isEqualTo(2);
+            assertThat(half.get("projection").get("history").asText()).isEqualTo("LIMITED");
+            assertThat(jdbc.queryForObject("SELECT rec FROM player_week_projection WHERE player_id=?",Double.class,seeded.allen())).isEqualTo(4);
+        } finally { jdbc.update("DELETE FROM player_week_projection WHERE player_id=?",seeded.allen()); }
+    }
+
+    @Test
+    void missingProjectionDataIsExplicitAndReadOnly() {
+        var data=rest.getForObject("/api/v1/projections?profileId=2",com.fasterxml.jackson.databind.JsonNode.class);
+        assertThat(data.get("state").asText()).isEqualTo("UNAVAILABLE");
+        assertThat(data.get("page").get("content").size()).isZero();
+        assertThat(anonymous.getForEntity("/api/v1/projections?profileId=2",String.class).getStatusCode().value()).isEqualTo(401);
+    }
+
     private PageResponse<RankingRow> rank(long profileId, String position, String scope) {
         return rest.exchange(
                 "/api/v1/rankings?profileId=%d&season=2025&position=%s&scope=%s&size=50"

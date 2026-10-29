@@ -11,7 +11,15 @@ import type { Position, Scope } from "./types";
  *
  * Pure, so it can be checked without a browser (`tests/`).
  */
+/**
+ * Which board: recorded performance (the default), or the stored week's
+ * projections. A mode of the one board rather than a page of its own, so
+ * the ruleset, position and search carry across a switch.
+ */
+export type BoardView = "performance" | "projections";
+
 export interface BoardState {
+  view: BoardView;
   season: number;
   position: Position | null;
   scope: Scope;
@@ -35,6 +43,7 @@ export function parseBoardParams(
   const pos = params.get("pos");
   const scope = params.get("scope");
   return {
+    view: params.get("view") === "projections" ? "projections" : "performance",
     season:
       season !== null && season >= seasons.first && season <= seasons.current
         ? season
@@ -52,6 +61,7 @@ export function parseBoardParams(
  */
 export function boardSearch(state: BoardState, currentSeason: number): string {
   const out = new URLSearchParams();
+  if (state.view !== "performance") out.set("view", state.view);
   if (state.season !== currentSeason) out.set("season", String(state.season));
   if (state.position) out.set("pos", state.position);
   if (state.scope !== "season") out.set("scope", state.scope);

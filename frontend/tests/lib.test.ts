@@ -31,7 +31,15 @@ import {
   ZERO_PPR_TOP20_2025,
   type Ruleset,
 } from "../src/components/landing/previewData.ts";
-import { assignTiers, band, bandFor, formatPoints, starterWeeks, toBoardRows } from "../src/lib/board.ts";
+import {
+  assignTiers,
+  band,
+  bandFor,
+  formatPoints,
+  starterWeeks,
+  toBoardRows,
+  usageLine,
+} from "../src/lib/board.ts";
 import { boardSearch, parseBoardParams } from "../src/lib/boardParams.ts";
 import { apiOriginOf, contentSecurityPolicy } from "../src/lib/csp.ts";
 import { lastPlace, movedBetween, skipsTo, slotOf } from "../src/lib/oneBoard.ts";
@@ -183,22 +191,53 @@ describe("board URL state", () => {
       new URLSearchParams("season=2024&pos=RB&scope=per_game&profileId=3&q=gibbs"),
       seasons,
     );
-    assert.deepEqual(s, { season: 2024, position: "RB", scope: "per_game", profileId: 3, q: "gibbs" });
+    assert.deepEqual(s, {
+      view: "performance",
+      season: 2024,
+      position: "RB",
+      scope: "per_game",
+      profileId: 3,
+      q: "gibbs",
+    });
   });
   it("drops anything off its whitelist back to the default", () => {
     const s = parseBoardParams(
-      new URLSearchParams("season=1999&pos=K&scope=DROP+TABLE&profileId=-1"),
+      new URLSearchParams("view=charts&season=1999&pos=K&scope=DROP+TABLE&profileId=-1"),
       seasons,
     );
-    assert.deepEqual(s, { season: 2026, position: null, scope: "season", profileId: null, q: "" });
+    assert.deepEqual(s, {
+      view: "performance",
+      season: 2026,
+      position: null,
+      scope: "season",
+      profileId: null,
+      q: "",
+    });
   });
   it("round-trips, and writes nothing for an untouched board", () => {
-    const state = { season: 2024, position: "WR" as const, scope: "last4" as const, profileId: 2, q: "a" };
+    const state = {
+      view: "performance" as const,
+      season: 2024,
+      position: "WR" as const,
+      scope: "last4" as const,
+      profileId: 2,
+      q: "a",
+    };
     assert.deepEqual(parseBoardParams(new URLSearchParams(boardSearch(state, 2026)), seasons), state);
-    assert.equal(
-      boardSearch({ season: 2026, position: null, scope: "season", profileId: null, q: "" }, 2026),
-      "",
-    );
+    const untouched = {
+      view: "performance" as const,
+      season: 2026,
+      position: null,
+      scope: "season" as const,
+      profileId: null,
+      q: "",
+    };
+    assert.equal(boardSearch(untouched, 2026), "");
+  });
+  it("carries the projections view through a filter write", () => {
+    const state = parseBoardParams(new URLSearchParams("view=projections&pos=TE"), seasons);
+    assert.equal(state.view, "projections");
+    assert.equal(boardSearch({ ...state, q: "kelce" }, 2026), "?view=projections&pos=TE&q=kelce");
   });
 });
 
@@ -870,5 +909,88 @@ describe("the landing's one board", () => {
       ONE_BOARD_2025.filter((p) => p.by[r].rank <= 5 && p.position === "QB").length;
     assert.equal(qbs("0 PPR"), 5);
     assert.equal(qbs("PPR"), 1);
+  });
+});
+
+
+describe("the member board's population ranks (/rankings/board)", () => {
+  const row = {
+    rank: 201,
+    playerId: 500,
+    name: "Example",
+    position: "WR" as const,
+    team: null,
+    gamesPlayed: 4,
+    points: 40,
+    pointsPerGame: 10,
+    espnId: null,
+  };
+  it("keeps the API's position ranks on a page that does not start at rank 1", () => {
+    const [actual] = toBoardRows([{ ...row, posRank: 75, ppgPosRank: 42 }]);
+    assert.equal(actual.posRank, 75);
+    assert.equal(actual.ppgPosRank, 42);
+    assert.equal(actual.quality, "mid");
+  });
+  it("leaves a player the API did not judge unjudged", () => {
+    const [actual] = toBoardRows([
+      { ...row, rank: 1, position: "QB" as const, gamesPlayed: 1, posRank: 1, ppgPosRank: null },
+    ]);
+    assert.equal(actual.quality, null);
+  });
+  it("still derives nothing for a bare ranking row off rank 1", () => {
+    const [actual] = toBoardRows([row]);
+    assert.equal(actual.posRank, null);
+    assert.equal(actual.ppgPosRank, null);
+  });
+});
+
+describe("usage line", () => {
+  const usage = { passAtt: 140, passCmp: 90, rushAtt: 30, targets: 34 };
+  it("says the volume that defines each position, per game", () => {
+    assert.equal(usageLine("QB", usage, 4), "35.0 attempts a game");
+    assert.equal(usageLine("RB", usage, 4), "7.5 carries a game");
+    assert.equal(usageLine("WR", usage, 4), "8.5 targets a game");
+    assert.equal(usageLine("TE", usage, 4), "8.5 targets a game");
+  });
+  it("says nothing without a game, rather than a zero rate", () => {
+    assert.equal(usageLine("WR", usage, 0), null);
+  });
+});
+
+// The column maps are TSX and cannot be imported here, so the contract is read
+// from source: every board's header row has one cell per column in its map,
+// and the landing's eight stay eight.
+describe("board columns", () => {
+  const src = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
+  const keys = (map: string) => {
+    const body = src("../src/components/rankings/PlayerRow.tsx").match(
+      new RegExp(`export const ${map} = \\{([\\s\\S]*?)\\} as const;`),
+    );
+    assert.ok(body, `${map} not found`);
+    return [...body[1].matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]);
+  };
+  it("keeps the landing's eight columns, in order", () => {
+    assert.deepEqual(keys("COL"), [
+      "rank",
+      "player",
+      "pos",
+      "team",
+      "games",
+      "primary",
+      "secondary",
+      "move",
+    ]);
+  });
+  it("gives the member board's header one cell per column", () => {
+    const header = src("../src/components/RankingsBoard.tsx").match(/<thead>([\s\S]*?)<\/thead>/);
+    assert.ok(header);
+    const cells = [...header[1].matchAll(/<th scope="col" className=\{COL\.(\w+)\}/g)].map((m) => m[1]);
+    assert.deepEqual(cells, keys("MEMBER_COL"));
+  });
+  it("gives the landing's header one cell per landing column", () => {
+    const header = src("../src/components/landing/HeroBoard.tsx").match(/<thead>([\s\S]*?)<\/thead>/);
+    assert.ok(header);
+    const cells = [...header[1].matchAll(/className=\{`?\$?\{?COL\.(\w+)/g)].map((m) => m[1]);
+    assert.deepEqual(cells, keys("COL"));
   });
 });

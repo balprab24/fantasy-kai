@@ -16,9 +16,11 @@ import type { Problem } from "./types";
 const BASE = API_BASE;
 
 let accessToken: string | null = null;
+let sessionGeneration = 0;
 let refreshing: Promise<RefreshOutcome> | null = null;
 
 export function setAccessToken(token: string | null) {
+  sessionGeneration++;
   accessToken = token;
 }
 
@@ -55,6 +57,7 @@ async function toProblem(response: Response): Promise<Problem> {
  */
 function refreshOnce(): Promise<RefreshOutcome> {
   refreshing ??= (async () => {
+    const generation = sessionGeneration;
     try {
       const response = await acrossTabs(() =>
         fetch(`${BASE}/api/v1/auth/refresh`, {
@@ -66,17 +69,19 @@ function refreshOnce(): Promise<RefreshOutcome> {
           keepalive: true,
         }),
       );
+      if (generation !== sessionGeneration) return "unavailable";
       const outcome = refreshOutcome(response.status);
       if (outcome !== "restored") {
         accessToken = null;
         return outcome;
       }
       const body = (await response.json()) as { accessToken: string };
+      if (generation !== sessionGeneration) return "unavailable";
       accessToken = body.accessToken;
       return "restored";
     } catch {
       // Never answered: offline, refused, or aborted by a navigation.
-      accessToken = null;
+      if (generation === sessionGeneration) accessToken = null;
       return "unavailable";
     } finally {
       refreshing = null;

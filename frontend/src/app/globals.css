@@ -373,10 +373,11 @@ a {
   .coming-popover {
     position-anchor: --coming;
     inset: auto;
-    top: anchor(bottom);
-    left: anchor(left);
+    /* Beside the sidebar's rail, level with its button, never under the rail. */
+    top: anchor(top);
+    left: calc(anchor(right) + 8px);
     margin: 0;
-    position-try-fallbacks: flip-inline;
+    position-try-fallbacks: flip-block;
   }
 }
 

@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { assignTiers, toBoardRows, type BoardRow, type Metric } from "@/lib/board";
 import { ApiError } from "@/lib/api";
 import { FIRST_SEASON } from "@/lib/season";
-import type { RankingRow, Scope } from "@/lib/types";
-import { COL, COLUMN_COUNT, PlayerRow } from "./rankings/PlayerRow";
+import type { BoardRankingRow, RankingRow, Scope } from "@/lib/types";
+import { MEMBER_COL as COL, MEMBER_COLUMN_COUNT, PlayerRow } from "./rankings/PlayerRow";
 import { TierHeader } from "./rankings/TierHeader";
 import { Skeleton, StatusMessage } from "./ui/StatusMessage";
 
@@ -90,7 +90,7 @@ export function RankingsBoard({
   find = "",
   onOpenPlayer,
 }: {
-  rows: RankingRow[] | undefined;
+  rows: BoardRankingRow[] | undefined;
   /** Changes whenever the thing being compared changes (the ruleset). */
   comparisonKey: string;
   /** Identifies the board apart from its ruleset: season, position, window. */
@@ -201,11 +201,11 @@ export function RankingsBoard({
             into tiers
           </caption>
           {/* The column labels stay in view while the board scrolls, pinned
-              under the bar. Plain labels, not boxes: they are read every time
+              under the bar on a phone and to the top beside the sidebar. Plain labels, not boxes: they are read every time
               the eye comes back up, and a box around each one was eight more
               containers between the eye and the names. */}
           <thead>
-            <tr className="text-left [&>th]:sticky [&>th]:top-14 [&>th]:z-10 [&>th]:h-9 [&>th]:border-b [&>th]:border-line [&>th]:bg-canvas [&>th]:font-label [&>th]:text-[12px] [&>th]:font-semibold [&>th]:text-mute">
+            <tr className="text-left [&>th]:sticky [&>th]:top-14 [&>th]:z-10 md:[&>th]:top-0 [&>th]:h-9 [&>th]:border-b [&>th]:border-line [&>th]:bg-canvas [&>th]:font-label [&>th]:text-[12px] [&>th]:font-semibold [&>th]:text-mute">
               <th scope="col" className={COL.rank}>
                 #
               </th>
@@ -239,8 +239,16 @@ export function RankingsBoard({
                   </abbr>
                 )}
               </th>
+              <th scope="col" className={COL.recent}>
+                <span title="Points per game over the last four league weeks, against the season's">
+                  Last 4
+                </span>
+              </th>
+              <th scope="col" className={COL.weeks}>
+                Recent weeks
+              </th>
               <th scope="col" className={COL.move}>
-                <span title="Places moved since the ruleset you were last viewing">Move</span>
+                <span title="Places moved since the ruleset you were last viewing">Rules Δ</span>
               </th>
             </tr>
           </thead>
@@ -252,13 +260,15 @@ export function RankingsBoard({
                 high={g.high}
                 low={g.low}
                 unit={perGame ? "pts a game" : "pts"}
-                colSpan={COLUMN_COUNT}
+                colSpan={MEMBER_COLUMN_COUNT}
+                band
               />
               {g.shown.map((row) => {
-                const href = `/players/${row.playerId}?season=${season}&profileId=${profileId ?? ""}`;
+                const href = `/players/${row.playerId}?season=${season}&profileId=${profileId ?? ""}&scope=${scope}`;
                 return (
                   <PlayerRow
                     key={row.playerId}
+                    variant="member"
                     row={row}
                     delta={delta(row)}
                     baseline={previous?.size ?? 0}

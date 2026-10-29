@@ -1,4 +1,4 @@
-import type { Position, RankingRow } from "./types";
+import type { BoardRankingRow, Position, RankingRow, Usage } from "./types";
 
 /**
  * Everything the board derives from the rows the API sent, and nothing it
@@ -8,7 +8,9 @@ import type { Position, RankingRow } from "./types";
  * and has no gaps. The API's `rank` is `i + 1` over the whole sorted season,
  * so a board loaded page after page from the top has it. A lone page 3 does
  * not -- it cannot know that its first wide receiver is WR27 -- and in that
- * case these return nothing rather than a confident wrong answer.
+ * case these return nothing rather than a confident wrong answer. Rows from
+ * `/rankings/board` carry both position ranks, counted by the API over the
+ * whole population, and those are used as they come.
  */
 
 /**
@@ -34,6 +36,9 @@ export interface BoardRow extends RankingRow {
   share: number;
 }
 
+/** A member board's row: the derived fields over the API's board payload. */
+export type MemberBoardRow = BoardRankingRow & BoardRow;
+
 /**
  * One decimal, with a real minus sign. A hyphen reads as a dash in a range --
  * "4.8–-1.6" -- and fantasy points do go negative.
@@ -43,11 +48,38 @@ export function formatPoints(n: number) {
   return n < 0 && fixed !== "0.0" ? `\u2212${fixed}` : fixed;
 }
 
+/** The one volume figure that says most about each position's role. */
+const VOLUME: Record<Position, { key: keyof Usage; unit: string }> = {
+  QB: { key: "passAtt", unit: "attempts" },
+  RB: { key: "rushAtt", unit: "carries" },
+  WR: { key: "targets", unit: "targets" },
+  TE: { key: "targets", unit: "targets" },
+};
+
+/**
+ * "8.4 targets a game": how often a player got the ball over the games on the
+ * board. Null with no games, where a rate would be a division by zero dressed
+ * up as a zero.
+ */
+export function usageLine(position: Position, usage: Usage, games: number): string | null {
+  if (games <= 0) return null;
+  const { key, unit } = VOLUME[position];
+  return `${(usage[key] / games).toFixed(1)} ${unit} a game`;
+}
+
 export function isContiguous(rows: RankingRow[]) {
   return rows.every((row, i) => row.rank === i + 1);
 }
 
-export function toBoardRows(rows: RankingRow[], metric: Metric = "points"): BoardRow[] {
+/** A row whose position ranks the API counted over the whole population. */
+function isRanked(row: RankingRow): row is BoardRankingRow {
+  return "posRank" in row && "ppgPosRank" in row;
+}
+
+export function toBoardRows<T extends RankingRow>(
+  rows: T[],
+  metric: Metric = "points",
+): (T & BoardRow)[] {
   const known = isContiguous(rows);
   const leader = rows[0]?.[metric] ?? 0;
   const seen = new Map<Position, number>();
@@ -56,10 +88,12 @@ export function toBoardRows(rows: RankingRow[], metric: Metric = "points"): Boar
   return rows.map((row) => {
     const n = (seen.get(row.position) ?? 0) + 1;
     seen.set(row.position, n);
-    const ppgPosRank = ppgRanks.get(row.playerId) ?? null;
+    const ranked = isRanked(row);
+    const posRank = ranked ? row.posRank : known ? n : null;
+    const ppgPosRank = ranked ? row.ppgPosRank : (ppgRanks.get(row.playerId) ?? null);
     return {
       ...row,
-      posRank: known ? n : null,
+      posRank,
       ppgPosRank,
       quality: ppgPosRank === null ? null : band(ppgPosRank, row.position),
       value: row[metric],
@@ -141,17 +175,17 @@ function rankPerGame(rows: RankingRow[]): Map<number, number> {
   return ranks;
 }
 
-export interface Tier {
+export interface Tier<R extends BoardRow = BoardRow> {
   letter: TierLetter;
-  rows: BoardRow[];
+  rows: R[];
   high: number;
   low: number;
 }
 
-export interface Tiered {
-  tiers: Tier[];
+export interface Tiered<R extends BoardRow = BoardRow> {
+  tiers: Tier<R>[];
   /** Everything below the tiered window, in rank order and ungrouped. */
-  rest: BoardRow[];
+  rest: R[];
 }
 
 export const TIER_LETTERS = ["S", "A", "B", "C", "D"] as const;
@@ -184,7 +218,7 @@ export const TIER_WINDOW = 60;
  * on identical points: one tier boundary through a tie would be a claim the
  * data does not make.
  */
-export function assignTiers(rows: BoardRow[], window = TIER_WINDOW): Tiered {
+export function assignTiers<R extends BoardRow>(rows: R[], window = TIER_WINDOW): Tiered<R> {
   if (!isContiguous(rows)) return { tiers: [], rest: rows };
   const top = rows.slice(0, window);
   const rest = rows.slice(window);

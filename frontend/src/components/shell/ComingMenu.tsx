@@ -5,12 +5,13 @@ import { Icon } from "@/components/ui/Icon";
 import { COMING } from "./nav";
 
 /**
- * Everything not built yet, behind one entry in the bar. A native popover:
- * the browser gives it the top layer (so no container clips it), Escape and a
- * click outside to close, and focus management -- every one of those is a bug
- * to write by hand. Anchored under its button where the browser supports CSS
- * anchor positioning; elsewhere it opens as a small centred panel, which still
- * works.
+ * Everything not built yet, behind one entry in the sidebar's rail. A native
+ * popover: the browser gives it the top layer (so no container clips it),
+ * Escape and a click outside to close, and focus management -- every one of
+ * those is a bug to write by hand. Anchored beside its button where the
+ * browser supports CSS anchor positioning; elsewhere it opens as a small
+ * centred panel, which still works. Below md the `MobileNav` lists the same
+ * items.
  */
 export function ComingMenu() {
   const id = useId();
@@ -37,10 +38,12 @@ export function ComingMenu() {
         type="button"
         popoverTarget={popover}
         onBlur={(e) => closeIfLeft(e.relatedTarget)}
-        className="coming-anchor flex h-14 items-center gap-1.5 px-3 text-sm text-mute transition-colors hover:text-ink"
+        className="coming-anchor flex h-10 w-full items-center gap-3 rounded-control px-3 text-sm text-mute transition-colors hover:text-ink"
       >
+        {/* No icon says "not built yet"; an empty slot keeps the label on the rail's line. */}
+        <span aria-hidden className="size-[18px] shrink-0" />
         Coming
-        <Icon name="chevronDown" size={14} className="text-faint" />
+        <Icon name="chevronDown" size={14} className="ml-auto -rotate-90 text-faint" />
       </button>
       <div
         ref={panel}

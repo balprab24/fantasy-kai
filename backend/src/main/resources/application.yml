@@ -38,7 +38,7 @@ management:
       # Phase 5: details only for an authenticated caller. The freshness
       # component names every source and its last error, which is operational
       # detail rather than public information.
-      show-details: when-authorized
+      show-details: never
       # ingestFreshness reports DOWN when the daily pull has stopped, which is
       # degraded rather than down -- the API still serves six seasons correctly.
       # A platform health check pointed at /actuator/health would therefore

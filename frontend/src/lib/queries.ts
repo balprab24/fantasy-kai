@@ -1,13 +1,16 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { api } from "./api";
 import { useAuth } from "./auth";
 import type {
+  BoardRankingRow,
   CareerResponse,
   GamelogResponse,
   Page,
   PlayerDetail,
+  PlayerProjectionResponse,
   Position,
-  RankingRow,
+  ProjectionBoardResponse,
   ScoringProfile,
   Scope,
 } from "./types";
@@ -54,8 +57,9 @@ export function useProfiles() {
  * Two reasons, both measured facts rather than preferences. Every request
  * scores the whole season whatever `size` is, so 200 -- the API's cap -- is the
  * cheapest way to move a board: three requests for ~600 players instead of
- * twelve. And a board that always starts at rank 1 is what lets positional
- * ranks and tiers be derived here at all (`lib/board.ts`).
+ * twelve. And a board that always starts at rank 1 is what lets tiers be cut
+ * here at all (`lib/board.ts`); the position ranks come with each row,
+ * counted by `/rankings/board` over the whole population.
  */
 export const BOARD_PAGE_SIZE = 200;
 
@@ -80,7 +84,7 @@ export function useRankingsBoard(q: BoardQuery) {
         size: String(BOARD_PAGE_SIZE),
       });
       if (q.position) params.set("position", q.position);
-      return api<Page<RankingRow>>(`/api/v1/rankings?${params}`);
+      return api<Page<BoardRankingRow>>(`/api/v1/rankings/board?${params}`);
     },
     getNextPageParam: (last) => (last.page + 1 < last.totalPages ? last.page + 1 : undefined),
     // The previous board stays on screen while the next ruleset is scored, so
@@ -91,6 +95,31 @@ export function useRankingsBoard(q: BoardQuery) {
     // again -- with the pages you had loaded gone -- loses your place in it.
     gcTime: 30 * 60_000,
   });
+}
+
+/**
+ * Loads a paged board to its end, one page after another, while `active`.
+ *
+ * Search and tiers on the performance board cover only the rows in hand, so a
+ * board that stopped at 200 would miss every player below it. Each page asks
+ * the API to score the whole season again -- three requests for ~500 players
+ * is the measured cost, and the reason to replace this with a server-side
+ * search (handoff 2026-10-28, open item 3) rather than keep it.
+ * Stops on an error: the board shows it, with a retry.
+ */
+export function useAllPages(
+  q: {
+    hasNextPage: boolean;
+    isFetching: boolean;
+    isError: boolean;
+    fetchNextPage: () => Promise<unknown>;
+  },
+  active: boolean,
+) {
+  const { hasNextPage, isFetching, isError, fetchNextPage } = q;
+  useEffect(() => {
+    if (active && hasNextPage && !isFetching && !isError) void fetchNextPage();
+  }, [active, hasNextPage, isFetching, isError, fetchNextPage]);
 }
 
 export function usePlayer(id: number) {
@@ -126,6 +155,79 @@ export function useCareer(id: number, profileId: number | null) {
     queryFn: () => api<CareerResponse>(`/api/v1/players/${id}/career?profileId=${profileId}`),
     enabled: id > 0 && profileId !== null,
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * One player's row of the board a player page was opened from: the same
+ * figures, the same rules, the same window (`/players/{id}/performance`).
+ * Only asked for when that window is not the full season, which the page
+ * shows anyway.
+ */
+export function usePlayerPerformance(
+  id: number,
+  profileId: number | null,
+  season: number | null,
+  scope: Scope,
+) {
+  return useQuery({
+    queryKey: ["performance", id, profileId, season, scope],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        profileId: String(profileId),
+        season: String(season),
+        scope,
+      });
+      return api<BoardRankingRow>(`/api/v1/players/${id}/performance?${params}`);
+    },
+    enabled: id > 0 && profileId !== null && season !== null && scope !== "season",
+  });
+}
+
+/** The page size the projection board asks for; the API's cap, as for rankings. */
+export const PROJECTION_PAGE_SIZE = 200;
+
+export interface ProjectionQuery {
+  profileId: number | null;
+  position: Position | null;
+  /** Searched by the API over every projected player, not over the rows in hand. */
+  find: string;
+}
+
+/**
+ * The stored target week's projections, scored under one ruleset, highest
+ * first -- paged from the top like the performance board, so the two come
+ * back to the same place the same way (`saveBoardReturn`).
+ */
+export function useProjectionBoard(q: ProjectionQuery) {
+  return useInfiniteQuery({
+    queryKey: ["projections", q.profileId, q.position, q.find],
+    enabled: q.profileId !== null,
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({
+        profileId: String(q.profileId),
+        page: String(pageParam),
+        size: String(PROJECTION_PAGE_SIZE),
+      });
+      if (q.position) params.set("position", q.position);
+      if (q.find.trim()) params.set("q", q.find.trim());
+      return api<ProjectionBoardResponse>(`/api/v1/projections?${params}`);
+    },
+    getNextPageParam: (last) =>
+      last.page.page + 1 < last.page.totalPages ? last.page.page + 1 : undefined,
+    placeholderData: keepPreviousData,
+    gcTime: 30 * 60_000,
+  });
+}
+
+/** One player's projection for the stored target week, or the reason there is none. */
+export function useProjection(id: number, profileId: number | null) {
+  return useQuery({
+    queryKey: ["projection", id, profileId],
+    queryFn: () =>
+      api<PlayerProjectionResponse>(`/api/v1/players/${id}/projection?profileId=${profileId}`),
+    enabled: id > 0 && profileId !== null,
   });
 }
 

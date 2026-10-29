@@ -2,17 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AccountButton } from "./AccountButton";
-import { ComingMenu } from "./ComingMenu";
 import { MobileNav } from "./MobileNav";
 import { PRIMARY_NAV, isActive } from "./nav";
 import { Wordmark } from "./Wordmark";
 
 /**
- * The product's bar: the wordmark, the two sections that exist, one entry for
- * everything that does not, and the account. It replaced a 104px rail whose
- * seven tiles were six "coming soon"s -- the loudest thing in the app was a
- * list of features it did not have (owner decision, 2026-09-29).
+ * The product's bar below md: the wordmark, the two sections that exist, and a
+ * menu for everything else (`MobileNav`). From md the `Sidebar` carries the
+ * same navigation and this bar is not drawn.
  *
  * No border: it sits on the same black as the page, and only content
  * scrolling beneath it meets the translucent ground and the blur. The same
@@ -22,8 +19,8 @@ export function TopBar() {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-30 bg-canvas/80 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-[1320px] items-center gap-3 px-4 sm:px-6 md:gap-8 lg:px-8">
+    <header className="sticky top-0 z-30 bg-canvas/80 backdrop-blur-md md:hidden">
+      <div className="mx-auto flex h-14 max-w-[1320px] items-center gap-3 px-4 sm:px-6">
         <Wordmark href="/rankings" />
         <nav aria-label="Primary" className="flex min-w-0 items-center">
           {PRIMARY_NAV.map((item) => {
@@ -43,17 +40,9 @@ export function TopBar() {
               </Link>
             );
           })}
-          <div className="hidden md:block">
-            <ComingMenu />
-          </div>
         </nav>
         <div className="ml-auto flex items-center">
-          <div className="hidden md:block">
-            <AccountButton />
-          </div>
-          <div className="md:hidden">
-            <MobileNav />
-          </div>
+          <MobileNav />
         </div>
       </div>
     </header>

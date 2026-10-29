@@ -35,7 +35,12 @@ export const COMING: { label: string; icon: IconName }[] = [
   { label: "Players", icon: "players" },
 ];
 
-/** `/` would otherwise match every path. */
+/**
+ * `/` would otherwise match every path. A player page is opened from the
+ * board and is read as part of it, so Rankings stays lit there.
+ */
 export function isActive(href: string, pathname: string) {
-  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  if (href === "/") return pathname === "/";
+  if (href === "/rankings" && pathname.startsWith("/players/")) return true;
+  return pathname === href || pathname.startsWith(`${href}/`);
 }

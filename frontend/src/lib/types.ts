@@ -30,6 +30,32 @@ export interface RankingRow {
   espnId: string | null;
 }
 
+/** One regular-season week of a player's recent form; `points` null is no recorded game, not zero. */
+export interface RecentWeek {
+  week: number;
+  points: number | null;
+}
+
+/**
+ * A row of `/api/v1/rankings/board` (`BoardController.Row`): the ranking row
+ * plus what the member board shows beside it. Both position ranks are counted
+ * over the whole population before paging, so they hold on any page.
+ */
+export interface BoardRankingRow extends RankingRow {
+  posRank: number | null;
+  /** Null when the player has under half the leader's games (not judged). */
+  ppgPosRank: number | null;
+  /** Points per game over the last four league weeks; null with no game in them. */
+  recentPpg: number | null;
+  /** `recentPpg` minus the season's per-game, when both rest on enough games. */
+  form: number | null;
+  /** The last four league weeks, oldest first. */
+  recentWeeks: RecentWeek[];
+  /** The latest regular-season week with any recorded game; 0 before week 1. */
+  dataThrough: number;
+  usage: Usage;
+}
+
 export interface PlayerSummary {
   id: number;
   name: string;
@@ -152,4 +178,86 @@ export interface Problem {
   title?: string;
   status?: number;
   detail?: string;
+}
+
+/**
+ * Projections (`ProjectionController`). A projection is a stored raw stat
+ * line scored on request under the caller's ruleset -- never a stored point.
+ *
+ * - `READY` (the board) / `PROJECTED` (one player): the latest stored week.
+ * - `STALE`: every game of the stored week kicked off over 48 hours ago --
+ *   shown labelled, never as a forecast.
+ * - `UNAVAILABLE`: nothing stored, or nothing for this player.
+ * - `BYE`, `NO_HISTORY`, `NOT_ROSTERED`: one player has no line this week, and why.
+ */
+export type ProjectionBoardState = "READY" | "STALE" | "UNAVAILABLE";
+export type ProjectionState =
+  | "PROJECTED"
+  | "STALE"
+  | "UNAVAILABLE"
+  | "BYE"
+  | "NO_HISTORY"
+  | "NOT_ROSTERED";
+
+/**
+ * `AvailabilityStatus` on the server. Out, reserve and off-roster are kept
+ * as projections but never ranked; nothing known is `UNKNOWN`, and ranked.
+ */
+export type AvailabilityStatus =
+  | "AVAILABLE"
+  | "QUESTIONABLE"
+  | "DOUBTFUL"
+  | "OUT"
+  | "RESERVE"
+  | "NOT_ON_ROSTER"
+  | "UNKNOWN";
+
+export interface ProjectionSource {
+  label: string;
+  description: string;
+}
+
+/** One stat's share of a projected total: `value` x `rate` = `points`. */
+export interface ProjectionPart {
+  stat: string;
+  value: number;
+  rate: number;
+  points: number;
+}
+
+export interface Projection {
+  playerId: number;
+  name: string;
+  position: Position;
+  team: string;
+  opponent: string;
+  home: boolean;
+  /** ISO instant, or null when the schedule has no kickoff time yet. */
+  kickoff: string | null;
+  /** Kickoff has passed: the row is the record of what was projected. */
+  locked: boolean;
+  points: number;
+  gamesUsed: number;
+  /** `LIMITED` under four games of history, else `ESTABLISHED`. */
+  history: "LIMITED" | "ESTABLISHED";
+  availability: { status: AvailabilityStatus };
+  espnId: string | null;
+  /** ISO instant. */
+  generatedAt: string;
+  season: number;
+  week: number;
+  parts: ProjectionPart[];
+  bonusPoints: number;
+}
+
+export interface ProjectionBoardResponse {
+  state: ProjectionBoardState;
+  source: ProjectionSource;
+  page: Page<Projection>;
+}
+
+export interface PlayerProjectionResponse {
+  state: ProjectionState;
+  source: ProjectionSource;
+  projection: Projection | null;
 }

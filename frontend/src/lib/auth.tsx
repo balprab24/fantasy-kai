@@ -62,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: { email, password },
         anonymous: true,
       });
+      queryClient.clear();
       setAccessToken(token.accessToken);
       markMember(true);
       setStatus("signed-in");
