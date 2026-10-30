@@ -1,0 +1,21 @@
+[
+ {
+  "user_id": "200000000000000001",
+  "display_name": "fixture_owner",
+  "metadata": {
+   "team_name": "Fixture Owners"
+  }
+ },
+ {
+  "user_id": "200000000000000002",
+  "display_name": "second_manager",
+  "metadata": {}
+ },
+ {
+  "user_id": "200000000000000004",
+  "display_name": "fourth_manager",
+  "metadata": {
+   "team_name": "   "
+  }
+ }
+]

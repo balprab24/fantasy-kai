@@ -1,0 +1,107 @@
+[
+ {
+  "roster_id": 1,
+  "owner_id": "200000000000000001",
+  "co_owners": null,
+  "starters": [
+   "1001",
+   "1002",
+   "1003",
+   "1004",
+   "1005",
+   "1006",
+   "1007",
+   "1008",
+   "1009",
+   "CLE",
+   "1010"
+  ],
+  "players": [
+   "1001",
+   "1002",
+   "1003",
+   "1004",
+   "1005",
+   "1006",
+   "1007",
+   "1008",
+   "1009",
+   "CLE",
+   "1010",
+   "1011",
+   "9999",
+   "1012"
+  ],
+  "reserve": [
+   "1012"
+  ],
+  "taxi": null,
+  "settings": {
+   "wins": 5,
+   "losses": 2,
+   "ties": 0,
+   "fpts": 812
+  }
+ },
+ {
+  "roster_id": 2,
+  "owner_id": "200000000000000002",
+  "co_owners": [
+   "200000000000000003"
+  ],
+  "starters": [
+   "1013",
+   "0",
+   "0",
+   "0",
+   "0",
+   "0",
+   "0",
+   "0",
+   "0",
+   "0",
+   "0"
+  ],
+  "players": [
+   "1013",
+   "1014"
+  ],
+  "reserve": null,
+  "taxi": null,
+  "settings": {
+   "wins": 4,
+   "losses": 3,
+   "ties": 0
+  }
+ },
+ {
+  "roster_id": 3,
+  "owner_id": null,
+  "starters": [],
+  "players": null,
+  "reserve": null,
+  "taxi": null,
+  "settings": {
+   "wins": 2,
+   "losses": 5,
+   "ties": 0
+  }
+ },
+ {
+  "roster_id": 4,
+  "owner_id": "200000000000000004",
+  "starters": [
+   "1015"
+  ],
+  "players": [
+   "1015"
+  ],
+  "reserve": null,
+  "taxi": null,
+  "settings": {
+   "wins": 3,
+   "losses": 3,
+   "ties": 1
+  }
+ }
+]

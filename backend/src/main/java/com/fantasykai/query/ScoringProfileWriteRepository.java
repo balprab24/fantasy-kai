@@ -1,5 +1,6 @@
 package com.fantasykai.query;
 
+import java.util.List;
 import java.util.Optional;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -70,6 +71,12 @@ public class ScoringProfileWriteRepository {
     public boolean delete(long profileId, long userId) {
         return jdbc.update("DELETE FROM scoring_profiles WHERE id = ? AND user_id = ?",
                 profileId, userId) == 1;
+    }
+
+    /** Every name the user already holds, so a generated name can avoid them before inserting. */
+    public List<String> namesOwnedBy(long userId) {
+        return jdbc.queryForList("SELECT name FROM scoring_profiles WHERE user_id = ?",
+                String.class, userId);
     }
 
     /** The name of a profile the caller owns, for a response body after a write. */

@@ -153,3 +153,91 @@ export interface Problem {
   status?: number;
   detail?: string;
 }
+
+/** `LeagueDtos` in the API (league plan S1). */
+export type UnmodeledGroup = "OFFENSE" | "KICKING" | "TEAM_DEFENSE" | "DEFENSIVE_PLAYERS" | "ROSTER";
+
+export interface UnmodeledItem {
+  key: string;
+  label: string;
+  value: number | null;
+  group: UnmodeledGroup;
+}
+
+export interface DiscoveredLeague {
+  externalLeagueId: string;
+  name: string;
+  season: number;
+  numTeams: number;
+  /** The member's own copy, when they already imported it. */
+  importedLeagueId: number | null;
+}
+
+export interface Discovery {
+  externalUserId: string;
+  displayName: string;
+  leagues: DiscoveredLeague[];
+}
+
+export interface LeagueSummary {
+  id: number;
+  platform: string;
+  externalLeagueId: string;
+  season: number;
+  name: string;
+  numTeams: number;
+  myTeamName: string | null;
+  syncedAt: string;
+}
+
+export interface RosterSpot {
+  externalPlayerId: string;
+  /** A RosterSlot name for a starter, or BENCH, IR, TAXI or UNMODELED. */
+  slot: string;
+  kind: "PLAYER" | "TEAM_DEFENSE" | "UNMATCHED";
+  playerId: number | null;
+  name: string | null;
+  position: string | null;
+  team: string | null;
+  espnId: string | null;
+}
+
+export interface LeagueTeam {
+  externalTeamId: string;
+  name: string;
+  managerName: string | null;
+  wins: number;
+  losses: number;
+  ties: number;
+  mine: boolean;
+  roster: RosterSpot[];
+}
+
+export interface LeagueWeek {
+  week: number;
+  opponentExternalTeamId: string;
+  opponentName: string | null;
+}
+
+export interface League {
+  id: number;
+  platform: string;
+  externalLeagueId: string;
+  season: number;
+  name: string;
+  numTeams: number;
+  leagueType: "REDRAFT" | "KEEPER" | "DYNASTY" | "UNKNOWN";
+  scoringProfileId: number | null;
+  scoringNote: string | null;
+  approximations: string[];
+  rosterSlots: Record<string, number>;
+  unmodeled: UnmodeledItem[];
+  playoffTeams: number | null;
+  playoffWeekStart: number | null;
+  tradeDeadline: number | null;
+  myTeamExternalId: string | null;
+  syncedAt: string;
+  teams: LeagueTeam[];
+  schedule: LeagueWeek[];
+  unmatched: number;
+}
