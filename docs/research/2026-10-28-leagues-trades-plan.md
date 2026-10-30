@@ -162,12 +162,12 @@ Each slice is a branch, a PR and a review pass (`.claude/commands/review-pass.md
 ### S0. Prerequisites (small, ship first)
 1. **Player matcher.**
    - Extend the crosswalk into a `PlayerMatcher` (`ingest/` or a new `leagues/` package) that resolves a platform player in this order:
-     1. stored external id;
-     2. gsis id;
-     3. espn id;
-     4. normalised name + position (+ birth date to break ties);
-     5. normalised name + birth date, any position (catches fullbacks);
-     6. a `player_id_overrides` table (new migration; columns platform, external id, player id, reason) for the rest.
+     1. a `player_id_overrides` table (new migration; columns platform, external id, player id, reason) -- first, so a reviewed decision can correct a wrong heuristic match, not only fill a gap;
+     2. stored external id;
+     3. gsis id;
+     4. espn id;
+     5. normalised name + position (+ birth date to break ties);
+     6. normalised name + birth date, any position (catches fullbacks).
    - Persist hits into `players.external_ids` (`sleeper`, `yahoo`) the way `SleeperCrosswalk` already does.
    - **Acceptance:** at least 98% of the 496 2026 skill players resolve to a Sleeper id, measured and pasted into the PR. A unit test covers each rule, including the "Joshua/Josh" and "Jr." normalisation and an ambiguous-name refusal (two "Josh Allen"s; CLAUDE.md trap: never key on a name alone).
    - Add the ESPN expression index on `players ((external_ids->>'espn'))` that north-star §8 says is owed. `players` is not the frozen table.

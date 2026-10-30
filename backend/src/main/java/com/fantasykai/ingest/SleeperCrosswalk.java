@@ -23,7 +23,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-/** Attaches independently matched Sleeper and Yahoo identities during the daily ingest. */
+/**
+ * Attaches independently matched Sleeper and Yahoo identities during the daily ingest.
+ *
+ * <p>Sleeper is free for non-commercial use only, which this project is, and its
+ * full player map is documented as a once-a-day call at most: one fetch per ingest.
+ */
 @Component
 public class SleeperCrosswalk {
 

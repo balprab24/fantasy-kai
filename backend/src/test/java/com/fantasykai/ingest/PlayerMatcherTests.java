@@ -46,6 +46,12 @@ class PlayerMatcherTests {
         assertThat(matcher.match(identity("bad", null, null, "Bam Knight", "RB", null))).isEmpty();
         assertThat(matcher.match(identity("other", null, null, "Bam Knight", "RB", null))).isEmpty();
     }
+    @Test void overrideCorrectsWhatAHeuristicWouldGetWrong() {
+        var matcher = new PlayerMatcher(List.of(player(1, "Mike Williams", "WR", DATE),
+                player(2, "Michael Williams", "WR", DATE)), Map.of("sleeper:namesake", 2L));
+        assertThat(matcher.match(identity("namesake", null, null, "Mike Williams", "WR", DATE))).hasValue(2);
+        assertThat(matcher.match(identity("sleeper1", null, null, "Mike Williams", "WR", DATE))).hasValue(1);
+    }
     @Test void uniqueNameAndPositionDoNotRequireMatchingBirthDates() {
         var matcher = new PlayerMatcher(List.of(player(1, "Tyler Badie", "RB", DATE)), Map.of());
         assertThat(matcher.match(identity("new", null, null, "Tyler Badie", "RB", DATE.plusYears(1)))).hasValue(1);

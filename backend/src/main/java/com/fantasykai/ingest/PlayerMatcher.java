@@ -33,6 +33,12 @@ public final class PlayerMatcher {
     }
 
     public OptionalLong match(Identity identity) {
+        // An override is a reviewed human decision, so it outranks every heuristic below --
+        // checked last, it could fill a gap but never correct a wrong name match.
+        Long override = overrides.get(identity.platform() + ":" + identity.externalId());
+        if (override != null && players.stream().anyMatch(p -> p.id() == override)) {
+            return OptionalLong.of(override);
+        }
         List<Player> hits = lookup(identity.platform(), identity.externalId());
         if (!hits.isEmpty()) return unique(hits);
         hits = lookup("gsis", identity.gsisId());
@@ -53,9 +59,7 @@ public final class PlayerMatcher {
                 if (hits.size() == 1) return unique(hits);
             }
         }
-        Long override = overrides.get(identity.platform() + ":" + identity.externalId());
-        return override != null && players.stream().anyMatch(p -> p.id() == override)
-                ? OptionalLong.of(override) : OptionalLong.empty();
+        return OptionalLong.empty();
     }
 
     private static void index(Map<String, List<Player>> index, String platform, String id, Player player) {
