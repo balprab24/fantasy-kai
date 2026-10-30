@@ -257,6 +257,14 @@ under Half PPR for the 2026 season, by season total").
 - **Rankings:** the title and the recipe sentence; then the scoring switch on a row of its own (the
   Format Bar); then position, window, season and find; then, after a switch, the moves it made; then
   the board, one panel, its column header pinned under the bar.
+- **My Teams:** the title and a sentence; then two panels side by side from lg -- the member's
+  leagues, and "Connect Sleeper" (a username, a season, the one orange "Find leagues", then the
+  account's leagues with an Import each). A league opens as its own page: the title, a sentence
+  that says where it came from and when it last synced, beside a secondary "Sync now"; then the
+  member's roster by lineup slot (7 of 12 columns from lg), and beside it the scoring -- the
+  ruleset its import made, the lineup, and one sentence per kind of setting not modelled --
+  then standings and the schedule still to play. An unmatched player says so in faint type,
+  never shows as someone else. Removing a league is a quiet text button and an inline confirm.
 - **The player:** a sidebar and a column. The sidebar -- who he is, his season in figures, and the
   ruleset and season behind every number -- stays put from lg while the column scrolls; the column
   is the evidence, one panel under another (game log, performance, career, every ruleset) under a

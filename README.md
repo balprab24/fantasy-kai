@@ -169,7 +169,8 @@ backend build and tests, frontend lint, tests and build, and an OWASP dependency
 Future work, not yet built. See [`docs/north-star.md`](docs/north-star.md) for the full plan.
 
 - **Explained projections:** next-week projections whose numbers break down into their parts.
-- **League import:** create a league's ruleset automatically from its Sleeper or ESPN settings.
+- **League import:** Sleeper is built (a username imports a league, its scoring becomes a ruleset);
+  ESPN and Yahoo follow. Not yet deployed.
 - **Roster tools:** lineup optimizer, a trade evaluator that values a trade as the change in your
   expected wins, and a waiver board.
 - **Market consensus board** built from real draft and roster data.

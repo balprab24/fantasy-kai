@@ -45,11 +45,11 @@ cd "$repo" || exit 70
 EXPECT_STAT_ROWS=114479     # docs/architecture.md "Measured numbers" (re-measured 2026-09-21)
 EXPECT_PLAYERS=25066        # docs/architecture.md "Measured numbers" (re-measured 2026-09-21)
 EXPECT_GAMES=1965           # baseline
-EXPECT_TESTS=374            # baseline
-EXPECT_ENDPOINTS=17         # baseline (includes board/performance and projection reads)
-EXPECT_MIGRATIONS=10         # baseline ("V1 … V10")
-EXPECT_BACKEND_FILES=109     # baseline
-EXPECT_FRONTEND_FILES=90    # baseline (.ts/.tsx under frontend/src)
+EXPECT_TESTS=428            # baseline
+EXPECT_ENDPOINTS=24         # baseline (includes board/performance, projection and league routes)
+EXPECT_MIGRATIONS=11         # baseline ("V1 … V11")
+EXPECT_BACKEND_FILES=129     # baseline
+EXPECT_FRONTEND_FILES=95    # baseline (.ts/.tsx under frontend/src)
 EXPECT_JDK=25               # docs/development.md "Commands" · README · pom.xml enforcer
 
 # The deployed API's hostname, and it is deliberately empty until Phase 5d has
