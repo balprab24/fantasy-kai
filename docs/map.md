@@ -466,3 +466,29 @@ The working agreement, which governs all five: **measure before asserting, and p
 constraint by trying to violate it.** `./scripts/session-check.sh` is that agreement made
 executable — it re-derives the claims rather than trusting them, and reports `?` rather than
 `ok` for anything it could not actually check.
+
+## League-build prerequisite integration — 2026-10-29
+
+The league branch preserves the frontend from main at `ac2aa8c` and integrates the
+backend changes through `7665721` from `feat/projections-availability`. The old branch's
+frontend and monolithic CLAUDE.md are not imported.
+
+- `projections/`: weighted-average provider, raw projection persistence, kickoff locks,
+  schedule reconciliation, availability and target-week resolution. Generation stays disabled.
+- Flyway V7–V9: projections and appearances, delisted games, weekly roster and injury data.
+- `api/`: board/performance and projection read endpoints, scored under member-owned profiles.
+- `auth/`: per-member Redis limits; `scoring/`: bounded compiled-profile cache.
+- `ingest/`: appearances, weekly roster/injury feeds and shared daily pull.
+- Research harness and `scripts/backtest.sh`: v2, parity and availability modes.
+
+These APIs are available to the upcoming league work; the current redesigned frontend
+does not yet expose the old projection board. See
+[the approved league plan](research/2026-10-28-leagues-trades-plan.md) and
+[projection architecture](projections-v1-architecture.md).
+
+### S0 player identity matching
+
+`ingest/PlayerMatcher` resolves provider identities; `SleeperCrosswalk` persists
+Sleeper and Yahoo IDs. V10 adds `player_id_overrides` and the ESPN player index.
+Projection board ordering now uses raw totals. Evidence and limitations:
+[2026-10-29 S0 review](reviews/2026-10-29-leagues-s0.md).

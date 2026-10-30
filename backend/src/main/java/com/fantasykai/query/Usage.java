@@ -25,7 +25,8 @@ public record Usage(int passAtt, int passCmp, int rushAtt, int targets) {
     /** {@code "s.pass_att, s.pass_cmp, s.rush_att, s.targets"}. */
     public static final String SELECT_LIST = "s.pass_att, s.pass_cmp, s.rush_att, s.targets";
 
-    static Usage read(ResultSet rs) throws SQLException {
+    /** Reads {@link #SELECT_LIST}'s columns; public so the projection inputs name them nowhere else. */
+    public static Usage read(ResultSet rs) throws SQLException {
         return new Usage(rs.getInt("pass_att"), rs.getInt("pass_cmp"),
                 rs.getInt("rush_att"), rs.getInt("targets"));
     }

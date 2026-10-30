@@ -59,6 +59,8 @@ class AuthRateLimitTests {
 
     @DynamicPropertySource
     static void redis(DynamicPropertyRegistry registry) {
+        registry.add("fantasykai.auth.member-limits-enabled", () -> true);
+        registry.add("fantasykai.auth.member-reads-per-minute", () -> 120);
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
     }
@@ -75,6 +77,21 @@ class AuthRateLimitTests {
     @BeforeEach
     void emptyTheBuckets() throws Exception {
         REDIS.execInContainer("redis-cli", "FLUSHALL");
+    }
+
+    @Test
+    void memberReadsAreLimitedByVerifiedAccount(@Autowired JwtService jwt) {
+        var headers = new HttpHeaders();
+        headers.setBearerAuth(jwt.issue(998877L));
+        for (int i=0;i<120;i++) {
+            headers.set("X-Forwarded-For", "192.0.2." + i);
+            assertThat(rest.exchange("/api/v1/scoring-profiles", HttpMethod.GET, new HttpEntity<>(headers), String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+        }
+        var limited=rest.exchange("/api/v1/scoring-profiles",HttpMethod.GET,new HttpEntity<>(headers),String.class);
+        assertThat(limited.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(limited.getHeaders().getFirst("Retry-After")).isEqualTo("60");
+        headers.setBearerAuth(jwt.issue(998878L));
+        assertThat(rest.exchange("/api/v1/scoring-profiles",HttpMethod.GET,new HttpEntity<>(headers),String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test

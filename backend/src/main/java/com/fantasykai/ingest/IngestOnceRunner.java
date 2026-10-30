@@ -10,7 +10,8 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.stereotype.Component;
 
 /**
- * One current-season pull, then exit. This is what the daily launchd job runs.
+ * One daily pull -- the current season's ingest, then next week's projections
+ * ({@link DailyPull}) -- then exit. This is what {@code scripts/ingest-once.sh} runs.
  *
  * <p>Separate from {@link IngestScheduler} on purpose. The scheduler needs a
  * long-lived JVM, which means keeping the app running on a laptop that sleeps;
@@ -27,11 +28,11 @@ public class IngestOnceRunner implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(IngestOnceRunner.class);
 
-    private final IngestService ingestService;
+    private final DailyPull dailyPull;
     private final ConfigurableApplicationContext context;
 
-    public IngestOnceRunner(IngestService ingestService, ConfigurableApplicationContext context) {
-        this.ingestService = ingestService;
+    public IngestOnceRunner(DailyPull dailyPull, ConfigurableApplicationContext context) {
+        this.dailyPull = dailyPull;
         this.context = context;
     }
 
@@ -47,11 +48,11 @@ public class IngestOnceRunner implements ApplicationRunner {
     private int pull() {
         long start = System.currentTimeMillis();
         try {
-            ingestService.ingestCurrentSeason();
+            dailyPull.run();
             log.info("daily pull finished in {} ms", System.currentTimeMillis() - start);
             return 0;
         } catch (RuntimeException e) {
-            // Already recorded as FAILED in ingest_runs by IngestService.
+            // Already recorded as FAILED in ingest_runs, by IngestService or DailyPull.
             log.error("daily pull failed after {} ms", System.currentTimeMillis() - start, e);
             return 1;
         }

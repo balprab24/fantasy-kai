@@ -1,7 +1,8 @@
 package com.fantasykai.scoring;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -39,10 +40,25 @@ public class ScoringProfiles {
     private static final String PRESET_BY_NAME =
             "SELECT rules FROM scoring_profiles WHERE name = ? AND is_preset = TRUE";
 
+    private static final int CACHE_LIMIT = 1024;
+
     private final JdbcTemplate jdbc;
     private final RulesetJson json;
     private final RulesetValidator validator;
-    private final Map<Long, Cached> compiled = new ConcurrentHashMap<>();
+    /**
+     * Compiled rulesets by profile id, least recently used evicted past
+     * {@link #CACHE_LIMIT}. Unbounded, every profile anyone ever created stayed
+     * in memory for the life of the process. Synchronized as a whole: a miss
+     * compiles under the lock, which serializes misses (one primary-key read
+     * each) -- acceptable at this size, and the reason not to grow it blindly.
+     */
+    private final Map<Long, Cached> compiled = Collections.synchronizedMap(
+            new LinkedHashMap<>(128, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<Long, Cached> eldest) {
+                    return size() > CACHE_LIMIT;
+                }
+            });
 
     public ScoringProfiles(JdbcTemplate jdbc, RulesetJson json, RulesetValidator validator) {
         this.jdbc = jdbc;

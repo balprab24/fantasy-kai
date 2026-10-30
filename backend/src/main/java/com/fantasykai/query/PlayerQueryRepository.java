@@ -286,4 +286,27 @@ public class PlayerQueryRepository {
         double value = rs.getDouble(column);
         return rs.wasNull() ? null : value;
     }
+
+    /**
+     * Each player's volume from {@code firstWeek} to the end of a regular
+     * season: one grouped scan for the whole board, never a query per player.
+     * Volume is never scored, so it is summed in SQL; points never are.
+     */
+    public Map<Long, Usage> boardUsage(int season, int firstWeek) {
+        Map<Long, Usage> result = new HashMap<>();
+        jdbc.query("""
+                SELECT s.player_id, sum(s.pass_att) AS pa, sum(s.pass_cmp) AS pc,
+                       sum(s.rush_att) AS ra, sum(s.targets) AS tg
+                  FROM player_game_stats s
+                  JOIN games g ON g.id = s.game_id
+                 WHERE s.season = ? AND s.week >= ? AND g.season_type = 'REG'
+                 GROUP BY s.player_id
+                """,
+                rs -> {
+                    result.put(rs.getLong("player_id"), new Usage(
+                            rs.getInt("pa"), rs.getInt("pc"), rs.getInt("ra"), rs.getInt("tg")));
+                },
+                season, firstWeek);
+        return result;
+    }
 }
