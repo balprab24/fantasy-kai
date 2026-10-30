@@ -1,0 +1,24 @@
+-- V8: the schedule as nflverse publishes it now, not as it once did.
+--
+-- nflverse's schedule has no status column. Read from the history of nflverse/nfldata's
+-- data/games.csv, the file the schedules release is built from (2026-10-12):
+--
+--   moved within its week    same game_id, new gameday/gametime: 2020_04_NE_KC went from
+--                            Sunday to Monday; 2020_12_BAL_PIT from Thanksgiving to a Wednesday
+--   moved to another week    the row is deleted and a new one added under a new game_id:
+--                            2020_04_PIT_TEN became 2020_07_PIT_TEN, and on 2020-10-02 neither
+--                            row existed; 2020_05_DEN_NE became 2020_06_DEN_NE
+--   cancelled                the row is deleted: 2022_17_BUF_CIN was listed unchanged, with no
+--                            score, from its kickoff on 2023-01-02 to 2023-01-05, and gone on
+--                            2023-01-06
+--
+-- GameIngestor only upserted, so each of those would have stayed here for good as a game with
+-- no stats -- and the projection job would have projected both teams for it.
+--
+-- delisted_at: when the ingest found that the source no longer lists a game it once did. NULL
+-- while it is listed, and cleared if it is listed again. A flag, not a delete: stat rows,
+-- appearances and projections may reference the game, and a projection locked before a game
+-- that kicked off and was then cancelled is still a true record of what was projected.
+--
+-- No index. Nothing filters games on it but the projection target week, a once-a-day query.
+ALTER TABLE games ADD COLUMN delisted_at TIMESTAMPTZ;

@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Daily in-season pull.
+ * Daily in-season pull: the ingest, then next week's projections ({@link DailyPull}).
  *
  * <p>Daily rather than weekly on purpose: nflverse revises the current week
  * mid-week as corrections land, the upsert is idempotent, and a day-old number
@@ -21,11 +21,11 @@ public class IngestScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(IngestScheduler.class);
 
-    private final IngestService ingestService;
+    private final DailyPull dailyPull;
     private final Clock clock;
 
-    public IngestScheduler(IngestService ingestService, Clock clock) {
-        this.ingestService = ingestService;
+    public IngestScheduler(DailyPull dailyPull, Clock clock) {
+        this.dailyPull = dailyPull;
         this.clock = clock;
     }
 
@@ -36,6 +36,6 @@ public class IngestScheduler {
             log.debug("out of season on {}, skipping the daily pull", today);
             return;
         }
-        ingestService.ingestCurrentSeason();
+        dailyPull.run();
     }
 }

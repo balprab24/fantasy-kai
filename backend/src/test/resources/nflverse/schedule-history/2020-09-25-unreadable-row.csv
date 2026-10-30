@@ -1,0 +1,6 @@
+game_id,season,game_type,week,gameday,weekday,gametime,away_team,away_score,home_team,home_score,location,result,total,old_game_id,away_rest,home_rest,away_moneyline,home_moneyline,spread_line,away_spread_odds,home_spread_odds,total_line,under_odds,over_odds,div_game,roof,surface,temp,wind,away_coach,home_coach,referee,stadium_id,stadium
+2020_04_IND_CHI,2020,REG,4,2020-10-04,Sunday,13:00,IND,,CHI,,Home,,,2020100401,7,7,,,,,,,,,0,outdoors,,,,Frank Reich,Matt Nagy,,CHI98,Soldier Field
+2020_04_PIT_TEN,2020,REG,4,2020-10-04,Sunday,13:00,PIT,,TEN,,Home,,,2020100408,7,7,,,,,,,,,0,outdoors,,,,Mike Tomlin,Mike Vrabel,,NAS00,Nissan Stadium
+2020_04_NE_KC,2020,REG,4,2020-10-04,Sunday,16:25,NE,,,,Home,,,2020100411,7,6,,,,,,,,,0,outdoors,,,,Bill Belichick,Andy Reid,,KAN00,Arrowhead Stadium
+2020_05_DEN_NE,2020,REG,5,2020-10-11,Sunday,13:00,DEN,,NE,,Home,,,2020101104,10,7,,,,,,,,,0,outdoors,,,,Vic Fangio,Bill Belichick,,BOS00,Gillette Stadium
+2020_07_PIT_BAL,2020,REG,7,2020-10-25,Sunday,13:00,PIT,,BAL,,Home,,,2020102501,7,7,,,,,,,,,1,outdoors,,,,Mike Tomlin,John Harbaugh,,BAL00,M&T Bank Stadium

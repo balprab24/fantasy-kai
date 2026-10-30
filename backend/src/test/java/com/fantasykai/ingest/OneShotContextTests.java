@@ -62,4 +62,37 @@ class OneShotContextTests {
         // whole dependency graph, not just a context that refreshed.
         assertThat(context.getBean(IngestService.class)).isNotNull();
     }
+
+    @Test
+    void theProjectionProviderIsUsableHeadless() {
+        // Phase 6's projection job will run in this same headless context, after the ingest.
+        // The provider has to exist here, chosen by configuration -- not only in a web app.
+        assertThat(context.getBean(com.fantasykai.projections.ProjectionProvider.class).source().id())
+                .isEqualTo("weighted-average-v1");
+    }
+
+    @Test
+    void theDailyPullAndTheProjectionJobAreUsableHeadless() {
+        // Slice 3: ingest-once runs DailyPull, which runs the projection job after the ingest --
+        // in exactly this context, so its whole graph (transactions included) has to resolve here.
+        assertThat(context.getBean(DailyPull.class)).isNotNull();
+        assertThat(context.getBean(com.fantasykai.projections.ProjectionJob.class)).isNotNull();
+    }
+
+    @Test
+    void theAvailabilityIngestAndServiceAreUsableHeadless() {
+        // Slice 4: the daily pull reads the roster and injury feeds in this context, and the
+        // projection job asks AvailabilityService for its candidates.
+        assertThat(context.getBean(RosterWeekIngestor.class)).isNotNull();
+        assertThat(context.getBean(InjuryReportIngestor.class)).isNotNull();
+        assertThat(context.getBean(com.fantasykai.projections.AvailabilityService.class)).isNotNull();
+    }
+
+    @Test
+    void theProjectionJobShipsSwitchedOff() {
+        // Off until Slice 4's roster eligibility (owner decision 2026-10-12). This is the shipped
+        // default -- application.yml as deployed -- not a test override.
+        assertThat(context.getBean(com.fantasykai.projections.ProjectionProperties.class).jobEnabled())
+                .isFalse();
+    }
 }

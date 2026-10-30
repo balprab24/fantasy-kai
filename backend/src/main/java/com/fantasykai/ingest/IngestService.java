@@ -29,6 +29,8 @@ public class IngestService {
     private final GameIngestor games;
     private final StatIngestor stats;
     private final SnapCountIngestor snaps;
+    private final RosterWeekIngestor rosters;
+    private final InjuryReportIngestor injuries;
     private final SleeperCrosswalk sleeper;
     private final IntegrityChecks integrity;
     private final IngestRunRecorder recorder;
@@ -36,7 +38,8 @@ public class IngestService {
     private final Clock clock;
 
     public IngestService(TeamIngestor teams, PlayerIngestor players, GameIngestor games,
-            StatIngestor stats, SnapCountIngestor snaps, SleeperCrosswalk sleeper,
+            StatIngestor stats, SnapCountIngestor snaps, RosterWeekIngestor rosters,
+            InjuryReportIngestor injuries, SleeperCrosswalk sleeper,
             IntegrityChecks integrity, IngestRunRecorder recorder,
             IngestProperties props, Clock clock) {
         this.teams = teams;
@@ -44,6 +47,8 @@ public class IngestService {
         this.games = games;
         this.stats = stats;
         this.snaps = snaps;
+        this.rosters = rosters;
+        this.injuries = injuries;
         this.sleeper = sleeper;
         this.integrity = integrity;
         this.recorder = recorder;
@@ -74,6 +79,15 @@ public class IngestService {
         for (int season : seasons) {
             results.add(record(StatIngestor.SOURCE, () -> stats.ingest(season)));
             results.add(record(SnapCountIngestor.SOURCE, () -> snaps.ingest(season)));
+        }
+        // Availability is current information: who is on which roster, and this week's injury
+        // report. Only the season being played is read -- by the daily pull and by a backfill
+        // alike -- because nothing in production needs another (architecture section 6). After
+        // the player master, which the rows are tied to, and before DailyPull projects.
+        int current = props.currentSeason(clock);
+        if (seasons.contains(current)) {
+            results.add(record(RosterWeekIngestor.SOURCE, () -> rosters.ingest(current)));
+            results.add(record(InjuryReportIngestor.SOURCE, () -> injuries.ingest(current)));
         }
         results.add(record(SleeperCrosswalk.SOURCE, sleeper::ingest));
 

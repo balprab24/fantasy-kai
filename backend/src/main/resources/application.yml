@@ -38,7 +38,7 @@ management:
       # Phase 5: details only for an authenticated caller. The freshness
       # component names every source and its last error, which is operational
       # detail rather than public information.
-      show-details: when-authorized
+      show-details: never
       # ingestFreshness reports DOWN when the daily pull has stopped, which is
       # degraded rather than down -- the API still serves six seasons correctly.
       # A platform health check pointed at /actuator/health would therefore
@@ -93,6 +93,17 @@ fantasykai:
     # IngestOnceRunner. `once` is what scripts/ingest-once.sh sets.
     backfill-on-startup: false
     once: false
+
+  # Which projection method produces raw projected lines (Phase 6). One id per algorithm and
+  # version -- see ProjectionSource. Only weighted-average-v1 exists.
+  projections:
+    provider: weighted-average-v1
+    # Whether the daily pull runs ProjectionJob after the ingest. OFF (owner decision 2026-10-12)
+    # until it is turned on deliberately: a row the job writes locks for good at kickoff. Slice 4
+    # replaced the interim players.team_id candidates with weekly rosters. Before turning it on in
+    # production, run one backfill so player_game_appearances covers every season, not only the
+    # current one (docs/projections-v1-architecture.md).
+    job-enabled: false
 
 # Honour X-Forwarded-* from the reverse proxy in front of this application.
 #

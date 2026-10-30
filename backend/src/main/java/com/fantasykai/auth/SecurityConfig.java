@@ -1,6 +1,9 @@
 package com.fantasykai.auth;
 
+import io.github.bucket4j.distributed.proxy.ProxyManager;
 import java.util.List;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -68,7 +71,12 @@ public class SecurityConfig {
     @Bean
     @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtFilter,
-            AuthRateLimitFilter rateLimitFilter) throws Exception {
+            AuthRateLimitFilter rateLimitFilter,
+            ObjectProvider<ProxyManager<byte[]>> buckets,
+            @Value("${fantasykai.auth.member-reads-per-minute:120}") int reads,
+            @Value("${fantasykai.auth.member-writes-per-minute:20}") int writes,
+            @Value("${fantasykai.auth.member-limits-enabled:true}") boolean memberLimits)
+            throws Exception {
         return http
                 // No cookie-backed session, so there is no session for a
                 // cross-site form post to ride. The refresh cookie is SameSite=Strict
@@ -95,6 +103,9 @@ public class SecurityConfig {
                         .accessDeniedHandler(new ProblemAccessDeniedHandler()))
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                // Per account, after the JWT is read: see MemberRateLimitFilter.
+                .addFilterAfter(new MemberRateLimitFilter(buckets, reads, writes, memberLimits),
+                        JwtAuthFilter.class)
                 .build();
     }
 

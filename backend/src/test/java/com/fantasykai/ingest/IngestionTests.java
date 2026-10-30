@@ -206,6 +206,55 @@ class IngestionTests {
         assertThat((BigDecimal) statLine(CHASE).get("snap_pct")).isEqualByComparingTo("94.00");
     }
 
+    /**
+     * V7: the snap file's appearances, from real 2024 rows. Drew Sample (CIN's blocking tight
+     * end) took 46 offensive snaps at Baltimore in week 10 and has no stat line that week -- the
+     * game the projection baseline could not see before. Ted Karras played every snap at center
+     * and is not a skill player. Devontez Walker is a receiver who played only on special teams
+     * that day -- 20 snaps, none on offense -- so he did not appear on offense either.
+     */
+    @Test
+    void storesEveryOffensiveSnapASkillPlayerTookAndNothingElse() {
+        Map<String, Object> sample = appearance("00-0035631");
+        assertThat(sample).containsEntry("offense_snaps", 46).containsEntry("team", "CIN")
+                .containsEntry("game", "2024_10_CIN_BAL");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM player_game_stats s JOIN players p ON p.id = s.player_id
+                 WHERE p.gsis_id = '00-0035631'
+                """, Long.class)).as("the reason he needs an appearance: no stat line").isZero();
+
+        // Chase has a stat line in the same game and is stored too: "zero-stat" is decided on read.
+        assertThat(appearance(CHASE)).containsEntry("offense_snaps", 77);
+
+        assertThat(jdbc.queryForList("""
+                SELECT p.full_name FROM player_game_appearances a JOIN players p ON p.id = a.player_id
+                 ORDER BY p.full_name
+                """, String.class))
+                .as("not Karras (C, 82 snaps), not Walker (WR, 0 offensive snaps), not Seibert (K) or Hutchinson (DE)")
+                .containsExactly("Drew Sample", "Ja'Marr Chase");
+    }
+
+    @Test
+    void theSnapFilesAppearanceColumnsAreRequired() {
+        assertThat(SnapCountIngestor.REQUIRED_COLUMNS).contains("position", "team", "offense_snaps");
+
+        renameInHeader = Map.entry("offense_snaps", "off_snaps");
+        assertThatThrownBy(() -> ingestService.backfill())
+                .isInstanceOf(IngestException.class)
+                .hasMessageContaining("offense_snaps");
+    }
+
+    private Map<String, Object> appearance(String gsisId) {
+        return jdbc.queryForMap("""
+                SELECT a.offense_snaps, t.abbr AS team, g.nflverse_game_id AS game
+                  FROM player_game_appearances a
+                  JOIN players p ON p.id = a.player_id
+                  JOIN teams t ON t.id = a.team_id
+                  JOIN games g ON g.id = a.game_id
+                 WHERE p.gsis_id = ?
+                """, gsisId);
+    }
+
     @Test
     void skipsStatLinesWithNoPlayerId() {
         // Four fixture rows; one has an empty player_id and cannot be referenced.
@@ -355,6 +404,29 @@ class IngestionTests {
         assertThat(columns).noneMatch(column -> column.contains("fantasy_point"));
     }
 
+    /**
+     * Slice 4: the weekly roster and the injury report, read for the season being played only --
+     * 2024 under this test's clock. Real 2024 rows: Hutchinson on injured reserve in week 10 (his
+     * leg, week 6), Seibert game-day inactive in week 10 and Out in week 11, and report rows with
+     * no designation, stored as NULL rather than an empty string.
+     */
+    @Test
+    void readsTheCurrentSeasonsRosterAndInjuryReportAsShipped() {
+        assertThat(jdbc.queryForObject("""
+                SELECT r.status FROM roster_week r JOIN players p ON p.id = r.player_id
+                 WHERE p.gsis_id = ? AND r.season = 2024 AND r.week = 10
+                """, String.class, HUTCHINSON)).isEqualTo("RES");
+        assertThat(jdbc.queryForObject("""
+                SELECT i.report_status FROM injury_report i JOIN players p ON p.id = i.player_id
+                 WHERE p.gsis_id = ? AND i.season = 2024 AND i.week = 11
+                """, String.class, SEIBERT)).isEqualTo("Out");
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM injury_report WHERE report_status IS NULL", Long.class)).isEqualTo(4L);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM injury_report WHERE report_status = ''", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM roster_week", Long.class)).isEqualTo(6L);
+    }
+
     @Test
     void recordsEveryStepInIngestRuns() {
         List<Map<String, Object>> runs = jdbc.queryForList(
@@ -364,7 +436,8 @@ class IngestionTests {
                 .allSatisfy(run -> assertThat(run).containsEntry("status", "SUCCESS"))
                 .extracting(run -> run.get("source"))
                 .contains("nflverse.teams", "nflverse.players", "nflverse.schedules",
-                        "nflverse.stats_player_week", "nflverse.snap_counts");
+                        "nflverse.stats_player_week", "nflverse.snap_counts",
+                        "nflverse.weekly_rosters", "nflverse.injuries");
     }
 
     @Test
