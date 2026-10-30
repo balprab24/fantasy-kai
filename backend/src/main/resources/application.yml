@@ -94,6 +94,19 @@ fantasykai:
     backfill-on-startup: false
     once: false
 
+  # League import (league plan S1). LeagueProperties documents each value.
+  leagues:
+    sleeper-base-url: https://api.sleeper.app
+    # Sleeper allows 1,000 calls a minute per IP (docs.sleeper.com) and every member's
+    # import leaves from this server's one address: 600 leaves headroom for the daily
+    # crosswalk and for a burst nobody planned.
+    sleeper-calls-per-minute: 600
+    sync-cooldown: 5m
+    timeout: 10s
+    # A captured league is ~3 KB and its rosters ~17 KB (plan A1); 2 MB is room, not a target.
+    max-body-bytes: 2097152
+    limits-enabled: true
+
   # Which projection method produces raw projected lines (Phase 6). One id per algorithm and
   # version -- see ProjectionSource. Only weighted-average-v1 exists.
   projections:

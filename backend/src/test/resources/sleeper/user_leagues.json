@@ -1,0 +1,22 @@
+[
+ {
+  "league_id": "100000000000000001",
+  "name": "Fixture Redraft League",
+  "season": "2026",
+  "sport": "nfl",
+  "total_rosters": 4,
+  "settings": {
+   "num_teams": 4
+  }
+ },
+ {
+  "league_id": "100000000000000002",
+  "name": "Fixture Second League",
+  "season": "2026",
+  "sport": "nfl",
+  "total_rosters": 10,
+  "settings": {
+   "num_teams": 10
+  }
+ }
+]
