@@ -80,6 +80,14 @@ public final class Backtest {
                 ProviderParity.run(connection);
                 return;
             }
+            if ("calibration-v2".equals(stage)) {
+                WinCalibration.runV2(connection, Path.of(env("NFLVERSE_CACHE")));
+                return;
+            }
+            if ("calibration".equals(stage)) {
+                WinCalibration.run(connection);
+                return;
+            }
             if ("uncertainty".equals(stage)) {
                 UncertaintyFit.run(connection);
                 return;

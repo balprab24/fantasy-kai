@@ -75,6 +75,11 @@ final class UncertaintyFit {
 
     record Fit(double a, double b, int n, double rmse) {}
 
+    /** "Half PPR", "PPR" or "0 PPR": V3's presets, for other research stages to score with. */
+    static ResolvedRuleset ruleset(String name) {
+        return RULESETS.get(name);
+    }
+
     private UncertaintyFit() {}
 
     static void run(Connection connection) throws Exception {

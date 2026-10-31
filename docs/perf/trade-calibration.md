@@ -143,3 +143,59 @@ Fail either and Trades stays held. Run as `./scripts/backtest.sh calibration-v2`
 (a v2 mode), `leagues/WinProbability.java` (the added variance), `scripts/backtest.sh` (the stage
 and its nflverse downloads) and `projection/Backtest.java` (the stage). The report prints their
 hashes. This attempt's first run is its result, whatever it shows.
+
+## Attempt 2 — result: FAILED, narrowly. Trades stays held.
+
+**Run:** the first and only one, at `fb90be5` (the pre-registration commit) plus the attempt-2
+code. Hashes: `WinCalibration.java d0344170cef8`, `WinProbability.java 622766a79c68`,
+`ProjectionUncertainty.java dff5555a3db9`, `LineupOptimizer.java 43f39c3ff6be`,
+`Backtest.java 100fbfdae95f`, `backtest.sh 9dadacb98b5d`. nflverse files (sha256 prefixes) are in
+the report.
+
+**Reproducibility:** before this run, `calibration` (attempt 1) was rerun on the new code and its
+report matched attempt 1's line for line, apart from the head. The attempt-2 changes leave
+attempt 1's path untouched.
+
+**Measured inputs:**
+- availability set 25,182 skill candidate-weeks to 0, counted per league;
+- σ_K = 4.675 over 2,716 kicker-weeks;
+- σ_DST = 5.743 over 2,718 team-weeks.
+
+| Season | Matchups | Brier |
+|---|---:|---:|
+| 2021 | 1,680 | 0.2276 |
+| 2022 | 1,680 | 0.2292 |
+| 2023 | 1,680 | 0.2235 |
+| 2024 | 1,680 | 0.2304 |
+| 2025 | 1,680 | 0.2217 |
+| **All** | **8,400** | **0.2265** |
+
+That is **9.4% better than the 0.25 baseline. The bar is 10% (≤ 0.225): fail, by 0.0015.**
+
+| Predicted | Matchups | Mean predicted | Observed |
+|---|---:|---:|---:|
+| 0.0–0.1 | 71 | 0.065 | 0.056 |
+| 0.1–0.2 | 301 | 0.157 | 0.150 |
+| 0.2–0.3 | 660 | 0.256 | 0.259 |
+| 0.3–0.4 | 1,331 | 0.355 | 0.381 |
+| 0.4–0.5 | 1,800 | 0.452 | 0.460 |
+| 0.5–0.6 | 1,854 | 0.549 | 0.540 |
+| 0.6–0.7 | 1,294 | 0.646 | 0.628 |
+| 0.7–0.8 | 697 | 0.742 | 0.697 |
+| 0.8–0.9 | 305 | 0.842 | 0.748 |
+| 0.9–1.0 | 87 | 0.929 | 0.920 |
+
+**Reliability slope: 0.889** (intercept 0.049). **Pass.**
+
+**What changed from attempt 1:**
+- **Sharper:** 158 matchups predicted below 0.1 or above 0.9, against 48.
+- **Better calibrated at the ends:** 0.9–1.0 predicted 0.929, observed 0.920.
+- **Still too confident in the 0.7–0.9 band:** 0.842 predicted, 0.748 observed.
+
+In two seasons out of five the score clears the bar (2023 0.2235, 2025 0.2217). Over all five it
+does not.
+
+**Decision:** held, as pre-registered. Two attempts have now been run against this bar. Running
+further variants until one passes would turn the bar into a search, so any third attempt, or any
+change to the bar, is the owner's decision. It should be pre-registered here before it runs, and
+this record should count it as the third look.

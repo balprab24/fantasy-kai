@@ -30,6 +30,16 @@
 #
 #     ./scripts/backtest.sh uncertainty
 #
+# Calibration (league plan S3, pre-registered): does the weekly win probability predict who
+# wins synthetic 12-team leagues 2021-2025? Brier at most 0.225 and reliability slope 0.8-1.2:
+#
+#     ./scripts/backtest.sh calibration
+#
+# Attempt 2, pre-registered after attempt 1 failed: the same, plus production's availability rules
+# (2021-2025 rosters and injury reports, downloaded into the cache) and K/DST:
+#
+#     ./scripts/backtest.sh calibration-v2
+#
 # v2 reads two nflverse files per season from .cache/nflverse/ (gitignored), downloading
 # any that are missing exactly once. A cached file is never refreshed behind your back: the
 # reports print every file's sha256, and deleting the cache is how you choose new data.
@@ -48,8 +58,8 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 stage="${1:-validate}"
 case "$stage" in
-    validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity|availability|uncertainty) ;;
-    *) echo "usage: $0 [validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity|availability|uncertainty]" >&2; exit 2 ;;
+    validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity|availability|uncertainty|calibration|calibration-v2) ;;
+    *) echo "usage: $0 [validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity|availability|uncertainty|calibration|calibration-v2]" >&2; exit 2 ;;
 esac
 
 frozen="backend/src/test/resources/projection/frozen-config.json"
@@ -101,6 +111,24 @@ if [[ -n "$dirty" ]]; then
 fi
 export BACKTEST_HEAD="$head"
 
+if [[ "$stage" == calibration-v2 ]]; then
+    # Attempt 2 of the trade calibration gate (docs/perf/trade-calibration.md): 2021-2025 weekly
+    # rosters and injury reports, through production's AvailabilityRules.
+    cache="$repo/.cache/nflverse"
+    mkdir -p "$cache"
+    base="https://github.com/nflverse/nflverse-data/releases/download"
+    for season in $(seq 2021 2025); do
+        for asset in "weekly_rosters/roster_weekly_$season.csv" "injuries/injuries_$season.csv"; do
+            file="$cache/$(basename "$asset")"
+            if [[ ! -s "$file" ]]; then
+                echo "downloading $(basename "$asset") into the cache" >&2
+                curl -fsSL --retry 3 -o "$file.part" "$base/$asset"
+                mv "$file.part" "$file"
+            fi
+        done
+    done
+    export NFLVERSE_CACHE="$cache"
+fi
 if [[ "$stage" == v2-* || "$stage" == parity || "$stage" == availability ]]; then
     cache="$repo/.cache/nflverse"
     mkdir -p "$cache"
