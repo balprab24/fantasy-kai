@@ -1,0 +1,18 @@
+[
+ {
+  "roster_id": 1,
+  "matchup_id": 2
+ },
+ {
+  "roster_id": 3,
+  "matchup_id": 2
+ },
+ {
+  "roster_id": 2,
+  "matchup_id": 1
+ },
+ {
+  "roster_id": 4,
+  "matchup_id": 1
+ }
+]

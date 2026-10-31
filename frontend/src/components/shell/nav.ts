@@ -17,6 +17,7 @@ export interface NavItem {
  */
 export const PRIMARY_NAV: NavItem[] = [
   { label: "Rankings", href: "/rankings", icon: "rankings" },
+  { label: "My Teams", href: "/teams", icon: "teams" },
   { label: "Scoring", href: "/profiles", icon: "scoring" },
 ];
 
@@ -27,7 +28,6 @@ export const PRIMARY_NAV: NavItem[] = [
  * link to an empty page is a promise the app cannot keep.
  */
 export const COMING: { label: string; icon: IconName }[] = [
-  { label: "My Teams", icon: "teams" },
   { label: "Start/Sit", icon: "startSit" },
   { label: "Waivers", icon: "waivers" },
   { label: "Trades", icon: "trades" },

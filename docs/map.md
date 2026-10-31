@@ -109,6 +109,21 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | `Problems` · `ProblemAuthenticationEntryPoint` · `ProblemAccessDeniedHandler` | RFC 7807 for the filter-chain paths, which run before `DispatcherServlet` and so never reach `ApiExceptionHandler` |
 | `InvalidTokenException` · `EmailAlreadyRegisteredException` | Absent, expired, forged or replayed token · a duplicate registration |
 
+#### `leagues/` — League plan S1 · 20 files
+
+| Class | Does |
+|---|---|
+| `LeagueProvider` · `LeagueSnapshot` · `LeagueScoring` | The platform seam. A provider is pure -- it returns a league already translated (scoring as a `Ruleset`, slots as `RosterSlot`s) and carrying **no points** |
+| `SleeperLeagueProvider` | Sleeper's public API: username → stable `user_id`, leagues, and a four-call fetch (league, users, rosters, state) plus one call per unpaired schedule week. Validates every user-supplied URL part before building it |
+| `SleeperScoringMapper` · `Unmodeled` | Sleeper settings → `Ruleset`: exact keys, yardage bonuses, per-position reception premiums, return TDs (approximate, and says so). Every other non-zero setting is **reported, never dropped**, grouped for the member. Invalid scoring is refused, never clamped |
+| `RosterSlot` | Lineup slots and who may fill them, including three overlapping flexes. Separate from `ScoringPosition`, which stays a filter whitelist |
+| `LeagueHttp` | The only outbound client: four allowlisted hosts in code, https only, **redirects refused**, a 2 MB cap, a 10 s timeout. Logs a host and a status, never a URL |
+| `LeagueLimits` | Redis buckets: Sleeper's budget **shared by every member** (600/min; Sleeper limits by IP) and one sync per league per 5 minutes. Fails closed |
+| `LeagueService` | Import, sync, read, delete. Network first, then **one transaction**; ownership checked before a sync spends its cooldown; membership checked against the account's own leagues |
+| `LeagueRepository` | Every league table, every statement filtered by `user_id`. Roster ids resolve override-first, then a stored Sleeper id held by exactly one player |
+| `LeagueController` · `LeagueDtos` · `LeagueExceptionHandler` | Seven routes under `/api/v1/leagues`; problem+json scoped to this controller |
+| `LeagueProperties` · four exceptions | Configuration; 404 / 409 / 429 / 502 / 503 |
+
 ### Everything else
 
 ```
@@ -492,3 +507,11 @@ does not yet expose the old projection board. See
 Sleeper and Yahoo IDs. V10 adds `player_id_overrides` and the ESPN player index.
 Projection board ordering now uses raw totals. Evidence and limitations:
 [2026-10-29 S0 review](reviews/2026-10-29-leagues-s0.md).
+
+### S1 league import — 2026-10-30
+
+V11 adds `league_connections`, `leagues`, `league_teams`, `league_rosters` and
+`league_matchups`, one copy per member, each child keyed to its league by `(id, user_id)`.
+A Sleeper connection cannot hold a credential (a CHECK). `/teams` and `/teams/[id]` are the
+frontend; My Teams moved from Coming to the primary nav. Evidence and what is still open:
+[2026-10-30 S1 review](reviews/2026-10-30-leagues-s1.md).

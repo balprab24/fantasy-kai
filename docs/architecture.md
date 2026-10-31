@@ -43,6 +43,8 @@ backend/src/main/java/com/fantasykai/
   query/       JdbcTemplate reads, StatKey-generated SQL, the sort/filter whitelists
   api/         REST controllers, DTOs, RFC 7807 errors, scoring-profile writes
   auth/        security filter chain, JWT, rotating refresh tokens, Argon2id, Redis rate limiting
+  leagues/     league import: the LeagueProvider seam, Sleeper, the scoring mapper, the one
+               allowlisted outbound client, and every league table (one copy per member)
 backend/src/main/resources/db/migration/     Flyway migrations, V1 onward
 backend/src/test/java/com/fantasykai/projection/
                the projection backtest: test-scoped research code, never in the jar

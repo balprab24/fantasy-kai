@@ -50,7 +50,7 @@ export function refreshOutcome(status: number | null): RefreshOutcome {
 }
 
 /** The routes behind `RequireAccount` -- `app/(app)`. */
-const MEMBER_ROUTES = ["/rankings", "/players", "/profiles"];
+const MEMBER_ROUTES = ["/rankings", "/players", "/profiles", "/teams"];
 
 export function isMemberRoute(pathname: string): boolean {
   return MEMBER_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
