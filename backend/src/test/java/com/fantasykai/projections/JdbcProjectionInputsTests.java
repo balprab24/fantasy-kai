@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.fantasykai.scoring.StatKey;
 import java.time.Instant;
 import java.util.Map;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -185,6 +186,29 @@ class JdbcProjectionInputsTests {
     }
 
     /** A regular-season game between CIN and BAL in that week, home side alternating. */
+    /**
+     * The request-path read (a league's rostered players) is the job's read, filtered: the same
+     * games for the players asked about -- zero-stat appearances included -- and no one else.
+     */
+    @Test
+    void theFilteredReadIsTheFullReadForThosePlayersAndNoOneElse() {
+        long receiver = db.player("Receiver", "WR", cin);
+        long blocker = db.player("Blocking Tight End", "TE", cin);
+        long other = db.player("Someone Else", "RB", bal);
+        long week1 = game(2026, 1);
+        db.stats(receiver, week1, cin, Games.receiver(2026, 1, 5, 60, 0, 7));
+        db.appearance(blocker, week1, cin, 40); // ran routes, caught nothing: an all-zero game
+        db.stats(other, week1, bal, Games.receiver(2026, 1, 2, 20, 0, 3));
+
+        var full = inputs.histories(TARGET);
+        var filtered = inputs.histories(TARGET, List.of(receiver, blocker));
+
+        assertThat(filtered.keySet()).containsExactlyInAnyOrder(receiver, blocker);
+        assertThat(filtered.get(receiver).games()).isEqualTo(full.get(receiver).games());
+        assertThat(filtered.get(blocker).games()).isEqualTo(full.get(blocker).games()).hasSize(1);
+        assertThat(inputs.histories(TARGET, List.of())).isEmpty();
+    }
+
     private long game(int season, int week) {
         boolean cinHome = week % 2 == 0;
         return db.game(season, week, cinHome ? cin : bal, cinHome ? bal : cin,

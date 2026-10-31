@@ -751,3 +751,40 @@ weighted-average baseline, and keep evaluating the frozen model prospectively, s
    Known pre-game status alone, Out or a reserve list, flagged 153 of 2025's 406
    projected-but-absent player-weeks, with no player who played flagged. That is the starting
    point. Predicting whether Questionable players play is out of scope for production V1.
+
+# Projection uncertainty (league plan S2), 2026-10-30
+
+How far production's projection misses, for the trade model's win probability (plan S3) and
+S2's `ProjectionUncertainty`. Reproduce with `./scripts/backtest.sh uncertainty`
+(`projection.UncertaintyFit`), run at `1d39f58` + uncommitted S2 work, local database.
+
+**Method, fixed before running.**
+- Production's `weighted-average-v1`, each player handed his career and cut by `PlayerHistory.before`.
+- Population P (pinned above), 2021–2025 regular season, players who played. A player who did not
+  play is availability's question, not the projection's error.
+- μ and the actual are scored by `ScoringEngine` under Half PPR (plan A7's basis), refitted under PPR
+  and 0 PPR as a robustness check.
+- Bins of 5 projected points; σ per bin is the RMSE of actual − μ; (a, b) by least squares weighted
+  by bin count, bins with n ≥ 30.
+- Sanity gate from A7's shape: RB, WR and TE b > 0, and QB the smallest b. **Passed.**
+
+**Half PPR (the committed constants):**
+
+| Pos | Player-weeks | RMSE | σ by bin of μ (n) | a | b |
+|---|---:|---:|---|---:|---:|
+| QB | 2,717 | 7.96 | 0: 8.17 (51) · 5: 7.85 (238) · 10: 7.53 (939) · 15: 7.86 (1,040) · 20: 8.91 (398) · 25: 9.99 (51) | 6.612 | 0.0857 |
+| RB | 5,436 | 6.68 | 0: 4.92 (1,153) · 5: 6.16 (2,067) · 10: 7.32 (1,531) · 15: 8.34 (568) · 20: 11.25 (106) | 4.027 | 0.2732 |
+| WR | 8,154 | 6.25 | 0: 4.64 (1,953) · 5: 5.79 (3,677) · 10: 7.62 (1,992) · 15: 8.33 (492) · 20: 9.72 (40) | 3.501 | 0.3192 |
+| TE | 2,718 | 5.56 | 0: 4.30 (673) · 5: 5.59 (1,646) · 10: 6.89 (356) · 15: 8.34 (43) | 3.138 | 0.3310 |
+
+**Robustness, the same fit under other rulesets:** (a, b) PPR — QB 6.63/0.085, RB 4.47/0.242,
+WR 3.93/0.301, TE 3.86/0.278; 0 PPR — QB 6.62/0.085, RB 3.79/0.299, WR 2.95/0.379, TE 2.56/0.412.
+At μ = 10, σ moves at most 0.3 points across the three (WR 6.69 / 6.94 / 6.73), so one Half PPR fit
+is used for every league; a league far from the presets is a stated approximation that S3's
+calibration gate tests.
+
+**What this means.** QB error is nearly flat (≈ 7.5–9 whatever is projected); for the other three
+it grows with the projection, as A7 found for hindsight spread. These are larger than A7's
+numbers, as forecast error should be. They are σ of a normal approximation; whether that
+approximation predicts real head-to-head results is S3's pre-registered calibration test, not
+something this fit can show.

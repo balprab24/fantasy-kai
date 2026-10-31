@@ -25,6 +25,11 @@
 #
 #     ./scripts/backtest.sh availability
 #
+# Uncertainty (league plan S2): production's projection error by position and projected points,
+# 2021-2025, fitted as sigma = a + b * mu for ProjectionUncertainty:
+#
+#     ./scripts/backtest.sh uncertainty
+#
 # v2 reads two nflverse files per season from .cache/nflverse/ (gitignored), downloading
 # any that are missing exactly once. A cached file is never refreshed behind your back: the
 # reports print every file's sha256, and deleting the cache is how you choose new data.
@@ -43,8 +48,8 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 stage="${1:-validate}"
 case "$stage" in
-    validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity|availability) ;;
-    *) echo "usage: $0 [validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity|availability]" >&2; exit 2 ;;
+    validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity|availability|uncertainty) ;;
+    *) echo "usage: $0 [validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity|availability|uncertainty]" >&2; exit 2 ;;
 esac
 
 frozen="backend/src/test/resources/projection/frozen-config.json"
