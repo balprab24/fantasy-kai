@@ -199,3 +199,51 @@ does not.
 further variants until one passes would turn the bar into a search, so any third attempt, or any
 change to the bar, is the owner's decision. It should be pre-registered here before it runs, and
 this record should count it as the third look.
+
+---
+
+# Attempt 3 — pre-registered 2026-10-30, before any code for it was written or run
+
+The owner chose a third attempt (2026-10-30): a real model change, **fitted on 2021–2023 and
+tested on 2024–2025 only**. This is the third look at the gate, and this record counts it so.
+
+**Why a calibration change has room to work** *(a diagnostic from attempt 2's reported bins,
+stated before running)*:
+- At attempt 2's own confidence, a perfectly calibrated model would score about Σp(1−p)/n ≈
+  **0.221**, from the bin means, an approximation. That is under the bar.
+- Attempt 1's equivalent was about 0.227, over it.
+- Attempt 2's miss is mostly overconfidence: its reliability slope is 0.889, and at 0.8–0.9 it
+  predicted 0.842 against 0.748 observed.
+
+**The model change: one spread multiplier, k.**
+- P(A beats B) = Φ(gap / (k · √(Var_A + Var_B))).
+- k > 1 widens every forecast spread and pulls predictions toward 0.5.
+- It is one number, fitted, not chosen.
+
+**Everything is fitted on the training seasons, 2021–2023, and nothing on 2024–2025:**
+1. the skill σ = a + b·μ per position, by `UncertaintyFit`'s method restricted to 2021–2023;
+2. σ_K and σ_DST, attempt 2's measurement restricted to 2021–2023;
+3. **k**, by grid search over 1.00, 1.05, …, 2.00, minimising Brier on the 2021–2023 synthetic
+   leagues (attempt 2's leagues, those seasons only). Ties go to the smaller k.
+
+**The test, unchanged in every other respect.**
+- Attempt 2's harness: availability, K/DST, seeds, drafts, lineups, pairings and Half PPR.
+- Run on **2024–2025 only**: 2 × 20 leagues × 14 weeks × 6, so 3,360 matchups.
+- The test seasons are the two most recent, a temporal holdout. Attempt 2 had already shown
+  them at 0.2304 and 0.2217 (mean ≈ 0.2261, a fail), so choosing them does not pass by itself.
+
+**The bar: unchanged.** Brier ≤ 0.225 **and** reliability slope in [0.8, 1.2] across 10 bins, on
+the 2024–2025 matchups. Fail either and Trades stays held.
+
+**If it passes, production adopts exactly the tested configuration**, without refitting on more
+data: the 2021–2023 skill σ fit, σ_K, σ_DST and k. That replaces the 2021–2025 σ constants now in
+`ProjectionUncertainty`. No untested combination ships.
+
+**Files, fixed as of writing:**
+- `projection/WinCalibration.java`: a v3 mode, plus training and test seasons;
+- `projection/UncertaintyFit.java`: its fit, callable for a season subset; its own stage's
+  output must stay identical;
+- `leagues/WinProbability.java`: k, and an injectable σ;
+- `projection/Backtest.java` and `scripts/backtest.sh`: the stage `calibration-v3`.
+
+Attempts 1 and 2 must still reproduce line for line. This attempt's first run is its result.
