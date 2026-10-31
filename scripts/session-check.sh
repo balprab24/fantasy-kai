@@ -45,10 +45,10 @@ cd "$repo" || exit 70
 EXPECT_STAT_ROWS=114479     # docs/architecture.md "Measured numbers" (re-measured 2026-09-21)
 EXPECT_PLAYERS=25066        # docs/architecture.md "Measured numbers" (re-measured 2026-09-21)
 EXPECT_GAMES=1965           # baseline
-EXPECT_TESTS=428            # baseline
-EXPECT_ENDPOINTS=24         # baseline (includes board/performance, projection and league routes)
+EXPECT_TESTS=451            # baseline
+EXPECT_ENDPOINTS=25         # baseline (includes board/performance, projection, league and needs routes)
 EXPECT_MIGRATIONS=11         # baseline ("V1 … V11")
-EXPECT_BACKEND_FILES=129     # baseline
+EXPECT_BACKEND_FILES=135     # baseline
 EXPECT_FRONTEND_FILES=95    # baseline (.ts/.tsx under frontend/src)
 EXPECT_JDK=25               # docs/development.md "Commands" · README · pom.xml enforcer
 

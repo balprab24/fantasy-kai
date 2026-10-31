@@ -1,6 +1,6 @@
 # League sync, team-aware trades, and league-aware rankings: research and build plan
 
-**For:** Codex, as the implementer. **Research by:** Claude, 2026-10-28. **Status:** S0 merged (PR #75). S1 built on `feat/leagues-s1` -- see `../reviews/2026-10-30-leagues-s1.md`; its real-league acceptance waits on the owner's Sleeper username. S2–S6 remain planned. See `../reviews/2026-10-29-leagues-s0.md` for evidence and remaining checks.
+**For:** Codex, as the implementer. **Research by:** Claude, 2026-10-28. **Status:** S0 merged (PR #75). S1 built on `feat/leagues-s1` -- see `../reviews/2026-10-30-leagues-s1.md`; its real-league acceptance waits on the owner's Sleeper username. S2 built on `feat/leagues-s2` -- see `../reviews/2026-10-30-leagues-s2.md`. S3–S6 remain planned. See `../reviews/2026-10-29-leagues-s0.md` for evidence and remaining checks.
 **Owner scope:** redraft leagues first. Deep coverage of Sleeper, ESPN and Yahoo; others are listed as later work.
 
 Part A is what was measured, so the plan can be argued with. Part B is the build, in slices. Part C

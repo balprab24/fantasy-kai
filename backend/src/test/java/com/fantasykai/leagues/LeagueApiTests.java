@@ -389,6 +389,156 @@ class LeagueApiTests {
         assertThat(get("/api/v1/leagues/" + id, member).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
+    // ---- S2: team needs -------------------------------------------------------------------
+
+    /** The fixture league as a 2090 league: a schedule decades ahead, so these never age. */
+    private static final int FUTURE = 2090;
+
+    /**
+     * 2089 history and a 2090 schedule for three of the member's players. The quarterback throws
+     * 250 yards and 2 touchdowns a game: 22 a week under the league's scoring (0.04 a yard, 6 a
+     * touchdown). His team plays weeks 1-14 except a week-6 bye; the league's playoffs start in 15.
+     */
+    private ResponseEntity<JsonNode> importFuture(String member) {
+        ObjectNode league = (ObjectNode) sleeper.fixture("league.json");
+        league.put("season", String.valueOf(FUTURE));
+        sleeper.answer(LEAGUE, league);
+        ArrayNode leagues = (ArrayNode) sleeper.fixture("user_leagues.json");
+        leagues.forEach(l -> ((ObjectNode) l).put("season", String.valueOf(FUTURE)));
+        sleeper.answer("/v1/user/" + FixtureLeagueHttp.OWNER + "/leagues/nfl/" + FUTURE, leagues);
+        sleeper.answer("/v1/state/nfl", json.createObjectNode().put("season", String.valueOf(FUTURE))
+                .put("season_type", "pre").put("week", 0));
+        seedFutureSeason();
+        return exchange("/api/v1/leagues", HttpMethod.POST, member, Map.of("platform", "sleeper",
+                "username", FixtureLeagueHttp.USERNAME, "externalLeagueId", FixtureLeagueHttp.LEAGUE, "season", FUTURE));
+    }
+
+    private static boolean futureSeeded;
+
+    private void seedFutureSeason() {
+        if (futureSeeded) {
+            return;
+        }
+        futureSeeded = true;
+        int home = team("FKA");
+        int away = team("FKB");
+        int third = team("FKC");
+        jdbc.update("""
+                UPDATE players SET team_id = ? WHERE full_name IN
+                    ('Fixture Quarterback', 'Fixture Wideout One', 'Fixture Wideout Two')
+                """, home);
+        for (int week = 1; week <= 2; week++) {
+            long game = game(FUTURE - 1, week, home, away);
+            stat(game, "Fixture Quarterback", FUTURE - 1, week, home, "pass_yd", 250, "pass_td", 2);
+            stat(game, "Fixture Wideout One", FUTURE - 1, week, home, "rec", 6, "rec_yd", 90);
+            stat(game, "Fixture Wideout Two", FUTURE - 1, week, home, "rec", 3, "rec_yd", 30);
+        }
+        for (int week = 1; week <= 18; week++) {
+            if (week == 6) {
+                game(FUTURE, week, away, third); // the home team's bye
+            } else {
+                game(FUTURE, week, home, away);
+            }
+        }
+    }
+
+    private int team(String abbr) {
+        return jdbc.queryForObject("""
+                INSERT INTO teams (abbr, name) VALUES (?, ?)
+                ON CONFLICT (abbr) DO UPDATE SET name = EXCLUDED.name RETURNING id
+                """, Integer.class, abbr, abbr);
+    }
+
+    private long game(int season, int week, int home, int away) {
+        return jdbc.queryForObject("""
+                INSERT INTO games (nflverse_game_id, season, week, season_type, home_team_id, away_team_id, kickoff_at)
+                VALUES (?, ?, ?, 'REG', ?, ?, make_timestamptz(?, 9, 1, 17, 0, 0) + make_interval(weeks => ?))
+                RETURNING id
+                """, Long.class, "fk_%d_%02d_%d".formatted(season, week, home), season, week, home, away,
+                season, week - 1);
+    }
+
+    private void stat(long game, String player, int season, int week, int team, String k1, int v1, String k2, int v2) {
+        // Column names come from this test's own literals, never from input.
+        jdbc.update("INSERT INTO player_game_stats (player_id, game_id, season, week, team_id, " + k1 + ", " + k2 + ")"
+                + " SELECT id, ?, ?, ?, ?, ?, ? FROM players WHERE full_name = ?",
+                game, season, week, team, v1, v2, player);
+    }
+
+    private static JsonNode slot(JsonNode needs, String label) {
+        for (JsonNode slot : needs.path("slots")) {
+            if (slot.path("label").asText().equals(label)) {
+                return slot;
+            }
+        }
+        throw new AssertionError("no slot " + label + " in " + needs.path("slots"));
+    }
+
+    /**
+     * Hand-computed. The quarterback is 22 a game and misses one week of 14 to his bye: 20.43 a
+     * week. No other team has a quarterback, so the league's median QB is 0 and he is +20.43.
+     */
+    @Test
+    void teamNeedsCompareEachStartingSlotWithTheLeagueMedian() {
+        String member = member();
+        long id = importFuture(member).getBody().path("id").asLong();
+
+        JsonNode needs = get("/api/v1/leagues/" + id + "/needs", member).getBody();
+
+        assertThat(needs.path("weeks")).hasSize(14);
+        assertThat(needs.path("slots").findValuesAsText("label")).containsExactly(
+                "QB", "RB1", "RB2", "WR1", "WR2", "TE", "Flex", "W/T flex", "K", "D/ST", "DL");
+        JsonNode qb = slot(needs, "QB");
+        assertThat(qb.path("mine").asDouble()).isEqualTo(20.43);
+        assertThat(qb.path("median").asDouble()).isEqualTo(0.0);
+        assertThat(qb.path("diff").asDouble()).isEqualTo(20.43);
+        assertThat(qb.path("starterName").asText()).isEqualTo("Fixture Quarterback");
+        assertThat(slot(needs, "WR1").path("starterName").asText()).as("the stronger receiver")
+                .isEqualTo("Fixture Wideout One");
+        for (String unmodelled : List.of("K", "D/ST", "DL")) {
+            assertThat(slot(needs, unmodelled).path("modeled").asBoolean()).as(unmodelled).isFalse();
+            assertThat(slot(needs, unmodelled).path("mine").isNull()).isTrue();
+        }
+
+        JsonNode quarterback = null;
+        for (JsonNode player : needs.path("players")) {
+            if (player.path("externalPlayerId").asText().equals("1001")) {
+                quarterback = player;
+            }
+        }
+        assertThat(quarterback).isNotNull();
+        assertThat(quarterback.path("perGame").asDouble()).isEqualTo(22.0);
+        assertThat(quarterback.path("perWeek").asDouble()).isEqualTo(20.43);
+        assertThat(quarterback.path("weeks").get(5).path("points").asDouble()).as("week 6, the bye").isZero();
+        assertThat(quarterback.path("parts").findValuesAsText("stat")).contains("pass_yd", "pass_td");
+        assertThat(needs.path("noProjection").asInt()).as("rostered skill players with no history").isPositive();
+    }
+
+    /** Computed on read: asking writes nothing, and another member's league is a 404. */
+    @Test
+    void teamNeedsWriteNothingAndBelongToTheirOwner() {
+        String member = member();
+        long id = importFuture(member).getBody().path("id").asLong();
+        long before = rows();
+
+        assertThat(get("/api/v1/leagues/" + id + "/needs", member).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(rows()).isEqualTo(before);
+        assertThat(get("/api/v1/leagues/" + id + "/needs", member()).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    /** No ruleset, no projection: a 409 that says why, never a guessed ruleset. */
+    @Test
+    void teamNeedsRefuseALeagueWithoutARuleset() {
+        String member = member();
+        JsonNode league = importFuture(member).getBody();
+        exchange("/api/v1/scoring-profiles/" + league.path("scoringProfileId").asLong(), HttpMethod.DELETE, member, null);
+
+        ResponseEntity<JsonNode> refused = get("/api/v1/leagues/" + league.path("id").asLong() + "/needs", member);
+
+        assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(refused.getBody().path("detail").asText()).contains("ruleset");
+    }
+
     private ResponseEntity<JsonNode> importFixture(String member) {
         return exchange("/api/v1/leagues", HttpMethod.POST, member, Map.of("platform", "sleeper",
                 "username", FixtureLeagueHttp.USERNAME, "externalLeagueId", FixtureLeagueHttp.LEAGUE, "season", 2026));
