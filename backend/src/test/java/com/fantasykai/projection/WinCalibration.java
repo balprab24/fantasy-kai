@@ -86,7 +86,16 @@ final class WinCalibration {
 
     private record Drafted(long id, String position, double value) {}
 
-    private record Row(int season, double p, double outcome) {}
+    /** One matchup: both teams' modelled weeks, so the spread multiplier is applied when scored. */
+    private record Row(int season, TeamWeek a, TeamWeek b, double outcome) {
+        double p(double k) {
+            return WinProbability.beats(a, b, k);
+        }
+    }
+
+    /** Attempt 3: fitted on these, tested on those. */
+    static final List<Integer> TRAIN = List.of(2021, 2022, 2023);
+    static final List<Integer> TEST = List.of(2024, 2025);
 
     private WinCalibration() {}
 
@@ -106,13 +115,59 @@ final class WinCalibration {
 
     private static void run(Connection connection, Attempt2 v2) throws Exception {
         BacktestData data = BacktestData.load(connection);
+        List<Row> rows = simulate(data, v2, SEASONS, WinProbability.productionSigma(),
+                v2 == null ? 0 : v2.unmodeledVariance());
+        report(rows, v2, 1.0, null);
+    }
+
+    /**
+     * Attempt 3 (pre-registered in docs/perf/trade-calibration.md): attempt 2's harness with the
+     * skill σ, σ_K, σ_DST and the spread multiplier k all fitted on {@link #TRAIN}, and the gate
+     * read on {@link #TEST} alone.
+     */
+    static void runV3(Connection connection, Path cache) throws Exception {
+        BacktestData data = BacktestData.load(connection);
+        Attempt2 v2 = Attempt2.load(connection, cache);
+        Map<String, UncertaintyFit.Fit> fit = UncertaintyFit.fitHalfPpr(data, TRAIN);
+        WinProbability.Sigma sigma = (position, mu) -> {
+            UncertaintyFit.Fit f = fit.get(position);
+            return f == null ? 0 : f.a() + f.b() * Math.max(0, mu);
+        };
+        double variance = v2.unmodeledVariance(TRAIN);
+
+        List<Row> train = simulate(data, v2, TRAIN, sigma, variance);
+        double k = 1.0;
+        double best = Double.POSITIVE_INFINITY;
+        StringBuilder grid = new StringBuilder();
+        for (int step = 0; step <= 20; step++) {
+            double candidate = 1.0 + step * 0.05;
+            double brier = brier(train, candidate);
+            grid.append(String.format(Locale.ROOT, "%.2f: %.5f; ", candidate, brier));
+            if (brier < best) { // strictly less: ties keep the smaller k
+                best = brier;
+                k = candidate;
+            }
+        }
+        List<Row> test = simulate(data, v2, TEST, sigma, variance);
+
+        StringBuilder fitted = new StringBuilder(String.format(Locale.ROOT,
+                "Fitted on %s, %,d training matchups. Skill σ (Half PPR): ", TRAIN, train.size()));
+        fit.forEach((position, f) -> fitted.append(String.format(Locale.ROOT, "%s %.3f + %.4fμ; ", position, f.a(), f.b())));
+        fitted.append(String.format(Locale.ROOT, "σ_K %.3f, σ_DST %.3f (training seasons). "
+                + "k grid (Brier on training): %s→ **k = %.2f** (training Brier %.4f).",
+                v2.sigmaK(TRAIN), v2.sigmaDst(TRAIN), grid, k, best));
+        report(test, v2, k, fitted.toString());
+    }
+
+    private static List<Row> simulate(BacktestData data, Attempt2 v2, List<Integer> seasons,
+            WinProbability.Sigma sigma, double unmodeledVariance) {
         ResolvedRuleset half = UncertaintyFit.ruleset("Half PPR");
         WeightedAverageProjectionProvider production = new WeightedAverageProjectionProvider();
         Map<Long, List<HistoricalGame>> careers = new HashMap<>();
         Map<String, Double> projected = new HashMap<>();
         List<Row> rows = new ArrayList<>();
 
-        for (int season : SEASONS) {
+        for (int season : seasons) {
             List<Drafted> pool = pool(data, season, half);
             for (int league = 0; league < LEAGUES; league++) {
                 Random random = new Random(SEED + season * 1000L + league);
@@ -146,9 +201,9 @@ final class WinCalibration {
                             actual[t] += actualPoints(data, half, spot.playerId(), position, season, week);
                         }
                         if (v2 == null) {
-                            model[t] = WinProbability.team(starters);
+                            model[t] = WinProbability.team(starters, 0, sigma);
                         } else {
-                            model[t] = WinProbability.team(starters, v2.unmodeledVariance());
+                            model[t] = WinProbability.team(starters, unmodeledVariance, sigma);
                             actual[t] += v2.kickerPoints(kickers[t], season, week, kdst)
                                     + v2.defensePoints(defenses[t], season, week, kdst);
                         }
@@ -162,12 +217,12 @@ final class WinCalibration {
                         int a = order.get(i);
                         int b = order.get(i + 1);
                         double outcome = actual[a] > actual[b] ? 1 : actual[a] < actual[b] ? 0 : 0.5;
-                        rows.add(new Row(season, WinProbability.beats(model[a], model[b]), outcome));
+                        rows.add(new Row(season, model[a], model[b], outcome));
                     }
                 }
             }
         }
-        report(rows, v2);
+        return rows;
     }
 
     /** Skill players with enough games last season and a game this one, valued by last season's PPG. */
@@ -263,12 +318,18 @@ final class WinCalibration {
         return roster.stream().filter(d -> d.id() == id).findFirst().orElseThrow().position();
     }
 
-    private static void report(List<Row> rows, Attempt2 v2) throws Exception {
-        double brier = brier(rows);
+    /**
+     * @param k      the spread multiplier the rows are scored with; 1 for attempts 1 and 2
+     * @param fitted attempt 3's training record; null for attempts 1 and 2
+     */
+    private static void report(List<Row> rows, Attempt2 v2, double k, String fitted) throws Exception {
+        boolean v3 = fitted != null;
+        double brier = brier(rows, k);
         double[][] bins = new double[10][3]; // sum p, sum outcome, n
         for (Row r : rows) {
-            int b = Math.min(9, (int) (r.p() * 10));
-            bins[b][0] += r.p();
+            double p = r.p(k);
+            int b = Math.min(9, (int) (p * 10));
+            bins[b][0] += p;
             bins[b][1] += r.outcome();
             bins[b][2]++;
         }
@@ -295,20 +356,26 @@ final class WinCalibration {
         boolean brierPass = brier <= MAX_BRIER;
         boolean slopePass = slope >= MIN_SLOPE && slope <= MAX_SLOPE;
 
-        StringBuilder md = new StringBuilder(v2 == null
+        StringBuilder md = new StringBuilder(v3
+                ? "# Trade model calibration, attempt 3: fitted on 2021-2023, tested on 2024-2025\n\n"
+                : v2 == null
                 ? "# Trade model calibration: weekly win probability\n\n"
                 : "# Trade model calibration, attempt 2: with availability, K and DST\n\n");
         if (v2 != null) {
             md.append(v2.summary()).append("\n\n");
         }
+        if (v3) {
+            md.append(fitted).append("\n\nEverything below is the **test** seasons only, scored with that k.\n\n");
+        }
         md.append(String.format(Locale.ROOT, "Head: %s. Sources (sha256): %s.%n%n",
                 System.getenv().getOrDefault("BACKTEST_HEAD", "unknown"), hashes()));
+        List<Integer> seasons = rows.stream().map(Row::season).distinct().sorted().toList();
         md.append(String.format(Locale.ROOT, "%,d matchups: %d seasons × %d leagues × %d weeks × %d games.%n%n",
-                rows.size(), SEASONS.size(), LEAGUES, WEEKS, TEAMS / 2));
+                rows.size(), seasons.size(), LEAGUES, WEEKS, TEAMS / 2));
         md.append("| Season | Games | Brier |\n|---|---:|---:|\n");
-        for (int season : SEASONS) {
+        for (int season : seasons) {
             List<Row> in = rows.stream().filter(r -> r.season() == season).toList();
-            md.append(String.format(Locale.ROOT, "| %d | %,d | %.4f |%n", season, in.size(), brier(in)));
+            md.append(String.format(Locale.ROOT, "| %d | %,d | %.4f |%n", season, in.size(), brier(in, k)));
         }
         md.append(String.format(Locale.ROOT, "| **All** | %,d | **%.4f** |%n%n", rows.size(), brier));
         md.append(String.format(Locale.ROOT, "Baseline (always 0.5): %.4f. Skill: %.1f%% better. Bar: at most %.3f.%n%n",
@@ -321,13 +388,13 @@ final class WinCalibration {
                 brierPass && slopePass ? "PASSED" : "FAILED -- hold Trades"));
 
         Files.createDirectories(Backtest.OUT);
-        Files.writeString(Backtest.OUT.resolve(v2 == null ? "calibration-results.md" : "calibration-v2-results.md"),
-                md.toString());
+        Files.writeString(Backtest.OUT.resolve(v3 ? "calibration-v3-results.md"
+                : v2 == null ? "calibration-results.md" : "calibration-v2-results.md"), md.toString());
         System.out.println(md);
     }
 
-    static double brier(List<Row> rows) {
-        return rows.stream().mapToDouble(r -> (r.p() - r.outcome()) * (r.p() - r.outcome())).average().orElse(Double.NaN);
+    static double brier(List<Row> rows, double k) {
+        return rows.stream().mapToDouble(r -> (r.p(k) - r.outcome()) * (r.p(k) - r.outcome())).average().orElse(Double.NaN);
     }
 
     /** What exactly produced the numbers: the harness and the model it tests. */
@@ -338,6 +405,7 @@ final class WinCalibration {
                 "src/main/java/com/fantasykai/leagues/ProjectionUncertainty.java",
                 "src/main/java/com/fantasykai/leagues/LineupOptimizer.java",
                 "src/test/java/com/fantasykai/projection/Backtest.java",
+                "src/test/java/com/fantasykai/projection/UncertaintyFit.java",
                 "../scripts/backtest.sh");
         List<String> out = new ArrayList<>();
         for (String file : files) {
@@ -366,6 +434,8 @@ final class WinCalibration {
         private final List<String> files = new ArrayList<>();
         private final double sigmaK;
         private final double sigmaDst;
+        private final Map<Integer, List<Double>> kBySeason = new HashMap<>();
+        private final Map<Integer, List<Double>> dBySeason = new HashMap<>();
         private int sat;
 
         private Attempt2(Connection connection, Path cache) throws Exception {
@@ -412,6 +482,7 @@ final class WinCalibration {
                     kickerGames.computeIfAbsent(id, k -> new ArrayList<>()).add(new int[] {season, week, rs.getInt("team_id")});
                     if (season >= SEASONS.getFirst()) {
                         kPoints.add(points);
+                        kBySeason.computeIfAbsent(season, x -> new ArrayList<>()).add(points);
                     }
                 }
             }
@@ -450,6 +521,7 @@ final class WinCalibration {
                                 + pointsAllowed(side[1]);
                         defenseWeeks.put(side[0] + ":" + season + ":" + week, points);
                         dPoints.add(points);
+                        dBySeason.computeIfAbsent(season, x -> new ArrayList<>()).add(points);
                     }
                 }
             }
@@ -488,6 +560,19 @@ final class WinCalibration {
 
         double unmodeledVariance() {
             return sigmaK * sigmaK + sigmaDst * sigmaDst;
+        }
+
+        /** Attempt 3: σ_K and σ_DST measured on {@code seasons} only. */
+        double unmodeledVariance(List<Integer> seasons) {
+            return sigmaK(seasons) * sigmaK(seasons) + sigmaDst(seasons) * sigmaDst(seasons);
+        }
+
+        double sigmaK(List<Integer> seasons) {
+            return sd(seasons.stream().flatMap(s -> kBySeason.getOrDefault(s, List.of()).stream()).toList());
+        }
+
+        double sigmaDst(List<Integer> seasons) {
+            return sd(seasons.stream().flatMap(s -> dBySeason.getOrDefault(s, List.of()).stream()).toList());
         }
 
         /** Out this week, or off a roster last week: production's rule, pregame data only. */

@@ -247,3 +247,68 @@ data: the 2021–2023 skill σ fit, σ_K, σ_DST and k. That replaces the 2021�
 - `projection/Backtest.java` and `scripts/backtest.sh`: the stage `calibration-v3`.
 
 Attempts 1 and 2 must still reproduce line for line. This attempt's first run is its result.
+
+## Attempt 3 — result: FAILED, by 0.0007. Trades stays held.
+
+**Run:** the first and only one, at `7b8bacd` (the pre-registration commit) plus the attempt-3
+code. Hashes: `WinCalibration.java 351530c63194`, `WinProbability.java 82aa9be41ad2`,
+`UncertaintyFit.java 5919abb57cf0`, `Backtest.java 7c4cb8d7b13a`, `backtest.sh 243b5d485613`, and
+`ProjectionUncertainty`/`LineupOptimizer` unchanged.
+
+**Before it ran,** attempts 1 and 2 were rerun on the new code, and each report matched its
+original line for line, apart from the head and source hashes. `backtest.sh uncertainty` matched
+the committed constants exactly.
+
+**Fitted on 2021–2023** (5,040 training matchups, nothing from the test seasons):
+- **skill σ (Half PPR):** QB 6.379 + 0.0892μ, RB 4.063 + 0.2760μ, WR 3.356 + 0.3339μ,
+  TE 2.934 + 0.3583μ;
+- **σ_K and σ_DST:** 4.535 and 5.799. The report's header line still prints attempt 2's 2021–2025
+  figures; the training figures are the ones used.
+- **k:** the grid's training Brier falls from 0.22675 at k = 1.00 to a minimum of **0.22636 at
+  k = 1.15**, and rises after. A very flat curve.
+
+**Tested on 2024–2025 only** (3,360 matchups, with k = 1.15):
+
+| Season | Matchups | Brier |
+|---|---:|---:|
+| 2024 | 1,680 | 0.2299 |
+| 2025 | 1,680 | 0.2215 |
+| **All** | **3,360** | **0.2257** |
+
+That is **9.7% better than the 0.25 baseline. The bar is ≤ 0.225: fail, by 0.0007.**
+
+| Predicted | Matchups | Mean predicted | Observed |
+|---|---:|---:|---:|
+| 0.0–0.1 | 14 | 0.069 | 0.214 |
+| 0.1–0.2 | 73 | 0.154 | 0.027 |
+| 0.2–0.3 | 250 | 0.257 | 0.244 |
+| 0.3–0.4 | 511 | 0.356 | 0.370 |
+| 0.4–0.5 | 819 | 0.451 | 0.462 |
+| 0.5–0.6 | 837 | 0.547 | 0.553 |
+| 0.6–0.7 | 507 | 0.647 | 0.677 |
+| 0.7–0.8 | 245 | 0.741 | 0.731 |
+| 0.8–0.9 | 89 | 0.839 | 0.742 |
+| 0.9–1.0 | 15 | 0.927 | 1.000 |
+
+**Reliability slope: 1.012** (intercept −0.002). **Pass.** The outer bins hold 14–89 games each,
+too few to read alone.
+
+## What three attempts show
+
+| Attempt | What changed | Seasons scored | Brier | Slope |
+|---|---|---|---:|---:|
+| 1 | — | 2021–2025 | 0.2332 | 0.837 |
+| 2 | + production's availability, K and DST | 2021–2025 | 0.2265 | 0.889 |
+| 3 | + every σ and the spread multiplier fitted on 2021–2023 | 2024–2025 | 0.2257 | 1.012 |
+
+- **Calibration is no longer the problem.** Out of sample the odds mean what they say (slope
+  1.01). The spread multiplier earned only 0.0004 of Brier on training data; the model was
+  already close to calibrated once it knew what production knows.
+- **What is left is resolution: how often the projection can call a matchup with confidence.**
+  That is the projection's quality, which a calibration change cannot buy. The research record
+  already says the weighted average is a baseline that a learned model has not yet beaten
+  (`projection-accuracy.md`).
+- **No attempt has passed. Trades stays held.** Three looks have been taken at this bar. A
+  fourth that changes only the win-probability layer has nothing left to tune. The ways forward
+  are a better projection, which is research, or an owner decision on the bar, recorded as made
+  after three near misses (9.4%, 9.7%). That is not a pass.

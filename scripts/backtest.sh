@@ -40,6 +40,11 @@
 #
 #     ./scripts/backtest.sh calibration-v2
 #
+# Attempt 3, pre-registered after attempt 2 failed: every sigma and a spread multiplier k fitted
+# on 2021-2023, the unchanged gate read on 2024-2025 only:
+#
+#     ./scripts/backtest.sh calibration-v3
+#
 # v2 reads two nflverse files per season from .cache/nflverse/ (gitignored), downloading
 # any that are missing exactly once. A cached file is never refreshed behind your back: the
 # reports print every file's sha256, and deleting the cache is how you choose new data.
@@ -58,8 +63,8 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 stage="${1:-validate}"
 case "$stage" in
-    validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity|availability|uncertainty|calibration|calibration-v2) ;;
-    *) echo "usage: $0 [validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity|availability|uncertainty|calibration|calibration-v2]" >&2; exit 2 ;;
+    validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity|availability|uncertainty|calibration|calibration-v2|calibration-v3) ;;
+    *) echo "usage: $0 [validate|test|prospective|v2-validate|v2-diagnostic|v2-prospective|parity|availability|uncertainty|calibration|calibration-v2|calibration-v3]" >&2; exit 2 ;;
 esac
 
 frozen="backend/src/test/resources/projection/frozen-config.json"
@@ -111,7 +116,7 @@ if [[ -n "$dirty" ]]; then
 fi
 export BACKTEST_HEAD="$head"
 
-if [[ "$stage" == calibration-v2 ]]; then
+if [[ "$stage" == calibration-v2 || "$stage" == calibration-v3 ]]; then
     # Attempt 2 of the trade calibration gate (docs/perf/trade-calibration.md): 2021-2025 weekly
     # rosters and injury reports, through production's AvailabilityRules.
     cache="$repo/.cache/nflverse"

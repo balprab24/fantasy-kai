@@ -34,6 +34,26 @@ public final class WinProbability {
     /** A team's week as a normal distribution. */
     public record TeamWeek(double mean, double variance) {}
 
+    /** How far a modelled starter's week misses: production's is {@link ProjectionUncertainty#sigma}. */
+    @FunctionalInterface
+    public interface Sigma {
+        double of(String position, double mu);
+    }
+
+    /**
+     * The spread multiplier k: P = Φ(gap / (k·spread)). 1.0 until a value passes the
+     * pre-registered calibration gate (docs/perf/trade-calibration.md, attempt 3); then that one.
+     */
+    public static final double SPREAD_MULTIPLIER = 1.0;
+
+    private static final Sigma PRODUCTION = (position, mu) ->
+            ProjectionUncertainty.modeled(position) ? ProjectionUncertainty.sigma(position, mu) : 0;
+
+    /** Production's σ, for callers that pass one explicitly. */
+    public static Sigma productionSigma() {
+        return PRODUCTION;
+    }
+
     private WinProbability() {}
 
     public static TeamWeek team(List<Starter> starters) {
@@ -45,11 +65,16 @@ public final class WinProbability {
      *     points are a constant mean for every team (so it cancels) and a measured spread
      */
     public static TeamWeek team(List<Starter> starters, double unmodeledVariance) {
+        return team(starters, unmodeledVariance, PRODUCTION);
+    }
+
+    /** As {@link #team(List, double)}, with a σ other than production's -- for research fits. */
+    public static TeamWeek team(List<Starter> starters, double unmodeledVariance, Sigma sigma) {
         double mean = 0;
         double variance = unmodeledVariance;
         for (Starter s : starters) {
             mean += s.mu();
-            variance += square(sigma(s));
+            variance += square(sigma(s, sigma));
         }
         for (Starter qb : starters) {
             if (!"QB".equals(qb.position()) || qb.nflTeamId() == null) {
@@ -58,7 +83,7 @@ public final class WinProbability {
             for (Starter other : starters) {
                 if (("WR".equals(other.position()) || "TE".equals(other.position()))
                         && qb.nflTeamId().equals(other.nflTeamId())) {
-                    variance += 2 * ProjectionUncertainty.QB_PASS_CATCHER_CORRELATION * sigma(qb) * sigma(other);
+                    variance += 2 * ProjectionUncertainty.QB_PASS_CATCHER_CORRELATION * sigma(qb, sigma) * sigma(other, sigma);
                 }
             }
         }
@@ -67,7 +92,12 @@ public final class WinProbability {
 
     /** P(a outscores b); a tie in expectation with no variance at all is a coin toss. */
     public static double beats(TeamWeek a, TeamWeek b) {
-        double spread = Math.sqrt(a.variance() + b.variance());
+        return beats(a, b, SPREAD_MULTIPLIER);
+    }
+
+    /** With an explicit spread multiplier; {@code k = 1} is the plain normal model, bit for bit. */
+    public static double beats(TeamWeek a, TeamWeek b, double k) {
+        double spread = k * Math.sqrt(a.variance() + b.variance());
         double gap = a.mean() - b.mean();
         if (spread == 0) {
             return gap > 0 ? 1 : gap < 0 ? 0 : 0.5;
@@ -76,8 +106,8 @@ public final class WinProbability {
     }
 
     /** A starter's σ: 0 when he is known not to play, and for anyone not modelled. */
-    private static double sigma(Starter s) {
-        return s.mu() == 0 || !ProjectionUncertainty.modeled(s.position()) ? 0 : ProjectionUncertainty.sigma(s.position(), s.mu());
+    private static double sigma(Starter s, Sigma sigma) {
+        return s.mu() == 0 ? 0 : sigma.of(s.position(), s.mu());
     }
 
     /**
