@@ -122,7 +122,11 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | `LeagueService` | Import, sync, read, delete. Network first, then **one transaction**; ownership checked before a sync spends its cooldown; membership checked against the account's own leagues |
 | `LeagueRepository` | Every league table, every statement filtered by `user_id`. Roster ids resolve override-first, then a stored Sleeper id held by exactly one player |
 | `LeagueController` · `LeagueDtos` · `LeagueExceptionHandler` | Seven routes under `/api/v1/leagues`; problem+json scoped to this controller |
-| `LeagueProperties` · four exceptions | Configuration; 404 / 409 / 429 / 502 / 503 |
+| `LeagueProperties` · five exceptions | Configuration; 404 / 409 / 429 / 502 / 503 |
+| `RestOfSeason` | **S2.** Each rostered player's expected points for every week left before the league's playoffs, under the league's ruleset: the provider's line from his games before the first unplayed week, 0 on a bye, 0 in the first week when Out, 0 every week on a reserve list. Reads by player id (the stats PK), never the job's scan; stores nothing |
+| `LineupOptimizer` | **S2.** The best lineup for one week, exact (Hungarian). Matches exhaustive search on 500 random rosters; greedy loses on overlapping flexes. K and DST listed, unfilled, equal for every team |
+| `TeamNeeds` | **S2.** `GET /leagues/{id}/needs`: every team's best lineup every remaining week, each starting slot averaged, the member's against the league median. 409 without a ruleset |
+| `ProjectionUncertainty` | **S2.** σ = a + b·μ by position, fitted on production's own error 2021-2025 (`backtest.sh uncertainty`); the QB–pass-catcher correlation. Read by S3 |
 
 ### Everything else
 
@@ -515,3 +519,9 @@ V11 adds `league_connections`, `leagues`, `league_teams`, `league_rosters` and
 A Sleeper connection cannot hold a credential (a CHECK). `/teams` and `/teams/[id]` are the
 frontend; My Teams moved from Coming to the primary nav. Evidence and what is still open:
 [2026-10-30 S1 review](reviews/2026-10-30-leagues-s1.md).
+
+### S2 rest of season and team needs — 2026-10-30
+
+`scoring/ExplainedScore` is the explained number the invariant table names, now real and used by
+the projection read and the league outlook alike. `JdbcProjectionInputs` gained a player-filtered
+read. Nothing new is stored. Evidence: [2026-10-30 S2 review](reviews/2026-10-30-leagues-s2.md).

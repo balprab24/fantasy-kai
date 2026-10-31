@@ -54,7 +54,13 @@ class ProjectionOrderingTests {
         assertThat(first.playerId()).isEqualTo(high);
         assertThat(second.playerId()).isEqualTo(low);
         assertThat(first.points()).isEqualTo(second.points()).isEqualTo(10.0);
-        assertThat(new ObjectMapper().findAndRegisterModules().valueToTree(first).has("rawPoints")).isFalse();
+        var json = new ObjectMapper().findAndRegisterModules().<com.fasterxml.jackson.databind.JsonNode>valueToTree(first);
+        assertThat(json.has("rawPoints")).isFalse();
+        // The explanation's wire shape, unchanged since it moved into scoring.ExplainedScore.
+        assertThat(json.get("parts")).hasSize(1);
+        assertThat(json.get("parts").get(0).toString())
+                .isEqualTo("{\"stat\":\"rec_yd\",\"value\":100.04,\"rate\":0.1,\"points\":" + (100.04 * 0.1) + "}");
+        assertThat(json.get("bonusPoints").asDouble()).isEqualTo(0.0);
         assertThat(controller.player(high, 1, 7L).projection().points()).isEqualTo(first.points());
     }
 }
