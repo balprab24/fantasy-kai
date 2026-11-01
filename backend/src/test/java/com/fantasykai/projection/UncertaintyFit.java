@@ -75,39 +75,19 @@ final class UncertaintyFit {
 
     record Fit(double a, double b, int n, double rmse) {}
 
+    /** "Half PPR", "PPR" or "0 PPR": V3's presets, for other research stages to score with. */
+    static ResolvedRuleset ruleset(String name) {
+        return RULESETS.get(name);
+    }
+
     private UncertaintyFit() {}
 
     static void run(Connection connection) throws Exception {
         BacktestData data = BacktestData.load(connection);
         WeightedAverageProjectionProvider production = new WeightedAverageProjectionProvider();
 
-        // ruleset -> position -> [mu, actual] pairs
-        Map<String, Map<String, List<double[]>>> pairs = new LinkedHashMap<>();
-        RULESETS.keySet().forEach(r -> pairs.put(r, new TreeMap<>()));
         int[] skipped = {0};
-        for (int season : SEASONS) {
-            for (Case c : Population.build(data, season).cases()) {
-                if (!c.inP || c.actual == null || !POSITIONS.contains(c.position)) {
-                    continue;
-                }
-                List<HistoricalGame> career = new ArrayList<>();
-                for (PlayerGame g : data.players().get(c.playerId).all()) {
-                    career.add(game(g));
-                }
-                Optional<RawProjection> p = production.project(
-                        PlayerHistory.before(new SeasonWeek(c.season, c.week), career));
-                if (p.isEmpty()) {
-                    skipped[0]++;
-                    continue;
-                }
-                double[] actual = Arrays.copyOf(c.actual.line(), StatKey.COUNT);
-                RULESETS.forEach((name, rules) -> pairs.get(name)
-                        .computeIfAbsent(c.position, k -> new ArrayList<>())
-                        .add(new double[] {
-                                ScoringEngine.score(p.get().line(c.position), rules),
-                                ScoringEngine.score(new StatLine(c.position, actual), rules)}));
-            }
-        }
+        Map<String, Map<String, List<double[]>>> pairs = pairs(data, production, SEASONS, skipped);
 
         StringBuilder md = new StringBuilder("# Projection uncertainty: σ against μ\n\n");
         md.append("Production `weighted-average-v1`, population P, ").append(SEASONS.getFirst()).append('–')
@@ -142,6 +122,49 @@ final class UncertaintyFit {
         if (!sane) {
             throw new IllegalStateException("uncertainty fit failed its sanity gate");
         }
+    }
+
+    /** ruleset -> position -> [mu, actual] pairs, for {@code seasons}. */
+    static Map<String, Map<String, List<double[]>>> pairs(BacktestData data,
+            WeightedAverageProjectionProvider production, List<Integer> seasons, int[] skipped) {
+        Map<String, Map<String, List<double[]>>> pairs = new LinkedHashMap<>();
+        RULESETS.keySet().forEach(r -> pairs.put(r, new TreeMap<>()));
+        for (int season : seasons) {
+            for (Case c : Population.build(data, season).cases()) {
+                if (!c.inP || c.actual == null || !POSITIONS.contains(c.position)) {
+                    continue;
+                }
+                List<HistoricalGame> career = new ArrayList<>();
+                for (PlayerGame g : data.players().get(c.playerId).all()) {
+                    career.add(game(g));
+                }
+                Optional<RawProjection> p = production.project(
+                        PlayerHistory.before(new SeasonWeek(c.season, c.week), career));
+                if (p.isEmpty()) {
+                    skipped[0]++;
+                    continue;
+                }
+                double[] actual = Arrays.copyOf(c.actual.line(), StatKey.COUNT);
+                RULESETS.forEach((name, rules) -> pairs.get(name)
+                        .computeIfAbsent(c.position, k -> new ArrayList<>())
+                        .add(new double[] {
+                                ScoringEngine.score(p.get().line(c.position), rules),
+                                ScoringEngine.score(new StatLine(c.position, actual), rules)}));
+            }
+        }
+
+        return pairs;
+    }
+
+    /** The Half PPR fit by position over {@code seasons} only -- calibration attempt 3's training fit. */
+    static Map<String, Fit> fitHalfPpr(BacktestData data, List<Integer> seasons) {
+        Map<String, List<double[]>> half = pairs(data, new WeightedAverageProjectionProvider(), seasons, new int[1])
+                .get("Half PPR");
+        Map<String, Fit> fits = new LinkedHashMap<>();
+        for (String position : POSITIONS) {
+            fits.put(position, fit(half.getOrDefault(position, List.of()), new StringBuilder(), position));
+        }
+        return fits;
     }
 
     /** Bins, σ per bin, then the count-weighted least-squares line through them. */

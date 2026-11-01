@@ -47,3 +47,6 @@ logs/
 # Personal, never committed: private ops notes and local agent notes
 *.private.md
 CLAUDE.local.md
+
+# nflverse files the backtest downloads (scripts/backtest.sh): research inputs, never committed.
+.cache/
