@@ -1,4 +1,4 @@
-import type { Position, RankingRow } from "./types";
+import type { MemberBoardRow, Position, RankingRow } from "./types";
 
 /**
  * Everything the board derives from the rows the API sent, and nothing it
@@ -19,6 +19,10 @@ import type { Position, RankingRow } from "./types";
 export type Metric = "points" | "pointsPerGame";
 
 export interface BoardRow extends RankingRow {
+  recentPpg?: number | null;
+  form?: number | null;
+  recentWeeks?: MemberBoardRow["recentWeeks"];
+  usage?: MemberBoardRow["usage"];
   /** Place among players at the same position, or null if it cannot be known. */
   posRank: number | null;
   /**
@@ -66,6 +70,23 @@ export function toBoardRows(rows: RankingRow[], metric: Metric = "points"): Boar
       share: leader > 0 ? Math.max(0, Math.min(1, row[metric] / leader)) : 0,
     };
   });
+}
+
+/** Member ranks come from the API, including explicit null for an unqualified rate. */
+export function toMemberBoardRows(rows: MemberBoardRow[], metric: Metric = "points"): BoardRow[] {
+  const leader = rows[0]?.[metric] ?? 0;
+  return rows.map((row) => ({
+    ...row,
+    quality: row.ppgPosRank === null ? null : band(row.ppgPosRank, row.position),
+    value: row[metric],
+    share: leader > 0 ? Math.max(0, Math.min(1, row[metric] / leader)) : 0,
+  }));
+}
+
+/** The older API can still supply points; absent board metrics must remain absent. */
+export function withoutBoardMetrics(row: RankingRow): MemberBoardRow {
+  return { ...row, posRank: null, ppgPosRank: null, recentPpg: null, form: null,
+    recentWeeks: [], dataThrough: null, usage: null };
 }
 
 /**

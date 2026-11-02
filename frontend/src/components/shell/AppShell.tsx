@@ -1,5 +1,6 @@
 import { Attribution } from "@/components/Attribution";
 import { TopBar } from "./TopBar";
+import { Sidebar } from "./Sidebar";
 
 /**
  * The frame every product page sits in: the bar, one content column, and the
@@ -10,8 +11,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
       <TopBar />
-      <main className="flex-1">{children}</main>
-      <Attribution />
+      <Sidebar />
+      <main className="min-w-0 flex-1 lg:pl-[88px]">{children}</main>
+      <div className="lg:pl-[88px]"><Attribution /></div>
     </div>
   );
 }

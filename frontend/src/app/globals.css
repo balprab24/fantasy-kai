@@ -395,3 +395,12 @@ a {
     animation: sweep 1.1s ease-in-out infinite;
   }
 }
+
+/* Member board, owner decision 2026-11-02. WCAG 2 luminance, sRGB alpha
+   compositing, measured with the standard 0.04045 / 12.92 transfer function:
+   energy-text on lift 7.43:1 (rail selected); faint on canvas 5.70:1 (Coming);
+   ink / mute / faint on well 15.47 / 7.08 / 4.99:1 (menus, weekly cells);
+   ki on surface 8.03:1 (S band);
+   q-good on q-good at 10% over surface 8.37:1, over hover well 7.55:1.
+   Existing position chips and the open-row energy treatment are unchanged.
+   This adds no global style affecting the public landing. */

@@ -139,3 +139,8 @@ export function weakestSlot(slots: SlotNeed[]): SlotNeed | null {
   if (scored.length === 0) return null;
   return scored.reduce((worst, s) => ((s.diff ?? 0) < (worst.diff ?? 0) ? s : worst));
 }
+
+/** Only the collection route's 404 means league import has not deployed yet. */
+export function leagueListUnavailable(status: number | undefined): boolean {
+  return status === 404;
+}

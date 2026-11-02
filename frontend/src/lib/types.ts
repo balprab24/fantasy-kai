@@ -30,6 +30,18 @@ export interface RankingRow {
   espnId: string | null;
 }
 
+/** BoardController.Row: ranks and recent metrics over the full eligible population. */
+export interface MemberBoardRow extends RankingRow {
+  posRank: number | null;
+  ppgPosRank: number | null;
+  recentPpg: number | null;
+  form: number | null;
+  recentWeeks: { week: number; points: number | null }[];
+  /** Null only while the production API has not deployed the board route. */
+  dataThrough: number | null;
+  usage: Usage | null;
+}
+
 export interface PlayerSummary {
   id: number;
   name: string;

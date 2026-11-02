@@ -4,35 +4,22 @@ import { PositionChip } from "../ui/PositionChip";
 import { Movement } from "../Movement";
 import { PlayerAvatar } from "./PlayerAvatar";
 
-/**
- * Where each column shows, defined once so a header cell and its body cells
- * cannot disagree. Columns step away in order of importance -- games below
- * `lg`, team and the gauge below `md`, position and movement below `sm` -- and
- * what steps away from a phone folds into the second line under the name, so
- * at 390px the board fits with no sideways scroll: rank, player, the number
- * the board is sorted by, and the other figure.
- *
- * The rank column's width is the tier plate's too (`TierHeader`), so the
- * plates stand over the ranks they head.
- */
+/** Shared column widths: a wide member table scrolls inside its panel, with rank pinned. */
 export const COL = {
-  rank: "w-11 pl-3 pr-1 text-right sm:w-16 sm:pl-4 sm:pr-3",
-  // Below sm the name column takes what is left and truncates inside it
-  // (max-width 0 is what lets a table cell shrink below its text).
-  player: "pr-3 max-sm:w-full max-sm:max-w-0 sm:w-[17rem] lg:w-[19rem]",
-  pos: "hidden w-20 pr-3 sm:table-cell",
-  team: "hidden w-16 pr-3 md:table-cell",
-  games: "hidden w-12 pr-3 text-right lg:table-cell",
-  // The only column without a width from md up, so it absorbs a wide
-  // screen's slack and its bar becomes a real gauge.
-  primary: "w-[4.5rem] pr-2 text-right sm:pr-4 md:w-auto",
-  secondary: "w-14 pr-3 text-right sm:w-20 sm:pr-4",
-  move: "hidden w-20 pr-4 text-right sm:table-cell",
+  rank: "sticky left-0 z-[3] w-10 min-w-10 bg-surface px-2 text-right",
+  player: "w-[240px] min-w-[240px] pr-3",
+  pos: "w-20 min-w-20 pr-2",
+  team: "w-14 min-w-14 pr-2",
+  games: "w-10 min-w-10 pr-2 text-right",
+  primary: "w-20 min-w-20 pr-3 text-right",
+  secondary: "w-20 min-w-20 pr-3 text-right",
+  recent: "w-20 min-w-20 pr-3 text-right",
+  form: "w-16 min-w-16 pr-3 text-right",
+  detail: "min-w-[180px] px-3 text-right",
+  move: "w-16 min-w-16 pr-3 text-right",
 } as const;
 
-export const COLUMN_COUNT = Object.keys(COL).length;
-
-const cell = "h-[3.75rem] border-t border-line transition-colors duration-150 group-hover:bg-well sm:h-[3.25rem]";
+const cell = "h-[38px] border-t border-line transition-colors duration-150 group-hover:bg-well";
 
 /**
  * One player on the board: a line, not a card. Rows sit on the board's panel
@@ -56,6 +43,7 @@ export function PlayerRow({
   settle = true,
   avatar = true,
   showMove = true,
+  view = "overview",
 }: {
   row: BoardRow;
   /** Places moved since the previous ruleset; see `Movement`. */
@@ -73,21 +61,22 @@ export function PlayerRow({
   avatar?: boolean;
   /** The movement column, shown once there is a previous ruleset to compare with. */
   showMove?: boolean;
+  view?: "overview" | "usage";
 }) {
   const other = metric === "points" ? row.pointsPerGame : row.points;
-  const moved = delta !== 0;
   return (
     <tr
+      data-player-row
       aria-current={open || undefined}
       className={`group relative ${settle && delta ? "settled" : ""} ${open ? "[&>*]:bg-energy/[0.09]" : ""}`}
     >
       <td
-        className={`${cell} ${COL.rank} type-figure text-[17px] ${row.rank <= 3 ? "text-ink" : "text-mute"} ${open ? "shadow-[inset_3px_0_0_var(--color-energy)]" : ""}`}
+        className={`${cell} ${COL.rank} tabular type-figure text-[17px] ${row.rank <= 3 ? "text-ink" : "text-mute"} ${open ? "shadow-[inset_3px_0_0_var(--color-energy)]" : ""}`}
       >
         {row.rank}
       </td>
       <th scope="row" className={`${cell} ${COL.player} text-left font-normal`}>
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2">
           {avatar && (
             <span className="flex shrink-0 max-[359px]:hidden">
               <PlayerAvatar name={row.name} espnId={row.espnId} size="md" />
@@ -101,25 +90,13 @@ export function PlayerRow({
                 // The player opens over the board (an intercepted route), so
                 // the board must stay exactly where it is underneath.
                 scroll={false}
-                className="block truncate text-[16px] font-semibold text-ink after:absolute after:inset-0 group-hover:text-white focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-energy"
+                className="block truncate text-[14px] font-semibold text-ink after:absolute after:inset-0 group-hover:text-white focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-energy"
               >
                 {row.name}
               </Link>
             ) : (
-              <span className="block truncate text-[16px] font-semibold text-ink">{row.name}</span>
+              <span className="block truncate text-[14px] font-semibold text-ink">{row.name}</span>
             )}
-            {/* What a phone's missing columns carry, on one quiet line. No
-                team is left out, not called "FA": the data says only that
-                none is on record, which is not the same as a free agent. */}
-            <span className="mt-1 flex items-center gap-2 text-[12px] text-mute sm:hidden">
-              <PositionChip position={row.position} rank={row.posRank} />
-              {row.team && <span>{row.team}</span>}
-              {moved && (
-                <span className="relative z-[2]">
-                  <Movement delta={delta} baseline={baseline} />
-                </span>
-              )}
-            </span>
           </span>
         </div>
       </th>
@@ -132,14 +109,11 @@ export function PlayerRow({
       <td className={`${cell} ${COL.team} text-[13px] font-medium text-mute`}>{row.team ?? "—"}</td>
       <td className={`${cell} ${COL.games} tabular text-[13px] text-mute`}>{row.gamesPlayed}</td>
       <td className={`${cell} ${COL.primary}`}>
-        <div className="flex items-center justify-end gap-5 md:pl-10">
-          <span aria-hidden className="hidden h-1 flex-1 overflow-hidden rounded-full bg-track md:block">
-            <span className="block h-full rounded-full bg-mute/50" style={{ width: `${row.share * 100}%` }} />
-          </span>
+        <div className="flex items-center justify-end">
           {metric === "pointsPerGame" ? (
-            <PerGame row={row} className="text-[16px] font-semibold" />
+            <PerGame row={row} className="text-[14px] font-semibold" />
           ) : (
-            <span className="tabular text-[16px] font-semibold text-ink">{formatPoints(row.value)}</span>
+            <span className="tabular text-[14px] font-semibold text-ink">{formatPoints(row.value)}</span>
           )}
         </div>
       </td>
@@ -149,6 +123,19 @@ export function PlayerRow({
         ) : (
           <span className="tabular text-mute">{formatPoints(other)}</span>
         )}
+      </td>
+      <td className={`${cell} ${COL.recent} tabular text-[13px] text-ink`}>{row.recentPpg == null ? "—" : formatPoints(row.recentPpg)}</td>
+      <td className={`${cell} ${COL.form} tabular text-[13px] text-mute`} title="Recent points per game minus season points per game">
+        {row.form == null ? "—" : `${row.form > 0 ? "+" : ""}${formatPoints(row.form)}`}
+      </td>
+      <td className={`${cell} ${COL.detail} tabular text-[12px] text-mute`}>
+        <div className="flex items-center justify-end gap-1">
+          {view === "usage" ? (
+            row.usage ? <span title="Pass attempts / carries / targets in the selected window">{row.usage.passAtt} / {row.usage.rushAtt} / {row.usage.targets}</span> : "—"
+          ) : row.recentWeeks?.length ? row.recentWeeks.map((week) => (
+            <span key={week.week} title={`Week ${week.week}: ${week.points === null ? "no recorded game" : formatPoints(week.points) + " points"}`} className="min-w-9 rounded-nested bg-well px-1 py-0.5 text-ink">{week.points === null ? "—" : formatPoints(week.points)}</span>
+          )) : "—"}
+        </div>
       </td>
       {showMove && (
         <td className={`${cell} ${COL.move} tabular text-[13px]`}>
@@ -190,9 +177,9 @@ function PerGame({ row, className = "" }: { row: BoardRow; className?: string })
   const title =
     q && row.ppgPosRank !== null
       ? `${row.position} ${row.ppgPosRank} by points per game — ${QUALITY_WORDS[q]} (a 12-team league starts ${STARTERS[row.position]})`
-      : "Too few games on this board to judge the per-game figure";
+      : "Per-game rank unavailable or too few games to qualify";
   return (
-    <span title={title} className={`tabular ${q ? QUALITY_TEXT[q] : "text-mute"} ${className}`}>
+    <span title={title} className={`tabular rounded-nested px-1.5 py-0.5 ${q === "good" ? "bg-q-good/10" : "bg-well"} ${q ? QUALITY_TEXT[q] : "text-mute"} ${className}`}>
       {formatPoints(row.pointsPerGame)}
       {q && <span className="sr-only">, {QUALITY_WORDS[q]}</span>}
     </span>

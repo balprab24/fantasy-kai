@@ -18,6 +18,7 @@ export interface BoardState {
   /** Requested, not resolved -- `useSelectedProfile` decides whether it may be used. */
   profileId: number | null;
   q: string;
+  view?: "overview" | "usage";
 }
 
 const POSITIONS: Position[] = ["QB", "RB", "WR", "TE"];
@@ -43,6 +44,7 @@ export function parseBoardParams(
     scope: SCOPES.includes(scope as Scope) ? (scope as Scope) : "season",
     profileId: int(params.get("profileId")),
     q: (params.get("q") ?? "").slice(0, 60),
+    ...(params.get("view") === "usage" ? { view: "usage" as const } : {}),
   };
 }
 
@@ -56,6 +58,7 @@ export function boardSearch(state: BoardState, currentSeason: number): string {
   if (state.position) out.set("pos", state.position);
   if (state.scope !== "season") out.set("scope", state.scope);
   if (state.profileId !== null) out.set("profileId", String(state.profileId));
+  if (state.view === "usage") out.set("view", "usage");
   if (state.q.trim()) out.set("q", state.q);
   const text = out.toString();
   return text ? `?${text}` : "";

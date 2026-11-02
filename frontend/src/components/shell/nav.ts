@@ -21,12 +21,7 @@ export const PRIMARY_NAV: NavItem[] = [
   { label: "Scoring", href: "/profiles", icon: "scoring" },
 ];
 
-/**
- * What does not exist yet, behind one "Coming" entry (owner decision #7,
- * 2026-09-29) instead of six dead tiles that were the loudest thing in the
- * app. Listed so the shape of the product is visible; never a link, because a
- * link to an empty page is a promise the app cannot keep.
- */
+/** Disabled Coming entries, shared by rail and menu. Trades stays absent while held. */
 export const COMING: { label: string; icon: IconName }[] = [
   { label: "Start/Sit", icon: "startSit" },
   { label: "Waivers", icon: "waivers" },
