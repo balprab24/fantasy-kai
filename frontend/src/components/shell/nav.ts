@@ -30,7 +30,6 @@ export const PRIMARY_NAV: NavItem[] = [
 export const COMING: { label: string; icon: IconName }[] = [
   { label: "Start/Sit", icon: "startSit" },
   { label: "Waivers", icon: "waivers" },
-  { label: "Trades", icon: "trades" },
   { label: "Draft", icon: "draft" },
   { label: "Players", icon: "players" },
 ];

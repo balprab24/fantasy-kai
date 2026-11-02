@@ -514,6 +514,20 @@ class LeagueApiTests {
         assertThat(needs.path("noProjection").asInt()).as("rostered skill players with no history").isPositive();
     }
 
+    @Test
+    void emptyTeamsStillCountInTheLeagueMedian() {
+        String member = member();
+        JsonNode league = importFuture(member).getBody();
+        long id = league.path("id").asLong();
+        jdbc.update("DELETE FROM league_rosters WHERE league_id = ? AND external_team_id <> ?",
+                id, league.path("myTeamExternalId").asText());
+
+        JsonNode needs = get("/api/v1/leagues/" + id + "/needs", member).getBody();
+
+        assertThat(slot(needs, "QB").path("mine").asDouble()).isEqualTo(20.43);
+        assertThat(slot(needs, "QB").path("median").asDouble()).isZero();
+    }
+
     /** Computed on read: asking writes nothing, and another member's league is a 404. */
     @Test
     void teamNeedsWriteNothingAndBelongToTheirOwner() {

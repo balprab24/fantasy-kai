@@ -108,6 +108,9 @@ public class TeamNeeds {
         Map<String, Map<String, List<Double>>> points = new LinkedHashMap<>();
         Map<String, Map<String, Map<Long, Filled>>> fillers = new HashMap<>();
         Map<String, List<RosterRow>> byTeam = new LinkedHashMap<>();
+        // A team with no players still fields empty slots worth zero. Counting only
+        // roster rows would silently exclude it from the league's median.
+        leagues.teams(leagueId, userId).forEach(t -> byTeam.put(t.externalTeamId(), new ArrayList<>()));
         roster.forEach(r -> byTeam.computeIfAbsent(r.externalTeamId(), t -> new ArrayList<>()).add(r));
         for (var team : byTeam.entrySet()) {
             for (int week : projection.weeks()) {

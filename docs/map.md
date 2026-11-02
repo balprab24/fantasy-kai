@@ -121,12 +121,13 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | `LeagueLimits` | Redis buckets: Sleeper's budget **shared by every member** (600/min; Sleeper limits by IP) and one sync per league per 5 minutes. Fails closed |
 | `LeagueService` | Import, sync, read, delete. Network first, then **one transaction**; ownership checked before a sync spends its cooldown; membership checked against the account's own leagues |
 | `LeagueRepository` | Every league table, every statement filtered by `user_id`. Roster ids resolve override-first, then a stored Sleeper id held by exactly one player |
-| `LeagueController` · `LeagueDtos` · `LeagueExceptionHandler` | Seven routes under `/api/v1/leagues`; problem+json scoped to this controller |
+| `LeagueController` · `LeagueDtos` · `LeagueExceptionHandler` | Eight routes under `/api/v1/leagues`; problem+json scoped to this controller |
 | `LeagueProperties` · five exceptions | Configuration; 404 / 409 / 429 / 502 / 503 |
 | `RestOfSeason` | **S2.** Each rostered player's expected points for every week left before the league's playoffs, under the league's ruleset: the provider's line from his games before the first unplayed week, 0 on a bye, 0 in the first week when Out, 0 every week on a reserve list. Reads by player id (the stats PK), never the job's scan; stores nothing |
 | `LineupOptimizer` | **S2.** The best lineup for one week, exact (Hungarian). Matches exhaustive search on 500 random rosters; greedy loses on overlapping flexes. K and DST listed, unfilled, equal for every team |
 | `TeamNeeds` | **S2.** `GET /leagues/{id}/needs`: every team's best lineup every remaining week, each starting slot averaged, the member's against the league median. 409 without a ruleset |
 | `ProjectionUncertainty` | **S2.** σ = a + b·μ by position, fitted on production's own error 2021-2025 (`backtest.sh uncertainty`); the QB–pass-catcher correlation. Read by S3 |
+| `WinProbability` | **S3 held.** Normal matchup model and stack covariance. No trade endpoint or evaluator: three calibration attempts failed; see `perf/trade-calibration.md` |
 
 ### Everything else
 
