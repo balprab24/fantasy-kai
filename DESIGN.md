@@ -228,7 +228,7 @@ site only and the build must not depend on reaching Google.
 ### Hierarchy
 - **Display** (850 italic caps, line-height 0.86): the landing's h1 and closing ask at
   clamp(3.75rem, 10vw, 7.25rem); its section heads at clamp(2.75rem, 5.4vw, 4.25rem); a page's name
-  (RANKINGS) at clamp(2.75rem, 6vw, 3.75rem); a player's name at clamp(2.75rem, 6.4vw, 5.25rem).
+  (except the compact member board) at clamp(2.75rem, 6vw, 3.75rem); a player's name at clamp(2.75rem, 6.4vw, 5.25rem).
 - **Title** (800 italic caps, 24px): a panel's name -- PERFORMANCE, GAME LOG.
 - **Body** (400, 15-17px, line-height 1.55-1.65), the landing lead at 19px; measures near 36rem.
 - **Label** (600 semi-condensed, 12-13px, sentence case): column headers, captions, a figure's
@@ -240,13 +240,13 @@ site only and the build must not depend on reaching Google.
 **The Tabular-In-Columns Rule.** Tabular figures wherever numbers stack in a column; proportional
 for a number that stands alone.
 
-**The No Eyebrow Rule.** No label above a heading. A board's recipe is said in a sentence ("Scored
-under Half PPR for the 2026 season, by season total").
+**The No Eyebrow Rule.** No label above a heading. The member board states its scoring, season,
+window, player count and data-through week in one compact metadata line.
 
 ## Layout
 
-- **Container:** at most 1440px, on every page.
-- **Gutters:** 16px on phones, 24px from 640px, 32px from 1024px.
+- **Container:** at most 1440px; the member board may use 1600px beside its rail.
+- **Gutters:** 16px on phones, 24px from 640px, 32px from 1024px; the dense board uses 8px / 16px.
 - **Breakpoints:** 640 (sm), 768 (md), 1024 (lg), 1280 (xl), 1536 (2xl).
 - No sideways scroll at any width from 320; wide tables scroll inside their own panel, first
   column pinned.
@@ -254,9 +254,24 @@ under Half PPR for the 2026 season, by season total").
 ### The product
 - **Top bar:** sticky, 56px, the veil and a blur, one hairline under it. The active section carries
   the slash.
-- **Rankings:** the title and the recipe sentence; then the scoring switch on a row of its own (the
-  Format Bar); then position, window, season and find; then, after a switch, the moves it made; then
-  the board, one panel, its column header pinned under the bar.
+- **Rankings — owner decision, 2026-11-02:** a dense working board. The page name lives in
+  the 56px top bar; its h1 remains available to assistive technology. No display heading,
+  four-card Format Bar or separate section panels above the rows. One control strip holds scoring,
+  view (Overview / Usage), season, window, position, search and Filters. Menus replace wider chips
+  at smaller widths; at 390px the strip uses at most two rows. Filters opens display options and
+  the quality key; it can be closed. Overview shows recent weekly points; Usage shows the API's
+  pass attempts, carries and targets. No invented snap percentage.
+- **Member navigation — same decision:** an 88px icon-and-label rail from 1024px, with Rankings,
+  My Teams and Scoring. Coming items are disabled text, never links. Trades is absent while the
+  calibration gate is held. Below 1024px use the compact top bar and menu.
+- **Density contract:** at 1440×900 the first player row must start within 220px of the top,
+  with at least 16 complete player rows visible. Rows target 38px (maximum 44px), with 36px
+  avatars; tier bands are 24px and carry the column names. Wide tables scroll inside their panel
+  and pin the rank column. No horizontal page scroll. These are acceptance targets until browser
+  measurements are recorded in the review, not claims that a screenshot has already proved them.
+- **Preserved:** URL state, ruleset movement, tiers, the player overlay and scroll restoration.
+  The public landing's layout and components do not change. Prime Time's own palette, type and
+  icon language remain; Flock informs density only.
 - **My Teams:** the title and a sentence; then two panels side by side from lg -- the member's
   leagues, and "Connect Sleeper" (a username, a season, the one orange "Find leagues", then the
   account's leagues with an Import each). A league opens as its own page: the title, a sentence
@@ -309,12 +324,14 @@ cut-out, in the position's hue at 26%; and the overlay's dimmed board (the scrim
 ## Components
 
 ### Buttons
-Primary: orange, 44px (56px for the public pages' "Join the Kai"), one per view. Secondary: Well with
+The dense board's controls are 32px high by the 2026-11-02 decision. Elsewhere,
+primary: orange, 44px (56px for the public pages' "Join the Kai"), one per view. Secondary: Well with
 a 1px Edge, 40px. Icon: 40px square, for close, previous and next. Quiet link: Ink with an Edge
 underline that turns blue on hover.
 
-### The Format Bar (signature)
-The scoring switch as a headline control: every ruleset the member can use side by side, each with
+### The Format Bar (player and other scoring surfaces)
+The member board uses a compact labelled scoring menu by the 2026-11-02 decision. Elsewhere,
+the scoring switch remains a headline control: every ruleset the member can use side by side, each with
 its name and what it pays a catch ("½ per catch", held to V3 by a test; a member's own says "Your
 ruleset"). Native radios in a fieldset. The chosen one sits on Lift with the energy slash under it.
 Three to a row on a phone; as wide as its options from sm.
@@ -335,10 +352,15 @@ carries the energy slash.
 happened, a line that says what to do, and at most one action. A failure tints toward danger.
 
 ### The board
-Rows are lines on the board's panel: an italic rank, a 36px face, the name at 16px, a position chip,
-team, games, a neutral gauge, points, per game in the quality hue, and -- once there is a previous
-ruleset -- movement. Tier dividers are plates on the slash; S is orange. The open player's row keeps
-an energy edge.
+Rows are 38px lines with tabular numeric columns: rank, avatar, name, position rank, current team,
+games, points, per game, recent per game, form and either the last four weekly figures or usage.
+Ranks, recent figures and usage come from `/api/v1/rankings/board`; the browser only assigns tiers
+and compares ranks across scoring changes. Explicit null stays a dash, while zero stays zero.
+Per-game figures in starter range carry a quiet 10% Starter Green tint with green text, and the
+other figures stay ink/faint on Well. The legend is in Filters and the rank meaning in the tooltip.
+Tier bands carry the labels; S keeps its orange letter. Movement remains neutral, with the full
+biggest-moves list available in a collapsed disclosure so switching scoring does not bury the board.
+The open player's row keeps its energy edge.
 
 ### The player card (signature)
 The sidebar's first card: the position chip, team and any roster status; the first name small over
@@ -398,7 +420,7 @@ own total for that game (held by a test), with the three totals side by side und
 
 ### Do:
 - **Do** put every page on the night ground and separate sections with panels.
-- **Do** state a board's recipe in a sentence wherever a ranking appears.
+- **Do** state the ruleset and window wherever a ranking appears; compact metadata on the member board.
 - **Do** keep one orange action per view.
 - **Do** colour a position's letters, and keep the board's quality to green, ink and faint; the
   four-step heat scale belongs to the player view's tables and chart.

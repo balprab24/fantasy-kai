@@ -2,19 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { assignTiers, toBoardRows, type BoardRow, type Metric } from "@/lib/board";
+import { assignTiers, toMemberBoardRows, type BoardRow, type Metric } from "@/lib/board";
 import { ApiError } from "@/lib/api";
 import { saveBoardSequence } from "@/lib/boardSequence";
 import { biggestMovers, type Mover } from "@/lib/movers";
 import { FIRST_SEASON } from "@/lib/season";
-import type { RankingRow, Scope } from "@/lib/types";
-import { COL, COLUMN_COUNT, PlayerRow } from "./rankings/PlayerRow";
+import type { MemberBoardRow, Scope } from "@/lib/types";
+import { PlayerRow } from "./rankings/PlayerRow";
 import { TierHeader } from "./rankings/TierHeader";
 import { PositionChip } from "./ui/PositionChip";
 import { Skeleton, StatusMessage } from "./ui/StatusMessage";
-
-const QUALITY_KEY =
-  "Judged against players at the same position: green inside a 12-team league's starters, white up to twice that, dim beyond. Players with under half the board's games are not judged.";
 
 /**
  * Remembers where every player stood under the previously selected ruleset, so
@@ -32,7 +29,7 @@ const QUALITY_KEY =
  * describe, and recording them would bring that same bug back over a slow link.
  */
 function usePreviousRanks(
-  rows: RankingRow[] | undefined,
+  rows: MemberBoardRow[] | undefined,
   key: string,
   board: string,
   stale: boolean,
@@ -95,8 +92,12 @@ export function RankingsBoard({
   onOpenPlayer,
   openPlayerId = null,
   labelFor,
+  view = "overview",
+  showTiers = true,
 }: {
-  rows: RankingRow[] | undefined;
+  rows: MemberBoardRow[] | undefined;
+  view?: "overview" | "usage";
+  showTiers?: boolean;
   /** Changes whenever the thing being compared changes (the ruleset). */
   comparisonKey: string;
   /** Identifies the board apart from its ruleset: season, position, window. */
@@ -126,13 +127,13 @@ export function RankingsBoard({
   const metric: Metric = scope === "per_game" ? "pointsPerGame" : "points";
   const prior = usePreviousRanks(rows, comparisonKey, boardKey, stale);
   const previous = prior?.ranks ?? null;
-  const board = useMemo(() => toBoardRows(rows ?? [], metric), [rows, metric]);
+  const board = useMemo(() => toMemberBoardRows(rows ?? [], metric), [rows, metric]);
   const { tiers, rest } = useMemo(() => assignTiers(board), [board]);
   const needle = normalize(find);
 
   const hrefFor = (playerId: number) => `/players/${playerId}?season=${season}&profileId=${profileId ?? ""}`;
   const movers = useMemo(
-    () => (previous && rows && !stale ? biggestMovers(toBoardRows(rows, metric), previous) : null),
+    () => (previous && rows && !stale ? biggestMovers(toMemberBoardRows(rows, metric), previous) : null),
     [previous, rows, stale, metric],
   );
 
@@ -178,10 +179,11 @@ export function RankingsBoard({
     );
   }
 
-  const groups = [
+  const groups = (showTiers ? [
     ...tiers.map((t) => ({ key: t.letter, letter: t.letter, rows: t.rows })),
     ...(rest.length ? [{ key: "rest", letter: null, rows: rest }] : []),
   ]
+    : [{ key: "all", letter: null, rows: board }])
     .map((g) => ({
       ...g,
       high: g.rows[0].value,
@@ -225,7 +227,7 @@ export function RankingsBoard({
           surname, or load more of the board below.
         </StatusMessage>
       ) : (
-        <div className="relative rounded-panel border border-line bg-surface">
+        <div className="relative overflow-x-auto border border-line bg-surface">
           {fetching && (
             <div aria-hidden className="absolute inset-x-4 top-0 z-20 h-0.5 overflow-hidden rounded-full">
               <div className="sweep h-full w-2/5 bg-energy" />
@@ -236,65 +238,22 @@ export function RankingsBoard({
               Player rankings for the {season} season under the selected scoring ruleset, grouped
               into tiers
             </caption>
-            {/* The column labels stay in view while the board scrolls, pinned
-                under the bar, on the panel's own ground. */}
-            <thead>
-              <tr className="text-left [&>th]:sticky [&>th]:top-14 [&>th]:z-10 [&>th]:h-11 [&>th]:border-b [&>th]:border-line [&>th]:bg-surface [&>th]:font-label [&>th]:text-[12px] [&>th]:font-semibold [&>th]:text-mute [&>th:first-child]:rounded-tl-panel [&>th:last-child]:rounded-tr-panel">
-                <th scope="col" className={COL.rank}>
-                  #
-                </th>
-                <th scope="col" className={COL.player}>
-                  Player
-                </th>
-                <th scope="col" className={COL.pos}>
-                  Pos
-                </th>
-                <th scope="col" className={COL.team}>
-                  {/* Current, on every season's board: team history is not
-                      stored, so a player traded since shows his new team. */}
-                  <span title="Current team">Team</span>
-                </th>
-                <th scope="col" className={COL.games}>
-                  <abbr title="Games played" className="no-underline">
-                    G
-                  </abbr>
-                </th>
-                {/* The headline column is whatever the board is sorted by; the
-                    other figure steps down beside it. */}
-                <th scope="col" className={COL.primary}>
-                  {perGame ? <span title={QUALITY_KEY}>Per game</span> : "Points"}
-                </th>
-                <th scope="col" className={COL.secondary}>
-                  {perGame ? (
-                    "Total"
-                  ) : (
-                    <abbr title={`Points per game. ${QUALITY_KEY}`} className="no-underline">
-                      Per G
-                    </abbr>
-                  )}
-                </th>
-                {previous && (
-                  <th scope="col" className={COL.move}>
-                    <span title="Places moved since the ruleset you were last viewing">Move</span>
-                  </th>
-                )}
-              </tr>
-            </thead>
-            {groups.map((g, gi) => (
+            {groups.map((g) => (
               <tbody key={g.key}>
                 <TierHeader
                   letter={g.letter}
                   count={g.rows.length}
                   high={g.high}
                   low={g.low}
-                  unit={perGame ? "pts a game" : "pts"}
-                  colSpan={previous ? COLUMN_COUNT : COLUMN_COUNT - 1}
-                  first={gi === 0}
+                  perGame={perGame}
+                  showMove={previous !== null}
+                  view={view}
                 />
                 {g.shown.map((row) => (
                   <PlayerRow
                     key={row.playerId}
                     row={row}
+                    view={view}
                     delta={delta(row)}
                     baseline={previous?.size ?? 0}
                     metric={metric}
@@ -359,7 +318,8 @@ function MoversStrip({
     </li>
   );
   return (
-    <section aria-label="Biggest moves" className="mb-4 rounded-panel border border-line bg-surface px-4 py-3.5 sm:px-5">
+    <details aria-label="Biggest moves" className="mb-1 border-b border-line bg-surface px-3 py-1 text-[13px] text-mute">
+      <summary className="cursor-pointer">Ruleset changed · biggest moves</summary>
       <p className="text-[14px] text-mute">
         {from && to ? (
           <>
@@ -379,30 +339,24 @@ function MoversStrip({
           {movers.down.map(chip)}
         </ul>
       </div>
-    </section>
+    </details>
   );
 }
 
 /**
- * The board's shape before it has rows: the column-label band and ten row
+ * The board's shape before it has rows: the column-label band and eighteen row
  * lines at the real heights, so the answer lands without moving anything.
  * The workspace's Suspense fallback draws the same thing.
  */
 export function BoardSkeleton() {
   return (
-    <div aria-hidden className="rounded-panel border border-line bg-surface">
-      <div className="h-11 border-b border-line" />
-      <div className="flex h-[3.75rem] items-center gap-3 pl-3 sm:pl-4">
-        <Skeleton className="h-8 w-11" />
-        <Skeleton className="h-3.5 w-48 max-w-[40%]" />
-      </div>
-      {Array.from({ length: 10 }, (_, i) => (
-        <div key={i} className="flex h-[3.75rem] items-center gap-3 border-t border-line pr-4 sm:h-[3.25rem]">
-          <div className="w-11 sm:w-16" />
-          <Skeleton className="size-9 rounded-full" />
+    <div aria-hidden className="border border-line bg-surface">
+      <div className="h-6 border-b border-line" />
+      {Array.from({ length: 18 }, (_, i) => (
+        <div key={i} className="flex h-[38px] items-center gap-3 border-t border-line px-3">
+          <div className="w-10" /><Skeleton className="size-9 rounded-full" />
           <Skeleton className="h-3.5 w-44 max-w-[40%]" />
-          <Skeleton className="ml-auto h-3.5 w-12" />
-          <Skeleton className="h-3.5 w-10" />
+          <Skeleton className="ml-auto h-3.5 w-12" /><Skeleton className="h-3.5 w-10" />
         </div>
       ))}
     </div>

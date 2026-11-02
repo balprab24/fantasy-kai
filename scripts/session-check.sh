@@ -49,7 +49,7 @@ EXPECT_TESTS=428            # baseline
 EXPECT_ENDPOINTS=24         # baseline (includes board/performance, projection and league routes)
 EXPECT_MIGRATIONS=11         # baseline ("V1 … V11")
 EXPECT_BACKEND_FILES=129     # baseline
-EXPECT_FRONTEND_FILES=95    # baseline (.ts/.tsx under frontend/src)
+EXPECT_FRONTEND_FILES=96    # baseline (.ts/.tsx under frontend/src)
 EXPECT_JDK=25               # docs/development.md "Commands" · README · pom.xml enforcer
 
 # The deployed API's hostname, and it is deliberately empty until Phase 5d has
