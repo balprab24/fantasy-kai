@@ -6,13 +6,13 @@ No new dependency. No change to the public landing's source or rendering compone
 
 ## Findings
 
-1. **P1 release gate, partially open:** Claude ran signed-in browser QA, relayed by the owner on
-   2026-11-03. At **1710×895**, before the column follow-up, the first player row was **164px**
-   from the viewport top, rows were **38px**, **17 complete rows** were visible and the page had
-   **no horizontal overflow**. These are supplied measurements, not Codex measurements and not
-   proof at 1440×900. Chrome could not resize from full screen; framing was blocked. **1440×900,
-   1024 and 390 remain unmeasured.** The supported Codex browser still discovers no browsers.
-   Keep this PR draft until the remaining widths and the revised layout below are checked.
+1. **P1 release gate, partially open:** Claude checked `c3e5cd1`, with results supplied by the
+   owner: **1710×951**, first player row **181px**, player rows **38px**, **19 complete rows**,
+   tier-only bands **16px**, and **no horizontal page overflow**. Sticky labels were at **57px**,
+   with **0px alignment error on all 10 measured columns**. The wide-screen layout is accepted.
+   These are supplied browser measurements, not Codex measurements or proof at 1440×900.
+   **1440×900, 1024 and 390 remain unmeasured.** Keep the PR draft until narrow widths are
+   checked or explicitly waived by the owner; no waiver has been given.
 2. **P1 deploy-order risk, fixed in code:** the running production jar lacks `BoardController`.
    Switching exclusively to `/rankings/board` would turn working rankings into an error before
    the API deploy. Only a 404 falls back to the existing `/rankings` points response. Additional
@@ -37,8 +37,8 @@ No new dependency. No change to the public landing's source or rendering compone
    the column names. `TierHeader.tsx` now renders only a tier name in a 16px target separator,
    with `scope="rowgroup"` and the correct Overview/Usage/movement colspan. Column names are
    drawn once by `ColumnHeaders` in the sticky band and retained in a visually hidden native
-   thead for assistive technology. Turning tiers off removes the separators entirely. This new
-   rendered height and the responsive targets remain unmeasured.
+   thead for assistive technology. Turning tiers off removes the separators entirely. Claude
+   confirmed 16px tier-only bands and accessible labels on `c3e5cd1`; narrow widths remain open.
 
 Reviewed every changed hunk for URL serialization, search debouncing, stale ranking movement,
 player overlay links and saved scroll position; absence versus zero; mobile overflow; disabled
@@ -113,6 +113,33 @@ removes column names from every tier band and uses shorter tier-only separators.
 tier markers still occupy space. No new screenshot accompanied this second report. Chrome was
 still full-screen and could not resize; **1440×900, 1024 and 390 are still unmeasured**.
 
+### Accepted wide-screen QA — c3e5cd1, supplied by the owner
+
+Claude checked `c3e5cd1` and reported that the 17:15 build was newer than the 16:33 source edits.
+This timing is supplied QA context; Codex did not use timestamps to establish artifact contents.
+
+| Check | Supplied result |
+|---|---|
+| Viewport | 1710×951 |
+| First player row top | 181px |
+| Player row height | 38px |
+| Fully visible player rows | 19 |
+| Tier bands | 16px, tier name only |
+| Horizontal page overflow | None |
+| Sticky labels | Pinned at the top bar bottom, 57px |
+| Header alignment | 0px offset on all 10 measured columns |
+| Accessible labels | Visible duplicate hidden from screen readers; native labels available |
+| Decision | Wide-screen layout accepted; PR remains draft |
+
+No new screenshot accompanied this report. **1024 and 390 remain unmeasured** because Chrome
+was full-screen; **1440×900 also has no measurement**. Acceptance at 1710×951 is not recorded
+as a waiver of the other widths. The owner requires the PR to remain draft until narrow QA
+passes or they explicitly waive it. No such waiver, merge or deployment authorization was given.
+
+Codex attempted to exit Chrome full screen through macOS window controls, but System Events
+returned `osascript is not allowed assistive access (-25211)`. No window-state change was
+confirmed. The owner can exit full screen with Control–Command–F so Claude can continue QA.
+
 For the remaining QA, use an ordinary throwaway `@example.test` account created through **localhost:3000/register** on the refreshed follow-up preview;
 keep its credentials private and delete the account after testing. Port 3000 serves the PR #80
 build, restarted after rebuilding the follow-up. The API on 8080 is unchanged. Never seed
@@ -120,6 +147,7 @@ or bypass auth for visual acceptance.
 
 | Check | Evidence required | Current result |
 |---|---|---|
+| 1710×951 signed in | Wide-screen layout and tier-label correction | Accepted on c3e5cd1; 181px / 38px / 19 rows, no overflow |
 | 1440×900 signed in | First row top ≤220px, ≥16 complete visible rows, each ≤44px, page scrollWidth ≤ innerWidth | NOT RUN |
 | 1024 wide | Rail, control wrapping, table scrolling, no page overflow | NOT RUN |
 | 390 wide | At most two control rows; rank stays pinned during horizontal table scroll; compact menu | NOT RUN |
@@ -146,8 +174,8 @@ no time-based freshness inference is used as production-image evidence.
 - No production deploy or merge: explicitly excluded by the owner's request. Deploy preparation
   and read-only VM evidence are in `docs/API-DEPLOY-2026-11-02.md`. Missing classes and V6 are
   confirmed; Claude subsequently observed the signed-in member HTTP 404 (owner-supplied evidence).
-- No new Codex browser captures: the supported browser is unavailable. Claude’s supplied capture
-  and measurements document the prior layout only; source-level dimensions cannot prove the follow-up.
+- No new Codex browser captures: Claude supplied accepted wide-screen measurements for c3e5cd1.
+  The retained screenshot is from before the fixes; new responsive captures remain outstanding.
 - No new projection view: the View menu switches real Overview/Usage cells already computed by
   the board endpoint. The projection job stays disabled; no unsupported prediction UI is implied.
 - No local ingest or landing recapture: the owner required the logged-out landing unchanged. The
@@ -164,9 +192,10 @@ horizontal scrolling on phones. The compatibility fallback adds one failed reque
 while the old API runs, and should be removed only after the production route is verified live.
 A failure to fit 16 rows, an inaccessible mobile control, horizontal page overflow or a changed
 logged-out landing is a reason to revise the implementation, regardless of passing builds.
-Claude measured 18 rows and aligned sticky labels on rebuilt `cde743b`. The tier-only revision
-still needs a rendered density check, including the required widths, pinned rank, and behavior
-at the bottom of the table; compilation cannot establish those outcomes.
+Claude accepted the tier-only revision at 1710×951 with 19 rows and aligned labels on c3e5cd1.
+That does not establish control wrapping, internal scrolling or header alignment at 1024/390,
+or the original 1440×900 target. Keep the PR draft until narrow QA passes or the owner explicitly
+waives it; a passing build does not establish those outcomes.
 
 ## Original gate transcript — 2026-11-02
 
@@ -520,3 +549,12 @@ not checked here: does the suite pass · does the frontend build
 
 0 FAIL · 0 drift · 4 warn · 0 unknown
 ```
+
+## Acceptance-record review — documentation only
+
+Updated the current findings, acceptance table and remaining objections against the owner's
+supplied c3e5cd1 report. Kept earlier measurements attached to their respective commits and
+retained the unmeasured viewport sizes, missing new screenshots and draft requirement explicitly.
+No source, dependency, configuration, account, schema or runtime data changed. Existing c3e5cd1
+lint, 106 tests, production build, session check and CI results remain applicable to the code.
+Those gates were not rerun for this documentation-only change; `git diff --check` passed.
