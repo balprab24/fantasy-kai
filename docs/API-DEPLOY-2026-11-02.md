@@ -18,8 +18,10 @@ were run. The owner must explicitly authorize execution in this session.** This 
 - Thus the handoff's September 29 last-deploy claim is incorrect. Missing league/board API code
   and missing V7–V11 are directly confirmed; the actual image commit is not asserted from the
   checkout alone (the image has no recorded commit label in this evidence).
-- **Member HTTP check is pending:** no connected browser was available. Anonymous 401 responses
-  cannot distinguish a missing route. Do not report a member 404 as observed until this is done.
+- **Member HTTP check confirmed by Claude QA, relayed by the owner on 2026-11-03:** signed in
+  at `http://www.fantasykai.com`, `GET /api/v1/leagues` returned **404** and My Teams showed
+  “Your leagues could not be loaded”. This is supplied browser evidence, not a request Codex
+  performed. It confirms the missing-route diagnosis alongside the running-jar and V6 evidence.
 
 ## Target and stop conditions
 

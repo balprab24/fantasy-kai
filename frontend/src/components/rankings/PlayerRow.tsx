@@ -3,21 +3,7 @@ import { STARTERS, formatPoints, type BoardRow, type Metric, type Quality } from
 import { PositionChip } from "../ui/PositionChip";
 import { Movement } from "../Movement";
 import { PlayerAvatar } from "./PlayerAvatar";
-
-/** Shared column widths: a wide member table scrolls inside its panel, with rank pinned. */
-export const COL = {
-  rank: "sticky left-0 z-[3] w-10 min-w-10 bg-surface px-2 text-right",
-  player: "w-[240px] min-w-[240px] pr-3",
-  pos: "w-20 min-w-20 pr-2",
-  team: "w-14 min-w-14 pr-2",
-  games: "w-10 min-w-10 pr-2 text-right",
-  primary: "w-20 min-w-20 pr-3 text-right",
-  secondary: "w-20 min-w-20 pr-3 text-right",
-  recent: "w-20 min-w-20 pr-3 text-right",
-  form: "w-16 min-w-16 pr-3 text-right",
-  detail: "min-w-[180px] px-3 text-right",
-  move: "w-16 min-w-16 pr-3 text-right",
-} as const;
+import { COL } from "./BoardColumns";
 
 const cell = "h-[38px] border-t border-line transition-colors duration-150 group-hover:bg-well";
 
@@ -128,15 +114,21 @@ export function PlayerRow({
       <td className={`${cell} ${COL.form} tabular text-[13px] text-mute`} title="Recent points per game minus season points per game">
         {row.form == null ? "—" : `${row.form > 0 ? "+" : ""}${formatPoints(row.form)}`}
       </td>
-      <td className={`${cell} ${COL.detail} tabular text-[12px] text-mute`}>
-        <div className="flex items-center justify-end gap-1">
-          {view === "usage" ? (
-            row.usage ? <span title="Pass attempts / carries / targets in the selected window">{row.usage.passAtt} / {row.usage.rushAtt} / {row.usage.targets}</span> : "—"
-          ) : row.recentWeeks?.length ? row.recentWeeks.map((week) => (
-            <span key={week.week} title={`Week ${week.week}: ${week.points === null ? "no recorded game" : formatPoints(week.points) + " points"}`} className="min-w-9 rounded-nested bg-well px-1 py-0.5 text-ink">{week.points === null ? "—" : formatPoints(week.points)}</span>
-          )) : "—"}
-        </div>
-      </td>
+      {view === "usage" ? (
+        <>
+          <td className={`${cell} ${COL.usage} tabular text-[13px] text-mute`}>{row.usage?.passAtt ?? "—"}</td>
+          <td className={`${cell} ${COL.usage} tabular text-[13px] text-mute`}>{row.usage?.rushAtt ?? "—"}</td>
+          <td className={`${cell} ${COL.usage} tabular text-[13px] text-mute`}>{row.usage?.targets ?? "—"}</td>
+        </>
+      ) : (
+        <td className={`${cell} ${COL.detail} tabular text-[12px] text-mute`}>
+          <div className="flex items-center justify-end gap-1">
+            {row.recentWeeks?.length ? row.recentWeeks.map((week) => (
+              <span key={week.week} title={`Week ${week.week}: ${week.points === null ? "no recorded game" : formatPoints(week.points) + " points"}`} className="min-w-9 rounded-nested bg-well px-1 py-0.5 text-ink">{week.points === null ? "—" : formatPoints(week.points)}</span>
+            )) : "—"}
+          </div>
+        </td>
+      )}
       {showMove && (
         <td className={`${cell} ${COL.move} tabular text-[13px]`}>
           <span className="relative z-[2]">
