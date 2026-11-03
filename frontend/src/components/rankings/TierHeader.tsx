@@ -27,7 +27,7 @@ export function ColumnHeaders({ perGame, showMove, view }: {
   perGame: boolean; showMove: boolean; view: "overview" | "usage";
 }) {
   return (
-    <tr className="h-6 bg-well text-left font-label text-[11px] whitespace-nowrap text-mute [&>th]:h-6 [&>th]:font-semibold">
+    <tr className="h-6 bg-well text-left font-label text-[11px] whitespace-nowrap text-mute [&>th]:h-6 [&>th]:bg-well [&>th]:font-semibold">
       <th scope="col" className={`${COL.rank} text-ink`} aria-label="Rank">#</th>
       <th scope="col" className={COL.player}>Player</th>
       <th scope="col" className={COL.pos}>Position</th>

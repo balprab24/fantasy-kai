@@ -249,7 +249,8 @@ window, player count and data-through week in one compact metadata line.
 - **Gutters:** 16px on phones, 24px from 640px, 32px from 1024px; the dense board uses 8px / 16px.
 - **Breakpoints:** 640 (sm), 768 (md), 1024 (lg), 1280 (xl), 1536 (2xl).
 - No sideways scroll at any width from 320; wide tables scroll inside their own panel, first
-  column pinned.
+  column pinned. The member board pins the rank and, below 1024, the player's name too, so a
+  phone scrolled to the weekly figures still shows whose they are (2026-11-03).
 
 ### The product
 - **Top bar:** sticky, 56px, the veil and a blur, one hairline under it. The active section carries

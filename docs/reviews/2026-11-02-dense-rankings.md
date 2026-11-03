@@ -6,13 +6,10 @@ No new dependency. No change to the public landing's source or rendering compone
 
 ## Findings
 
-1. **P1 release gate, partially open:** Claude checked `c3e5cd1`, with results supplied by the
-   owner: **1710×951**, first player row **181px**, player rows **38px**, **19 complete rows**,
-   tier-only bands **16px**, and **no horizontal page overflow**. Sticky labels were at **57px**,
-   with **0px alignment error on all 10 measured columns**. The wide-screen layout is accepted.
-   These are supplied browser measurements, not Codex measurements or proof at 1440×900.
-   **1440×900, 1024 and 390 remain unmeasured.** Keep the PR draft until narrow widths are
-   checked or explicitly waived by the owner; no waiver has been given.
+1. **P1 release gate, closed 2026-11-03:** Claude measured every requested width in a separate
+   headless Chrome (CDP device metrics, a throwaway `/register` account, deleted after): 1440×900,
+   1024×900 and 390×844 all pass, with the fixes in findings 7–9. See "Responsive QA and review"
+   below. Earlier wide-screen results (1710×951 on `c3e5cd1`) are kept for the record.
 2. **P1 deploy-order risk, fixed in code:** the running production jar lacks `BoardController`.
    Switching exclusively to `/rankings/board` would turn working rankings into an error before
    the API deploy. Only a 404 falls back to the existing `/rankings` points response. Additional
@@ -39,6 +36,25 @@ No new dependency. No change to the public landing's source or rendering compone
    drawn once by `ColumnHeaders` in the sticky band and retained in a visually hidden native
    thead for assistive technology. Turning tiers off removes the separators entirely. Claude
    confirmed 16px tier-only bands and accessible labels on `c3e5cd1`; narrow widths remain open.
+7. **P1, fixed (Claude, 2026-11-03):** at 1024 the board clipped "Last 4 weeks". The table's
+   minimum width was 1040px against 902px available beside the rail, so the last column sat
+   behind a horizontal scroll. Minimums are now 880px Overview / 900px Usage (944 / 964 with the
+   Move column); every Overview column fits at 1024.
+8. **P1, fixed (Claude):** on a phone only the rank was pinned, so scrolling to the weekly cells
+   left numbers with no name beside them. The player cell is now pinned too, below lg only, with a
+   156px column and no face below sm. Pinning it from lg was tried first and broke whole-row
+   clicks: a sticky cell becomes the containing block of the name link's row-wide `::after`, so
+   only the name cell was clickable. Verified both ways: a click on a desktop Points cell opens
+   the player; on a phone the pinned name opens the player. The open-row tint is now mixed opaque,
+   so figures scrolling under the pinned cells do not show through.
+9. **P1, fixed (Claude review):** the deploy-order fallback (finding 2) would have degraded
+   production on merge. The frontend auto-deploys from `main` while the API lacks the board route,
+   and legacy rows arrived with `posRank`/`ppgPosRank` null, so every position chip lost its rank
+   and no per-game figure got its green band. `main` today derives both in the browser.
+   `toMemberOrLegacyRows` (`lib/board.ts`) keeps that derivation for legacy rows, recognised by
+   `dataThrough === null` (the board route always sends an int), and uses the API's ranks
+   otherwise. Tested in `member-board.test.ts`, and seen in a browser with the board route forced
+   to 404: "QB 1 · RB 1 · QB 2 · QB 3", 86 green per-game cells, "Extended stats coming shortly".
 
 Reviewed every changed hunk for URL serialization, search debouncing, stale ranking movement,
 player overlay links and saved scroll position; absence versus zero; mobile overflow; disabled
@@ -52,7 +68,8 @@ member session or hidden authentication bypass was used.
 - One control strip: scoring, Overview/Usage, season, window, position, search, Filters.
   Native selects and a two-group phone arrangement; all options remain usable.
 - 38px row target with 36px face, 16px tier-only separators, one sticky column-label band, tabular figures,
-  internal horizontal table scroll with pinned rank. A closable Filters section controls tiers.
+  internal horizontal table scroll with the rank pinned, and the player's name below lg. A
+  closable Filters section controls tiers.
 - Board API supplies positional/per-game ranks, recent points, form, last four weeks and usage.
   No snap percentage invented. View is URL state; a ruleset change retains movement and a
   collapsed biggest-moves disclosure. Existing intercepted player route and return logic remain.
@@ -148,24 +165,65 @@ or bypass auth for visual acceptance.
 | Check | Evidence required | Current result |
 |---|---|---|
 | 1710×951 signed in | Wide-screen layout and tier-label correction | Accepted on c3e5cd1; 181px / 38px / 19 rows, no overflow |
-| 1440×900 signed in | First row top ≤220px, ≥16 complete visible rows, each ≤44px, page scrollWidth ≤ innerWidth | NOT RUN |
-| 1024 wide | Rail, control wrapping, table scrolling, no page overflow | NOT RUN |
-| 390 wide | At most two control rows; rank stays pinned during horizontal table scroll; compact menu | NOT RUN |
-| Scoring and URL | Switch profiles, observe movement; settings survive reload | Claude passed before follow-up; regression check pending |
-| Player | Open overlay after filter changes; close/back restores scroll and board; cold route works | Claude passed overlay/Escape/scroll restore before follow-up; cold route and revised layout pending |
+| 1440×900 signed in | First row top ≤220px, ≥16 complete visible rows, each ≤44px, page scrollWidth ≤ innerWidth | Passed 2026-11-03: 181px, 18 rows, 38px, no overflow |
+| 1024 wide | Rail, control wrapping, table scrolling, no page overflow | Passed after finding 7: rail, one control row, table fits, no overflow |
+| 390 wide | At most two control rows; rank stays pinned during horizontal table scroll; compact menu | Passed after finding 8: two rows, rank and name pinned, menu, no overflow |
+| Scoring and URL | Switch profiles, observe movement; settings survive reload | Claude passed before follow-up; on the revised build a ruleset switch re-ranked and showed Move plus biggest moves; reload not re-run |
+| Player | Open overlay after filter changes; close/back restores scroll and board; cold route works | Claude passed overlay/Escape/scroll restore before follow-up; on the revised build the overlay opens from a stat-cell click and a phone name tap; scroll restore and cold route not re-run |
 | Filters | Open/close, keyboard focus, tier toggle, clear position/search | Claude passed position/Filters/Usage before follow-up; remaining details pending |
 | Logged out | Landing screenshot unchanged, member route redirects | Source unchanged; HTTP redirect checked |
 | My Teams | Actual missing API route shows coming shortly; other failure still shows retry | Classification unit test passed; browser pending |
 | Production diagnosis | Signed-in GET /api/v1/leagues | Claude observed 404 and the existing error message; confirmed |
-| Screenshots | Attach 1440/1024/390 images to this PR | Supplied 1710×895 before-fix image above; requested sizes pending |
-| Cleanup | Delete only a newly created throwaway QA account | Claude used the owner’s existing account; no account to delete |
+| Screenshots | Attach 1440/1024/390 images to this PR | 1024, 390 and legacy-fallback 1440 in `assets/`, shown under Responsive QA |
+| Cleanup | Delete only a newly created throwaway QA account | Five `@example.test` accounts created for responsive QA, all deleted; 0 remain |
+
+## Responsive QA and review — Claude, 2026-11-03
+
+Measured in a headless Chrome launched separately (`--headless=new`, CDP
+`Emulation.setDeviceMetricsOverride`), signed in through `localhost:3000/register` with throwaway
+`@example.test` accounts, all deleted afterwards (`DELETE 3` plus 2 earlier, then 0 remaining).
+The owner's full-screen Chrome could not be resized, which is why this route was used. The
+preview was rebuilt from the working tree before each run.
+
+| Check | 1440×900 | 1024×900 | 390×844 |
+|---|---|---|---|
+| First player row top | 181px | 181px | 219px |
+| Player row height | 38px | 38px | 38px |
+| Fully visible player rows | 18 | 18 | 15 |
+| Horizontal page overflow | none | none | none |
+| Control rows | 1 | 1 | 2 |
+| Rail / menu | rail | rail | menu button, no rail |
+| Table scrolls inside its panel | no | no (after finding 7) | yes, 372 of 880px |
+| Rank and name while scrolled 200px | — | — | both stay put (9px, 49px) |
+| Sticky labels after horizontal scroll | — | — | 0px off on all 10 columns |
+| Row click target | Points cell opens the player | — | pinned name opens the player |
+| My Teams | — | — | no page overflow |
+
+Also checked: with `/api/v1/rankings/board` forced to 404 (CDP `Fetch`), the board falls back,
+keeps derived ranks and bands (finding 9) and says "Extended stats coming shortly"
+(`assets/2026-11-03-dense-legacy-fallback-1440.png`). The 1024 image predates finding 8's
+lg-and-up revert; that change does not alter 1024 rendering, where the table no longer scrolls.
+
+![1024×900](assets/2026-11-03-dense-1024.png)
+![390×844](assets/2026-11-03-dense-390.png)
+
+**Gates for this revision:** lint clean; `npm test` 108 pass, 0 fail (106 + 2 legacy-row tests);
+`tsc --noEmit` clean; `npm run build` compiled; `session-check` 0 FAIL, 0 drift (4 warn: branch
+uncommitted, mergeable branches, local mirror age, landing hero week). Backend verify not run: no
+Java, migration or backend configuration in this PR (`git diff origin/main --stat -- backend` is
+empty).
+
+**Not fixed:** on a phone the first screen shows rank, name, position and team; Points is one
+swipe away. Hiding Team and G below sm would bring it into view, but it changes which columns
+exist at which width, an owner layout decision. The compatibility fallback still spends one
+failed board request per page until the API is deployed.
 
 ## Invariants and failure classes
 
 No persistence, stats indexes, SQL, stat/signal registry, rounding engine, migration, ddl-auto or
 external signal dependency changed. Member ranks are copied from API fields, not recomputed from
-loaded pages. The legacy compatibility path preserves absence rather than presenting zero or an
-invented rank. API ownership checks still precede response delivery. No transactional write,
+loaded pages. The legacy compatibility path derives ranks exactly as `main` does today, from a
+board loaded contiguously from rank 1, and leaves the board-only metrics absent rather than zero. API ownership checks still precede response delivery. No transactional write,
 ResultSet access, Redis client or backend bean changed. Tool failures were reported as failures;
 no time-based freshness inference is used as production-image evidence.
 
@@ -184,18 +242,14 @@ no time-based freshness inference is used as production-image evidence.
 
 ## The argument against this change
 
-The 1710×895 and 1710×951 results do not establish the 1440×900 acceptance target. This is not ready to merge
-until the revised rendered board meets the requested measurements and the
-phone controls and player-return flow have been exercised. The denser layout trades some touch
-space and immediate scoring explanations for more visible players, and weekly columns require
-horizontal scrolling on phones. The compatibility fallback adds one failed request per page
-while the old API runs, and should be removed only after the production route is verified live.
-A failure to fit 16 rows, an inaccessible mobile control, horizontal page overflow or a changed
-logged-out landing is a reason to revise the implementation, regardless of passing builds.
-Claude accepted the tier-only revision at 1710×951 with 19 rows and aligned labels on c3e5cd1.
-That does not establish control wrapping, internal scrolling or header alignment at 1024/390,
-or the original 1440×900 target. Keep the PR draft until narrow QA passes or the owner explicitly
-waives it; a passing build does not establish those outcomes.
+The dense board trades touch space and the on-page scoring explanation for more visible players:
+the four-card scoring panel is now one menu, and the green key moved into Filters. On a phone,
+Points sits one swipe right. The fallback is two requests per page while the old API runs and
+should be deleted once the board route is live in production; leaving it longer hides a missing
+deploy behind a page that looks fine. What would falsify the approach: members not finding the
+scoring switch, or a phone member missing Points. Neither is measured; only layout is.
+All requested widths now pass, so the remaining merge blocker is the owner's decision, plus the
+API deploy if the extended columns are wanted on day one.
 
 ## Original gate transcript — 2026-11-02
 

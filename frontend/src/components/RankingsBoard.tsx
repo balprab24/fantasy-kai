@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { assignTiers, toMemberBoardRows, type BoardRow, type Metric } from "@/lib/board";
+import { assignTiers, toMemberOrLegacyRows, type BoardRow, type Metric } from "@/lib/board";
 import { ApiError } from "@/lib/api";
 import { saveBoardSequence } from "@/lib/boardSequence";
 import { biggestMovers, type Mover } from "@/lib/movers";
@@ -128,14 +128,14 @@ export function RankingsBoard({
   const metric: Metric = scope === "per_game" ? "pointsPerGame" : "points";
   const prior = usePreviousRanks(rows, comparisonKey, boardKey, stale);
   const previous = prior?.ranks ?? null;
-  const board = useMemo(() => toMemberBoardRows(rows ?? [], metric), [rows, metric]);
+  const board = useMemo(() => toMemberOrLegacyRows(rows ?? [], metric), [rows, metric]);
   const { tiers, rest } = useMemo(() => assignTiers(board), [board]);
   const needle = normalize(find);
   const labels = useRef<HTMLDivElement>(null);
 
   const hrefFor = (playerId: number) => `/players/${playerId}?season=${season}&profileId=${profileId ?? ""}`;
   const movers = useMemo(
-    () => (previous && rows && !stale ? biggestMovers(toMemberBoardRows(rows, metric), previous) : null),
+    () => (previous && rows && !stale ? biggestMovers(toMemberOrLegacyRows(rows, metric), previous) : null),
     [previous, rows, stale, metric],
   );
 

@@ -16,7 +16,9 @@ const cell = "h-[38px] border-t border-line transition-colors duration-150 group
  * `::after` stretches over the whole row, so the row is the click target.
  * Without `href` (a slice of a board shown outside the product) the name is
  * text. `open` marks the player whose view is open over the board: the row
- * keeps an energy edge, so closing the view lands the eye where it left.
+ * keeps an energy edge, so closing the view lands the eye where it left. Its
+ * tint is mixed solid, not translucent: rank and name are pinned, and stats
+ * scrolling under them must not show through.
  */
 export function PlayerRow({
   row,
@@ -54,7 +56,7 @@ export function PlayerRow({
     <tr
       data-player-row
       aria-current={open || undefined}
-      className={`group relative ${settle && delta ? "settled" : ""} ${open ? "[&>*]:bg-energy/[0.09]" : ""}`}
+      className={`group relative ${settle && delta ? "settled" : ""} ${open ? "[&>*]:bg-[color-mix(in_srgb,var(--color-energy)_9%,var(--color-surface))]" : ""}`}
     >
       <td
         className={`${cell} ${COL.rank} tabular type-figure text-[17px] ${row.rank <= 3 ? "text-ink" : "text-mute"} ${open ? "shadow-[inset_3px_0_0_var(--color-energy)]" : ""}`}
@@ -64,7 +66,7 @@ export function PlayerRow({
       <th scope="row" className={`${cell} ${COL.player} text-left font-normal`}>
         <div className="flex min-w-0 items-center gap-2">
           {avatar && (
-            <span className="flex shrink-0 max-[359px]:hidden">
+            <span className="flex shrink-0 max-sm:hidden">
               <PlayerAvatar name={row.name} espnId={row.espnId} size="md" />
             </span>
           )}

@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { toMemberBoardRows, withoutBoardMetrics } from "../src/lib/board.ts";
+import { toMemberBoardRows, toMemberOrLegacyRows, withoutBoardMetrics } from "../src/lib/board.ts";
 import { boardSearch, parseBoardParams } from "../src/lib/boardParams.ts";
 import type { MemberBoardRow } from "../src/lib/types.ts";
 
@@ -37,6 +37,22 @@ describe("member board API metrics", () => {
     assert.equal(result.recentPpg, null);
     assert.equal(result.form, null);
     assert.equal(result.value, 12);
+  });
+});
+
+describe("legacy fallback rows", () => {
+  it("derive position ranks from a board loaded from rank 1, as before the board route", () => {
+    const legacy = [
+      { ...row, rank: 1, playerId: 1, position: "RB" as const, points: 30, pointsPerGame: 15, gamesPlayed: 2 },
+      { ...row, rank: 2, playerId: 2, position: "WR" as const, points: 20, pointsPerGame: 10, gamesPlayed: 2 },
+      { ...row, rank: 3, playerId: 3, position: "RB" as const, points: 10, pointsPerGame: 5, gamesPlayed: 2 },
+    ].map(withoutBoardMetrics);
+    const result = toMemberOrLegacyRows(legacy);
+    assert.deepEqual(result.map((r) => r.posRank), [1, 1, 2]);
+    assert.equal(result[0].recentPpg, null);
+  });
+  it("leave board-route rows to the API's ranks", () => {
+    assert.equal(toMemberOrLegacyRows([row])[0].posRank, 75);
   });
 });
 
