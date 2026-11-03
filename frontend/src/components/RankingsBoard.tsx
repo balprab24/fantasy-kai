@@ -10,6 +10,7 @@ import { FIRST_SEASON } from "@/lib/season";
 import type { MemberBoardRow, Scope } from "@/lib/types";
 import { PlayerRow } from "./rankings/PlayerRow";
 import { TierHeader } from "./rankings/TierHeader";
+import { BoardColumns, boardTableClass } from "./rankings/BoardColumns";
 import { PositionChip } from "./ui/PositionChip";
 import { Skeleton, StatusMessage } from "./ui/StatusMessage";
 
@@ -130,6 +131,7 @@ export function RankingsBoard({
   const board = useMemo(() => toMemberBoardRows(rows ?? [], metric), [rows, metric]);
   const { tiers, rest } = useMemo(() => assignTiers(board), [board]);
   const needle = normalize(find);
+  const labels = useRef<HTMLDivElement>(null);
 
   const hrefFor = (playerId: number) => `/players/${playerId}?season=${season}&profileId=${profileId ?? ""}`;
   const movers = useMemo(
@@ -227,45 +229,66 @@ export function RankingsBoard({
           surname, or load more of the board below.
         </StatusMessage>
       ) : (
-        <div className="relative overflow-x-auto border border-line bg-surface">
-          {fetching && (
-            <div aria-hidden className="absolute inset-x-4 top-0 z-20 h-0.5 overflow-hidden rounded-full">
-              <div className="sweep h-full w-2/5 bg-energy" />
-            </div>
-          )}
-          <table aria-busy={fetching} className="w-full border-separate border-spacing-0 text-sm">
-            <caption className="sr-only">
-              Player rankings for the {season} season under the selected scoring ruleset, grouped
-              into tiers
-            </caption>
-            {groups.map((g) => (
-              <tbody key={g.key}>
-                <TierHeader
-                  letter={g.letter}
-                  count={g.rows.length}
-                  high={g.high}
-                  low={g.low}
-                  perGame={perGame}
-                  showMove={previous !== null}
-                  view={view}
-                />
-                {g.shown.map((row) => (
-                  <PlayerRow
-                    key={row.playerId}
-                    row={row}
-                    view={view}
-                    delta={delta(row)}
-                    baseline={previous?.size ?? 0}
-                    metric={metric}
-                    href={hrefFor(row.playerId)}
-                    onOpen={() => open(row.playerId)}
-                    open={row.playerId === openPlayerId}
+        <div className="relative border border-line bg-surface">
+          {/* Outside the horizontal scroller: otherwise overflow-x captures vertical sticky.
+              The native tier headers below remain the table's accessible column labels. */}
+          <div ref={labels} aria-hidden className="sticky top-[57px] z-10 overflow-hidden border-b border-line bg-well">
+            <table className={boardTableClass(view, previous !== null)}>
+              <BoardColumns view={view} showMove={previous !== null} />
+              <thead>
+                <TierHeader letter={null} count={board.length} high={board[0].value} low={board[board.length - 1].value} perGame={perGame} showMove={previous !== null} view={view} />
+              </thead>
+            </table>
+          </div>
+          <div
+            role="region"
+            aria-label="Player rankings, scroll horizontally for more columns"
+            tabIndex={0}
+            className="relative overflow-x-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-energy"
+            onScroll={(event) => {
+              if (labels.current) labels.current.scrollLeft = event.currentTarget.scrollLeft;
+            }}
+          >
+            {fetching && (
+              <div aria-hidden className="absolute inset-x-4 top-0 z-20 h-0.5 overflow-hidden rounded-full">
+                <div className="sweep h-full w-2/5 bg-energy" />
+              </div>
+            )}
+            <table aria-busy={fetching} className={boardTableClass(view, previous !== null)}>
+              <caption className="sr-only">
+                Player rankings for the {season} season under the selected scoring ruleset, grouped
+                into tiers
+              </caption>
+              <BoardColumns view={view} showMove={previous !== null} />
+              {groups.map((g) => (
+                <tbody key={g.key}>
+                  <TierHeader
+                    letter={g.letter}
+                    count={g.rows.length}
+                    high={g.high}
+                    low={g.low}
+                    perGame={perGame}
                     showMove={previous !== null}
+                    view={view}
                   />
-                ))}
-              </tbody>
-            ))}
-          </table>
+                  {g.shown.map((row) => (
+                    <PlayerRow
+                      key={row.playerId}
+                      row={row}
+                      view={view}
+                      delta={delta(row)}
+                      baseline={previous?.size ?? 0}
+                      metric={metric}
+                      href={hrefFor(row.playerId)}
+                      onOpen={() => open(row.playerId)}
+                      open={row.playerId === openPlayerId}
+                      showMove={previous !== null}
+                    />
+                  ))}
+                </tbody>
+              ))}
+            </table>
+          </div>
         </div>
       )}
     </div>
