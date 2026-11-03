@@ -5,6 +5,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
+  leagueListUnavailable,
   lineupSentence,
   record,
   slotOrder,
@@ -13,7 +14,17 @@ import {
   syncedAgo,
   unmodeledNotices,
 } from "../src/lib/leagues.ts";
+
 import type { RosterSpot, UnmodeledItem } from "../src/lib/types.ts";
+
+describe("league collection availability", () => {
+  it("treats only a collection 404 as coming shortly, never auth, network or server failures", () => {
+    assert.equal(leagueListUnavailable(404), true);
+    for (const status of [undefined, 200, 401, 403, 409, 429, 500, 503]) {
+      assert.equal(leagueListUnavailable(status), false);
+    }
+  });
+});
 
 const item = (key: string, label: string, group: UnmodeledItem["group"], value = 1): UnmodeledItem => ({
   key,

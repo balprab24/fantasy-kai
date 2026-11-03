@@ -1,12 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import { BoardSkeleton, RankingsBoard } from "@/components/RankingsBoard";
-import { BUTTON_SECONDARY, LINK_QUIET } from "@/components/ui/buttons";
-import { FormatBar } from "@/components/ui/FormatBar";
-import { Icon } from "@/components/ui/Icon";
+import { BUTTON_SECONDARY } from "@/components/ui/buttons";
 import { boardSearch, parseBoardParams, type BoardState } from "@/lib/boardParams";
 import { clearBoardReturn, readBoardReturn, saveBoardReturn } from "@/lib/boardReturn";
 import { profileLabel } from "@/lib/profiles";
@@ -73,6 +70,8 @@ export function RankingsWorkspace() {
     [params, now],
   );
   const { season, position, scope } = state;
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [showTiers, setShowTiers] = useState(true);
   const { profiles, profileId } = useSelectedProfile(state.profileId);
 
   // Merged into the newest write, not what this render saw: a debounced search
@@ -178,62 +177,33 @@ export function RankingsWorkspace() {
   };
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 pt-8 pb-10 sm:px-6 lg:px-8">
-      <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
-        <div className="min-w-0">
-          <h1 className="type-display text-[clamp(2.75rem,6vw,3.75rem)] text-ink">Rankings</h1>
-          {/* The board's recipe, said in a sentence: which rules, which
-              season, which window. A ranking without its ruleset is a number
-              with no meaning here. */}
-          <p className="mt-3 text-[16px] text-mute">
-            {profile ? (
-              <>
-                Scored under <span className="font-semibold text-ink">{profileLabel(profile)}</span>{" "}
-                for the {season} season, {scopePhrase}.
-                {total !== undefined && total > 0 && <> {total} {total === 1 ? "player" : "players"}.</>}
-              </>
-            ) : (
-              <>The {season} season, {scopePhrase}.</>
-            )}
-          </p>
-        </div>
-        <Link href="/profiles" className={`inline-flex items-center gap-1.5 pb-1 text-sm ${LINK_QUIET}`}>
-          <Icon name="scoring" size={16} className="text-mute" />
-          Build your league&rsquo;s ruleset
-        </Link>
-      </header>
-
-      <div className="mt-6">
-        {profiles.data ? (
-          <FormatBar profiles={profiles.data} selected={profileId} onSelect={(id) => write({ profileId: id })} />
-        ) : (
-          <div aria-hidden className="skeleton h-16 rounded-control" />
-        )}
+    <div className="mx-auto max-w-[1600px] px-2 pt-2 pb-8 sm:px-4">
+      <h1 className="sr-only">Rankings</h1>
+      <FilterBar
+        profiles={profiles.data} profileId={profileId} onProfile={(id) => write({ profileId: id })}
+        view={state.view ?? "overview"} onView={(view) => write({ view })}
+        season={season} onSeason={(s) => write({ season: s })}
+        scope={scope} onScope={(s) => write({ scope: s })}
+        position={position} onPosition={(p) => write({ position: p })}
+        find={find} onFind={onFind} filtersOpen={filtersOpen} onFilters={() => setFiltersOpen(!filtersOpen)}
+      />
+      <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-3 py-1 text-[12px] text-mute">
+        <p>{profile ? profileLabel(profile) : "Loading scoring"} · {season} · {scopePhrase}{total !== undefined && ` · ${total} players`}</p>
+        <p>{rows?.[0]?.dataThrough === null ? "Extended stats coming shortly" : rows?.[0]?.dataThrough ? `Data through Week ${rows[0].dataThrough}` : ""}</p>
       </div>
-
-      <div className="mt-4">
-        <FilterBar
-          season={season}
-          onSeason={(s) => write({ season: s })}
-          scope={scope}
-          onScope={(s) => write({ scope: s })}
-          position={position}
-          onPosition={(p) => write({ position: p })}
-          find={find}
-          onFind={onFind}
-        />
-      </div>
-
-      {/* The one colour the board gives a figure, keyed where it can be
-          read -- not in a tooltip a phone cannot reach. */}
-      <p className="mt-4 flex items-center gap-2 text-[13px] text-mute">
-        <span aria-hidden className="size-2 shrink-0 rounded-full bg-q-good" />
-        Per-game figures in green are inside a 12-team league&rsquo;s starters at that position.
-      </p>
-
-      <div className="mt-3">
+      {filtersOpen && (
+        <section id="board-options" aria-label="Filters and display" className="mb-2 flex flex-wrap items-center gap-4 rounded-control border border-line bg-surface p-3 text-[13px] text-mute">
+          <label className="flex items-center gap-2 text-ink"><input type="checkbox" checked={showTiers} onChange={(e) => setShowTiers(e.target.checked)} />Show tiers</label>
+          <p>Green per-game figures: inside a 12-team league’s starters at that position. — means no recorded value.</p>
+          <button type="button" className="text-ink underline" onClick={() => { onFind(""); write({ position: null, q: "" }); }}>Clear position and search</button>
+          <button type="button" className="ml-auto text-ink underline" onClick={() => setFiltersOpen(false)}>Close filters</button>
+        </section>
+      )}
+      <div>
         <RankingsBoard
           rows={rows}
+          view={state.view ?? "overview"}
+          showTiers={showTiers}
           comparisonKey={String(profileId)}
           boardKey={`${season}|${position}|${scope}`}
           scope={scope}
@@ -293,17 +263,11 @@ export function RankingsWorkspace() {
  */
 export function RankingsWorkspaceFallback() {
   return (
-    <div className="mx-auto max-w-[1440px] px-4 pt-8 pb-10 sm:px-6 lg:px-8" aria-busy>
-      <h1 className="type-display text-[clamp(2.75rem,6vw,3.75rem)] text-ink">Rankings</h1>
-      {/* The recipe sentence, the scoring switch, the filters and the key, at
-          their heights on a wide screen; they wrap taller on a phone. */}
-      <div aria-hidden className="mt-3 h-6" />
-      <div aria-hidden className="skeleton mt-6 h-16 rounded-control" />
-      <div aria-hidden className="skeleton mt-4 h-10 rounded-control" />
-      <div aria-hidden className="mt-4 h-5" />
-      <div role="status" aria-label="Loading" className="mt-3">
-        <BoardSkeleton />
-      </div>
+    <div className="mx-auto max-w-[1600px] px-2 pt-2 sm:px-4" aria-busy>
+      <h1 className="sr-only">Rankings</h1>
+      <div aria-hidden className="skeleton h-[78px] sm:h-12" />
+      <div aria-hidden className="h-7" />
+      <div role="status" aria-label="Loading"><BoardSkeleton /></div>
     </div>
   );
 }

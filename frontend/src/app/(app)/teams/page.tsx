@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, api } from "@/lib/api";
-import { syncedAgo } from "@/lib/leagues";
+import { leagueListUnavailable, syncedAgo } from "@/lib/leagues";
 import { currentSeason, seasons } from "@/lib/season";
 import type { Discovery, League, LeagueSummary } from "@/lib/types";
 import { SeasonSelect } from "@/components/ui/SeasonSelect";
@@ -61,6 +61,7 @@ export default function TeamsPage() {
 
   const found = discover.data;
   const searched = discover.variables;
+  const coming = leagueListUnavailable(leagues.error instanceof ApiError ? leagues.error.status : undefined);
 
   return (
     <div className="mx-auto max-w-[1440px] px-4 pt-8 pb-10 sm:px-6 lg:px-8">
@@ -79,6 +80,10 @@ export default function TeamsPage() {
               <Skeleton className="h-5 w-2/3" />
               <Skeleton className="h-5 w-1/2" />
             </div>
+          ) : coming ? (
+            <p id="league-coming" role="status" className="border-t border-line px-5 py-5 text-[15px] text-mute sm:px-6">
+              League import is coming to your account shortly
+            </p>
           ) : leagues.isError ? (
             <p role="alert" className="border-t border-line px-5 py-5 text-[15px] text-danger sm:px-6">
               Your leagues could not be loaded.{" "}
@@ -119,7 +124,8 @@ export default function TeamsPage() {
             Your username is all it takes. Sleeper&rsquo;s league data is public, so there is no password to give
             and nothing secret is kept.
           </p>
-          <form onSubmit={find} className="flex flex-wrap items-end gap-3 border-t border-line px-5 py-5 sm:px-6">
+          <form onSubmit={find}>
+          <fieldset aria-describedby={coming ? "league-coming" : undefined} disabled={coming} className="flex flex-wrap items-end gap-3 border-t border-line px-5 py-5 sm:px-6">
             <label className="flex min-w-48 flex-1 flex-col gap-1.5">
               <span className="type-label text-mute">Sleeper username</span>
               <input
@@ -138,6 +144,7 @@ export default function TeamsPage() {
             <button type="submit" disabled={discover.isPending} className={BUTTON_PRIMARY}>
               {discover.isPending ? "Finding…" : "Find leagues"}
             </button>
+          </fieldset>
           </form>
 
           {(formError || discover.isError) && (

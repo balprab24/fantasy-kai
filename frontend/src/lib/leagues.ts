@@ -110,3 +110,8 @@ function list(parts: string[]): string {
 function lowerFirst(label: string): string {
   return /^[A-Z][a-z]/.test(label) ? label[0].toLowerCase() + label.slice(1) : label;
 }
+
+/** Only the collection route's 404 means league import has not deployed yet. */
+export function leagueListUnavailable(status: number | undefined): boolean {
+  return status === 404;
+}
