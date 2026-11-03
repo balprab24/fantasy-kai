@@ -83,6 +83,16 @@ export function toMemberBoardRows(rows: MemberBoardRow[], metric: Metric = "poin
   }));
 }
 
+/**
+ * The board route always sends `dataThrough` (an int); null marks rows from the legacy
+ * fallback (`withoutBoardMetrics`, lib/queries.ts). Those keep the ranks this file derived
+ * before the board route existed -- contiguous from rank 1, so they are exact -- instead of
+ * losing every position rank and per-game band until the API is redeployed.
+ */
+export function toMemberOrLegacyRows(rows: MemberBoardRow[], metric: Metric = "points"): BoardRow[] {
+  return rows[0]?.dataThrough === null ? toBoardRows(rows, metric) : toMemberBoardRows(rows, metric);
+}
+
 /** The older API can still supply points; absent board metrics must remain absent. */
 export function withoutBoardMetrics(row: RankingRow): MemberBoardRow {
   return { ...row, posRank: null, ppgPosRank: null, recentPpg: null, form: null,
