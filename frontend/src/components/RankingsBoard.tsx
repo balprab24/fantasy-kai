@@ -9,7 +9,7 @@ import { biggestMovers, type Mover } from "@/lib/movers";
 import { FIRST_SEASON } from "@/lib/season";
 import type { MemberBoardRow, Scope } from "@/lib/types";
 import { PlayerRow } from "./rankings/PlayerRow";
-import { TierHeader } from "./rankings/TierHeader";
+import { ColumnHeaders, TierHeader } from "./rankings/TierHeader";
 import { BoardColumns, boardTableClass } from "./rankings/BoardColumns";
 import { PositionChip } from "./ui/PositionChip";
 import { Skeleton, StatusMessage } from "./ui/StatusMessage";
@@ -231,12 +231,12 @@ export function RankingsBoard({
       ) : (
         <div className="relative border border-line bg-surface">
           {/* Outside the horizontal scroller: otherwise overflow-x captures vertical sticky.
-              The native tier headers below remain the table's accessible column labels. */}
+              The body's hidden thead retains native column labels for assistive technology. */}
           <div ref={labels} aria-hidden className="sticky top-[57px] z-10 overflow-hidden border-b border-line bg-well">
             <table className={boardTableClass(view, previous !== null)}>
               <BoardColumns view={view} showMove={previous !== null} />
               <thead>
-                <TierHeader letter={null} count={board.length} high={board[0].value} low={board[board.length - 1].value} perGame={perGame} showMove={previous !== null} view={view} />
+                <ColumnHeaders perGame={perGame} showMove={previous !== null} view={view} />
               </thead>
             </table>
           </div>
@@ -260,9 +260,12 @@ export function RankingsBoard({
                 into tiers
               </caption>
               <BoardColumns view={view} showMove={previous !== null} />
+              <thead className="sr-only">
+                <ColumnHeaders perGame={perGame} showMove={previous !== null} view={view} />
+              </thead>
               {groups.map((g) => (
                 <tbody key={g.key}>
-                  <TierHeader
+                  {showTiers && <TierHeader
                     letter={g.letter}
                     count={g.rows.length}
                     high={g.high}
@@ -270,7 +273,7 @@ export function RankingsBoard({
                     perGame={perGame}
                     showMove={previous !== null}
                     view={view}
-                  />
+                  />}
                   {g.shown.map((row) => (
                     <PlayerRow
                       key={row.playerId}
