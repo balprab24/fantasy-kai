@@ -31,7 +31,14 @@ No new dependency. No change to the public landing's source or rendering compone
    renders a compact sticky label band below the 56px top bar plus its 1px border. It sits outside
    the horizontal scroller so that overflow containment cannot disable vertical stickiness.
    Its horizontal offset follows the body; both use the same colgroup. The visual duplicate is
-   aria-hidden, and native tier column headers remain accessible. Browser validation is pending.
+   aria-hidden. Claude subsequently verified sticky placement and alignment on `cde743b` at
+   1710×951 (below). The body table now has a hidden native thead for column associations.
+6. **P2, fixed in code after the second Claude QA:** the sticky label row and tier bands repeated
+   the column names. `TierHeader.tsx` now renders only a tier name in a 16px target separator,
+   with `scope="rowgroup"` and the correct Overview/Usage/movement colspan. Column names are
+   drawn once by `ColumnHeaders` in the sticky band and retained in a visually hidden native
+   thead for assistive technology. Turning tiers off removes the separators entirely. This new
+   rendered height and the responsive targets remain unmeasured.
 
 Reviewed every changed hunk for URL serialization, search debouncing, stale ranking movement,
 player overlay links and saved scroll position; absence versus zero; mobile overflow; disabled
@@ -44,7 +51,7 @@ member session or hidden authentication bypass was used.
 - 88px icon rail from lg, top bar/menu below lg; held Trades absent.
 - One control strip: scoring, Overview/Usage, season, window, position, search, Filters.
   Native selects and a two-group phone arrangement; all options remain usable.
-- 38px row target with 36px face, 24px tier bands carrying column labels, tabular figures,
+- 38px row target with 36px face, 16px tier-only separators, one sticky column-label band, tabular figures,
   internal horizontal table scroll with pinned rank. A closable Filters section controls tiers.
 - Board API supplies positional/per-game ranks, recent points, form, last four weeks and usage.
   No snap percentage invented. View is URL state; a ruleset change retains movement and a
@@ -82,6 +89,29 @@ The supplied screenshot is retained as **before the column/sticky-header follow-
 acceptance of the new code:
 
 ![Claude QA at 1710×895 before column fixes](assets/2026-11-03-dense-before-column-fixes.jpg)
+
+### Second Claude QA — cde743b, supplied by the owner
+
+Claude rebuilt first: the 11:06 build preceded the 11:08 formatting edits in RankingsBoard and
+PlayerRow. These observations apply to that rebuilt commit, **before removing repeated labels**:
+
+| Check | Supplied result |
+|---|---|
+| Viewport | 1710×951 |
+| First player row top | 189px |
+| Player row height | 38px |
+| Fully visible player rows | 18 |
+| Horizontal page overflow | None |
+| Wide spacing | Dead band gone; Claude reported eight stat columns at 155px each |
+| Usage | Three separate columns |
+| Sticky labels | Pinned at the top bar bottom, 57px |
+| Header alignment | 0px offset on all 10 measured columns |
+
+Claude found the sticky labels repeated in the first tier band, costing 25px. The revision now
+removes column names from every tier band and uses shorter tier-only separators. Do not subtract
+25px from the supplied first-row measurement and present that as a new observation; remaining
+tier markers still occupy space. No new screenshot accompanied this second report. Chrome was
+still full-screen and could not resize; **1440×900, 1024 and 390 are still unmeasured**.
 
 For the remaining QA, use an ordinary throwaway `@example.test` account created through **localhost:3000/register** on the refreshed follow-up preview;
 keep its credentials private and delete the account after testing. Port 3000 serves the PR #80
@@ -126,7 +156,7 @@ no time-based freshness inference is used as production-image evidence.
 
 ## The argument against this change
 
-The 1710×895 result does not establish the 1440×900 acceptance target. This is not ready to merge
+The 1710×895 and 1710×951 results do not establish the 1440×900 acceptance target. This is not ready to merge
 until the revised rendered board meets the requested measurements and the
 phone controls and player-return flow have been exercised. The denser layout trades some touch
 space and immediate scoring explanations for more visible players, and weekly columns require
@@ -134,9 +164,9 @@ horizontal scrolling on phones. The compatibility fallback adds one failed reque
 while the old API runs, and should be removed only after the production route is verified live.
 A failure to fit 16 rows, an inaccessible mobile control, horizontal page overflow or a changed
 logged-out landing is a reason to revise the implementation, regardless of passing builds.
-The added persistent band consumes vertical space, so the prior 17-row result must be measured
-again. Horizontal header alignment, pinned rank, and behavior at the bottom of the table also
-need a real-browser check; compilation cannot establish those outcomes.
+Claude measured 18 rows and aligned sticky labels on rebuilt `cde743b`. The tier-only revision
+still needs a rendered density check, including the required widths, pinned rank, and behavior
+at the bottom of the table; compilation cannot establish those outcomes.
 
 ## Original gate transcript — 2026-11-02
 
@@ -346,6 +376,130 @@ SCHEMA
 DATA
   ok    rows        stats 117,820 · players 25,069 · games 1,965 (+3,341 since the docs)
   warn  ingest      local mirror last refreshed 2026-10-14 05:16, 20d 6h ago -- ./scripts/ingest-once.sh when you need current weeks
+  warn  hero        landing hero shows 2026 through Week 6, but Week 8 finished 2026-11-02 -- the mirror is complete only through Week 5: ./scripts/ingest-once.sh, then re-capture it (docs/map.md §4)
+  ok    launchd     not installed -- by design since 2026-09-29; production is the only scheduled ingest (DEPLOY health)
+  ok    jar         source hash matches the jar (5462c2a33802)
+
+DEPLOY
+  ok    liveness    https://api.fantasykai.com is up
+  ok    health      aggregate UP
+
+CLAIMS  (a number here disagreeing with the baseline means the tree or the baseline moved)
+  ok    tests       428
+  ok    endpoints   24
+  ok    backend     129
+  ok    frontend    97
+  ok    migrations  11
+
+not checked here: does the suite pass · does the frontend build
+  the gates for those are in CONTRIBUTING.md under "Review pass".
+
+0 FAIL · 0 drift · 4 warn · 0 unknown
+```
+
+## Tier-label review and gates — 2026-11-03
+
+Reviewed every changed hunk for table semantics, column counts, tiers-off behavior, horizontal
+header synchronization, and shared landing imports. Overview has 10 columns and Usage 12,
+plus one when movement is shown; row-group separators span that same count. The hidden native
+header uses the same labels as the visible sticky band. Tiers-off renders no separator. Ranking,
+movement, URL, account and overlay logic are untouched. No backend code, schema, queries,
+rounding, cache, transactional behavior, dependencies or data computation changed; the invariant
+and failure-class checks above remain unchanged. No new tests mirror this presentation markup.
+
+The S-tier text now sits on Well; its measured contrast is **7.40:1**, already recorded as 7.4
+for ki/Well in globals.css. No new colors or global styles were introduced. The landing routes
+and components remain unchanged. The strongest remaining objection is the unmeasured rendered
+result at the requested viewport sizes; the 16px separators are a source-level target, not a
+browser measurement. No additional account was created or deleted, and no merge or deploy ran.
+
+All source edits were completed before the following build. Only this review transcript changed
+after it; the local port-3000 preview was then restarted from that build. Local Java verification
+was not repeated for this markup-only change; GitHub CI runs it. `git diff --check` passed.
+
+`lint`
+
+```text
+> frontend@0.1.0 lint
+> eslint
+```
+
+`test`
+
+```text
+✔ board display URL (0.355ms)
+ℹ tests 106
+ℹ suites 34
+ℹ pass 106
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 169.090292
+```
+
+`build`
+
+```text
+> frontend@0.1.0 build
+> next build
+
+▲ Next.js 16.4.3 (Turbopack)
+✓ Running next.config.ts took 80ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 645ms
+  Running TypeScript ...
+  Finished TypeScript in 1078ms ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/9) ...
+  Generating static pages using 7 workers (2/9)
+  Generating static pages using 7 workers (4/9)
+  Generating static pages using 7 workers (6/9)
+✓ Generating static pages using 7 workers (9/9) in 104ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /(.)players/[id]
+├ ƒ /login
+├ ƒ /players/[id]
+├ ƒ /profiles
+├ ƒ /rankings
+├ ƒ /register
+├ ƒ /teams
+└ ƒ /teams/[id]
+
+
+ƒ Proxy (Middleware)
+
+ƒ  (Dynamic)  server-rendered on demand
+```
+
+`session`
+
+```text
+fantasy-kai — session check · 2026-11-03 16:48 CST
+
+TOOLCHAIN
+  ok    java        25.0.4.1 at ~/Library/Java/JavaVirtualMachines/jdk-25.0.4.1+1/Contents/Home
+  ok    docker      postgres healthy · redis healthy (:5433, :6379)
+  ok    node        v24.21.0 (.nvmrc wants 24.21.0)
+  ok    env         .env present · JWT_SECRET 57 bytes
+
+REPO
+  warn  branch      codex/dense-rankings-2026-11-02, 3 uncommitted file(s)
+  ok    sync        level with origin/codex/dense-rankings-2026-11-02
+  warn  branches    merged into origin/main, safe to delete: feat/leagues-s0 feat/leagues-s1 feat/projections-backtest redesign/foundations redesign/landing redesign/player redesign/rankings
+  ok    github      2 open PR(s) · last CI on main: success
+
+SCHEMA
+  ok    migrations  V1..V11 applied, all 11 checksums match the files on disk
+
+DATA
+  ok    rows        stats 117,820 · players 25,069 · games 1,965 (+3,341 since the docs)
+  warn  ingest      local mirror last refreshed 2026-10-14 05:16, 20d 12h ago -- ./scripts/ingest-once.sh when you need current weeks
   warn  hero        landing hero shows 2026 through Week 6, but Week 8 finished 2026-11-02 -- the mirror is complete only through Week 5: ./scripts/ingest-once.sh, then re-capture it (docs/map.md §4)
   ok    launchd     not installed -- by design since 2026-09-29; production is the only scheduled ingest (DEPLOY health)
   ok    jar         source hash matches the jar (5462c2a33802)

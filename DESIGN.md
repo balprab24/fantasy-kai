@@ -266,7 +266,7 @@ window, player count and data-through week in one compact metadata line.
   calibration gate is held. Below 1024px use the compact top bar and menu.
 - **Density contract:** at 1440×900 the first player row must start within 220px of the top,
   with at least 16 complete player rows visible. Rows target 38px (maximum 44px), with 36px
-  avatars; tier bands are 24px and carry the column names. A persistent 24px label band sits below
+  avatars; tier separators target 16px and contain only the tier name. A persistent 24px label band sits below
   the top bar while scrolling, aligned with the horizontally scrolling table. Wide tables scroll inside their panel
   and pin the rank column. No horizontal page scroll. These are acceptance targets until browser
   measurements are recorded in the review, not claims that a screenshot has already proved them.
@@ -359,8 +359,9 @@ Ranks, recent figures and usage come from `/api/v1/rankings/board`; the browser 
 and compares ranks across scoring changes. Explicit null stays a dash, while zero stays zero.
 Per-game figures in starter range carry a quiet 10% Starter Green tint with green text, and the
 other figures stay ink/faint on Well. The legend is in Filters and the rank meaning in the tooltip.
-Tier bands carry the labels; S keeps its orange letter. The November 3 QA follow-up keeps column
-labels visible beneath the top bar mid-tier. Both bands and rows use the same column grid: rank,
+Tier bands contain only the tier name; S keeps its orange text. The November 3 QA follow-up keeps
+column labels in one persistent band beneath the top bar. A hidden native table header preserves
+column associations for assistive technology. The label band and rows use the same column grid: rank,
 player and weekly details have bounded widths; the other columns share the remaining space.
 Usage has separate Pass att, Carries and Targets cells, with zero distinct from missing data.
 Movement remains neutral, with the full
