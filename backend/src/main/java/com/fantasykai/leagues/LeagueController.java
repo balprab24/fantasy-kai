@@ -34,9 +34,11 @@ import org.springframework.web.bind.annotation.RestController;
 class LeagueController {
 
     private final LeagueService leagues;
+    private final TeamNeeds needs;
 
-    LeagueController(LeagueService leagues) {
+    LeagueController(LeagueService leagues, TeamNeeds needs) {
         this.leagues = leagues;
+        this.needs = needs;
     }
 
     /** A Sleeper account's leagues. Stores nothing: picking one is a separate request. */
@@ -62,6 +64,12 @@ class LeagueController {
     @GetMapping("/{id}")
     LeagueView get(@PathVariable long id, @AuthenticationPrincipal Long userId) {
         return leagues.view(userId, id);
+    }
+
+    /** Plan S2: each starting slot's rest-of-season expectation against the league median. */
+    @GetMapping("/{id}/needs")
+    TeamNeeds.View needs(@PathVariable long id, @AuthenticationPrincipal Long userId) {
+        return needs.view(userId, id);
     }
 
     @PostMapping("/{id}/sync")

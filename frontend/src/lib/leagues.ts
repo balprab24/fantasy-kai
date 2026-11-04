@@ -1,4 +1,4 @@
-import type { RosterSpot, UnmodeledItem } from "./types";
+import type { RosterSpot, SlotNeed, UnmodeledItem } from "./types";
 
 /**
  * A member's imported league, put into words: lineup slots, what the league
@@ -109,4 +109,33 @@ function list(parts: string[]): string {
 /** "Pass attempts" reads "pass attempts" mid-sentence; a raw key stays as it is. */
 function lowerFirst(label: string): string {
   return /^[A-Z][a-z]/.test(label) ? label[0].toLowerCase() + label.slice(1) : label;
+}
+
+/** One decimal, as a week of points is read: "11.2". */
+export function perWeek(points: number): string {
+  return points.toFixed(1);
+}
+
+/**
+ * A slot's surplus or deficit against the league median, signed: "+2.4", "−2.7" (a true minus),
+ * "±0.0" when level. The sign carries it; colour is only the second cue (DESIGN.md).
+ */
+export function signedDiff(diff: number): string {
+  const rounded = Math.round(diff * 10) / 10;
+  if (rounded === 0) return "±0.0";
+  return rounded > 0 ? `+${rounded.toFixed(1)}` : `−${Math.abs(rounded).toFixed(1)}`;
+}
+
+/** "weeks 9–14" or "week 14": the span the averages cover. */
+export function weekSpan(weeks: number[]): string {
+  if (weeks.length === 0) return "";
+  if (weeks.length === 1) return `week ${weeks[0]}`;
+  return `weeks ${weeks[0]}–${weeks[weeks.length - 1]}`;
+}
+
+/** The modelled slot furthest below the league median: where a member reads first. */
+export function weakestSlot(slots: SlotNeed[]): SlotNeed | null {
+  const scored = slots.filter((s) => s.modeled && s.diff !== null);
+  if (scored.length === 0) return null;
+  return scored.reduce((worst, s) => ((s.diff ?? 0) < (worst.diff ?? 0) ? s : worst));
 }

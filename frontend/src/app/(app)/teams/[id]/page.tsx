@@ -5,9 +5,21 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, api } from "@/lib/api";
-import { lineupSentence, record, slotLabel, slotOrder, spotName, syncedAgo, unmodeledNotices } from "@/lib/leagues";
+import {
+  lineupSentence,
+  perWeek,
+  record,
+  signedDiff,
+  slotLabel,
+  slotOrder,
+  spotName,
+  syncedAgo,
+  unmodeledNotices,
+  weakestSlot,
+  weekSpan,
+} from "@/lib/leagues";
 import { useProfiles } from "@/lib/queries";
-import type { League, LeagueTeam, RosterSpot } from "@/lib/types";
+import type { League, LeagueTeam, PlayerOutlook, RosterSpot, TeamNeedsView } from "@/lib/types";
 import { Icon } from "@/components/ui/Icon";
 import { PositionChip } from "@/components/ui/PositionChip";
 import { Skeleton, StatusMessage } from "@/components/ui/StatusMessage";
@@ -36,10 +48,18 @@ export default function LeaguePage() {
     queryFn: () => api<League>(`/api/v1/leagues/${encodeURIComponent(id)}`),
   });
   const [confirming, setConfirming] = useState(false);
+  // Computed on read from the league's own ruleset (plan S2); nothing to ask for without a team.
+  const needs = useQuery({
+    queryKey: ["league-needs", Number(id)],
+    queryFn: () => api<TeamNeedsView>(`/api/v1/leagues/${encodeURIComponent(id)}/needs`),
+    enabled: league.isSuccess && league.data.myTeamExternalId !== null,
+    retry: false,
+  });
 
   const store = (updated: League) => {
     queryClient.setQueryData(["league", updated.id], updated);
     void queryClient.invalidateQueries({ queryKey: ["leagues"] });
+    void queryClient.invalidateQueries({ queryKey: ["league-needs", updated.id] });
   };
 
   const sync = useMutation({
@@ -95,6 +115,9 @@ export default function LeaguePage() {
         <LeagueView
           league={league.data}
           profileName={profiles.data?.find((p) => p.id === league.data.scoringProfileId)?.name ?? null}
+          needs={needs.data ?? null}
+          needsState={needs.isPending ? "loading" : needs.isError ? "error" : "ready"}
+          needsError={needs.isError ? errorText(needs.error) : null}
           onSync={() => sync.mutate()}
           syncing={sync.isPending}
           syncError={sync.isError ? errorText(sync.error) : null}
@@ -143,6 +166,9 @@ export default function LeaguePage() {
 function LeagueView({
   league,
   profileName,
+  needs,
+  needsState,
+  needsError,
   onSync,
   syncing,
   syncError,
@@ -152,6 +178,9 @@ function LeagueView({
 }: {
   league: League;
   profileName: string | null;
+  needs: TeamNeedsView | null;
+  needsState: "loading" | "error" | "ready";
+  needsError: string | null;
   onSync: () => void;
   syncing: boolean;
   syncError: string | null;
@@ -204,7 +233,7 @@ function LeagueView({
             </label>
           </div>
           {mine ? (
-            <Roster team={mine} season={league.season} profileId={league.scoringProfileId} />
+            <Roster team={mine} season={league.season} profileId={league.scoringProfileId} needs={needs} />
           ) : (
             <p className="border-t border-line px-5 py-5 text-[15px] text-mute sm:px-6">
               Your Sleeper account does not manage a team here. Pick the one that is yours to see its roster.
@@ -220,6 +249,8 @@ function LeagueView({
         </section>
 
         <div className="grid gap-5 lg:col-span-5">
+          {mine && <NeedsPanel needs={needs} state={needsState} error={needsError} />}
+
           <section aria-labelledby="scoring-title" className={PANEL}>
             <h2 id="scoring-title" className="type-heading px-5 pt-5 pb-4 sm:px-6">Scoring</h2>
             <div className="space-y-3 border-t border-line px-5 py-5 text-[15px] leading-relaxed sm:px-6">
@@ -306,7 +337,122 @@ function LeagueView({
   );
 }
 
-function Roster({ team, season, profileId }: { team: LeagueTeam; season: number; profileId: number | null }) {
+/**
+ * Each starting slot against the league median over the weeks left, from every team's best
+ * lineup each week. One quality hue: a surplus is Starter Green, a deficit stays ink and carries
+ * its minus sign -- never red, which is RB's (DESIGN.md, One Quality Hue Rule).
+ */
+function NeedsPanel({
+  needs,
+  state,
+  error,
+}: {
+  needs: TeamNeedsView | null;
+  state: "loading" | "error" | "ready";
+  error: string | null;
+}) {
+  const weakest = needs ? weakestSlot(needs.slots) : null;
+  return (
+    <section aria-labelledby="needs-title" className={PANEL}>
+      <h2 id="needs-title" className="type-heading px-5 pt-5 pb-1 sm:px-6">Team needs</h2>
+      {state === "loading" ? (
+        <div className="space-y-3 px-5 pt-3 pb-5 sm:px-6">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-28 w-full" />
+        </div>
+      ) : state === "error" || !needs ? (
+        <p role="alert" className="px-5 pt-2 pb-5 text-[15px] leading-relaxed text-danger sm:px-6">
+          {error ?? "Team needs could not be worked out."}
+        </p>
+      ) : needs.weeks.length === 0 ? (
+        <p className="px-5 pt-2 pb-5 text-[15px] leading-relaxed text-mute sm:px-6">
+          No regular-season weeks are left before this league&rsquo;s playoffs, so there is nothing to project.
+        </p>
+      ) : (
+        <>
+          <p className="max-w-[56ch] px-5 pb-4 text-[15px] leading-relaxed text-mute sm:px-6">
+            Your best lineup each week against the league&rsquo;s median team, in points a week over{" "}
+            {weekSpan(needs.weeks)}.
+            {weakest && (weakest.diff ?? 0) < 0 && (
+              <>
+                {" "}
+                Furthest behind: <span className="font-semibold text-ink">{weakest.label}</span>,{" "}
+                {signedDiff(weakest.diff ?? 0)} a week.
+              </>
+            )}
+          </p>
+          {/* Fixed layout: the name takes what the figures leave, instead of being squeezed to "Dr…". */}
+          <table className="w-full table-fixed border-t border-line text-[14px]">
+            <colgroup>
+              <col className="w-[4.5rem] sm:w-20" />
+              <col />
+              <col className="w-14" />
+              <col className="w-14" />
+              <col className="w-[4.5rem] sm:w-20" />
+            </colgroup>
+            <thead className="sr-only">
+              <tr>
+                <th scope="col">Slot</th>
+                <th scope="col">Your starter</th>
+                <th scope="col">You, a week</th>
+                <th scope="col">League median</th>
+                <th scope="col">Difference</th>
+              </tr>
+            </thead>
+            <tbody>
+              {needs.slots.map((slot) => (
+                <tr key={`${slot.slot}-${slot.label}`} className="border-b border-line last:border-b-0">
+                  <th scope="row" className="py-2.5 pl-5 text-left font-label text-[13px] font-semibold text-mute sm:pl-6">
+                    {slot.label}
+                  </th>
+                  {slot.modeled ? (
+                    <>
+                      <td className="truncate py-2.5 pr-3 text-ink">{slot.starterName ?? <span className="text-faint">Empty</span>}</td>
+                      <td className="py-2.5 pr-3 text-right font-label font-semibold text-ink tabular">{perWeek(slot.mine ?? 0)}</td>
+                      <td className="py-2.5 pr-3 text-right font-label text-faint tabular" title="League median">
+                        {perWeek(slot.median ?? 0)}
+                      </td>
+                      <td
+                        className={`py-2.5 pr-5 text-right font-label font-semibold tabular sm:pr-6 ${
+                          (slot.diff ?? 0) > 0.05 ? "text-q-good" : "text-ink"
+                        }`}
+                      >
+                        {signedDiff(slot.diff ?? 0)}
+                      </td>
+                    </>
+                  ) : (
+                    <td colSpan={4} className="py-2.5 pr-5 text-faint sm:pr-6">
+                      Not modelled
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {needs.noProjection > 0 && (
+            <p className="border-t border-line px-5 py-3 text-[13px] leading-relaxed text-mute sm:px-6">
+              {needs.noProjection === 1 ? "One rostered player has" : `${needs.noProjection} rostered players have`} no
+              game to project from yet, so {needs.noProjection === 1 ? "counts" : "count"} as 0.
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function Roster({
+  team,
+  season,
+  profileId,
+  needs,
+}: {
+  team: LeagueTeam;
+  season: number;
+  profileId: number | null;
+  needs: TeamNeedsView | null;
+}) {
+  const outlooks = new Map<string, PlayerOutlook>((needs?.players ?? []).map((p) => [p.externalPlayerId, p]));
   const spots = [...team.roster].sort((a, b) => slotOrder(a.slot) - slotOrder(b.slot));
   if (spots.length === 0) {
     return <p className="border-t border-line px-5 py-5 text-[15px] text-mute sm:px-6">This roster is empty.</p>;
@@ -325,6 +471,16 @@ function Roster({ team, season, profileId }: { team: LeagueTeam; season: number;
             <span className="font-label text-[12px] font-bold text-mute">{spot.position === "DST" ? "D/ST" : spot.position}</span>
           ) : null}
           <span className="w-10 shrink-0 text-right font-label text-[13px] text-faint">{spot.team ?? ""}</span>
+          {needs && (
+            <span
+              className="w-14 shrink-0 text-right font-label text-[13px] text-mute tabular"
+              title={outlooks.get(spot.externalPlayerId)?.perWeek != null ? "Expected points a week, rest of season" : undefined}
+            >
+              {outlooks.get(spot.externalPlayerId)?.perWeek != null
+                ? perWeek(outlooks.get(spot.externalPlayerId)!.perWeek!)
+                : "–"}
+            </span>
+          )}
         </li>
       ))}
     </ul>

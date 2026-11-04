@@ -6,14 +6,18 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
   lineupSentence,
+  perWeek,
   record,
+  signedDiff,
   slotOrder,
   spotName,
   starts,
   syncedAgo,
   unmodeledNotices,
+  weakestSlot,
+  weekSpan,
 } from "../src/lib/leagues.ts";
-import type { RosterSpot, UnmodeledItem } from "../src/lib/types.ts";
+import type { RosterSpot, SlotNeed, UnmodeledItem } from "../src/lib/types.ts";
 
 const item = (key: string, label: string, group: UnmodeledItem["group"], value = 1): UnmodeledItem => ({
   key,
@@ -116,5 +120,36 @@ describe("words", () => {
     };
     assert.equal(spotName(spot), "Not matched (Sleeper player 9999)");
     assert.equal(spotName({ ...spot, kind: "TEAM_DEFENSE", name: "CLE D/ST" }), "CLE D/ST");
+  });
+});
+
+describe("team needs wording", () => {
+  it("signs a difference with a true minus and says level plainly", () => {
+    assert.equal(signedDiff(2.44), "+2.4");
+    assert.equal(signedDiff(-2.7), "−2.7");
+    assert.equal(signedDiff(0.04), "±0.0");
+    assert.equal(signedDiff(-0.04), "±0.0");
+  });
+
+  it("names the span of weeks the averages cover", () => {
+    assert.equal(weekSpan([9, 10, 11, 12, 13, 14]), "weeks 9–14");
+    assert.equal(weekSpan([14]), "week 14");
+    assert.equal(weekSpan([]), "");
+    assert.equal(perWeek(11.25), "11.3");
+  });
+
+  it("finds the weakest modelled slot and ignores K, D/ST and IDP", () => {
+    const slot = (label: string, diff: number | null, modeled = true): SlotNeed => ({
+      slot: label,
+      label,
+      modeled,
+      mine: null,
+      median: null,
+      diff,
+      starterPlayerId: null,
+      starterName: null,
+    });
+    assert.equal(weakestSlot([slot("QB", 3), slot("WR2", -2.7), slot("K", null, false), slot("RB1", -1)])?.label, "WR2");
+    assert.equal(weakestSlot([slot("K", null, false)]), null);
   });
 });

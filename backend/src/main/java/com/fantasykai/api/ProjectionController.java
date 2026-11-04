@@ -9,6 +9,7 @@ import com.fantasykai.projections.ProjectionProvider;
 import com.fantasykai.projections.ProjectionSource;
 import com.fantasykai.projections.SeasonWeek;
 import com.fantasykai.query.ScoringPosition;
+import com.fantasykai.scoring.ExplainedScore;
 import com.fantasykai.scoring.ResolvedRuleset;
 import com.fantasykai.scoring.ScoringEngine;
 import com.fantasykai.scoring.ScoringProfiles;
@@ -24,7 +25,6 @@ import java.text.Normalizer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -107,9 +107,6 @@ public class ProjectionController {
         this.clock = clock;
     }
 
-    /** One stat's share of a projected total: {@code value} x {@code rate} = {@code points}, unrounded. */
-    public record Part(String stat, double value, double rate, double points) {}
-
     /**
      * A projected line, scored.
      *
@@ -121,7 +118,7 @@ public class ProjectionController {
     public record Row(long playerId, String name, String position, String team, String opponent,
             boolean home, Instant kickoff, boolean locked, double points, int gamesUsed,
             String history, Availability availability, String espnId, Instant generatedAt,
-            List<Part> parts, double bonusPoints, int season, int week,
+            List<ExplainedScore.Part> parts, double bonusPoints, int season, int week,
             @JsonIgnore double rawPoints) {}
 
     /** {@code state}: {@code READY}, {@code STALE} or {@code UNAVAILABLE}. */
@@ -220,20 +217,12 @@ public class ProjectionController {
     private Row scored(ResultSet rs, ResolvedRuleset rules, SeasonWeek week,
             Map<Long, Availability> statuses, Instant now) throws SQLException {
         String position = rs.getString("position");
-        double[] rates = rules.ratesFor(position);
         double[] stats = new double[StatKey.COUNT];
-        List<Part> parts = new ArrayList<>();
-        double linear = 0;
         for (StatKey key : StatKey.values()) {
-            double value = rs.getDouble(key.json());
-            double rate = rates[key.index()];
-            stats[key.index()] = value;
-            linear += value * rate;
-            if (value != 0 || rate != 0) {
-                parts.add(new Part(key.json(), value, rate, value * rate));
-            }
+            stats[key.index()] = rs.getDouble(key.json());
         }
-        double points = ScoringEngine.score(new StatLine(position, stats), rules);
+        ExplainedScore explained = ExplainedScore.of(new StatLine(position, stats), rules);
+        double points = explained.total();
 
         long id = rs.getLong("player_id");
         Timestamp kickoffAt = rs.getTimestamp("kickoff_at");
@@ -246,7 +235,7 @@ public class ProjectionController {
                 ScoringEngine.roundForDisplay(points), gamesUsed,
                 gamesUsed < ESTABLISHED_GAMES ? "LIMITED" : "ESTABLISHED",
                 statuses.getOrDefault(id, Availability.unknown(week)), rs.getString("espn_id"),
-                rs.getTimestamp("generated_at").toInstant(), parts, points - linear,
+                rs.getTimestamp("generated_at").toInstant(), explained.parts(), explained.bonusPoints(),
                 week.season(), week.week(), points);
     }
 

@@ -4,13 +4,17 @@ import com.fantasykai.query.ScoringPosition;
 import com.fantasykai.query.StatColumns;
 import com.fantasykai.query.Usage;
 import com.fantasykai.scoring.StatKey;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.SqlTypeValue;
 import org.springframework.stereotype.Component;
 
 /**
@@ -54,6 +58,14 @@ public class JdbcProjectionInputs {
                AND (s.season, s.week) < (?, ?)
             """.formatted(StatColumns.SELECT_LIST, Usage.SELECT_LIST, POSITIONS);
 
+    /**
+     * Some players only. A literal fragment with one bound array: {@code player_game_stats}'s
+     * primary key leads with {@code player_id}, so this reads by index -- 200 players in ~30 ms
+     * locally (2026-10-30) -- where the whole read is two sequential scans.
+     */
+    private static final String STATS_FOR_PLAYERS = " AND s.player_id = ANY (?)";
+    private static final String APPEARANCES_FOR_PLAYERS = " AND a.player_id = ANY (?)";
+
     private static final String ZERO_STAT_APPEARANCES = """
             SELECT a.player_id, p.gsis_id, g.nflverse_game_id, g.season, g.week
               FROM player_game_appearances a
@@ -81,12 +93,41 @@ public class JdbcProjectionInputs {
     public Map<Long, PlayerHistory> histories(SeasonWeek target) {
         Object[] args = Stream.concat(ScoringPosition.ALL.stream(),
                 Stream.of(target.season(), target.week())).toArray();
+        return histories(target, STAT_ROWS, ZERO_STAT_APPEARANCES, args);
+    }
+
+    /**
+     * The same histories for {@code playerIds} only, built by the same code -- the read a request
+     * may make (a league's rostered players), where {@link #histories(SeasonWeek)} is the job's.
+     */
+    public Map<Long, PlayerHistory> histories(SeasonWeek target, Collection<Long> playerIds) {
+        if (playerIds.isEmpty()) {
+            return Map.of();
+        }
+        Long[] ids = playerIds.toArray(Long[]::new);
+        Object[] args = Stream.concat(Stream.concat(ScoringPosition.ALL.stream(),
+                Stream.of(target.season(), target.week())), Stream.of((Object) new SqlArray(ids))).toArray();
+        return histories(target, STAT_ROWS + STATS_FOR_PLAYERS,
+                ZERO_STAT_APPEARANCES + APPEARANCES_FOR_PLAYERS, args);
+    }
+
+    /** A bigint[] bound through the JDBC connection, so the filter is one parameter. */
+    private record SqlArray(Long[] ids) implements SqlTypeValue {
+        @Override
+        public void setTypeValue(PreparedStatement ps, int index, int sqlType, String typeName)
+                throws SQLException {
+            ps.setArray(index, ps.getConnection().createArrayOf("bigint", ids));
+        }
+    }
+
+    private Map<Long, PlayerHistory> histories(SeasonWeek target, String statRows, String appearances,
+            Object[] args) {
         Map<Long, List<HistoricalGame>> games = new TreeMap<>();
         // player -> week -> where each game came from, for a diagnosis that names them all.
         Map<Long, Map<SeasonWeek, List<String>>> sources = new TreeMap<>();
         Map<Long, String> gsisIds = new TreeMap<>();
 
-        jdbc.query(STAT_ROWS, rs -> {
+        jdbc.query(statRows, rs -> {
             Usage usage = Usage.read(rs);
             SeasonWeek when = new SeasonWeek(rs.getInt("season"), rs.getInt("week"));
             long player = rs.getLong("player_id");
@@ -96,7 +137,7 @@ public class JdbcProjectionInputs {
                     rs.getString("nflverse_game_id") + " (stat row)");
         }, args);
 
-        jdbc.query(ZERO_STAT_APPEARANCES, rs -> {
+        jdbc.query(appearances, rs -> {
             SeasonWeek when = new SeasonWeek(rs.getInt("season"), rs.getInt("week"));
             long player = rs.getLong("player_id");
             games.computeIfAbsent(player, id -> new ArrayList<>()).add(

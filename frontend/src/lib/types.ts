@@ -241,3 +241,38 @@ export interface League {
   schedule: LeagueWeek[];
   unmatched: number;
 }
+
+/** `TeamNeeds.View` in the API (league plan S2). Points rounded once, by the server. */
+export interface SlotNeed {
+  slot: string;
+  label: string;
+  /** False for K, D/ST and IDP slots: listed, never scored. */
+  modeled: boolean;
+  mine: number | null;
+  median: number | null;
+  diff: number | null;
+  starterPlayerId: number | null;
+  starterName: string | null;
+}
+
+export interface PlayerOutlook {
+  externalPlayerId: string;
+  playerId: number | null;
+  status: "PROJECTED" | "NO_PROJECTION" | "NOT_MODELED";
+  availability: string;
+  /** Mean over the remaining weeks, byes and absences counted as 0. */
+  perWeek: number | null;
+  perGame: number | null;
+  weeks: { week: number; points: number }[];
+  parts: { stat: string; value: number; rate: number; points: number }[];
+  bonusPoints: number | null;
+}
+
+export interface TeamNeedsView {
+  season: number;
+  weeks: number[];
+  myTeamExternalId: string | null;
+  slots: SlotNeed[];
+  players: PlayerOutlook[];
+  noProjection: number;
+}

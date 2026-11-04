@@ -26,6 +26,11 @@ class LeagueExceptionHandler {
         return problem(HttpStatus.CONFLICT, "League already imported", e.getMessage());
     }
 
+    @ExceptionHandler(LeagueNotScoredException.class)
+    ProblemDetail notScored(LeagueNotScoredException e) {
+        return problem(HttpStatus.CONFLICT, "League has no ruleset", e.getMessage());
+    }
+
     @ExceptionHandler(LeagueSyncTooSoonException.class)
     ResponseEntity<ProblemDetail> tooSoon(LeagueSyncTooSoonException e) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
