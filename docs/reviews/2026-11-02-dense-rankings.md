@@ -280,11 +280,10 @@ preview was rebuilt from the working tree before each run.
 
 Also checked: with `/api/v1/rankings/board` forced to 404 (CDP `Fetch`), the board falls back,
 keeps derived ranks and bands (finding 9) and says "Extended stats coming shortly"
-(`assets/2026-11-03-dense-legacy-fallback-1440.png`). The 1024 image predates finding 8's
-lg-and-up revert; that change does not alter 1024 rendering, where the table no longer scrolls.
+(`assets/2026-11-03-dense-legacy-fallback-1440.png`).
 
-![1024×900](assets/2026-11-03-dense-1024.png)
-![390×844](assets/2026-11-03-dense-390.png)
+![1024×900 — refreshed November 11](2026-11-02-dense-rankings/rankings-1024.png)
+![390×844 — refreshed November 11](2026-11-02-dense-rankings/rankings-390.png)
 
 **Gates for this revision:** lint clean; `npm test` 108 pass, 0 fail (106 + 2 legacy-row tests);
 `tsc --noEmit` clean; `npm run build` compiled; `session-check` 0 FAIL, 0 drift (4 warn: branch
