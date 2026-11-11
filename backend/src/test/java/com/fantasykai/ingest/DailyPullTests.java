@@ -16,6 +16,7 @@ import com.fantasykai.projections.ProjectionProperties;
 import com.fantasykai.projections.ProjectionRun;
 import com.fantasykai.projections.SeasonWeek;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
@@ -141,7 +142,7 @@ class DailyPullTests {
         return new DailyPull(ingest, job, new ProjectionProperties("weighted-average-v1", jobEnabled),
                 new IngestRunRecorder(db.jdbc),
                 new IngestProperties("https://example.invalid", "https://example.invalid", 2020,
-                        "0 0 6 * * *", false, false, false),
+                        "0 0 6 * * *", false, false, false, Duration.ofMinutes(3)),
                 clock);
     }
 

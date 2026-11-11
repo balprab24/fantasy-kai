@@ -93,6 +93,10 @@ fantasykai:
     # IngestOnceRunner. `once` is what scripts/ingest-once.sh sets.
     backfill-on-startup: false
     once: false
+    # One nflverse download, headers and body together. The largest asset
+    # (stats_player_week, 8.7 MB) took 0.60 s when measured on 2026-09-24, so
+    # this is a stall guard, not a speed limit.
+    fetch-timeout: 3m
 
   # League import (league plan S1). LeagueProperties documents each value.
   leagues:
