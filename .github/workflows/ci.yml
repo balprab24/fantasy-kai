@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
   schedule:
     # Weekly, so the vulnerability scan keeps running between commits.
     - cron: '0 6 * * 1'
@@ -69,6 +68,10 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Dependency audit
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
   # Handoff section 8: "mvn dependency-check in CI." Separate job so a CVE in a
   # transitive dependency reports without blocking a green test run, and
   # scheduled so it keeps finding things after the last commit lands -- a
@@ -101,7 +104,7 @@ jobs:
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping the vulnerability scan: no NVD_API_KEY secret." \
+            echo "::warning::Skipping the vulnerability scan: no NVD_API_KEY secret." \
               "Get a free key at https://nvd.nist.gov/developers/request-an-api-key" \
               "and add it under Settings > Secrets and variables > Actions."
           fi
