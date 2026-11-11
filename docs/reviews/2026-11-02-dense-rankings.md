@@ -4,38 +4,81 @@ Branch `codex/dense-rankings-2026-11-02`, created in a fresh worktree from main 
 This is separate from the S2/S3 PR so the layout can remain draft until visual acceptance.
 No new dependency. No change to the public landing's source or rendering components.
 
-## Rebase verification — 2026-11-10
+## Current verification — November 11, 2026
 
-Rebased all five PR commits onto current `origin/main` (`ad576b5`) on a separate worktree.
-Main's team-needs helpers, `SlotNeed` tests/types, and backend baselines remain intact.
-Only the PR's league-collection 404 helper/test and frontend file-count delta were reapplied
-in the conflicted files. No backend file differs from main; no pre-redesign tokens or styles
-were restored. The new rail uses main's existing Icon, navigation, and palette.
+Fresh standalone headless Playwright QA, explicitly approved by the owner, ran on the rebased
+branch at `http://localhost:3002` with the real local API on `localhost:8080`. The production
+build was rebuilt and restarted after the spacing change. Playwright and its scripts live only
+in `/private/tmp/dense-qa-playwright`; no dependency or configuration was added to the project.
+One throwaway `@example.test` account was created through the ordinary registration UI and
+used through ordinary login. Cleanup deleted exactly that account: `DELETE 1`, zero matching
+accounts remaining. No authentication bypass and no fabricated rankings data.
 
-Obsolete diff: one functional deletion (Trades was already absent from main), plus one
-unnecessary blank line in the league test imports. The original text diff was 1,738 changed
-lines; these two lines are 0.12%, below the owner's approximately 30% stop threshold.
-The rebased feature diff before this documentation correction is 1,304 additions and 432 deletions.
+### Measurements — Overview and Usage both pass
 
-Gates: frontend lint passed, **111 tests passed, 0 failures/cancelled/skipped/todo**, and
-`next build` passed. Backend verify **not run**: no backend changes. Session check
-`--no-network`: **0 drift**, 2 FAIL (missing .env and jar in the fresh worktree), 2 warnings,
-7 unknowns (Docker/network-dependent checks unavailable in the sandbox). `git diff --check` passed.
+Measured at scroll position zero, default Half PPR / 2026 / Season / all positions, tiers on.
+The real backend supplied 496 total players (200 initially loaded), data through Week 5.
 
-**Current browser acceptance is blocked, not passed.** The supported Browser runtime returned
-`Browser is not available: iab`; discovery returned no browsers. No QA account was created.
-The owner has been asked whether standalone Playwright may be used. The November 3 screenshots
-and measurements below are historical, and do not establish acceptance of this rebased tree.
-In particular, the historical **390×844 count is 15 complete rows**, which misses task 3's
-16-row requirement. A fresh three-width check, any required density correction, scoring
-re-sort, URL/overlay, Filters and My Teams checks remain outstanding. Keep PR #80 draft;
-no narrow-width acceptance or waiver is recorded.
+| Viewport | First player row top | Fully visible player rows | Row height | Page scrollWidth | Control rows |
+|---|---:|---:|---:|---:|---:|
+| 1440×900 | 181px | 18 | 38px | 1440px | 1 |
+| 1024×900 | 181px | 18 | 38px | 1024px | 1 |
+| 390×844 | 203px | **16** | **38px** | 390px | 2 |
 
-Review: checked the range-diff and all conflict resolutions for loss of main's additions,
-shared design tokens, route/auth changes, and baseline regressions. Scoring/SQL/schema/auth
-invariants are unchanged. The strongest argument against merging remains the unverified
-rebased UI and the known historical mobile density shortfall. These are explicitly left
-open pending a usable browser; no acceptance claim is inferred from source dimensions.
+The initial fresh phone measurement was 219px / 15 rows. Only mobile non-row chrome was
+changed: remove 8px workspace top padding, reduce the control strip's vertical padding from
+6px to 4px per side, and reduce the metadata band's minimum height/padding. The first row
+moves up 16px. Desktop spacing, 38px player rows, 32px control targets, top bar and menu target
+sizes are unchanged. No row shrinking and no 15-row waiver needed.
+
+### Interaction results
+
+- **Filters:** opened the panel, selected QB, and observed a real board response change the
+  loaded population from 200 to 55 players, all QB. Unchecking Show tiers removed every tier
+  separator. Clear position/search and Close filters worked. Screenshot retains the open panel.
+- **My Teams 404:** a temporary local HTTP backend returned 404 for the league collection;
+  Playwright forwarded only `/api/v1/leagues` to it. All other API calls used the real backend.
+  “League import is coming to your account shortly” rendered; no error banner or retry appeared.
+  Next's empty route-announcement alert is not an error banner. The temporary server was closed.
+- **Scoring:** switching Half PPR to PPR changed the first 20 players' ordering; the selected
+  profile survived reload. The player overlay opened from a row and closed with Escape.
+
+### Fresh screenshots (replace the previous acceptance evidence)
+
+| Capture | Overview | Usage |
+|---|---|---|
+| 1440×900 | [rankings-1440.png](2026-11-02-dense-rankings/rankings-1440.png) | [rankings-usage-1440.png](2026-11-02-dense-rankings/rankings-usage-1440.png) |
+| 1024×900 | [rankings-1024.png](2026-11-02-dense-rankings/rankings-1024.png) | [rankings-usage-1024.png](2026-11-02-dense-rankings/rankings-usage-1024.png) |
+| 390×844 | [rankings-390.png](2026-11-02-dense-rankings/rankings-390.png) | [rankings-usage-390.png](2026-11-02-dense-rankings/rankings-usage-390.png) |
+
+[My Teams 404](2026-11-02-dense-rankings/my-teams-404.png) ·
+[Filters with QB applied and tiers off](2026-11-02-dense-rankings/filters-qb.png)
+
+### Gates and scope
+
+Frontend lint passed, **111 tests passed, zero failures/cancelled/skipped/todo**, and
+`next build` passed after the spacing change using Node 24.21.0. Backend verify **not run**:
+no backend file differs from main. Session check `--no-network`: **0 drift**, 2 FAIL
+(missing .env and jar), 2 warnings and 6 unknowns. The session script's database queries were
+unknown, but browser QA read actual rankings successfully. `git diff --check` passed.
+
+The five PR commits were rebased onto `origin/main` (`ad576b5`). Main's team-needs helpers,
+SlotNeed tests/types and backend baselines remain intact. Only the PR's 404 helper/test and
+frontend file-count delta were reapplied in conflicts. The already-applied Trades deletion
+and one blank line were dropped: 2 of 1,738 original changed text lines (0.12%), below 30%.
+No pre-redesign tokens/styles were restored. The rail uses main's icons/navigation/palette.
+
+Review: checked padding-only scope, unchanged tap and row sizes, real-data filter/scoring
+behavior, 404 classification and account cleanup. No new findings. SQL/schema/auth/scoring
+invariants are unchanged. The strongest argument against merging remains the product tradeoff:
+phones need internal horizontal scrolling to reach numeric columns. Historical exhaustive
+sticky-alignment and scroll-restoration checks were not repeated in this targeted run; the
+required viewport, Filters and My Teams checks above are fresh. Keep PR #80 **draft**; no merge.
+
+## Historical evidence — superseded by the November 11 results above
+
+The following dated reports preserve the original investigation and gate transcripts. Their
+old counts and pending states are historical; the table above is the current acceptance record.
 
 ## Findings
 
@@ -68,7 +111,7 @@ open pending a usable browser; no acceptance claim is inferred from source dimen
    with `scope="rowgroup"` and the correct Overview/Usage/movement colspan. Column names are
    drawn once by `ColumnHeaders` in the sticky band and retained in a visually hidden native
    thead for assistive technology. Turning tiers off removes the separators entirely. Claude
-   confirmed 16px tier-only bands and accessible labels on `c3e5cd1`; narrow widths remain open.
+   confirmed 16px tier-only bands and accessible labels on `c3e5cd1`; fresh narrow-width results are now recorded above for November 11.
 7. **P1, fixed (Claude, 2026-11-03):** at 1024 the board clipped "Last 4 weeks". The table's
    minimum width was 1040px against 902px available beside the rail, so the last column sat
    behind a horizontal scroll. Minimums are now 880px Overview / 900px Usage (944 / 964 with the
@@ -161,7 +204,9 @@ Claude found the sticky labels repeated in the first tier band, costing 25px. Th
 removes column names from every tier band and uses shorter tier-only separators. Do not subtract
 25px from the supplied first-row measurement and present that as a new observation; remaining
 tier markers still occupy space. No new screenshot accompanied this second report. Chrome was
-still full-screen and could not resize; **1440×900, 1024 and 390 had not yet been measured at that stage**. The later November 3 responsive QA below supersedes that historical gap; it does not verify the rebased tree.
+still full-screen and could not resize. **Fresh November 11 QA now verifies all three widths:**
+1440×900 and 1024×900 show 18 complete rows, and 390×844 shows 16; every row is 38px,
+with no horizontal page overflow. See the current verification table above.
 
 ### Accepted wide-screen QA — c3e5cd1, supplied by the owner
 
@@ -181,8 +226,9 @@ This timing is supplied QA context; Codex did not use timestamps to establish ar
 | Accessible labels | Visible duplicate hidden from screen readers; native labels available |
 | Decision | Wide-screen layout accepted; PR remains draft |
 
-No new screenshot accompanied this report. **1024, 390 and 1440×900 were unmeasured at this stage** because Chrome
-was full-screen. The subsequent November 3 responsive QA below records those measurements. Acceptance at 1710×951 is not recorded
+**Fresh screenshots and measurements are now recorded for November 11:** 18 rows at
+1440×900 and 1024×900, 16 at 390×844, all 38px high. The current verification table and
+screenshot links above replace the earlier viewport gap. Acceptance at 1710×951 is not recorded
 as a waiver of the other widths. The owner requires the PR to remain draft until narrow QA
 passes or they explicitly waive it. No such waiver, merge or deployment authorization was given.
 

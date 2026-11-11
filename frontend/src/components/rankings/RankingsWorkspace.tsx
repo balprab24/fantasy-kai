@@ -177,7 +177,7 @@ export function RankingsWorkspace() {
   };
 
   return (
-    <div className="mx-auto max-w-[1600px] px-2 pt-2 pb-8 sm:px-4">
+    <div className="mx-auto max-w-[1600px] px-2 pt-0 pb-8 sm:px-4 sm:pt-2">
       <h1 className="sr-only">Rankings</h1>
       <FilterBar
         profiles={profiles.data} profileId={profileId} onProfile={(id) => write({ profileId: id })}
@@ -187,7 +187,7 @@ export function RankingsWorkspace() {
         position={position} onPosition={(p) => write({ position: p })}
         find={find} onFind={onFind} filtersOpen={filtersOpen} onFilters={() => setFiltersOpen(!filtersOpen)}
       />
-      <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-3 py-1 text-[12px] text-mute">
+      <div className="flex min-h-6 flex-wrap items-center justify-between gap-x-3 py-0.5 text-[12px] text-mute sm:min-h-7 sm:py-1">
         <p>{profile ? profileLabel(profile) : "Loading scoring"} · {season} · {scopePhrase}{total !== undefined && ` · ${total} players`}</p>
         <p>{rows?.[0]?.dataThrough === null ? "Extended stats coming shortly" : rows?.[0]?.dataThrough ? `Data through Week ${rows[0].dataThrough}` : ""}</p>
       </div>
@@ -263,7 +263,7 @@ export function RankingsWorkspace() {
  */
 export function RankingsWorkspaceFallback() {
   return (
-    <div className="mx-auto max-w-[1600px] px-2 pt-2 sm:px-4" aria-busy>
+    <div className="mx-auto max-w-[1600px] px-2 pt-0 sm:px-4 sm:pt-2" aria-busy>
       <h1 className="sr-only">Rankings</h1>
       <div aria-hidden className="skeleton h-[78px] sm:h-12" />
       <div aria-hidden className="h-7" />

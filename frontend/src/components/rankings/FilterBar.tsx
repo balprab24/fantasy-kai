@@ -24,7 +24,7 @@ export function FilterBar({ profiles, profileId, onProfile, view, onView, season
   find: string; onFind: (find: string) => void; filtersOpen: boolean; onFilters: () => void;
 }) {
   return (
-    <div aria-label="Board controls" className="board-controls flex flex-wrap items-center gap-1.5 border-y border-line bg-surface p-1.5">
+    <div aria-label="Board controls" className="board-controls flex flex-wrap items-center gap-1.5 border-y border-line bg-surface px-1.5 py-1 sm:py-1.5">
       <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_64px_minmax(0,.9fr)] gap-1.5 sm:flex sm:flex-none">
         <select aria-label="Scoring" className={`${select} sm:w-32`} value={profileId ?? ""} disabled={!profiles} onChange={(e) => onProfile(Number(e.target.value))}>
           {!profiles && <option value="">Scoring…</option>}
