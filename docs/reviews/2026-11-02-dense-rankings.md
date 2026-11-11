@@ -4,6 +4,39 @@ Branch `codex/dense-rankings-2026-11-02`, created in a fresh worktree from main 
 This is separate from the S2/S3 PR so the layout can remain draft until visual acceptance.
 No new dependency. No change to the public landing's source or rendering components.
 
+## Rebase verification — 2026-11-10
+
+Rebased all five PR commits onto current `origin/main` (`ad576b5`) on a separate worktree.
+Main's team-needs helpers, `SlotNeed` tests/types, and backend baselines remain intact.
+Only the PR's league-collection 404 helper/test and frontend file-count delta were reapplied
+in the conflicted files. No backend file differs from main; no pre-redesign tokens or styles
+were restored. The new rail uses main's existing Icon, navigation, and palette.
+
+Obsolete diff: one functional deletion (Trades was already absent from main), plus one
+unnecessary blank line in the league test imports. The original text diff was 1,738 changed
+lines; these two lines are 0.12%, below the owner's approximately 30% stop threshold.
+The rebased feature diff before this documentation correction is 1,304 additions and 432 deletions.
+
+Gates: frontend lint passed, **111 tests passed, 0 failures/cancelled/skipped/todo**, and
+`next build` passed. Backend verify **not run**: no backend changes. Session check
+`--no-network`: **0 drift**, 2 FAIL (missing .env and jar in the fresh worktree), 2 warnings,
+7 unknowns (Docker/network-dependent checks unavailable in the sandbox). `git diff --check` passed.
+
+**Current browser acceptance is blocked, not passed.** The supported Browser runtime returned
+`Browser is not available: iab`; discovery returned no browsers. No QA account was created.
+The owner has been asked whether standalone Playwright may be used. The November 3 screenshots
+and measurements below are historical, and do not establish acceptance of this rebased tree.
+In particular, the historical **390×844 count is 15 complete rows**, which misses task 3's
+16-row requirement. A fresh three-width check, any required density correction, scoring
+re-sort, URL/overlay, Filters and My Teams checks remain outstanding. Keep PR #80 draft;
+no narrow-width acceptance or waiver is recorded.
+
+Review: checked the range-diff and all conflict resolutions for loss of main's additions,
+shared design tokens, route/auth changes, and baseline regressions. Scoring/SQL/schema/auth
+invariants are unchanged. The strongest argument against merging remains the unverified
+rebased UI and the known historical mobile density shortfall. These are explicitly left
+open pending a usable browser; no acceptance claim is inferred from source dimensions.
+
 ## Findings
 
 1. **P1 release gate, closed 2026-11-03:** Claude measured every requested width in a separate
@@ -128,7 +161,7 @@ Claude found the sticky labels repeated in the first tier band, costing 25px. Th
 removes column names from every tier band and uses shorter tier-only separators. Do not subtract
 25px from the supplied first-row measurement and present that as a new observation; remaining
 tier markers still occupy space. No new screenshot accompanied this second report. Chrome was
-still full-screen and could not resize; **1440×900, 1024 and 390 are still unmeasured**.
+still full-screen and could not resize; **1440×900, 1024 and 390 had not yet been measured at that stage**. The later November 3 responsive QA below supersedes that historical gap; it does not verify the rebased tree.
 
 ### Accepted wide-screen QA — c3e5cd1, supplied by the owner
 
@@ -148,8 +181,8 @@ This timing is supplied QA context; Codex did not use timestamps to establish ar
 | Accessible labels | Visible duplicate hidden from screen readers; native labels available |
 | Decision | Wide-screen layout accepted; PR remains draft |
 
-No new screenshot accompanied this report. **1024 and 390 remain unmeasured** because Chrome
-was full-screen; **1440×900 also has no measurement**. Acceptance at 1710×951 is not recorded
+No new screenshot accompanied this report. **1024, 390 and 1440×900 were unmeasured at this stage** because Chrome
+was full-screen. The subsequent November 3 responsive QA below records those measurements. Acceptance at 1710×951 is not recorded
 as a waiver of the other widths. The owner requires the PR to remain draft until narrow QA
 passes or they explicitly waive it. No such waiver, merge or deployment authorization was given.
 
@@ -162,7 +195,7 @@ keep its credentials private and delete the account after testing. Port 3000 ser
 build, restarted after rebuilding the follow-up. The API on 8080 is unchanged. Never seed
 or bypass auth for visual acceptance.
 
-| Check | Evidence required | Current result |
+| Check | Evidence required | Historical result (November 3, before rebase) |
 |---|---|---|
 | 1710×951 signed in | Wide-screen layout and tier-label correction | Accepted on c3e5cd1; 181px / 38px / 19 rows, no overflow |
 | 1440×900 signed in | First row top ≤220px, ≥16 complete visible rows, each ≤44px, page scrollWidth ≤ innerWidth | Passed 2026-11-03: 181px, 18 rows, 38px, no overflow |
