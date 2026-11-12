@@ -11,6 +11,7 @@ import com.fantasykai.ingest.IngestService;
 import com.fantasykai.scoring.StatKey;
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -283,7 +284,7 @@ class ProjectionJobTests {
         DailyPull pull = new DailyPull(mock(IngestService.class), jobAt(FRIDAY),
                 new ProjectionProperties("weighted-average-v1", true), new IngestRunRecorder(db.jdbc),
                 new IngestProperties("https://example.invalid", "https://example.invalid", 2020,
-                        "0 0 6 * * *", false, false, false),
+                        "0 0 6 * * *", false, false, false, Duration.ofMinutes(3)),
                 Clock.fixed(FRIDAY, ZoneOffset.UTC));
 
         assertThatThrownBy(pull::run).isInstanceOf(CorruptHistoryException.class);

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,7 +51,7 @@ class IngestServiceAvailabilityTests {
         service = new IngestService(teams, players, games, stats, snaps, rosters, injuries, sleeper,
                 mock(IntegrityChecks.class), mock(IngestRunRecorder.class),
                 new IngestProperties("https://example.invalid", "https://example.invalid", 2020,
-                        "0 0 6 * * *", false, false, false),
+                        "0 0 6 * * *", false, false, false, Duration.ofMinutes(3)),
                 OCTOBER);
     }
 

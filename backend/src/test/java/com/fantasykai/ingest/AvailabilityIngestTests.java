@@ -13,6 +13,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -64,7 +65,7 @@ class AvailabilityIngestTests {
     private final Map<String, String> served = new HashMap<>();
 
     private final NflverseClient client = new NflverseClient(new IngestProperties("https://example.invalid",
-            "https://example.invalid", 2020, "0 0 6 * * *", false, false, false)) {
+            "https://example.invalid", 2020, "0 0 6 * * *", false, false, false, Duration.ofMinutes(3))) {
         @Override
         public <T> List<T> read(String release, String asset, Set<String> required,
                 Function<CSVRecord, T> mapper) {

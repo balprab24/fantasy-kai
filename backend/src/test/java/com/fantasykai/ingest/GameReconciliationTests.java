@@ -13,6 +13,7 @@ import com.fantasykai.scoring.StatKey;
 import java.io.StringReader;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -363,6 +364,6 @@ class GameReconciliationTests {
 
     private static IngestProperties properties() {
         return new IngestProperties("https://example.invalid", "https://example.invalid", 2020,
-                "0 0 6 * * *", false, false, false);
+                "0 0 6 * * *", false, false, false, Duration.ofMinutes(3));
     }
 }
