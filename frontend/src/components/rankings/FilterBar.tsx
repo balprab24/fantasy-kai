@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { profileLabel } from "@/lib/profiles";
 import { seasons } from "@/lib/season";
 import type { Position, Scope, ScoringProfile } from "@/lib/types";
@@ -23,12 +24,23 @@ export function FilterBar({ profiles, profileId, onProfile, view, onView, season
   position: Position | null; onPosition: (position: Position | null) => void;
   find: string; onFind: (find: string) => void; filtersOpen: boolean; onFilters: () => void;
 }) {
+  const router = useRouter();
+
   return (
     <div aria-label="Board controls" className="board-controls flex flex-wrap items-center gap-1.5 border-y border-line bg-surface px-1.5 py-1 sm:py-1.5">
       <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_64px_minmax(0,.9fr)] gap-1.5 sm:flex sm:flex-none">
-        <select aria-label="Scoring" className={`${select} sm:w-32`} value={profileId ?? ""} disabled={!profiles} onChange={(e) => onProfile(Number(e.target.value))}>
+        <select aria-label="Scoring" className={`${select} sm:w-32`} value={profileId ?? ""} disabled={!profiles} onChange={(e) => {
+          if (e.currentTarget.value === "new-ruleset") {
+            // This is navigation, not a profile selection. Keep the current label while leaving.
+            e.currentTarget.value = String(profileId ?? "");
+            router.push("/profiles");
+            return;
+          }
+          onProfile(Number(e.currentTarget.value));
+        }}>
           {!profiles && <option value="">Scoring…</option>}
           {profiles?.map((p) => <option key={p.id} value={p.id}>{profileLabel(p)}</option>)}
+          <option value="new-ruleset">+ New ruleset…</option>
         </select>
         <select aria-label="View" className={select} value={view} onChange={(e) => onView(e.target.value as "overview" | "usage")}>
           <option value="overview">Overview</option><option value="usage">Usage</option>
