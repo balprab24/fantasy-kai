@@ -1,98 +1,57 @@
 "use client";
 
+import { profileLabel } from "@/lib/profiles";
 import { seasons } from "@/lib/season";
-import type { Position, Scope } from "@/lib/types";
-import { SearchField } from "../ui/SearchField";
-import { SeasonSelect } from "../ui/SeasonSelect";
-import { SegmentedControl } from "../ui/SegmentedControl";
+import type { Position, Scope, ScoringProfile } from "@/lib/types";
+import { Icon } from "../ui/Icon";
 
-export const SCOPES: { value: Scope; label: string; title: string; phrase: string }[] = [
-  { value: "season", label: "Season", title: "Season total", phrase: "by season total" },
-  { value: "per_game", label: "Per game", title: "Points per game played", phrase: "by points per game" },
-  {
-    value: "last4",
-    label: "Last 4",
-    title: "The four most recent regular-season weeks",
-    phrase: "over the last four weeks",
-  },
+export const SCOPES: { value: Scope; label: string; phrase: string }[] = [
+  { value: "season", label: "Season", phrase: "by season total" },
+  { value: "per_game", label: "Per game", phrase: "by points per game" },
+  { value: "last4", label: "Last 4", phrase: "over the last four weeks" },
 ];
 
-/**
- * Position options carry their own letters in their own hue -- the same
- * letters every row's chip carries -- so the filter and the board read as one
- * vocabulary. "All" stays ink.
- */
-const POSITIONS: { value: string; label: React.ReactNode; title?: string }[] = [
-  { value: "ALL", label: "All", title: "Every position" },
-  { value: "QB", label: <span className="font-label font-bold text-pos-qb">QB</span>, title: "Quarterbacks" },
-  { value: "RB", label: <span className="font-label font-bold text-pos-rb">RB</span>, title: "Running backs" },
-  { value: "WR", label: <span className="font-label font-bold text-pos-wr">WR</span>, title: "Wide receivers" },
-  { value: "TE", label: <span className="font-label font-bold text-pos-te">TE</span>, title: "Tight ends" },
-];
+const select = "h-8 min-w-0 rounded-control border border-line-strong bg-well px-1.5 text-[13px] text-ink";
 
-/**
- * The board's filters, under the scoring switch: position, window, season and
- * find. Scoring is not here -- it is the product's argument, so it has a row of
- * its own above (`FormatBar`).
- *
- * Every control maps to a parameter the API actually takes. Format
- * (redraft/dynasty), single weeks and rest-of-season are absent because the
- * backend has no such thing yet -- a control that does nothing is worse than
- * no control. On a phone the groups each take a full row, search last, so
- * nothing is clipped and every option is a 40px target.
- */
-export function FilterBar({
-  season,
-  onSeason,
-  scope,
-  onScope,
-  position,
-  onPosition,
-  find,
-  onFind,
-}: {
-  season: number;
-  onSeason: (season: number) => void;
-  scope: Scope;
-  onScope: (scope: Scope) => void;
-  position: Position | null;
-  onPosition: (position: Position | null) => void;
-  find: string;
-  onFind: (find: string) => void;
+/** One strip; compact native menus keep every control available in two phone rows. */
+export function FilterBar({ profiles, profileId, onProfile, view, onView, season, onSeason,
+  scope, onScope, position, onPosition, find, onFind, filtersOpen, onFilters }: {
+  profiles: ScoringProfile[] | undefined; profileId: number | null; onProfile: (id: number) => void;
+  view: "overview" | "usage"; onView: (view: "overview" | "usage") => void;
+  season: number; onSeason: (season: number) => void;
+  scope: Scope; onScope: (scope: Scope) => void;
+  position: Position | null; onPosition: (position: Position | null) => void;
+  find: string; onFind: (find: string) => void; filtersOpen: boolean; onFilters: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2.5">
-      <SegmentedControl
-        legend="Position"
-        options={POSITIONS}
-        value={position ?? "ALL"}
-        onChange={(v) => onPosition(v === "ALL" ? null : (v as Position))}
-        hideLegend
-        fill
-      />
-      <div className="flex min-w-0 items-center gap-3 max-sm:w-full">
-        <div className="min-w-0 max-sm:flex-1">
-          <SegmentedControl
-            legend="Window"
-            options={SCOPES}
-            value={scope}
-            onChange={(v) => onScope(v as Scope)}
-            hideLegend
-            fill
-          />
-        </div>
-        <SeasonSelect value={season} options={seasons()} onChange={onSeason} variant="field" />
+    <div aria-label="Board controls" className="board-controls flex flex-wrap items-center gap-1.5 border-y border-line bg-surface px-1.5 py-1 sm:py-1.5">
+      <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_64px_minmax(0,.9fr)] gap-1.5 sm:flex sm:flex-none">
+        <select aria-label="Scoring" className={`${select} sm:w-32`} value={profileId ?? ""} disabled={!profiles} onChange={(e) => onProfile(Number(e.target.value))}>
+          {!profiles && <option value="">Scoring…</option>}
+          {profiles?.map((p) => <option key={p.id} value={p.id}>{profileLabel(p)}</option>)}
+        </select>
+        <select aria-label="View" className={select} value={view} onChange={(e) => onView(e.target.value as "overview" | "usage")}>
+          <option value="overview">Overview</option><option value="usage">Usage</option>
+        </select>
+        <select aria-label="Season" className={select} value={season} onChange={(e) => onSeason(Number(e.target.value))}>
+          {seasons().map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select aria-label="Window" className={select} value={scope} onChange={(e) => onScope(e.target.value as Scope)}>
+          {SCOPES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
       </div>
-      <SearchField
-        label="Find a player on this board"
-        placeholder="Find a player"
-        value={find}
-        onChange={onFind}
-        // The URL keeps 60 characters of it (lib/boardParams.ts); the box
-        // should not accept more than a refresh would give back.
-        maxLength={60}
-        className="w-full sm:w-auto sm:min-w-52 sm:flex-1 lg:ml-auto lg:max-w-80 lg:flex-none"
-      />
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 max-sm:basis-full">
+        <select aria-label="Position" className={`${select} w-16 shrink-0 xl:hidden`} value={position ?? "ALL"} onChange={(e) => onPosition(e.target.value === "ALL" ? null : e.target.value as Position)}>
+          {["ALL", "QB", "RB", "WR", "TE"].map((p) => <option key={p} value={p}>{p === "ALL" ? "All" : p}</option>)}
+        </select>
+        <div role="group" aria-label="Position" className="hidden items-center xl:flex">
+          {["ALL", "QB", "RB", "WR", "TE"].map((p) => <button key={p} type="button" aria-pressed={(position ?? "ALL") === p} onClick={() => onPosition(p === "ALL" ? null : p as Position)} className={`h-8 rounded-control px-3 text-[13px] ${(position ?? "ALL") === p ? "bg-lift font-semibold text-ink" : "text-mute hover:bg-well"}`}>{p === "ALL" ? "All" : p}</button>)}
+        </div>
+        <input aria-label="Find a player on this board" placeholder="Find a player" value={find} onChange={(e) => onFind(e.target.value)} maxLength={60} type="search" className="h-8 min-w-0 flex-1 rounded-control border border-line-strong bg-well px-2 text-[13px] text-ink placeholder:text-faint" />
+        <button type="button" aria-expanded={filtersOpen} aria-controls="board-options" onClick={onFilters} className="flex h-8 shrink-0 items-center gap-1 rounded-control border border-line-strong bg-well px-2 text-[13px] text-ink">
+          <Icon name="scoring" size={14} />Filters
+        </button>
+      </div>
     </div>
   );
 }

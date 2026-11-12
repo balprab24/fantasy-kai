@@ -1,5 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
-import { api } from "./api";
+import { ApiError, api } from "./api";
+import { withoutBoardMetrics } from "./board";
 import { useAuth } from "./auth";
 import type {
   CareerResponse,
@@ -7,6 +8,7 @@ import type {
   Page,
   PlayerDetail,
   Position,
+  MemberBoardRow,
   RankingRow,
   ScoringProfile,
   Scope,
@@ -54,8 +56,8 @@ export function useProfiles() {
  * Two reasons, both measured facts rather than preferences. Every request
  * scores the whole season whatever `size` is, so 200 -- the API's cap -- is the
  * cheapest way to move a board: three requests for ~600 players instead of
- * twelve. And a board that always starts at rank 1 is what lets positional
- * ranks and tiers be derived here at all (`lib/board.ts`).
+ * twelve. The API supplies whole-population positional ranks; the browser derives
+ * only natural-break tiers from the loaded top 60 (`lib/board.ts`).
  */
 export const BOARD_PAGE_SIZE = 200;
 
@@ -71,7 +73,7 @@ export function useRankingsBoard(q: BoardQuery) {
     queryKey: ["rankings-board", q.profileId, q.season, q.position, q.scope],
     enabled: q.profileId !== null,
     initialPageParam: 0,
-    queryFn: ({ pageParam }) => {
+    queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams({
         profileId: String(q.profileId ?? ""),
         season: String(q.season),
@@ -80,7 +82,16 @@ export function useRankingsBoard(q: BoardQuery) {
         size: String(BOARD_PAGE_SIZE),
       });
       if (q.position) params.set("position", q.position);
-      return api<Page<RankingRow>>(`/api/v1/rankings?${params}`);
+      try {
+        return await api<Page<MemberBoardRow>>(`/api/v1/rankings/board?${params}`);
+      } catch (error) {
+        // Frontend and API deploy independently. Only a missing board route gets
+        // the legacy points response; auth/network/server failures remain errors.
+        // If the profile itself is missing, the legacy route also returns 404.
+        if (!(error instanceof ApiError) || error.status !== 404) throw error;
+        const legacy = await api<Page<RankingRow>>(`/api/v1/rankings?${params}`);
+        return { ...legacy, content: legacy.content.map(withoutBoardMetrics) };
+      }
     },
     getNextPageParam: (last) => (last.page + 1 < last.totalPages ? last.page + 1 : undefined),
     // The previous board stays on screen while the next ruleset is scored, so
