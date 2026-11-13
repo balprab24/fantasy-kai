@@ -77,8 +77,16 @@ tail -f logs/ingest.log
 VM=<server-ip> ./deploy/acceptance.sh   # 1, 2, 4a, 4c, 5, 6, 7, 9, 10 against the live site
                                         # (9 needs PROD_TOKEN + LOCAL_TOKEN: reads need an account)
 
-# is the pipeline fresh?  (anonymous sees status only -- show-details is when-authorized)
-curl -s localhost:8080/actuator/health | jq .components.ingestFreshness
+# is the pipeline fresh?  /actuator/health shows the status only, to everyone
+# (application.yml: show-details: never), so `jq .components.ingestFreshness` prints null.
+# Read what the indicator reads instead: the latest run per source. It goes DOWN when a
+# source's latest run FAILED, or -- in season -- when the newest run is over 36 hours old.
+docker compose exec postgres psql -U fantasykai -d fantasykai -c \
+  "SELECT DISTINCT ON (source) source, status, started_at, error FROM ingest_runs ORDER BY source, started_at DESC"
+# production: run that query inside the prod compose file's postgres, on the VM, from the checkout
+#   docker compose --env-file deploy/.env -f deploy/compose.prod.yml exec -T postgres psql -U fantasykai -d fantasykai -c "<query>"
+# and read a run's fetches (ok/failed, monotonic_ms and wall_ms) from the backend log
+#   docker compose --env-file deploy/.env -f deploy/compose.prod.yml logs backend | grep 'nflverse fetch'
 
 # web shell (Phase 5c). Node 24 -- .nvmrc pins it; Node 20 went EOL 2026-04-30.
 cd frontend && nvm use && npm ci
