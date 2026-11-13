@@ -383,7 +383,7 @@ closes it. Nothing here is a surprise to the docs unless marked **new**.
 | A renamed upstream column zeroed a stat and reported SUCCESS | `f478233` — header verified against the columns each ingestor reads, generated from the same `List<Field>` as the upsert |
 | `NflverseClient` leaked the response body on the 404 path | `f478233` |
 | `NflverseClient` had no bound on the body: its 3-minute timeout covered only the wait for headers, and a mid-body reset escaped as `UncheckedIOException` | `fix/ingest-fetch-deadline` — one monotonic deadline over the whole fetch, cancel on timeout, `NflverseClientHttpTests` against a local server. **Not the root cause** of the 2026-09-22..24 daily failures (the Mac re-sleeping inside the Power Nap wake launchd starts the job in); retries and the schedule are still open |
-| No auth at all; five endpoints world-readable | Phase 5a/5b — default-deny chain, `show-details: when-authorized` |
+| No auth at all; five endpoints world-readable | Phase 5a/5b — default-deny chain, `show-details: never` |
 | `ScoringProfiles.byId` had no ownership check | Phase 5a/5b — filtered in the query, and the compile cache carries its owner so a warm entry is not a bypass |
 | `ScoringProfiles.evict(long)` had zero callers | Phase 5a/5b — every profile write calls it |
 | §8's dependency row: "Dependabot on, `dependency-check` in CI" | `4f30bb6` — `.github/dependabot.yml`, weekly and grouped because a PR queue nobody reads is the same as no Dependabot. The scan is its own job in `ci.yml`, `continue-on-error`, and `da28c9b` made it **skip loudly** rather than fail every run when `NVD_API_KEY` is unset |
