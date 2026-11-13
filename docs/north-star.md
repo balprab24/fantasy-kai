@@ -455,8 +455,9 @@ owner on a hit; the filtered query stays authoritative on a miss, and a non-owne
 403**, so existence does not leak. **The test has to warm the cache as B before reading as A**, or
 it passes without touching the bug.
 
-Also tighten `actuator` from `show-details: always` to `when-authorized` — the Phase 0 comment
-already says to.
+Also tighten `actuator` from `show-details: always` to `never` — first written here as
+`when-authorized`; `application.yml` ships `never`, though its comment still says "details only for
+an authenticated caller".
 
 #### 5c — Web shell
 
