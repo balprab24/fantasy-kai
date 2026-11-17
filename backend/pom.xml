@@ -20,7 +20,7 @@
     <properties>
         <java.version>25</java.version>
         <jjwt.version>0.13.0</jjwt.version>
-        <bucket4j.version>8.21.0</bucket4j.version>
+        <bucket4j.version>8.22.0</bucket4j.version>
 
         <!--
           Ahead of the parent, deliberately, and this is a security pin rather
@@ -107,7 +107,7 @@
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk18on</artifactId>
-            <version>1.86</version>
+            <version>1.87</version>
         </dependency>
 
         <!-- HS256 access tokens. jjwt over Spring's oauth2-resource-server because
