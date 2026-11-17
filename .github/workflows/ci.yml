@@ -68,9 +68,17 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      # Production dependencies only, and from `moderate` up. Two reasons, both
+      # learned the hard way: the Next.js advisory that made `next build`
+      # refuse to run on 2026-11-16 was *moderate*, so the old
+      # `--audit-level=high` exited 0 on the lockfile it should have rejected;
+      # and the dev toolchain (eslint -> typescript-eslint -> minimatch) carries
+      # moderate advisories that never ship, so they must not turn this red.
+      # Proven on both lockfiles before this line landed: it exits 1 on
+      # b752919's (Next 16.4.3) and 0 on the one that replaced it.
       - name: Dependency audit
         working-directory: frontend
-        run: npm audit --audit-level=high
+        run: npm audit --omit=dev --audit-level=moderate
 
   # Handoff section 8: "mvn dependency-check in CI." Separate job so a CVE in a
   # transitive dependency reports without blocking a green test run, and
