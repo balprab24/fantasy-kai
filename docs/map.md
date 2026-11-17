@@ -343,17 +343,24 @@ finished regular-season week the capture does not hold.
    (`curl localhost:8080/actuator/health`). If the `hero` row says the mirror is behind:
    `./scripts/package.sh`, then `./scripts/ingest-once.sh`.
 2. **A throwaway local account**: `POST /api/v1/auth/register` with
-   `landing-capture-<hex>@example.test` and a random 24-byte password; keep the `accessToken`.
-3. **"My league"**: `POST /api/v1/scoring-profiles` with `{name: "My league", rules: "<JSON>"}` --
-   Half PPR's rates with `pass_td` 6 (`MY_LEAGUE_RATES`). `rules` is a JSON *string*, not an object.
-4. **The four boards**: `GET /api/v1/rankings?profileId={1,2,3,<mine>}&season=2026&scope=season&size=200`.
-   Keep each board's top 60, set `espnId` to `null` (the landing shows no likeness), and replace
-   `HERO_BOARDS_2026` keeping its shape. Update `HERO_TOTAL`, and the capture date in the header.
-5. **The story ranks move on purpose.** PPR → My league (Allen 3 → 1, Purdy 7 → 2, Smith-Njigba
-   1 → 10) and 0 PPR → PPR (Smith-Njigba 9 → 1, Lamb 17 → 4) are asserted in
-   `frontend/tests/lib.test.ts`, as is `HERO_THROUGH_WEEK`, and quoted in DESIGN.md and the
-   `.impeccable` brief. Change the tests deliberately, read
-   what the new week says, and update the prose that quotes it.
+   `landing-capture-<hex>@example.test` and a random 24-byte password. Prefer a throwaway Postgres
+   loaded from the mirror (a data-only `pg_dump` of the nflverse tables) over the dev database, so no
+   account is ever registered there; if you do use the dev database, step 6 is not optional.
+3. **Run the script** from `frontend/`:
+   `FK_API=http://localhost:8080 FK_EMAIL=... FK_PASSWORD=... node scripts/capture-landing.mjs`.
+   It saves the mixer's three 6-point-passing-TD rulesets to that account itself if they are missing
+   (`Mixer <rec> a catch, 6-pt pass TD`), reads **six** boards -- the three presets and the three mixer
+   rulesets, top 60 each, `espnId` set to `null` -- plus the followed player's identity, career and game
+   logs, and rewrites `frontend/src/components/landing/heroData.ts` (`MIXER_BOARDS`, `HERO_THROUGH_WEEK`,
+   `HERO_TOTAL`, `HERO_CAPTURED`). Nothing is edited by hand.
+4. **Check the week is whole.** `HERO_THROUGH_WEEK` is the highest `gamesPlayed` on a board, so a capture
+   taken before a week's last game says "through Week N" with a game missing (2026-11-17: week 10 was
+   13 of 14 games). Re-run after the last game when that matters; it is one command.
+5. **Gates:** `npm run lint && npm test && npm run build`, then `./scripts/session-check.sh` and its `hero`
+   row. The tests check structure -- 60 ranks per board, `espnId` null, `HERO_THROUGH_WEEK` equal to the
+   most games on any board -- and name no player; the landing code hard-codes no rank (searched
+   2026-11-17), so a new capture needs no test or prose changes unless the story itself stops holding
+   (the followed player should still climb from 0 PPR to PPR: 9th, 3rd, 1st in the week-10 capture).
 6. **Delete the account** with psql on stdin (`-c` does not interpolate `:'email'`):
    `DELETE FROM users WHERE email = :'email';` -- tokens and profiles cascade.
 
