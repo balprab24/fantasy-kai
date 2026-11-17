@@ -64,8 +64,8 @@ Use Bash for the arrays below. Never print `.env`, bearer tokens or `docker insp
 
    ```bash
    mkdir -p ~/fantasykai-backups
-   scp -i ~/.ssh/fantasykai_oracle \
-     ubuntu@163.192.220.190:backups/<exact-backup-filename> ~/fantasykai-backups/
+   scp -i ~/.ssh/<your-key> \
+     ubuntu@<vm-ip>:backups/<exact-backup-filename> ~/fantasykai-backups/
    shasum -a 256 ~/fantasykai-backups/<exact-backup-filename>  # match VM checksum
    docker exec fantasy-kai-postgres-1 createdb -U fantasykai fk_deploy_restore_20261102
    docker exec -i fantasy-kai-postgres-1 pg_restore -U fantasykai \
@@ -136,7 +136,7 @@ Use Bash for the arrays below. Never print `.env`, bearer tokens or `docker insp
    environment, never pasted into logs or shell command arguments):
 
    ```bash
-   VM=163.192.220.190 ./deploy/acceptance.sh
+   VM=<vm-ip> ./deploy/acceptance.sh
    ```
 
    `PROD_TOKEN` and `LOCAL_TOKEN` are needed for check 9. A skipped check is not a pass. Check 3
