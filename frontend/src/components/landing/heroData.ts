@@ -284,6 +284,17 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
     },
     {
       "rank": 23,
+      "playerId": 9715,
+      "name": "Derrick Henry",
+      "position": "RB",
+      "team": "BAL",
+      "gamesPlayed": 10,
+      "points": 144.28,
+      "pointsPerGame": 14.43,
+      "espnId": null
+    },
+    {
+      "rank": 24,
       "playerId": 24100,
       "name": "Javonte Williams",
       "position": "RB",
@@ -294,7 +305,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 24,
+      "rank": 25,
       "playerId": 23375,
       "name": "Deshaun Watson",
       "position": "QB",
@@ -305,7 +316,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 25,
+      "rank": 26,
       "playerId": 21702,
       "name": "Jonathan Taylor",
       "position": "RB",
@@ -316,7 +327,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 26,
+      "rank": 27,
       "playerId": 10769,
       "name": "Bucky Irving",
       "position": "RB",
@@ -327,7 +338,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 27,
+      "rank": 28,
       "playerId": 20508,
       "name": "Geno Smith",
       "position": "QB",
@@ -338,7 +349,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 28,
+      "rank": 29,
       "playerId": 5106,
       "name": "Jayden Daniels",
       "position": "QB",
@@ -349,7 +360,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 29,
+      "rank": 30,
       "playerId": 18933,
       "name": "Aaron Rodgers",
       "position": "QB",
@@ -360,7 +371,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 30,
+      "rank": 31,
       "playerId": 23372,
       "name": "Christian Watson",
       "position": "WR",
@@ -371,7 +382,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 31,
+      "rank": 32,
       "playerId": 16418,
       "name": "Bo Nix",
       "position": "QB",
@@ -379,17 +390,6 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "gamesPlayed": 9,
       "points": 130.8,
       "pointsPerGame": 14.53,
-      "espnId": null
-    },
-    {
-      "rank": 32,
-      "playerId": 9715,
-      "name": "Derrick Henry",
-      "position": "RB",
-      "team": "BAL",
-      "gamesPlayed": 9,
-      "points": 130.28,
-      "pointsPerGame": 14.48,
       "espnId": null
     },
     {
@@ -438,6 +438,17 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
     },
     {
       "rank": 37,
+      "playerId": 2470,
+      "name": "Jacoby Brissett",
+      "position": "QB",
+      "team": "BAL",
+      "gamesPlayed": 9,
+      "points": 121.96,
+      "pointsPerGame": 13.55,
+      "espnId": null
+    },
+    {
+      "rank": 38,
       "playerId": 23240,
       "name": "Jaylen Warren",
       "position": "RB",
@@ -448,7 +459,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 38,
+      "rank": 39,
       "playerId": 23182,
       "name": "Cam Ward",
       "position": "QB",
@@ -459,7 +470,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 39,
+      "rank": 40,
       "playerId": 17722,
       "name": "Tony Pollard",
       "position": "RB",
@@ -470,7 +481,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 40,
+      "rank": 41,
       "playerId": 9871,
       "name": "Tee Higgins",
       "position": "WR",
@@ -481,7 +492,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 41,
+      "rank": 42,
       "playerId": 20925,
       "name": "Amon-Ra St. Brown",
       "position": "WR",
@@ -492,7 +503,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 42,
+      "rank": 43,
       "playerId": 8073,
       "name": "Matthew Golden",
       "position": "WR",
@@ -503,7 +514,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 43,
+      "rank": 44,
       "playerId": 23961,
       "name": "Caleb Williams",
       "position": "QB",
@@ -511,17 +522,6 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "gamesPlayed": 6,
       "points": 110.34,
       "pointsPerGame": 18.39,
-      "espnId": null
-    },
-    {
-      "rank": 44,
-      "playerId": 2470,
-      "name": "Jacoby Brissett",
-      "position": "QB",
-      "team": "BAL",
-      "gamesPlayed": 8,
-      "points": 110.16,
-      "pointsPerGame": 13.77,
       "espnId": null
     },
     {
@@ -625,6 +625,17 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
     },
     {
       "rank": 54,
+      "playerId": 9744,
+      "name": "Justin Herbert",
+      "position": "QB",
+      "team": "LAC",
+      "gamesPlayed": 9,
+      "points": 96.9,
+      "pointsPerGame": 10.77,
+      "espnId": null
+    },
+    {
+      "rank": 55,
       "playerId": 14473,
       "name": "Trey McBride",
       "position": "TE",
@@ -635,7 +646,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 55,
+      "rank": 56,
       "playerId": 5158,
       "name": "Sam Darnold",
       "position": "QB",
@@ -646,7 +657,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 56,
+      "rank": 57,
       "playerId": 300,
       "name": "Braelon Allen",
       "position": "RB",
@@ -657,7 +668,18 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 57,
+      "rank": 58,
+      "playerId": 7100,
+      "name": "Zay Flowers",
+      "position": "WR",
+      "team": "BAL",
+      "gamesPlayed": 9,
+      "points": 89.9,
+      "pointsPerGame": 9.99,
+      "espnId": null
+    },
+    {
+      "rank": 59,
       "playerId": 13617,
       "name": "Drake London",
       "position": "WR",
@@ -668,7 +690,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 58,
+      "rank": 60,
       "playerId": 16743,
       "name": "Chris Olave",
       "position": "WR",
@@ -676,28 +698,6 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "gamesPlayed": 9,
       "points": 88.4,
       "pointsPerGame": 9.82,
-      "espnId": null
-    },
-    {
-      "rank": 59,
-      "playerId": 21132,
-      "name": "Rhamondre Stevenson",
-      "position": "RB",
-      "team": "NE",
-      "gamesPlayed": 10,
-      "points": 88.2,
-      "pointsPerGame": 8.82,
-      "espnId": null
-    },
-    {
-      "rank": 60,
-      "playerId": 3072,
-      "name": "Luther Burden III",
-      "position": "WR",
-      "team": "CHI",
-      "gamesPlayed": 9,
-      "points": 87.3,
-      "pointsPerGame": 9.7,
       "espnId": null
     }
   ],
@@ -979,6 +979,17 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
     },
     {
       "rank": 26,
+      "playerId": 9715,
+      "name": "Derrick Henry",
+      "position": "RB",
+      "team": "BAL",
+      "gamesPlayed": 10,
+      "points": 152.78,
+      "pointsPerGame": 15.28,
+      "espnId": null
+    },
+    {
+      "rank": 27,
       "playerId": 21702,
       "name": "Jonathan Taylor",
       "position": "RB",
@@ -989,7 +1000,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 27,
+      "rank": 28,
       "playerId": 20925,
       "name": "Amon-Ra St. Brown",
       "position": "WR",
@@ -1000,7 +1011,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 28,
+      "rank": 29,
       "playerId": 10769,
       "name": "Bucky Irving",
       "position": "RB",
@@ -1011,7 +1022,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 29,
+      "rank": 30,
       "playerId": 8073,
       "name": "Matthew Golden",
       "position": "WR",
@@ -1022,7 +1033,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 30,
+      "rank": 31,
       "playerId": 24155,
       "name": "Kyren Williams",
       "position": "RB",
@@ -1033,7 +1044,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 31,
+      "rank": 32,
       "playerId": 9871,
       "name": "Tee Higgins",
       "position": "WR",
@@ -1044,7 +1055,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 32,
+      "rank": 33,
       "playerId": 21490,
       "name": "D'Andre Swift",
       "position": "RB",
@@ -1055,7 +1066,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 33,
+      "rank": 34,
       "playerId": 23375,
       "name": "Deshaun Watson",
       "position": "QB",
@@ -1066,7 +1077,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 34,
+      "rank": 35,
       "playerId": 16153,
       "name": "Puka Nacua",
       "position": "WR",
@@ -1077,7 +1088,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 35,
+      "rank": 36,
       "playerId": 22604,
       "name": "Bhayshul Tuten",
       "position": "RB",
@@ -1088,7 +1099,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 36,
+      "rank": 37,
       "playerId": 20508,
       "name": "Geno Smith",
       "position": "QB",
@@ -1096,17 +1107,6 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "gamesPlayed": 10,
       "points": 136.44,
       "pointsPerGame": 13.64,
-      "espnId": null
-    },
-    {
-      "rank": 37,
-      "playerId": 9715,
-      "name": "Derrick Henry",
-      "position": "RB",
-      "team": "BAL",
-      "gamesPlayed": 9,
-      "points": 136.28,
-      "pointsPerGame": 15.14,
       "espnId": null
     },
     {
@@ -1221,6 +1221,17 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
     },
     {
       "rank": 48,
+      "playerId": 2470,
+      "name": "Jacoby Brissett",
+      "position": "QB",
+      "team": "BAL",
+      "gamesPlayed": 9,
+      "points": 122.46,
+      "pointsPerGame": 13.61,
+      "espnId": null
+    },
+    {
+      "rank": 49,
       "playerId": 23279,
       "name": "Parker Washington",
       "position": "WR",
@@ -1231,7 +1242,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 49,
+      "rank": 50,
       "playerId": 23182,
       "name": "Cam Ward",
       "position": "QB",
@@ -1242,7 +1253,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 50,
+      "rank": 51,
       "playerId": 16743,
       "name": "Chris Olave",
       "position": "WR",
@@ -1253,7 +1264,18 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 51,
+      "rank": 52,
+      "playerId": 7100,
+      "name": "Zay Flowers",
+      "position": "WR",
+      "team": "BAL",
+      "gamesPlayed": 9,
+      "points": 114.4,
+      "pointsPerGame": 12.71,
+      "espnId": null
+    },
+    {
+      "rank": 53,
       "playerId": 13617,
       "name": "Drake London",
       "position": "WR",
@@ -1264,7 +1286,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 52,
+      "rank": 54,
       "playerId": 3072,
       "name": "Luther Burden III",
       "position": "WR",
@@ -1275,18 +1297,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 53,
-      "playerId": 2470,
-      "name": "Jacoby Brissett",
-      "position": "QB",
-      "team": "BAL",
-      "gamesPlayed": 8,
-      "points": 110.66,
-      "pointsPerGame": 13.83,
-      "espnId": null
-    },
-    {
-      "rank": 54,
+      "rank": 55,
       "playerId": 23961,
       "name": "Caleb Williams",
       "position": "QB",
@@ -1297,7 +1308,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 55,
+      "rank": 56,
       "playerId": 4658,
       "name": "Blake Corum",
       "position": "RB",
@@ -1308,7 +1319,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 56,
+      "rank": 57,
       "playerId": 17308,
       "name": "Michael Penix Jr.",
       "position": "QB",
@@ -1319,7 +1330,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 57,
+      "rank": 58,
       "playerId": 16151,
       "name": "Malik Nabers",
       "position": "WR",
@@ -1330,7 +1341,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 58,
+      "rank": 59,
       "playerId": 14975,
       "name": "Tetairoa McMillan",
       "position": "WR",
@@ -1341,7 +1352,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 59,
+      "rank": 60,
       "playerId": 2650,
       "name": "Chase Brown",
       "position": "RB",
@@ -1349,17 +1360,6 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "gamesPlayed": 9,
       "points": 106.2,
       "pointsPerGame": 11.8,
-      "espnId": null
-    },
-    {
-      "rank": 60,
-      "playerId": 7100,
-      "name": "Zay Flowers",
-      "position": "WR",
-      "team": "BAL",
-      "gamesPlayed": 8,
-      "points": 106,
-      "pointsPerGame": 13.25,
       "espnId": null
     }
   ],
@@ -1696,6 +1696,17 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
     },
     {
       "rank": 31,
+      "playerId": 9715,
+      "name": "Derrick Henry",
+      "position": "RB",
+      "team": "BAL",
+      "gamesPlayed": 10,
+      "points": 161.28,
+      "pointsPerGame": 16.13,
+      "espnId": null
+    },
+    {
+      "rank": 32,
       "playerId": 10769,
       "name": "Bucky Irving",
       "position": "RB",
@@ -1706,7 +1717,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 32,
+      "rank": 33,
       "playerId": 13471,
       "name": "Isaiah Likely",
       "position": "TE",
@@ -1717,7 +1728,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 33,
+      "rank": 34,
       "playerId": 20079,
       "name": "Tyler Shough",
       "position": "QB",
@@ -1728,7 +1739,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 34,
+      "rank": 35,
       "playerId": 24907,
       "name": "Bryce Young",
       "position": "QB",
@@ -1739,7 +1750,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 35,
+      "rank": 36,
       "playerId": 21490,
       "name": "D'Andre Swift",
       "position": "RB",
@@ -1750,7 +1761,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 36,
+      "rank": 37,
       "playerId": 23240,
       "name": "Jaylen Warren",
       "position": "RB",
@@ -1761,7 +1772,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 37,
+      "rank": 38,
       "playerId": 2168,
       "name": "Brock Bowers",
       "position": "TE",
@@ -1772,7 +1783,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 38,
+      "rank": 39,
       "playerId": 11156,
       "name": "Ashton Jeanty",
       "position": "RB",
@@ -1783,7 +1794,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 39,
+      "rank": 40,
       "playerId": 17541,
       "name": "George Pickens",
       "position": "WR",
@@ -1794,7 +1805,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 40,
+      "rank": 41,
       "playerId": 22604,
       "name": "Bhayshul Tuten",
       "position": "RB",
@@ -1805,7 +1816,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 41,
+      "rank": 42,
       "playerId": 16743,
       "name": "Chris Olave",
       "position": "WR",
@@ -1813,17 +1824,6 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "gamesPlayed": 9,
       "points": 147.4,
       "pointsPerGame": 16.38,
-      "espnId": null
-    },
-    {
-      "rank": 42,
-      "playerId": 9715,
-      "name": "Derrick Henry",
-      "position": "RB",
-      "team": "BAL",
-      "gamesPlayed": 9,
-      "points": 142.28,
-      "pointsPerGame": 15.81,
       "espnId": null
     },
     {
@@ -1850,6 +1850,17 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
     },
     {
       "rank": 45,
+      "playerId": 7100,
+      "name": "Zay Flowers",
+      "position": "WR",
+      "team": "BAL",
+      "gamesPlayed": 9,
+      "points": 138.9,
+      "pointsPerGame": 15.43,
+      "espnId": null
+    },
+    {
+      "rank": 46,
       "playerId": 13617,
       "name": "Drake London",
       "position": "WR",
@@ -1860,7 +1871,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 46,
+      "rank": 47,
       "playerId": 23279,
       "name": "Parker Washington",
       "position": "WR",
@@ -1871,7 +1882,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 47,
+      "rank": 48,
       "playerId": 16151,
       "name": "Malik Nabers",
       "position": "WR",
@@ -1882,7 +1893,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 48,
+      "rank": 49,
       "playerId": 20508,
       "name": "Geno Smith",
       "position": "QB",
@@ -1893,7 +1904,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 49,
+      "rank": 50,
       "playerId": 3072,
       "name": "Luther Burden III",
       "position": "WR",
@@ -1904,7 +1915,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 50,
+      "rank": 51,
       "playerId": 5106,
       "name": "Jayden Daniels",
       "position": "QB",
@@ -1915,7 +1926,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 51,
+      "rank": 52,
       "playerId": 18933,
       "name": "Aaron Rodgers",
       "position": "QB",
@@ -1926,7 +1937,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 52,
+      "rank": 53,
       "playerId": 14975,
       "name": "Tetairoa McMillan",
       "position": "WR",
@@ -1937,7 +1948,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 53,
+      "rank": 54,
       "playerId": 16418,
       "name": "Bo Nix",
       "position": "QB",
@@ -1948,7 +1959,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 54,
+      "rank": 55,
       "playerId": 2650,
       "name": "Chase Brown",
       "position": "RB",
@@ -1959,7 +1970,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 55,
+      "rank": 56,
       "playerId": 24399,
       "name": "Garrett Wilson",
       "position": "WR",
@@ -1970,7 +1981,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 56,
+      "rank": 57,
       "playerId": 12621,
       "name": "George Kittle",
       "position": "TE",
@@ -1981,18 +1992,18 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 57,
-      "playerId": 7100,
-      "name": "Zay Flowers",
-      "position": "WR",
+      "rank": 58,
+      "playerId": 2470,
+      "name": "Jacoby Brissett",
+      "position": "QB",
       "team": "BAL",
-      "gamesPlayed": 8,
-      "points": 127.5,
-      "pointsPerGame": 15.94,
+      "gamesPlayed": 9,
+      "points": 122.96,
+      "pointsPerGame": 13.66,
       "espnId": null
     },
     {
-      "rank": 58,
+      "rank": 59,
       "playerId": 24441,
       "name": "Michael Wilson",
       "position": "WR",
@@ -2003,7 +2014,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 59,
+      "rank": 60,
       "playerId": 23182,
       "name": "Cam Ward",
       "position": "QB",
@@ -2011,17 +2022,6 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "gamesPlayed": 9,
       "points": 119.66,
       "pointsPerGame": 13.3,
-      "espnId": null
-    },
-    {
-      "rank": 60,
-      "playerId": 6739,
-      "name": "Harold Fannin Jr.",
-      "position": "TE",
-      "team": "CLE",
-      "gamesPlayed": 10,
-      "points": 118.4,
-      "pointsPerGame": 11.84,
       "espnId": null
     }
   ],
@@ -2325,6 +2325,17 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
     },
     {
       "rank": 28,
+      "playerId": 9715,
+      "name": "Derrick Henry",
+      "position": "RB",
+      "team": "BAL",
+      "gamesPlayed": 10,
+      "points": 144.28,
+      "pointsPerGame": 14.43,
+      "espnId": null
+    },
+    {
+      "rank": 29,
       "playerId": 24100,
       "name": "Javonte Williams",
       "position": "RB",
@@ -2335,7 +2346,18 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 29,
+      "rank": 30,
+      "playerId": 2470,
+      "name": "Jacoby Brissett",
+      "position": "QB",
+      "team": "BAL",
+      "gamesPlayed": 9,
+      "points": 141.96,
+      "pointsPerGame": 15.77,
+      "espnId": null
+    },
+    {
+      "rank": 31,
       "playerId": 21702,
       "name": "Jonathan Taylor",
       "position": "RB",
@@ -2346,7 +2368,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 30,
+      "rank": 32,
       "playerId": 10769,
       "name": "Bucky Irving",
       "position": "RB",
@@ -2357,7 +2379,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 31,
+      "rank": 33,
       "playerId": 23182,
       "name": "Cam Ward",
       "position": "QB",
@@ -2368,7 +2390,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 32,
+      "rank": 34,
       "playerId": 23372,
       "name": "Christian Watson",
       "position": "WR",
@@ -2376,28 +2398,6 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "gamesPlayed": 10,
       "points": 131.6,
       "pointsPerGame": 13.16,
-      "espnId": null
-    },
-    {
-      "rank": 33,
-      "playerId": 9715,
-      "name": "Derrick Henry",
-      "position": "RB",
-      "team": "BAL",
-      "gamesPlayed": 9,
-      "points": 130.28,
-      "pointsPerGame": 14.48,
-      "espnId": null
-    },
-    {
-      "rank": 34,
-      "playerId": 2470,
-      "name": "Jacoby Brissett",
-      "position": "QB",
-      "team": "BAL",
-      "gamesPlayed": 8,
-      "points": 130.16,
-      "pointsPerGame": 16.27,
       "espnId": null
     },
     {
@@ -2545,6 +2545,17 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
     },
     {
       "rank": 48,
+      "playerId": 9744,
+      "name": "Justin Herbert",
+      "position": "QB",
+      "team": "LAC",
+      "gamesPlayed": 9,
+      "points": 108.9,
+      "pointsPerGame": 12.1,
+      "espnId": null
+    },
+    {
+      "rank": 49,
       "playerId": 11156,
       "name": "Ashton Jeanty",
       "position": "RB",
@@ -2555,7 +2566,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 49,
+      "rank": 50,
       "playerId": 16153,
       "name": "Puka Nacua",
       "position": "WR",
@@ -2566,7 +2577,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 50,
+      "rank": 51,
       "playerId": 4658,
       "name": "Blake Corum",
       "position": "RB",
@@ -2577,7 +2588,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 51,
+      "rank": 52,
       "playerId": 23279,
       "name": "Parker Washington",
       "position": "WR",
@@ -2588,7 +2599,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 52,
+      "rank": 53,
       "playerId": 13471,
       "name": "Isaiah Likely",
       "position": "TE",
@@ -2599,7 +2610,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 53,
+      "rank": 54,
       "playerId": 11828,
       "name": "Daniel Jones",
       "position": "QB",
@@ -2610,7 +2621,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 54,
+      "rank": 55,
       "playerId": 2168,
       "name": "Brock Bowers",
       "position": "TE",
@@ -2621,7 +2632,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 55,
+      "rank": 56,
       "playerId": 17541,
       "name": "George Pickens",
       "position": "WR",
@@ -2632,7 +2643,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 56,
+      "rank": 57,
       "playerId": 10644,
       "name": "Jalen Hurts",
       "position": "QB",
@@ -2643,7 +2654,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 57,
+      "rank": 58,
       "playerId": 14473,
       "name": "Trey McBride",
       "position": "TE",
@@ -2651,17 +2662,6 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "gamesPlayed": 10,
       "points": 93.5,
       "pointsPerGame": 9.35,
-      "espnId": null
-    },
-    {
-      "rank": 58,
-      "playerId": 9744,
-      "name": "Justin Herbert",
-      "position": "QB",
-      "team": "LAC",
-      "gamesPlayed": 8,
-      "points": 92.64,
-      "pointsPerGame": 11.58,
       "espnId": null
     },
     {
@@ -3020,6 +3020,17 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
     },
     {
       "rank": 31,
+      "playerId": 9715,
+      "name": "Derrick Henry",
+      "position": "RB",
+      "team": "BAL",
+      "gamesPlayed": 10,
+      "points": 152.78,
+      "pointsPerGame": 15.28,
+      "espnId": null
+    },
+    {
+      "rank": 32,
       "playerId": 21702,
       "name": "Jonathan Taylor",
       "position": "RB",
@@ -3030,7 +3041,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 32,
+      "rank": 33,
       "playerId": 20925,
       "name": "Amon-Ra St. Brown",
       "position": "WR",
@@ -3041,7 +3052,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 33,
+      "rank": 34,
       "playerId": 10769,
       "name": "Bucky Irving",
       "position": "RB",
@@ -3052,7 +3063,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 34,
+      "rank": 35,
       "playerId": 8073,
       "name": "Matthew Golden",
       "position": "WR",
@@ -3063,7 +3074,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 35,
+      "rank": 36,
       "playerId": 24155,
       "name": "Kyren Williams",
       "position": "RB",
@@ -3074,7 +3085,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 36,
+      "rank": 37,
       "playerId": 9871,
       "name": "Tee Higgins",
       "position": "WR",
@@ -3085,7 +3096,18 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 37,
+      "rank": 38,
+      "playerId": 2470,
+      "name": "Jacoby Brissett",
+      "position": "QB",
+      "team": "BAL",
+      "gamesPlayed": 9,
+      "points": 142.46,
+      "pointsPerGame": 15.83,
+      "espnId": null
+    },
+    {
+      "rank": 39,
       "playerId": 21490,
       "name": "D'Andre Swift",
       "position": "RB",
@@ -3096,7 +3118,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 38,
+      "rank": 40,
       "playerId": 16153,
       "name": "Puka Nacua",
       "position": "WR",
@@ -3107,7 +3129,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 39,
+      "rank": 41,
       "playerId": 22604,
       "name": "Bhayshul Tuten",
       "position": "RB",
@@ -3118,18 +3140,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 40,
-      "playerId": 9715,
-      "name": "Derrick Henry",
-      "position": "RB",
-      "team": "BAL",
-      "gamesPlayed": 9,
-      "points": 136.28,
-      "pointsPerGame": 15.14,
-      "espnId": null
-    },
-    {
-      "rank": 41,
+      "rank": 42,
       "playerId": 23182,
       "name": "Cam Ward",
       "position": "QB",
@@ -3140,7 +3151,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 42,
+      "rank": 43,
       "playerId": 23240,
       "name": "Jaylen Warren",
       "position": "RB",
@@ -3151,7 +3162,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 43,
+      "rank": 44,
       "playerId": 14473,
       "name": "Trey McBride",
       "position": "TE",
@@ -3159,17 +3170,6 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "gamesPlayed": 10,
       "points": 132.5,
       "pointsPerGame": 13.25,
-      "espnId": null
-    },
-    {
-      "rank": 44,
-      "playerId": 2470,
-      "name": "Jacoby Brissett",
-      "position": "QB",
-      "team": "BAL",
-      "gamesPlayed": 8,
-      "points": 130.66,
-      "pointsPerGame": 16.33,
       "espnId": null
     },
     {
@@ -3284,6 +3284,17 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
     },
     {
       "rank": 55,
+      "playerId": 7100,
+      "name": "Zay Flowers",
+      "position": "WR",
+      "team": "BAL",
+      "gamesPlayed": 9,
+      "points": 114.4,
+      "pointsPerGame": 12.71,
+      "espnId": null
+    },
+    {
+      "rank": 56,
       "playerId": 13617,
       "name": "Drake London",
       "position": "WR",
@@ -3294,7 +3305,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 56,
+      "rank": 57,
       "playerId": 5158,
       "name": "Sam Darnold",
       "position": "QB",
@@ -3305,7 +3316,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 57,
+      "rank": 58,
       "playerId": 3072,
       "name": "Luther Burden III",
       "position": "WR",
@@ -3316,7 +3327,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 58,
+      "rank": 59,
       "playerId": 4658,
       "name": "Blake Corum",
       "position": "RB",
@@ -3327,25 +3338,14 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 59,
-      "playerId": 16151,
-      "name": "Malik Nabers",
-      "position": "WR",
-      "team": "NYG",
-      "gamesPlayed": 9,
-      "points": 108.2,
-      "pointsPerGame": 12.02,
-      "espnId": null
-    },
-    {
       "rank": 60,
-      "playerId": 14975,
-      "name": "Tetairoa McMillan",
-      "position": "WR",
-      "team": "CAR",
+      "playerId": 9744,
+      "name": "Justin Herbert",
+      "position": "QB",
+      "team": "LAC",
       "gamesPlayed": 9,
-      "points": 106.5,
-      "pointsPerGame": 11.83,
+      "points": 108.9,
+      "pointsPerGame": 12.1,
       "espnId": null
     }
   ],
@@ -3715,6 +3715,17 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
     },
     {
       "rank": 34,
+      "playerId": 9715,
+      "name": "Derrick Henry",
+      "position": "RB",
+      "team": "BAL",
+      "gamesPlayed": 10,
+      "points": 161.28,
+      "pointsPerGame": 16.13,
+      "espnId": null
+    },
+    {
+      "rank": 35,
       "playerId": 20508,
       "name": "Geno Smith",
       "position": "QB",
@@ -3725,7 +3736,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 35,
+      "rank": 36,
       "playerId": 10769,
       "name": "Bucky Irving",
       "position": "RB",
@@ -3736,7 +3747,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 36,
+      "rank": 37,
       "playerId": 13471,
       "name": "Isaiah Likely",
       "position": "TE",
@@ -3747,7 +3758,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 37,
+      "rank": 38,
       "playerId": 5106,
       "name": "Jayden Daniels",
       "position": "QB",
@@ -3758,7 +3769,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 38,
+      "rank": 39,
       "playerId": 21490,
       "name": "D'Andre Swift",
       "position": "RB",
@@ -3769,7 +3780,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 39,
+      "rank": 40,
       "playerId": 23375,
       "name": "Deshaun Watson",
       "position": "QB",
@@ -3780,7 +3791,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 40,
+      "rank": 41,
       "playerId": 16418,
       "name": "Bo Nix",
       "position": "QB",
@@ -3791,7 +3802,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 41,
+      "rank": 42,
       "playerId": 23240,
       "name": "Jaylen Warren",
       "position": "RB",
@@ -3802,7 +3813,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 42,
+      "rank": 43,
       "playerId": 2168,
       "name": "Brock Bowers",
       "position": "TE",
@@ -3813,7 +3824,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 43,
+      "rank": 44,
       "playerId": 11156,
       "name": "Ashton Jeanty",
       "position": "RB",
@@ -3824,7 +3835,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 44,
+      "rank": 45,
       "playerId": 17541,
       "name": "George Pickens",
       "position": "WR",
@@ -3835,7 +3846,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 45,
+      "rank": 46,
       "playerId": 22604,
       "name": "Bhayshul Tuten",
       "position": "RB",
@@ -3846,7 +3857,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 46,
+      "rank": 47,
       "playerId": 16743,
       "name": "Chris Olave",
       "position": "WR",
@@ -3857,18 +3868,18 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 47,
-      "playerId": 9715,
-      "name": "Derrick Henry",
-      "position": "RB",
+      "rank": 48,
+      "playerId": 2470,
+      "name": "Jacoby Brissett",
+      "position": "QB",
       "team": "BAL",
       "gamesPlayed": 9,
-      "points": 142.28,
-      "pointsPerGame": 15.81,
+      "points": 142.96,
+      "pointsPerGame": 15.88,
       "espnId": null
     },
     {
-      "rank": 48,
+      "rank": 49,
       "playerId": 17722,
       "name": "Tony Pollard",
       "position": "RB",
@@ -3879,7 +3890,18 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 49,
+      "rank": 50,
+      "playerId": 7100,
+      "name": "Zay Flowers",
+      "position": "WR",
+      "team": "BAL",
+      "gamesPlayed": 9,
+      "points": 138.9,
+      "pointsPerGame": 15.43,
+      "espnId": null
+    },
+    {
+      "rank": 51,
       "playerId": 13617,
       "name": "Drake London",
       "position": "WR",
@@ -3890,7 +3912,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 50,
+      "rank": 52,
       "playerId": 23279,
       "name": "Parker Washington",
       "position": "WR",
@@ -3901,7 +3923,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 51,
+      "rank": 53,
       "playerId": 16151,
       "name": "Malik Nabers",
       "position": "WR",
@@ -3912,7 +3934,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 52,
+      "rank": 54,
       "playerId": 3072,
       "name": "Luther Burden III",
       "position": "WR",
@@ -3923,7 +3945,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 53,
+      "rank": 55,
       "playerId": 23182,
       "name": "Cam Ward",
       "position": "QB",
@@ -3934,18 +3956,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 54,
-      "playerId": 2470,
-      "name": "Jacoby Brissett",
-      "position": "QB",
-      "team": "BAL",
-      "gamesPlayed": 8,
-      "points": 131.16,
-      "pointsPerGame": 16.4,
-      "espnId": null
-    },
-    {
-      "rank": 55,
+      "rank": 56,
       "playerId": 14975,
       "name": "Tetairoa McMillan",
       "position": "WR",
@@ -3956,7 +3967,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 56,
+      "rank": 57,
       "playerId": 2650,
       "name": "Chase Brown",
       "position": "RB",
@@ -3967,7 +3978,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 57,
+      "rank": 58,
       "playerId": 24399,
       "name": "Garrett Wilson",
       "position": "WR",
@@ -3978,7 +3989,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 58,
+      "rank": 59,
       "playerId": 17308,
       "name": "Michael Penix Jr.",
       "position": "QB",
@@ -3989,7 +4000,7 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "espnId": null
     },
     {
-      "rank": 59,
+      "rank": 60,
       "playerId": 12621,
       "name": "George Kittle",
       "position": "TE",
@@ -3997,17 +4008,6 @@ export const MIXER_BOARDS: Record<MixKey, RankingRow[]> = {
       "gamesPlayed": 9,
       "points": 127.7,
       "pointsPerGame": 14.19,
-      "espnId": null
-    },
-    {
-      "rank": 60,
-      "playerId": 7100,
-      "name": "Zay Flowers",
-      "position": "WR",
-      "team": "BAL",
-      "gamesPlayed": 8,
-      "points": 127.5,
-      "pointsPerGame": 15.94,
       "espnId": null
     }
   ]
