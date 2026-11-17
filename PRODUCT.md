@@ -49,9 +49,11 @@ enough to act on it, because every number can be traced to the stat lines that p
 ## Capabilities and Constraints
 
 - Live: rankings board, player workspace (weekly chart, game log, career), scoring ruleset builder,
-  landing page with email-first sign-up.
-- Not built, and never presented as working: projections, league import (ESPN and Sleeper), start/sit
-  and waivers, trades, market consensus, draft tools, a player index, the iPhone app.
+  landing page with email-first sign-up, My Teams (Sleeper league import, with team needs from
+  rest-of-season projections).
+- Not built, and never presented as working: weekly projections (the backend exists and is switched
+  off), ESPN and Yahoo league import, start/sit and waivers, trades (parked until projections ship),
+  market consensus, draft tools, a player index, the iPhone app.
 - Every page renders per request under a nonce-based CSP: images only from the site and
   `a.espncdn.com`, fonts only self-hosted, no third-party script.
 - v1 scores and ranks QB, RB, WR and TE only; every position is stored.
