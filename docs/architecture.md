@@ -121,7 +121,7 @@ daily pull exists for, not a gap.
 | Distinct players, all positions | 4,232 |
 | Distinct players, QB/RB/WR/TE | **1,298** across seven seasons — **578–633 in any one 2020–2025 season** |
 | `snap_pct` coverage | 99.9% (114,397 / 114,479) |
-| Sleeper ids attached | 883 of 25,066 players |
+| Sleeper ids attached | **9,023 of 25,069** players — measured on **production, 2026-11-13** (`players` rows with a Sleeper id, read that afternoon; that morning's 06:00 ET `sleeper.players` run upserted the same 9,023). It was **883 of 25,066** until then, and production's 2026-11-11 and 11-12 runs still upserted 883. The jump is **probably** the identity matching in `eaae565` and `1e573e6` — inferred from those commits and the code, not separately measured |
 | Rows with fractional `def_sacks` | 1,660 |
 | Backfill wall time | 22.8s |
 

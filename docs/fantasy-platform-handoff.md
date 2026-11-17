@@ -1,9 +1,9 @@
 # Fantasy Football Stats Platform — Technical Handoff
 
 **Owner:** Prabhnoor Bal
-**Date:** September 3, 2026
-**Status:** Design settled → ready to implement
-**Stack:** Spring Boot 3.5 (Java 25) · PostgreSQL 16 · Redis · Next.js 15 / React / TypeScript
+**Date:** September 3, 2026 · **Last reviewed:** November 16, 2026
+**Status:** Phases 0–5d shipped and live; Phase 6 projections merged but switched off; leagues S0–S2 live, S3 (Trades) held — see **Current state** below
+**Stack:** Spring Boot 3.5 (Java 25) · PostgreSQL 16 · Redis · Next.js 16 / React 19 / TypeScript 6
 
 > **Scope moved on September 7, 2026.** This document remains the source of truth for the
 > **engineering rationale** — §5 data model, §6 scoring engine, §8 security, §9 performance — and
@@ -23,6 +23,123 @@
 >   and shallow anyway, §0 was right and this banner is the receipt.
 > - §0 point 1 (the resume framing) is unchanged and still the reason Phase 3.5 comes before
 >   anything new.
+
+## Current state — 2026-11-16
+
+*Written after a diagnosis session and updated the same night after the clean-up it led to. Numbers are
+measured on `origin/main` unless marked **(doc)** — taken from a document, not re-derived — or **not run**.
+The diagnosis measured `b752919`; the clean-up then moved `main` to `1864da4`.*
+
+**Canonical checkout: `origin/main`.** `~/fantasy-kai` is stale: branch `feat/projections-availability`,
+11 ahead / 68 behind `main`, built on the pre-redesign frontend. Do not merge it; mine it
+([`status-report.md`](status-report.md), "In progress"). Its backend already reached `main` via #75.
+
+**Where we left off.** The production API was deployed on 2026-11-12 (`b752919`; Flyway V7–V11 applied;
+My Teams stopped 404ing; the unattended 06:00 ET ingest on 11-13 filled the V9 tables) **(doc:**
+[`deploys/2026-11-12-api.md`](deploys/2026-11-12-api.md)**)**. Before that: leagues S0–S2 landed (#75–#79),
+the dense member board (#80), the ingest fetch deadline (#87), CI on PRs against any base (#86) and the
+new-ruleset menu fix (#92). The last commit before this session was 2026-11-13 (the deploy docs).
+
+**Trades is parked until projections ship (owner decision, 2026-11-16).** Leagues S3's win-probability
+model missed its pre-registered calibration bar three times (Brier 0.2332 / 0.2265 / 0.2257 vs 0.225)
+**(doc)**; the lever is better projections, which is Phase 6, so there is no fourth attempt, no evaluator
+and no Trades page until the projection UI and job are live. ESPN import (S4) still needs the owner's ESPN
+league id.
+
+### What changed on 2026-11-16, after the diagnosis
+
+| | Result |
+|---|---|
+| Dependabot #89 — Next 16.4.3 → **16.4.6** | Merged (`c602431`). The diagnosis found `next build` and `next dev` refusing to run on 16.4.3 (advisory GHSA-mfr8-8qww-v76h, published 2026-11-16 18:51 UTC). Dependabot re-resolved the bump to 16.4.6 on rebase; CI built it, Vercel built it, and **Production** deployed. Before and after the merge, `www` and its auth pages returned 200, `/rankings` still redirected anonymous users to `/login`, the API liveness returned 200, and the CSP nonce changed per request |
+| Dependabot #88 → **#94** | Dependabot closed #88 ("updatable in another way") and opened #94 with a third update: `bucket4j` 8.21.0 → 8.22.0 **and BouncyCastle `bcprov` 1.86 → 1.87** (the Argon2id dependency). CI green on current `main` including the backend suite's real register/login. Merged (`b330b86`) |
+| Dependabot #90 (TanStack), #91 (Tailwind 4.3.3 → 4.3.5) | Merged one at a time (`e7a8ffe`, `7e764e7`), each updated onto `main`, each CI run matched to its head SHA, `main` CI green and a Production deployment after each |
+| #95 — the audit gate | `npm audit --audit-level=high` → `npm audit --omit=dev --audit-level=moderate`. Proven on both lockfiles: on `b752919`'s the old gate exits 0 (misses it) and the new one exits 1; on `main` the new one exits 0. Merged (`1864da4`) |
+| Repository settings | **Dependabot alerts on** (they found one: `minimatch`, medium, development scope only). `main` now requires **both** `Build, test, migrate` and `Lint and build the web shell` (up-to-date branches and a PR still required; no approval count; admins not forced). Secret scanning and push protection were already on; Dependabot *security updates* remain off |
+| Laptop-only work | `chore/ai-workflow` pushed (2 commits, no PR). The four untracked league docs — two handoffs, the Codex prompt and the S4 ESPN plan — are on `docs/leagues-handoffs-and-s4-plan` (no PR; the local home-directory prefix written as `~`). `stash@{0}` (5 lines of attribution settings) and the owner's `RulesetJson.java` whitespace edit were **not touched** |
+| Local mirror | `./scripts/ingest-once.sh`: exit 0 in 6.5 s, all eight sources `SUCCESS`; 2026 stat rows 5,501 → 10,366, through week 10. Week 10 was **13 of 14 games** (the Monday-night game was still being played) |
+| Landing hero | Re-captured through week 10 in **PR #96, open and unmerged** — it changes the public page, and its week 10 is incomplete. One command re-runs it after the last game |
+| Docs | Host address and SSH key filename removed from the current docs (`API-DEPLOY-2026-11-02.md`); `PRODUCT.md`, `map.md`'s re-capture steps and the 2026-11-10 status snapshot corrected |
+
+**Not deployed.** Production's API still runs `b752919`. `main` now carries `bucket4j` 8.22.0 and
+`bcprov` 1.87, and the frontend changes reached production through Vercel on merge. A backend redeploy is
+the owner's call (`deploy/README.md` §7, then `deploy/acceptance.sh`).
+
+### Health (as of the end of 2026-11-16)
+
+| Area | Status | Detail |
+|---|---|---|
+| Backend `./mvnw -B verify` (JDK 25.0.4.1) | **pass** | Measured locally at `b752919`: BUILD SUCCESS, 85 s, **464 tests, 0 failures, 0 errors, 0 skipped**, Tomcat 10.1.59 in the jar. After the `bucket4j` and `bcprov` bumps it was CI, not a local run, that proved it: `main` CI green at `b330b86` and every merge after |
+| Migrations | **pass** | The built jar applied V1–V11 to an empty Postgres 16 and booted in 3.2–3.3 s with `ddl-auto: validate` (twice); the dev database's 11 checksums match the files. `player_game_stats` still has only its primary-key index. All 13 `StatKey` columns exist |
+| Frontend lint · `tsc --noEmit` · tests · build | **pass** | 0 findings · 0 errors (there is no `typecheck` script) · **113 / 113** · `next build` on **Next 16.4.6**, also built by CI and Vercel |
+| REST smoke (throwaway DB loaded from the dev mirror, at `b752919`) | **pass** | See below. Anonymous reads → 401; CORS admits the app origin and refuses an unlisted one (403) |
+| Production (anonymous probe, after the last frontend merge) | **pass** | `www` `/`, `/login`, `/register` 200; `/rankings` 307 → `/login?next=…`; API liveness 200. **Not** probed as a member |
+| Secrets | **pass** | No private-key or token patterns in any of the 247 commits across all refs; `.env` is untracked and ignored; the example files hold dev placeholders or blanks |
+| Dependencies | **warn** | Spring Boot 3.5 is past OSS EOL (2026-06-30). `npm audit --omit=dev`: **0**. One open Dependabot alert, dev scope only (`minimatch`). Backend CVE scan **not run** — it needs `NVD_API_KEY` |
+| Data freshness | **ok** | Local mirror pulled 2026-11-16 19:04 CST, through week 10. Production freshness 2026-11-13 **(doc)**, not probed |
+
+**Rankings under each ruleset — the core claim, checked independently.** The top 10 of 2025 under
+Standard, Half PPR, PPR and TE Premium were recomputed in SQL from the raw stat columns with the V3 rates:
+**40 of 40 equal to the API, max difference 0.0000**; ranks run 1..10 and points descend. TE Premium moved
+only TEs (53 players in both top-60 lists, 0 non-TEs changed). A custom ruleset (PPR with 6-point passing
+TDs) equalled PPR + 2 × `pass_td` for 5 of 5 QBs and moved Stafford from 3rd to 1st (442.38). `per_game`
+sorts by points per game (every player in the RB top 25 had ≥ 8 games); `last4` and the 2026 season respond.
+Tenant isolation: another member gets **404** (not 403) on GET, PUT and DELETE of your profile. Validation
+rejects by name with **422** (`unknown stat "nope" in base`; `base.rec must be between -10.0 and 10.0, got
+99.0`; `at most 20 bonuses, got 21`); `size=5000`, a bad position, a `DROP TABLE` in `scope` or `sort`, and a
+non-numeric `profileId` are all 400, and `players` still held 25,069 rows afterwards.
+
+**Working vs stubbed, against this document.**
+- **§1 v1 scope: all shipped.** Rankings (season / per-game / last-4), preset and custom scoring profiles,
+  player game log, auth. Beyond v1, **live**: league import (Sleeper) with My Teams, rest-of-season
+  projections, lineup optimizer, team needs (S0–S2).
+- **Built but switched off:** the projection job (`projections.job-enabled: false`; `/projections` answered 200
+  against an empty projection table). The frontend calls `/rankings/board` (since #80) but **no weekly
+  projection endpoint** (`/projections`, `/players/{id}/projection`); My Teams shows team needs computed
+  server-side from rest-of-season projections (S2).
+- **Parked or not built:** Trades / expected-wins evaluator (**parked**, above); ESPN import S4 (planned, the
+  plan is on `docs/leagues-handoffs-and-s4-plan`); Yahoo S5; league-aware rankings S6; editing a custom
+  ruleset in the UI (`PUT` exists, no caller); Phase 8 roster tools, 9 consensus board, 10 iOS, **11
+  performance pass** (§9's cache / matview / index work has not started — the baseline invariant is intact),
+  11.5 Spring Boot 4.
+
+### Blockers, most severe first
+
+1. ~~The frontend cannot be built or started~~ — **resolved** by #89 (Next 16.4.6), verified by CI, Vercel
+   and a local build.
+2. **Spring Boot 3.5 is past OSS support** — only the one-line Tomcat pin covers the known advisories.
+3. **The OWASP scan still scans nothing** until `NVD_API_KEY` exists (the step skips with a warning). And the
+   job is `continue-on-error: true` by design, so even once it runs, a CVSS ≥ 7 finding reports on the job
+   without turning CI red — read the `dependency-check-report` artifact. The rest of this blocker is fixed:
+   alerts are on, the npm gate would now have caught the Next advisory, and the frontend build is a
+   required check.
+4. **Owner decisions pending:** `stash@{0}` (5 lines adding an empty `attribution` block to
+   `.claude/settings.json`, parked on `chore/ai-workflow`'s tip); `.claude/local/` and the whitespace-only
+   `RulesetJson.java` edit in `~/fantasy-kai` (untouched, never discard unasked); deleting merged and
+   superseded branches and the stale worktrees (listed for approval, nothing deleted).
+5. **A public-history leak, not rewritten (owner decision):** `DEPLOY-STEPS.md` in history carries the VM's
+   address and the SSH key's filename. No private key material was ever committed (no PEM/OpenSSH/PGP armor in
+   any blob of the 247 commits). The address is public in DNS anyway, and the host and key name are now out of
+   the current docs. What protects the server is SSH hardening and the firewall, done on the server, not in
+   this repo.
+6. **Production API lags `main`** by the two backend dependency bumps (above).
+
+### Plan forward
+
+| # | Step | Status |
+|---|---|---|
+| 1 | Merge Dependabot #89 (Next); CI, Vercel production and a fresh build verified | **done** |
+| 2 | Merge #88 (as #94), #90, #91 one at a time | **done** |
+| 3 | Require the frontend check; audit gate to `--omit=dev --audit-level=moderate`; Dependabot alerts on; `NVD_API_KEY` | **done**, except the key (owner) |
+| 4 | Land PR #93 with this update; correct the drifted docs; scrub host and key name from current docs | **done in this PR** |
+| 5 | Preserve laptop-only work; list stale branches | **done**; deleting them waits for the owner's OK |
+| 6 | Refresh the mirror and re-capture the hero | **done**; PR #96 awaits the owner (week 10 is 13 of 14 games) |
+| 7 | **Finish Phase 6:** rescue the three `v2-*` backtest docs from `feat/projections-availability`, then Slice 5 (run metadata, explanations), Slice 6 (UI on the redesigned workspace), Slice 7 (QA, monitoring), then switch the job on. This is also what unparks Trades | next — L |
+| 8 | Backend redeploy for the two dependency bumps, whenever convenient | owner — S |
+| 9 | Phase 11.5 Spring Boot 3.5 → 4, then the Phase 11 performance pass | L |
+
+**Not run:** browser QA of any page; the OWASP dependency-check; the heat-band generator; the k6 script; any
+probe of production as a signed-in member (the production state above is anonymous probes plus the deploy
+report). `session-check.sh --no-network` on the hero-capture branch (`.env` present, jar built by `package.sh`): 0 FAIL, 0 drift.
 
 ---
 
