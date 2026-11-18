@@ -28,7 +28,8 @@
 
 *Written after a diagnosis session and updated the same night after the clean-up it led to. Numbers are
 measured on `origin/main` unless marked **(doc)** — taken from a document, not re-derived — or **not run**.
-The diagnosis measured `b752919`; the clean-up then moved `main` to `1864da4`.*
+The diagnosis measured `b752919`; the clean-up then moved `main` to `1864da4`. Updated 2026-11-17 (UTC),
+after the production redeploy and the branch clean-up, with `main` at `5a05dd6`.*
 
 **Canonical checkout: `origin/main`.** `~/fantasy-kai` is stale: branch `feat/projections-availability`,
 11 ahead / 68 behind `main`, built on the pre-redesign frontend. Do not merge it; mine it
@@ -60,9 +61,15 @@ league id.
 | Landing hero | Re-captured through week 10 in **PR #96, open and unmerged** — it changes the public page, and its week 10 is incomplete. One command re-runs it after the last game |
 | Docs | Host address and SSH key filename removed from the current docs (`API-DEPLOY-2026-11-02.md`); `PRODUCT.md`, `map.md`'s re-capture steps and the 2026-11-10 status snapshot corrected |
 
-**Not deployed.** Production's API still runs `b752919`. `main` now carries `bucket4j` 8.22.0 and
-`bcprov` 1.87, and the frontend changes reached production through Vercel on merge. A backend redeploy is
-the owner's call (`deploy/README.md` §7, then `deploy/acceptance.sh`).
+### What changed on 2026-11-17
+
+| | Result |
+|---|---|
+| **Production API redeployed** | `main` at `5a05dd6e8fe789b565c685f003cdf957df7ba004` (was `b752919`). The whole difference was `bucket4j` 8.22.0 and `bcprov` 1.87: no migration, no Caddy change. Backup restored and counted, rollback image tagged, the new image's jar inspected before the swap, outage measured at about 12.4 s of 502s, before/after checks identical (the rankings body byte for byte), acceptance 1, 2, 4a, 4c, 5, 6, 7 and 10 PASS and 9 not run. Record: [`deploys/2026-11-17-api-deps.md`](deploys/2026-11-17-api-deps.md) |
+| Stash | `stash@{0}` dropped on the owner's word. Its SHA `488c30520e8cae68083d5fb4f3783409fb37f2bc` and a 15-line patch were kept: `git stash store -m recovered <sha>` restores it until `git gc` prunes it |
+| Branches and worktrees | Deleted every branch that is an **ancestor of `main`**: 33 remote and 10 local, tips recorded, and removed the two worktrees on them (the league worktree's 4 untracked docs were first proven identical to the pushed copies, and its 8 extra cached nflverse files copied to the main checkout's `.cache`). **Kept:** the six `feat/projections-*` and `docs/projections-v1-architecture` branches and everything else with unmerged commits (`chore/ai-workflow`, `chore/hero-recapture-2026-11-16`, `docs/leagues-handoffs-and-s4-plan`, `codex/dense-rankings-2026-11-02`); and 8 remote branches whose PRs merged by merge commit or squash but which are not ancestors of `main` and carry 0 unique patches. Those 8 go on the owner's word |
+| Landing hero | PR #96 is re-captured automatically once week 10 is 14 of 14, by a session-only job that polls every two hours on 11-17 and 11-18 behind a gate (every game scored, every team with stat rows). Dry-run end to end: the gate correctly refused at 13/14. If the session is gone, `docs/map.md` "Re-capturing the landing hero" is the manual procedure |
+| Step 7, first half | The three `v2-*` backtest reports are on `main` (they fixed three broken links in `projection-accuracy.md`). The Slice 5 plan is written as its own PR, `docs/projections-slice-5-plan`, **not merged**: no feature code until the owner approves it |
 
 ### Health (as of the end of 2026-11-16)
 
@@ -112,16 +119,16 @@ non-numeric `profileId` are all 400, and `players` still held 25,069 rows afterw
    without turning CI red — read the `dependency-check-report` artifact. The rest of this blocker is fixed:
    alerts are on, the npm gate would now have caught the Next advisory, and the frontend build is a
    required check.
-4. **Owner decisions pending:** `stash@{0}` (5 lines adding an empty `attribution` block to
-   `.claude/settings.json`, parked on `chore/ai-workflow`'s tip); `.claude/local/` and the whitespace-only
-   `RulesetJson.java` edit in `~/fantasy-kai` (untouched, never discard unasked); deleting merged and
-   superseded branches and the stale worktrees (listed for approval, nothing deleted).
+4. **Owner decisions pending:** `.claude/local/` and the whitespace-only `RulesetJson.java` edit in
+   `~/fantasy-kai` (untouched, never discard unasked); deleting the 8 merge-commit-only or squash-merged remote
+   branches and the five remaining sibling worktrees (`-ci`, `-ingest-v2` and `-new-ruleset` sit on those
+   branches; `-dense` and `-dense-rebased` on the squash-merged dense-board ones); the Slice 5 plan (above).
 5. **A public-history leak, not rewritten (owner decision):** `DEPLOY-STEPS.md` in history carries the VM's
    address and the SSH key's filename. No private key material was ever committed (no PEM/OpenSSH/PGP armor in
    any blob of the 247 commits). The address is public in DNS anyway, and the host and key name are now out of
    the current docs. What protects the server is SSH hardening and the firewall, done on the server, not in
    this repo.
-6. **Production API lags `main`** by the two backend dependency bumps (above).
+6. ~~Production API lags `main`~~ — **resolved 2026-11-17**: redeployed at `5a05dd6`, record above.
 
 ### Plan forward
 
@@ -133,8 +140,8 @@ non-numeric `profileId` are all 400, and `players` still held 25,069 rows afterw
 | 4 | Land PR #93 with this update; correct the drifted docs; scrub host and key name from current docs | **done in this PR** |
 | 5 | Preserve laptop-only work; list stale branches | **done**; deleting them waits for the owner's OK |
 | 6 | Refresh the mirror and re-capture the hero | **done**; PR #96 awaits the owner (week 10 is 13 of 14 games) |
-| 7 | **Finish Phase 6:** rescue the three `v2-*` backtest docs from `feat/projections-availability`, then Slice 5 (run metadata, explanations), Slice 6 (UI on the redesigned workspace), Slice 7 (QA, monitoring), then switch the job on. This is also what unparks Trades | next — L |
-| 8 | Backend redeploy for the two dependency bumps, whenever convenient | owner — S |
+| 7 | **Finish Phase 6.** Done: the three `v2-*` reports rescued. Written, awaiting approval: the Slice 5 plan (`docs/projections-slice-5-plan.md` on branch `docs/projections-slice-5-plan`). Then Slice 5, Slice 6 (UI on the redesigned workspace), Slice 7 (QA, monitoring), then switch the job on; the plan's §7 lists what that needs. This is also what unparks Trades | **in progress** — L |
+| 8 | Backend redeploy for the two dependency bumps | **done 2026-11-17** |
 | 9 | Phase 11.5 Spring Boot 3.5 → 4, then the Phase 11 performance pass | L |
 
 **Not run:** browser QA of any page; the OWASP dependency-check; the heat-band generator; the k6 script; any
