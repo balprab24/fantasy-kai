@@ -6,11 +6,13 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fantasykai.projections.AvailabilityService;
+import com.fantasykai.projections.CurrentTargetWeek;
 import com.fantasykai.projections.ProjectionDatabase;
 import com.fantasykai.projections.ProjectionProperties;
 import com.fantasykai.projections.ProjectionRepository;
 import com.fantasykai.projections.RawProjection;
 import com.fantasykai.projections.SeasonWeek;
+import com.fantasykai.projections.TargetWeekResolver;
 import com.fantasykai.projections.WeightedAverageProjectionProvider;
 import com.fantasykai.scoring.Bonus;
 import com.fantasykai.scoring.ResolvedRuleset;
@@ -58,7 +60,7 @@ class ProjectionOrderingTests {
         when(availability.forWeek(week)).thenReturn(Map.of());
         var controller = new ProjectionController(new ProjectionsService(db.jdbc, profiles, availability,
                 new ProjectionProperties(provider.source().id(), false), provider,
-                Clock.fixed(now, ZoneOffset.UTC)));
+                Clock.fixed(now, ZoneOffset.UTC), noCache(db)));
         var first = controller.board(1, null, "", 0, 1, 7L).page().content().getFirst();
         var second = controller.board(1, null, "", 1, 1, 7L).page().content().getFirst();
         assertThat(first.playerId()).isEqualTo(high);
@@ -124,7 +126,7 @@ class ProjectionOrderingTests {
 
         var service = new ProjectionsService(backwards, profilesFor(1L, 7L,
                 new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())), noAvailability(week),
-                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC));
+                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC), noCache(db));
         assertThat(ids(service.board(1, null, "", 0, 200, 7L))).containsExactly(top, a, b, c);
         for (int page = 0; page < 4; page++) {
             assertThat(ids(service.board(1, null, "", page, 1, 7L))).as("page %d of size 1", page)
@@ -177,7 +179,7 @@ class ProjectionOrderingTests {
                 Map.of("TE", Map.of(StatKey.REC, 1.5)), List.of(new Bonus(StatKey.REC_YD, 50, 1.5)));
         ResolvedRuleset rules = ResolvedRuleset.compile(ruleset);
         var service = new ProjectionsService(db.jdbc, profilesFor(1L, 7L, ruleset), noAvailability(week),
-                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC));
+                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC), noCache(db));
 
         var board = service.board(1, null, "", 0, 200, 7L).page().content();
         assertThat(board).hasSize(40);
@@ -214,6 +216,11 @@ class ProjectionOrderingTests {
             }
         }
         return points;
+    }
+
+    /** The resolver itself, uncached: these tests change the schedule between calls. */
+    private static CurrentTargetWeek noCache(ProjectionDatabase db) {
+        return new CurrentTargetWeek(new TargetWeekResolver(db.jdbc), 0);
     }
 
     private static ScoringProfiles profilesFor(long profileId, Long userId, Ruleset ruleset) {

@@ -104,6 +104,13 @@ the freshness alert (**Slice 7**); **switching the job on** (§7); any model cha
 }
 ```
 
+**D1(a) as built (5.2).** The resolver's query measured **196 ms per call** on the 2026-11-18 local mirror (122,755
+stat rows, 123 candidate games, 108,259 buffer hits: it walks `player_game_stats`' primary-key index once per
+candidate game, and that table must not get another index), and its own Javadoc said a request path must never
+call it. D1(a) stands, with the call behind `CurrentTargetWeek`, a per-process cache keyed by season with a
+60-second time-to-live (`fantasykai.projections.target-cache-seconds`, `0` = ask every time). No migration, no job
+change. A week rolls over at most a minute after the ingest lands its last stat row.
+
 State rules, with the resolver as the single authority (D1a): no weeks left → `NO_UPCOMING_WEEK`; target week
 has rows → `READY`, or `STALE` if every game of it kicked off over 48 h ago; target week has no rows →
 `UNAVAILABLE`; rows exist only for an older week → `STALE`. The 48-hour constant moves from the controller to

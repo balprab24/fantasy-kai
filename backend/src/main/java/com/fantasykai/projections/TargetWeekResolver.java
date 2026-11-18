@@ -40,15 +40,17 @@ import org.springframework.stereotype.Component;
  * or out of season.
  *
  * <p>{@code player_game_stats} has no index past its primary key, by design (section 9), so the
- * "has stat rows" test is one sequential scan of it -- once a day, inside the job. A request
- * path must never call this; Slice 5 reads the week the job wrote.
+ * "has stat rows" test walks that key's index once per candidate game: 196 ms per call on the
+ * 2026-11-18 local mirror. Fine once a day inside the job. A request path asks
+ * {@link CurrentTargetWeek}, which calls this at most once per time-to-live.
  */
 @Component
 public class TargetWeekResolver {
 
     static final int UNREPORTED_HOURS = 48;
 
-    static final Duration UNREPORTED_AFTER = Duration.ofHours(UNREPORTED_HOURS);
+    /** The one 48-hour rule: the job's, and the board's notion of a week that has gone stale. */
+    public static final Duration UNREPORTED_AFTER = Duration.ofHours(UNREPORTED_HOURS);
 
     private static final String NEXT_WEEK = """
             SELECT min(g.week) FROM games g
