@@ -188,6 +188,8 @@ class ReadApiTests {
                 "/api/v1/players/" + allen,
                 "/api/v1/players/" + allen + "/gamelog?season=2025",
                 "/api/v1/players/" + allen + "/career?profileId=1",
+                "/api/v1/projections?profileId=1",
+                "/api/v1/players/" + allen + "/projection?profileId=1",
                 "/api/v1/scoring-profiles")) {
             ResponseEntity<String> response = anonymous.getForEntity(path, String.class);
             assertThat(response.getStatusCode()).as(path).isEqualTo(HttpStatus.UNAUTHORIZED);

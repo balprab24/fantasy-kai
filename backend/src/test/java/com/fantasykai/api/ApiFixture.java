@@ -47,15 +47,25 @@ final class ApiFixture {
      * teardown is already the largest term in the build (docs/development.md).
      */
     static TestRestTemplate asMember(TestRestTemplate anonymous, JdbcTemplate jdbc, JwtService jwt) {
-        Long member = jdbc.queryForObject("""
-                INSERT INTO users (email, password_hash) VALUES ('fixture-member@example.com', 'not-a-hash')
-                ON CONFLICT ON CONSTRAINT uq_users_email DO UPDATE SET email = EXCLUDED.email
-                RETURNING id
-                """, Long.class);
+        return asMember(anonymous, jdbc, jwt, memberId(jdbc, "fixture-member@example.com"));
+    }
+
+    /** A client for the member {@code memberId} (see {@link #memberId}); for tests that need two. */
+    static TestRestTemplate asMember(TestRestTemplate anonymous, JdbcTemplate jdbc, JwtService jwt,
+            long memberId) {
         return new TestRestTemplate(new RestTemplateBuilder()
                 .rootUri(anonymous.getRootUri())
                 .messageConverters(anonymous.getRestTemplate().getMessageConverters())
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + jwt.issue(member)));
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + jwt.issue(memberId)));
+    }
+
+    /** The id of the member with this address, created on first use. */
+    static long memberId(JdbcTemplate jdbc, String email) {
+        return jdbc.queryForObject("""
+                INSERT INTO users (email, password_hash) VALUES (?, 'not-a-hash')
+                ON CONFLICT ON CONSTRAINT uq_users_email DO UPDATE SET email = EXCLUDED.email
+                RETURNING id
+                """, Long.class, email);
     }
 
     static Seeded seed(JdbcTemplate jdbc) {
