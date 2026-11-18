@@ -349,10 +349,15 @@ class ProjectionApiTests {
      */
     @Test
     void lastSeasonsRowsAreNeverServedAsThisSeasonsStaleBoard() {
-        long lastSeasonGame = game(SEASON - 1, 18, buf, bal, NOW.minus(Duration.ofDays(300)));
+        long lastSeasonFinale = game(SEASON - 1, 18, buf, bal, NOW.minus(Duration.ofDays(300)));
+        long lastSeasonSameWeek = game(SEASON - 1, WEEK, buf, bal, NOW.minus(Duration.ofDays(400)));
         game(WEEK, buf, bal, inDays(2));
         long wr = player("Last Season Receiver", "WR", buf);
-        store(SEASON - 1, 18, new Proj(wr, lastSeasonGame, buf, Map.of(StatKey.REC_YD, 60.0)));
+        long other = player("Last Season Same Week Receiver", "WR", buf);
+        store(SEASON - 1, 18, new Proj(wr, lastSeasonFinale, buf, Map.of(StatKey.REC_YD, 60.0)));
+        // A row at the same week number as the target: a lookup that compares weeks without the
+        // season (week <= 3) would accept this one even though it is last year's.
+        store(SEASON - 1, WEEK, new Proj(other, lastSeasonSameWeek, buf, Map.of(StatKey.REC_YD, 70.0)));
 
         JsonNode board = getJson(rest, BOARD + "?profileId=1");
         assertThat(board.get("state").asText()).isEqualTo("UNAVAILABLE");
@@ -390,9 +395,10 @@ class ProjectionApiTests {
      * The ordinary Tuesday: Monday night's stats are in, so the resolver has moved to next week,
      * and the job has not written next week yet. The old rows are less than 48 hours old, yet they
      * are for the wrong week, so they are STALE (until the stats arrive the same rows are READY).
+     * What the job then writes for the new week is covered by the provider and latest-week tests.
      */
     @Test
-    void onceTheLastGameReportsItsStatsTheOldWeeksRowsAreStaleUntilTheJobWritesTheNextWeek() {
+    void onceTheLastGameReportsItsStatsTheOldWeeksRowsAreStale() {
         long played = game(WEEK, buf, bal, NOW.minus(Duration.ofHours(30)));
         game(WEEK + 1, buf, bal, inDays(5));
         long wr = player("Tuesday Receiver", "WR", buf);

@@ -1,6 +1,7 @@
 # Projections Slice 5 — plan
 
-**Status: approved by the owner on 2026-11-18 (D1 to D5 as recommended; PR #98). Built so far: 5.0 to 5.2.**
+**Status: approved by the owner on 2026-11-18 (D1 to D5 as recommended; PR #98). Built so far: 5.0 (the HTTP
+characterization tests; confirming the 14,906-week parity command of §6.2 is still open), 5.1 and 5.2.**
 Written 2026-11-17 against `main` at `5a05dd6` (production runs the same commit).
 It extends [`projections-v1-architecture.md`](projections-v1-architecture.md) (approved 2026-10-09) and does
 not replace it; where they differ, §3 below asks for a decision.
@@ -104,18 +105,19 @@ the freshness alert (**Slice 7**); **switching the job on** (§7); any model cha
 }
 ```
 
-**D1(a) as built (5.2).** The resolver's query took **196 ms** in one `EXPLAIN ANALYZE` run, warm, on the 2026-11-18
-local mirror (122,755 stat rows, 123 candidate games, 108,259 buffer hits: it walks `player_game_stats`' primary-key
-index once per candidate game, and that table must not get another index; evidence in
-`docs/perf/target-week-resolver-2026-11-18.md`). It was **not measured on production** and it scales with the games
-left in the season (about twice as much in week 1, an extrapolation), and the resolver's own Javadoc said a request
-path must never call it. D1(a) stands, with the call behind `CurrentTargetWeek`, a per-process cache keyed by season with a
+**D1(a) as built (5.2).** The resolver's query took **about 105 ms warm** in `EXPLAIN ANALYZE` on the 2026-11-18 local
+mirror (102 to 108 ms over five runs; 143 ms on the next and 196 ms on the first, which still read 11 pages from disk;
+122,755 stat rows, 123 candidate games, 108,270 buffer hits: it walks `player_game_stats`' primary-key index once per
+candidate game, and that table must not get another index before Phase 11; evidence in
+`docs/perf/target-week-resolver-2026-11-18.md`). It was **not measured on production**. It scales with the games left
+in the season (about twice as much in week 1, an extrapolation), and the resolver's own Javadoc said a request path
+must never call it. D1(a) stands, with the call behind `CurrentTargetWeek`, a per-process cache keyed by season with a
 60-second time-to-live (`fantasykai.projections.target-cache-seconds`, `0` = ask every time). No migration, no job
 change. A week rolls over at most a minute after the ingest lands its last stat row.
 
 State rules, with the resolver as the single authority (D1a): no weeks left → `NO_UPCOMING_WEEK`; target week
-has rows → `READY`, or `STALE` if every game of it kicked off over 48 h ago; target week has no rows →
-`UNAVAILABLE`; rows exist only for an older week → `STALE`. The 48-hour constant moves from the controller to
+has rows → `READY`, or `STALE` if every game of it kicked off at least 48 h ago; target week has no rows →
+`UNAVAILABLE`; rows exist only for an older week of the same season → `STALE`. The 48-hour constant moves from the controller to
 `TargetWeekResolver`, where the job's matching 48-hour rule already lives.
 
 ## 5. Files touched
@@ -227,7 +229,7 @@ only deliberately, because a row the job writes locks for good at kickoff"*. It 
 | R2 | **Production appearance backfill, 2020–2025** | the architecture says so: *"The daily pull fetches only the current season, so `player_game_appearances` would otherwise lack every earlier season's zero games"*; the baseline reads history across seasons | **Verified gap, 2026-11-17.** Production holds appearances for **2026 only**: 3,219 rows (355 zero-stat, regular season). The local mirror, backfilled, holds 2020–2026: regular-season rows 6,000 / 6,461 / 6,402 / 6,474 / 6,454 / 6,381 / 3,508 |
 | R2a | Its acceptance test | a backfill is only proven by counts | production's per-season regular-season counts equal the mirror's. **Do not assert equality with research**: the mirror's zero-stat counts are **746 / 816 / 812 / 854 / 823 / 689** against the research's **730 / 796 / 806 / 851 / 818 / 687** that Slice 3 recorded as reproduced exactly on 2026-10-12 — 2 to 20 higher. The cause is **not established** (a hypothesis: players-master revisions since October resolve more pfr ids, and the research listed 29–46 unplaced snap rows per season). Explaining or bounding that gap is the first task of R2 |
 | R2b | A way to run it | `BackfillRunner` is an `ApplicationRunner` that returns; it does not end the JVM, while the scheduler's non-daemon threads keep it alive (`IngestOnceRunner` calls `System.exit` for exactly that reason, and `deploy/README.md` documents the "second backend with its own scheduler" trap). So the README's one-shot command **cannot run a backfill as written** | D5. Rehearsed on a restored copy either way, after a §7-step-2 backup |
-| R3 | **Rehearse the job on a restored production copy** with `job-enabled=true` | the first production run writes rows that lock | expect: `candidates` ≈ rostered skill players on teams with an open game; `written` ≤ `candidates`; `locked` 0; a second run writes identical rows (`ProjectionJobTests` proves it on synthetic data; this proves it on real data); 20 sampled raw lines equal the local mirror's, same code and data |
+| R3 | **Rehearse the job on a restored production copy** with `job-enabled=true`, and time `TargetWeekResolver`'s query there (`docs/perf/target-week-resolver-2026-11-18.md`) | the first production run writes rows that lock; the cache's premise has only been measured on the laptop | expect: `candidates` ≈ rostered skill players on teams with an open game; `written` ≤ `candidates`; `locked` 0; a second run writes identical rows (`ProjectionJobTests` proves it on synthetic data; this proves it on real data); 20 sampled raw lines equal the local mirror's, same code and data |
 | R4 | **Config**: `compose.prod.yml` sets the backend's environment explicitly, so the flag needs a line there (`FANTASYKAI_PROJECTIONS_JOB_ENABLED: ${PROJECTIONS_JOB_ENABLED:-false}`) and `PROJECTIONS_JOB_ENABLED=true` in `deploy/.env` | no runtime override exists today (2026-11-12 report) | a backend redeploy, §7 of the runbook; Caddy untouched |
 | R5 | **Time the first run early in a week** | the job writes rows **only for games that have not kicked off** and locks them at kickoff. A game that kicked off before the first run gets no row, and its players have no projection that week | run it Tuesday or Wednesday after the 06:00 ET ingest, before Thursday night |
 | R6 | **Monitoring exists** | the job reports as `ingest_runs.source = 'fantasykai.projections'`, so `ingestFreshness` covers it | verify the row appears daily after switch-on, with the SELECT in `docs/development.md` |

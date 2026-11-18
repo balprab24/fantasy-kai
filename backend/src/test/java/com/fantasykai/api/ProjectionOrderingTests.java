@@ -223,6 +223,35 @@ class ProjectionOrderingTests {
         return new CurrentTargetWeek(new TargetWeekResolver(db.jdbc), 0);
     }
 
+    /**
+     * The season is the job's: a January date belongs to the season that began the previous
+     * September (week 18 is played in January), not to the calendar year. Using the year would
+     * make the board ask about a season with no games while the job projects the real one.
+     */
+    @Test void theBoardAsksAboutTheSeasonTheJobProjectsInJanuary() {
+        var db = ProjectionDatabase.get();
+        db.reset();
+        int home = db.team("BUF"), away = db.team("NYJ");
+        Instant now = Instant.parse("2031-01-10T12:00:00Z");
+        long game = db.game(2030, 18, home, away, now.plusSeconds(86400));
+        var week = new SeasonWeek(2030, 18);
+        var provider = new WeightedAverageProjectionProvider();
+        long wr = db.player("January Receiver", "WR", home);
+        double[] stats = new double[StatKey.COUNT];
+        stats[StatKey.REC_YD.index()] = 80;
+        new ProjectionRepository(db.jdbc).replaceOpen(week, provider.source().id(), List.of(
+                new ProjectionRepository.ProjectedRow(wr, game, home, new RawProjection(provider.source(), week,
+                        stats, 0, 0, 0, 4, new SeasonWeek(2030, 17)))), now);
+        var service = new ProjectionsService(db.jdbc, profilesFor(1L, 7L,
+                new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())), noAvailability(week),
+                new ProjectionProperties(provider.source().id(), false), provider,
+                Clock.fixed(now, ZoneOffset.UTC), noCache(db));
+
+        var board = service.board(1, null, "", 0, 50, 7L);
+        assertThat(board.state()).as("2031-01-10 is in the 2030 season").isEqualTo("READY");
+        assertThat(ids(board)).containsExactly(wr);
+    }
+
     private static ScoringProfiles profilesFor(long profileId, Long userId, Ruleset ruleset) {
         var profiles = mock(ScoringProfiles.class);
         when(profiles.byId(profileId, userId)).thenReturn(ResolvedRuleset.compile(ruleset));

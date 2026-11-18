@@ -14,7 +14,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The request path's view of the target week: the resolver's answer, asked at most once per
- * time-to-live, and never beyond what the caller's clock allows.
+ * time-to-live, and shared by every caller whose clock reads within the time-to-live of the
+ * entry on either side.
  */
 class CurrentTargetWeekTests {
 

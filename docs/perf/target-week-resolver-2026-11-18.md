@@ -1,8 +1,8 @@
 # `TargetWeekResolver`'s query, measured (2026-11-18)
 
-**What this is:** the one measurement behind `CurrentTargetWeek`'s cache (Slice 5, step 5.2, decision D1(a)).
-**What it is not:** a production measurement, or a benchmark. One `EXPLAIN (ANALYZE, BUFFERS)` run, warm cache,
-on the laptop's Docker Postgres 16 mirror.
+**What this is:** the measurement behind `CurrentTargetWeek`'s cache (Slice 5, step 5.2, decision D1(a)).
+**What it is not:** a production measurement, or a benchmark. `EXPLAIN (ANALYZE, BUFFERS)` runs on the laptop's Docker
+Postgres 16 mirror, seven in all.
 
 ## Setup
 
@@ -18,7 +18,22 @@ SELECT min(g.week) FROM games g
    AND (g.kickoff_at IS NULL OR g.kickoff_at > now() - interval '48 hours');
 ```
 
-## Result, verbatim
+## Result
+
+Seven runs of the query above, in order (the first is the output reproduced below):
+
+| Run | Execution time | Buffers | Note |
+|---:|---:|---|---|
+| 1 | 195.6 ms | hit 108,259, **read 11** | the first; not fully warm (11 pages came from disk) |
+| 2 | 142.7 ms | hit 108,270 | |
+| 3 | 107.8 ms | hit 108,270 | |
+| 4 | 107.0 ms | hit 108,270 | |
+| 5 | 102.3 ms | hit 108,270 | |
+| 6 | 104.3 ms | hit 108,270 | |
+| 7 | 102.1 ms | hit 108,270 | |
+
+**Warm, the call takes about 105 ms** (102 to 108 over five runs), which is about 0.83 to 0.87 ms per candidate game.
+The 196 ms I first quoted is run 1. No `JIT:` block appeared in run 1's output (the full output of the other runs was not kept, only their timing and buffer lines). Run 1, verbatim:
 
 ```
 Aggregate (actual time=195.531..195.532 rows=1 loops=1)
@@ -46,16 +61,19 @@ Execution Time: 195.592 ms
 
 - **Why it is slow.** `player_game_stats`' primary key is `(player_id, game_id)`, so a lookup by `game_id` alone cannot
   seek: each of the 123 candidate games walks the key's index (about 880 buffers each, 108,231 in all). The table must
-  not get an index on `game_id` (architecture section 9), which is why the answer is cached instead.
+  not get an index on `game_id` before Phase 11 (architecture section 9), which is why the answer is cached instead.
 - **What the number depends on.** The candidate games, so the games left in the season: about 272 in week 1 (2.2 times
-  as many; ~430 ms by the same per-game cost, an extrapolation and not a measurement) and about 16 in week 18.
-  Per-node timing under `EXPLAIN ANALYZE` also inflates a nested loop, so the real call may be somewhat faster.
+  as many; about 230 ms at the warm per-game cost of 0.85 ms, an extrapolation and not a measurement) and about 16 in
+  week 18. Per-node timing under `EXPLAIN ANALYZE` also inflates a nested loop, so the real call may be somewhat faster.
+- **What was not separated.** The first run's extra ~90 ms came with 11 disk reads; whether that is cold pages alone I
+  did not establish. The doc measured `now()` where the code binds an instant, so a generic plan after the driver's
+  prepare threshold could differ.
 - **What it does not show.** Production's number. Plan section 9 made D1(b) (a `projection_run` table) the fallback
   "if it proves slow on production-sized data". Production's stat table holds the same seasons, but this has not been
   run there; the R3 rehearsal on a restored production copy (plan section 7) is where it gets measured on real data.
 
 ## Decision
 
-Per request the resolver would add about 200 ms to both projection endpoints. `CurrentTargetWeek` calls it at most
+Per request the resolver would add about 100 ms (warm) to both projection endpoints. `CurrentTargetWeek` calls it at most
 once per `fantasykai.projections.target-cache-seconds` (60 in `application.yml`) per process. No migration, no index,
 no change to the job.

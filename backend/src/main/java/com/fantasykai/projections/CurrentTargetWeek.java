@@ -1,6 +1,5 @@
 package com.fantasykai.projections;
 
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -13,10 +12,12 @@ import org.springframework.stereotype.Component;
  *
  * <p>The resolver's query walks the primary-key index of {@code player_game_stats} once per
  * candidate game, because the table has no index on {@code game_id} and must not get one
- * (architecture section 9). One EXPLAIN ANALYZE on the 2026-11-18 local mirror, warm cache
- * (122,755 stat rows, 123 candidate games): 196 ms and 108,259 buffer hits
- * ({@code docs/perf/target-week-resolver-2026-11-18.md}). Not measured on production, and it
- * scales with the games left in the season, so about twice as much in week 1. That is right once
+ * before Phase 11 (architecture section 9). EXPLAIN ANALYZE on the 2026-11-18 local mirror
+ * (122,755 stat rows, 123 candidate games, 108,270 buffer hits): 102 to 108 ms warm, 143 ms on the
+ * next run and 196 ms on the first, which still read 11 pages from disk
+ * ({@code docs/perf/target-week-resolver-2026-11-18.md}). Not measured on production. The cost
+ * is per candidate game (about 0.85 ms each), so it is larger early in the season: roughly twice
+ * as much in week 1, an extrapolation. That is right once
  * a day inside the job and wrong on every request, so requests go through here. One resolution
  * answers every member for {@code ttl}; a week rolls over at most one {@code ttl} after the
  * ingest lands its last stat row, which a board that changes once a day does not notice.

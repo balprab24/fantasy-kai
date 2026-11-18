@@ -51,11 +51,13 @@ import org.springframework.stereotype.Service;
  * <ul>
  *   <li>no week left in the season: {@code NO_UPCOMING_WEEK}, and no rows;</li>
  *   <li>rows stored for that week: {@code READY}, or {@code STALE} if every one of their games
- *       kicked off over {@link TargetWeekResolver#UNREPORTED_AFTER} ago;</li>
+ *       kicked off at least {@link TargetWeekResolver#UNREPORTED_AFTER} ago;</li>
  *   <li>rows stored only for an earlier week of the same season: those rows, as {@code STALE} --
  *       the job has not written the new week yet, or has stopped;</li>
- *   <li>nothing stored for this season, or nothing readable (every stored row belongs to a
- *       delisted game): {@code UNAVAILABLE}.</li>
+ *   <li>nothing stored for this season, or nothing readable (every stored row is an open row of
+ *       a delisted game; a delisted game's locked rows stay readable): {@code UNAVAILABLE}. The
+ *       lookup does not consult readability, so a target week whose rows are all hidden is
+ *       {@code UNAVAILABLE} even if an earlier week has readable rows.</li>
  * </ul>
  *
  * <p>Not yet the full slice 5/6 contract in {@code docs/projections-v1-architecture.md}:
@@ -245,7 +247,7 @@ public class ProjectionsService {
                 week.season(), week.week(), points);
     }
 
-    /** {@code STALE} once every game of the target week's rows kicked off over {@link #STALE_AFTER} ago. */
+    /** {@code STALE} once every game of the target week's rows kicked off at least {@link #STALE_AFTER} ago. */
     private static String readyOrStale(List<ProjectionRow> rows, Instant now) {
         Instant cutoff = now.minus(STALE_AFTER);
         // The resolver lets a game go at exactly 48 h (kickoff_at > now - 48h holds it), so the
