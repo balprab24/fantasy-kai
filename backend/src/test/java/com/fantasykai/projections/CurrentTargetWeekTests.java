@@ -56,17 +56,64 @@ class CurrentTargetWeekTests {
 
         assertThat(targets.resolve(2030, T0)).isEqualTo(WEEK_11);
         assertThat(targets.resolve(2031, T0)).isEmpty();
-        assertThat(targets.resolve(2030, T0)).as("and the first answer was not lost").isEqualTo(WEEK_11);
+        assertThat(targets.resolve(2030, T0)).as("one slot: 2031 evicted 2030, so it is asked again")
+                .isEqualTo(WEEK_11);
+
+        verify(resolver, times(2)).resolve(2030, T0);
+        verify(resolver, times(1)).resolve(2031, T0);
     }
 
+    /**
+     * Concurrent requests read the clock before they reach the lock, so one can arrive "earlier"
+     * than the entry another just stored. It shares the answer rather than asking again.
+     */
     @Test
-    void anAnswerFromAFutureClockIsNotReusedByAnEarlierOne() {
+    void aCallerWithinTheTimeToLiveEitherSideSharesTheAnswer() {
         when(resolver.resolve(2030, T0.plusSeconds(30))).thenReturn(WEEK_12);
-        when(resolver.resolve(2030, T0)).thenReturn(WEEK_11);
         var targets = new CurrentTargetWeek(resolver, 60);
 
         assertThat(targets.resolve(2030, T0.plusSeconds(30))).isEqualTo(WEEK_12);
-        assertThat(targets.resolve(2030, T0)).as("the clock went backwards").isEqualTo(WEEK_11);
+        assertThat(targets.resolve(2030, T0)).as("30 s earlier on the caller's clock").isEqualTo(WEEK_12);
+
+        verify(resolver, times(1)).resolve(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void aClockThatJumpedBackByTheTimeToLiveOrMoreAsksAgain() {
+        when(resolver.resolve(2030, T0.plusSeconds(60))).thenReturn(WEEK_12);
+        when(resolver.resolve(2030, T0)).thenReturn(WEEK_11);
+        var targets = new CurrentTargetWeek(resolver, 60);
+
+        assertThat(targets.resolve(2030, T0.plusSeconds(60))).isEqualTo(WEEK_12);
+        assertThat(targets.resolve(2030, T0)).as("a full ttl back").isEqualTo(WEEK_11);
+    }
+
+    @Test
+    void concurrentCallersShareOneResolution() throws Exception {
+        when(resolver.resolve(2030, T0)).thenAnswer(call -> {
+            Thread.sleep(150);
+            return WEEK_11;
+        });
+        var targets = new CurrentTargetWeek(resolver, 60);
+        int callers = 8;
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(callers);
+        try {
+            var answers = new java.util.ArrayList<java.util.concurrent.Future<Optional<TargetWeek>>>();
+            for (int i = 0; i < callers; i++) {
+                answers.add(pool.submit(() -> {
+                    start.await();
+                    return targets.resolve(2030, T0);
+                }));
+            }
+            start.countDown();
+            for (var answer : answers) {
+                assertThat(answer.get(10, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(WEEK_11);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+        verify(resolver, times(1)).resolve(2030, T0);
     }
 
     @Test
@@ -89,6 +136,14 @@ class CurrentTargetWeekTests {
         targets.resolve(2030, T0);
 
         verify(resolver, times(2)).resolve(2030, T0);
+    }
+
+    /** The one place the production default lives; nothing else repeats it. */
+    @Test
+    void theProductionTimeToLiveIsSixtySeconds() {
+        var yaml = new org.springframework.beans.factory.config.YamlPropertiesFactoryBean();
+        yaml.setResources(new org.springframework.core.io.ClassPathResource("application.yml"));
+        assertThat(yaml.getObject().getProperty("fantasykai.projections.target-cache-seconds")).isEqualTo("60");
     }
 
     @Test

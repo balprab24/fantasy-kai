@@ -34,8 +34,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 /**
- * Read-only projections: the stored raw lines of the latest week the configured provider has
- * stored, scored on request under the caller's ruleset by the unmodified {@link ScoringEngine}.
+ * Read-only projections: the stored raw lines of the week being played (or, failing that, the
+ * newest earlier week of the same season), scored on request under the caller's ruleset by the
+ * unmodified {@link ScoringEngine}.
  * Nothing here writes, and generation never runs inside a request -- the job does that, and is
  * off.
  *
@@ -51,9 +52,10 @@ import org.springframework.stereotype.Service;
  *   <li>no week left in the season: {@code NO_UPCOMING_WEEK}, and no rows;</li>
  *   <li>rows stored for that week: {@code READY}, or {@code STALE} if every one of their games
  *       kicked off over {@link TargetWeekResolver#UNREPORTED_AFTER} ago;</li>
- *   <li>rows stored only for an earlier week: those rows, as {@code STALE} -- the job has not
- *       written the new week yet, or has stopped;</li>
- *   <li>nothing stored at all, or nothing readable: {@code UNAVAILABLE}.</li>
+ *   <li>rows stored only for an earlier week of the same season: those rows, as {@code STALE} --
+ *       the job has not written the new week yet, or has stopped;</li>
+ *   <li>nothing stored for this season, or nothing readable (every stored row belongs to a
+ *       delisted game): {@code UNAVAILABLE}.</li>
  * </ul>
  *
  * <p>Not yet the full slice 5/6 contract in {@code docs/projections-v1-architecture.md}:
@@ -78,11 +80,15 @@ public class ProjectionsService {
             Comparator.comparingDouble(ProjectionRow::rawPoints).reversed()
                     .thenComparingLong(ProjectionRow::playerId);
 
-    /** The newest stored week at or before the target: the target itself, else an earlier one. */
+    /**
+     * The newest stored week of the target's own season at or before the target: the target
+     * itself, else an earlier week of that season. Never another season's: last January's week-18
+     * lines are not a stale version of this September's week 1.
+     */
     private static final String STORED_WEEK = """
             SELECT season, week FROM player_week_projection
-             WHERE provider = ? AND (season < ? OR (season = ? AND week <= ?))
-             ORDER BY season DESC, week DESC
+             WHERE provider = ? AND season = ? AND week <= ?
+             ORDER BY week DESC
              LIMIT 1
             """;
 
@@ -200,7 +206,7 @@ public class ProjectionsService {
         SeasonWeek goal = target.get().week();
         List<SeasonWeek> stored = jdbc.query(STORED_WEEK,
                 (rs, n) -> new SeasonWeek(rs.getInt("season"), rs.getInt("week")),
-                config.provider(), goal.season(), goal.season(), goal.week());
+                config.provider(), goal.season(), goal.week());
         if (stored.isEmpty()) {
             return new View("UNAVAILABLE", null, List.of());
         }
@@ -242,8 +248,10 @@ public class ProjectionsService {
     /** {@code STALE} once every game of the target week's rows kicked off over {@link #STALE_AFTER} ago. */
     private static String readyOrStale(List<ProjectionRow> rows, Instant now) {
         Instant cutoff = now.minus(STALE_AFTER);
+        // The resolver lets a game go at exactly 48 h (kickoff_at > now - 48h holds it), so the
+        // board calls a row old from exactly 48 h too.
         boolean allOld = rows.stream()
-                .allMatch(row -> row.kickoff() != null && row.kickoff().isBefore(cutoff));
+                .allMatch(row -> row.kickoff() != null && !row.kickoff().isAfter(cutoff));
         return allOld ? "STALE" : "READY";
     }
 

@@ -342,6 +342,119 @@ class ProjectionApiTests {
         }
     }
 
+    /**
+     * Last season's final week is not a stale version of this season's first. In September, with
+     * the new schedule loaded and the job off (or its rosters not out), the board has nothing
+     * for this season, and says so.
+     */
+    @Test
+    void lastSeasonsRowsAreNeverServedAsThisSeasonsStaleBoard() {
+        long lastSeasonGame = game(SEASON - 1, 18, buf, bal, NOW.minus(Duration.ofDays(300)));
+        game(WEEK, buf, bal, inDays(2));
+        long wr = player("Last Season Receiver", "WR", buf);
+        store(SEASON - 1, 18, new Proj(wr, lastSeasonGame, buf, Map.of(StatKey.REC_YD, 60.0)));
+
+        JsonNode board = getJson(rest, BOARD + "?profileId=1");
+        assertThat(board.get("state").asText()).isEqualTo("UNAVAILABLE");
+        assertThat(board.get("page").get("content")).isEmpty();
+        JsonNode detail = getJson(rest, detailPath(wr, 1));
+        assertThat(detail.get("state").asText()).isEqualTo("UNAVAILABLE");
+        assertThat(detail.get("projection").isNull()).isTrue();
+    }
+
+    /**
+     * The board's own staleness, apart from the resolver's: the week is still the target (a game
+     * that has not reported stats holds it) but every game that has stored rows kicked off at
+     * least 48 hours ago. The edge is the resolver's: a game is old from exactly 48 hours, and
+     * one second short of that it is not.
+     */
+    @Test
+    void aTargetWeekWhoseStoredGamesAreAllAtLeastFortyEightHoursOldIsStale() {
+        long wr = player("Old Rows Receiver", "WR", buf);
+        Object[][] cases = {
+                {Duration.ofHours(48).minusSeconds(1), "READY", "PROJECTED"},
+                {Duration.ofHours(48), "STALE", "STALE"}};
+        for (Object[] c : cases) {
+            clear();
+            long played = game(WEEK, buf, bal, NOW.minus((Duration) c[0]));
+            game(WEEK, mia, bal, NOW.minus(Duration.ofHours(40))); // unreported, holds the week, no rows
+            store(WEEK, new Proj(wr, played, buf, Map.of(StatKey.REC_YD, 60.0)));
+            assertThat(getJson(rest, BOARD + "?profileId=1").get("state").asText())
+                    .as("the stored game kicked off %s ago", c[0]).isEqualTo(c[1]);
+            assertThat(getJson(rest, detailPath(wr, 1)).get("state").asText())
+                    .as("player route, stored game kicked off %s ago", c[0]).isEqualTo(c[2]);
+        }
+    }
+
+    /**
+     * The ordinary Tuesday: Monday night's stats are in, so the resolver has moved to next week,
+     * and the job has not written next week yet. The old rows are less than 48 hours old, yet they
+     * are for the wrong week, so they are STALE (until the stats arrive the same rows are READY).
+     */
+    @Test
+    void onceTheLastGameReportsItsStatsTheOldWeeksRowsAreStaleUntilTheJobWritesTheNextWeek() {
+        long played = game(WEEK, buf, bal, NOW.minus(Duration.ofHours(30)));
+        game(WEEK + 1, buf, bal, inDays(5));
+        long wr = player("Tuesday Receiver", "WR", buf);
+        long reporter = player("Reporting Receiver", "WR", bal);
+        store(WEEK, new Proj(wr, played, buf, Map.of(StatKey.REC_YD, 60.0)));
+
+        assertThat(getJson(rest, BOARD + "?profileId=1").get("state").asText())
+                .as("the game has been played but its stats are not in: it still holds the week").isEqualTo("READY");
+
+        jdbc.update("""
+                INSERT INTO player_game_stats (player_id, game_id, season, week, team_id, snap_pct, rec, rec_yd)
+                SELECT ?, ?, g.season, g.week, ?, 85.50, 4, 40 FROM games g WHERE g.id = ?
+                """, reporter, played, bal, played);
+
+        JsonNode board = getJson(rest, BOARD + "?profileId=1");
+        assertThat(board.get("state").asText()).as("stats are in; the target is next week").isEqualTo("STALE");
+        assertThat(ids(board)).as("the old rows are still served").containsExactly(wr);
+        assertThat(getJson(rest, detailPath(wr, 1)).get("state").asText()).isEqualTo("STALE");
+    }
+
+    /** The week lookup is per provider: another method's newer week must not hide our older rows. */
+    @Test
+    void anotherProvidersNewerWeekDoesNotHideOurOlderRows() {
+        long oldGame = game(WEEK - 1, buf, bal, NOW.minus(Duration.ofDays(9)));
+        long game = game(WEEK, buf, bal, inDays(2));
+        long ours = player("Older Rows Receiver", "WR", buf);
+        long theirs = player("Newer Rows Receiver", "WR", buf);
+        store(WEEK - 1, new Proj(ours, oldGame, buf, Map.of(StatKey.REC_YD, 60.0)));
+        storeAnotherProvidersRow(WEEK, theirs, game);
+
+        JsonNode board = getJson(rest, BOARD + "?profileId=1");
+        assertThat(board.get("state").asText()).isEqualTo("STALE");
+        assertThat(ids(board)).containsExactly(ours);
+    }
+
+    /** Stored rows that are all hidden (open rows of delisted games) leave nothing to serve. */
+    @Test
+    void aWeekWhoseOnlyStoredRowsAreHiddenIsUnavailable() {
+        game(WEEK, buf, bal, inDays(2));
+        long dropped = game(WEEK, mia, bal, inDays(2));
+        long wr = player("Hidden Rows Receiver", "WR", mia);
+        store(WEEK, new Proj(wr, dropped, mia, Map.of(StatKey.REC_YD, 60.0)));
+        jdbc.update("UPDATE games SET delisted_at = now() WHERE id = ?", dropped);
+
+        JsonNode board = getJson(rest, BOARD + "?profileId=1");
+        assertThat(board.get("state").asText()).isEqualTo("UNAVAILABLE");
+        assertThat(board.get("page").get("content")).isEmpty();
+    }
+
+    /** A game the schedule has no date for is open: the week stays READY and the row has no kickoff. */
+    @Test
+    void aGameWithNoKickoffDateKeepsTheWeekReady() {
+        long undated = game(WEEK, buf, bal, null);
+        long wr = player("Undated Receiver", "WR", buf);
+        store(WEEK, new Proj(wr, undated, buf, Map.of(StatKey.REC_YD, 60.0)));
+
+        JsonNode board = getJson(rest, BOARD + "?profileId=1");
+        assertThat(board.get("state").asText()).isEqualTo("READY");
+        assertThat(rowOf(board, wr).get("kickoff").isNull()).isTrue();
+        assertThat(rowOf(board, wr).get("locked").asBoolean()).isFalse();
+    }
+
     /** Stored rows for a week after the one the resolver names are not the resolver's week. */
     @Test
     void rowsForAWeekAfterTheTargetAreNotServed() {
@@ -572,14 +685,9 @@ class ProjectionApiTests {
         long other = player("Other Method Receiver", "WR", buf);
         store(WEEK - 1, new Proj(lastWeek, oldGame, buf, Map.of(StatKey.REC_YD, 90.0)));
         store(WEEK, new Proj(thisWeek, game, buf, Map.of(StatKey.REC_YD, 60.0)));
-        // Another method's rows in the same week (so the line query must filter on provider) and in a
-        // later one (so the week lookup must).
-        ProjectionSource another = new ProjectionSource("other-method-v1", "Another method", "A different method.");
-        for (int week : new int[] {WEEK, WEEK + 1}) {
-            repository.replaceOpen(new SeasonWeek(SEASON, week), another.id(), List.of(
-                    new ProjectedRow(other, game, buf, new RawProjection(another, new SeasonWeek(SEASON, week),
-                            new double[StatKey.COUNT], 0, 0, 0, 4, new SeasonWeek(SEASON - 1, 18)))), NOW);
-        }
+        // Another method's row in the same week: the line query must filter on provider. (Its
+        // week lookup is pinned by anotherProvidersNewerWeekDoesNotHideOurOlderRows.)
+        storeAnotherProvidersRow(WEEK, other, game);
 
         JsonNode board = getJson(rest, BOARD + "?profileId=1");
         assertThat(ids(board)).containsExactly(thisWeek);
@@ -698,14 +806,18 @@ class ProjectionApiTests {
     }
 
     private void store(int week, Proj... rows) {
-        SeasonWeek target = new SeasonWeek(SEASON, week);
+        store(SEASON, week, rows);
+    }
+
+    private void store(int season, int week, Proj... rows) {
+        SeasonWeek target = new SeasonWeek(season, week);
         List<ProjectedRow> projected = new ArrayList<>();
         for (Proj row : rows) {
             double[] values = new double[StatKey.COUNT];
             row.stats().forEach((key, value) -> values[key.index()] = value);
             projected.add(new ProjectedRow(row.player(), row.game(), row.team(),
                     new RawProjection(provider.source(), target, values, 0, 0, 0, row.gamesUsed(),
-                            new SeasonWeek(SEASON - 1, 18))));
+                            new SeasonWeek(season - 1, 18))));
         }
         repository.replaceOpen(target, provider.source().id(), projected, NOW);
     }
@@ -719,7 +831,8 @@ class ProjectionApiTests {
         jdbc.execute("TRUNCATE player_week_projection, player_week_projection_repairs");
         jdbc.update("DELETE FROM roster_week");
         jdbc.update("DELETE FROM injury_report");
-        jdbc.update("DELETE FROM games WHERE season = ?", SEASON);
+        jdbc.update("DELETE FROM player_game_stats WHERE season IN (?, ?)", SEASON - 1, SEASON);
+        jdbc.update("DELETE FROM games WHERE season IN (?, ?)", SEASON - 1, SEASON);
     }
 
     private static Instant inDays(int days) {
@@ -727,12 +840,25 @@ class ProjectionApiTests {
     }
 
     private long game(int week, int home, int away, Instant kickoff) {
+        return game(SEASON, week, home, away, kickoff);
+    }
+
+    /** A regular-season game; a null {@code kickoff} is a game the schedule has no date for. */
+    private long game(int season, int week, int home, int away, Instant kickoff) {
         return jdbc.queryForObject("""
                 INSERT INTO games (nflverse_game_id, season, week, season_type, home_team_id,
                                    away_team_id, kickoff_at)
                 VALUES (?, ?, ?, 'REG', ?, ?, ?) RETURNING id
-                """, Long.class, "%d_%02d_%d_%d".formatted(SEASON, week, away, home), SEASON, week,
-                home, away, kickoff.atOffset(ZoneOffset.UTC));
+                """, Long.class, "%d_%02d_%d_%d".formatted(season, week, away, home), season, week,
+                home, away, kickoff == null ? null : kickoff.atOffset(ZoneOffset.UTC));
+    }
+
+    /** Another method's row for {@code player}, in {@code week}: the provider filters must keep it out. */
+    private void storeAnotherProvidersRow(int week, long player, long game) {
+        ProjectionSource another = new ProjectionSource("other-method-v1", "Another method", "A different method.");
+        repository.replaceOpen(new SeasonWeek(SEASON, week), another.id(), List.of(
+                new ProjectedRow(player, game, buf, new RawProjection(another, new SeasonWeek(SEASON, week),
+                        new double[StatKey.COUNT], 0, 0, 0, 4, new SeasonWeek(SEASON - 1, 18)))), NOW);
     }
 
     private long player(String name, String position, int team) {

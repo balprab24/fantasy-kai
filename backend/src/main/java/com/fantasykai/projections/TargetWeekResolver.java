@@ -40,8 +40,9 @@ import org.springframework.stereotype.Component;
  * or out of season.
  *
  * <p>{@code player_game_stats} has no index past its primary key, by design (section 9), so the
- * "has stat rows" test walks that key's index once per candidate game: 196 ms per call on the
- * 2026-11-18 local mirror. Fine once a day inside the job. A request path asks
+ * "has stat rows" test walks that key's index once per candidate game: 196 ms in one EXPLAIN
+ * ANALYZE on the 2026-11-18 local mirror (see {@code CurrentTargetWeek}). Fine once a day inside
+ * the job. A request path asks
  * {@link CurrentTargetWeek}, which calls this at most once per time-to-live.
  */
 @Component

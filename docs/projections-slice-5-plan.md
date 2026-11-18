@@ -1,7 +1,7 @@
 # Projections Slice 5 — plan
 
-**Status: a proposal for the owner's approval. No feature code has been written, and none starts until
-this is approved.** Written 2026-11-17 against `main` at `5a05dd6` (production runs the same commit).
+**Status: approved by the owner on 2026-11-18 (D1 to D5 as recommended; PR #98). Built so far: 5.0 to 5.2.**
+Written 2026-11-17 against `main` at `5a05dd6` (production runs the same commit).
 It extends [`projections-v1-architecture.md`](projections-v1-architecture.md) (approved 2026-10-09) and does
 not replace it; where they differ, §3 below asks for a decision.
 
@@ -104,10 +104,12 @@ the freshness alert (**Slice 7**); **switching the job on** (§7); any model cha
 }
 ```
 
-**D1(a) as built (5.2).** The resolver's query measured **196 ms per call** on the 2026-11-18 local mirror (122,755
-stat rows, 123 candidate games, 108,259 buffer hits: it walks `player_game_stats`' primary-key index once per
-candidate game, and that table must not get another index), and its own Javadoc said a request path must never
-call it. D1(a) stands, with the call behind `CurrentTargetWeek`, a per-process cache keyed by season with a
+**D1(a) as built (5.2).** The resolver's query took **196 ms** in one `EXPLAIN ANALYZE` run, warm, on the 2026-11-18
+local mirror (122,755 stat rows, 123 candidate games, 108,259 buffer hits: it walks `player_game_stats`' primary-key
+index once per candidate game, and that table must not get another index; evidence in
+`docs/perf/target-week-resolver-2026-11-18.md`). It was **not measured on production** and it scales with the games
+left in the season (about twice as much in week 1, an extrapolation), and the resolver's own Javadoc said a request
+path must never call it. D1(a) stands, with the call behind `CurrentTargetWeek`, a per-process cache keyed by season with a
 60-second time-to-live (`fantasykai.projections.target-cache-seconds`, `0` = ask every time). No migration, no job
 change. A week rolls over at most a minute after the ingest lands its last stat row.
 
