@@ -1,6 +1,8 @@
 ---
 description: Adversarial senior-engineer review of the current diff, against this project's own invariants and its own history of bugs
 argument-hint: "[optional: a ref to diff against, default main]"
+context: fork
+agent: reviewer
 ---
 
 # The review pass
