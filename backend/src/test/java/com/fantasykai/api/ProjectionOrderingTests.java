@@ -12,17 +12,26 @@ import com.fantasykai.projections.ProjectionRepository;
 import com.fantasykai.projections.RawProjection;
 import com.fantasykai.projections.SeasonWeek;
 import com.fantasykai.projections.WeightedAverageProjectionProvider;
+import com.fantasykai.scoring.Bonus;
 import com.fantasykai.scoring.ResolvedRuleset;
 import com.fantasykai.scoring.Ruleset;
 import com.fantasykai.scoring.ScoringEngine;
 import com.fantasykai.scoring.ScoringProfiles;
 import com.fantasykai.scoring.StatKey;
+import com.fantasykai.scoring.StatLine;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 
 class ProjectionOrderingTests {
     @Test void sortsRawPointsBeforePagingAndKeepsRawValueOutOfJson() {
@@ -67,12 +76,127 @@ class ProjectionOrderingTests {
 
     /** Ties break on player id however the rows arrive: the SQL promises no order of its own. */
     @Test void breaksATieOnPlayerIdWhateverOrderTheRowsArriveIn() {
-        var rows = new java.util.ArrayList<>(List.of(row(30, 10.0), row(10, 10.0), row(20, 10.004), row(5, 9.0)));
-        for (int shuffle = 0; shuffle < 6; shuffle++) {
-            java.util.Collections.rotate(rows, shuffle);
+        var rows = new ArrayList<>(List.of(row(30, 10.0), row(10, 10.0), row(20, 10.004), row(5, 9.0)));
+        for (int turn = 1; turn <= rows.size(); turn++) {
+            Collections.rotate(rows, 1);
             assertThat(rows.stream().sorted(ProjectionsService.BOARD_ORDER).map(ProjectionRow::playerId).toList())
-                    .as("arrival order rotated by %d", shuffle).containsExactly(20L, 10L, 30L, 5L);
+                    .as("arrival order after %d single rotations", turn).containsExactly(20L, 10L, 30L, 5L);
         }
+    }
+
+    /**
+     * The same property through the board itself, so replacing {@code .sorted(BOARD_ORDER)} with a
+     * comparator that forgets the id is caught: the database here hands the rows back in the
+     * opposite of id order, and a stable sort would keep that order for a tie.
+     */
+    @Test void theBoardBreaksTiesOnPlayerIdEvenWhenTheDatabaseReturnsThemBackwards() {
+        var db = ProjectionDatabase.get();
+        db.reset();
+        int home = db.team("BUF"), away = db.team("NYJ");
+        Instant now = Instant.parse("2030-09-01T00:00:00Z");
+        long game = db.game(2030, 1, home, away, now.plusSeconds(86400));
+        var week = new SeasonWeek(2030, 1);
+        var provider = new WeightedAverageProjectionProvider();
+        long a = db.player("Tie A", "WR", home), b = db.player("Tie B", "WR", home), c = db.player("Tie C", "WR", home);
+        long top = db.player("Top", "WR", home);
+        var rows = new ArrayList<ProjectionRepository.ProjectedRow>();
+        for (long id : List.of(a, b, c, top)) {
+            double[] stats = new double[StatKey.COUNT];
+            stats[StatKey.REC_YD.index()] = id == top ? 100.04 : 100.0;
+            rows.add(new ProjectionRepository.ProjectedRow(id, game, home,
+                    new RawProjection(provider.source(), week, stats, 0, 0, 0, 4, new SeasonWeek(2029, 18))));
+        }
+        new ProjectionRepository(db.jdbc).replaceOpen(week, provider.source().id(), rows, now);
+
+        JdbcTemplate backwards = new JdbcTemplate(db.jdbc.getDataSource()) {
+            @Override public <T> List<T> query(String sql, RowMapper<T> rowMapper, Object... args) {
+                List<T> result = new ArrayList<>(super.query(sql, rowMapper, args));
+                Collections.reverse(result);
+                return result;
+            }
+        };
+        // The overload the service calls (a RowMapper and bind arguments).
+        assertThat(backwards.query("SELECT player_id FROM player_week_projection WHERE week = ? ORDER BY player_id",
+                (rs, n) -> rs.getLong(1), 1)).as("the stand-in really reverses").containsExactly(top, c, b, a);
+
+        var service = new ProjectionsService(backwards, profilesFor(1L, 7L,
+                new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())), noAvailability(week),
+                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC));
+        assertThat(ids(service.board(1, null, "", 0, 200, 7L))).containsExactly(top, a, b, c);
+        for (int page = 0; page < 4; page++) {
+            assertThat(ids(service.board(1, null, "", page, 1, 7L))).as("page %d of size 1", page)
+                    .containsExactly(List.of(top, a, b, c).get(page));
+        }
+    }
+
+    /**
+     * What the member is ranked on is the engine's unrounded score, bit for bit -- not the parts
+     * added back up (which differs in the last place for some lines). Forty fractional lines under
+     * a ruleset with a bonus, checked against {@code ScoringEngine} called directly.
+     */
+    @Test void theUnroundedPointsAreTheEnginesScoreBitForBit() {
+        var db = ProjectionDatabase.get();
+        db.reset();
+        int home = db.team("BUF"), away = db.team("NYJ");
+        Instant now = Instant.parse("2030-09-01T00:00:00Z");
+        long game = db.game(2030, 1, home, away, now.plusSeconds(86400));
+        var week = new SeasonWeek(2030, 1);
+        var provider = new WeightedAverageProjectionProvider();
+        Random random = new Random(7);
+        String[] positions = {"QB", "RB", "WR", "TE"};
+        var rows = new ArrayList<ProjectionRepository.ProjectedRow>();
+        var ids = new ArrayList<Long>();
+        for (int i = 0; i < 40; i++) {
+            long id = db.player("Bit " + i, positions[i % 4], home);
+            ids.add(id);
+            double[] stats = new double[StatKey.COUNT];
+            for (StatKey key : StatKey.values()) {
+                stats[key.index()] = random.nextInt(4) == 0 ? 0 : Math.round(random.nextDouble() * 120_000) / 1000.0;
+            }
+            rows.add(new ProjectionRepository.ProjectedRow(id, game, home,
+                    new RawProjection(provider.source(), week, stats, 0, 0, 0, 4, new SeasonWeek(2029, 18))));
+        }
+        new ProjectionRepository(db.jdbc).replaceOpen(week, provider.source().id(), rows, now);
+
+        Ruleset ruleset = new Ruleset(1,
+                Map.of(StatKey.PASS_YD, 0.033, StatKey.PASS_TD, 4.0, StatKey.PASS_INT, -2.0, StatKey.RUSH_YD, 0.1,
+                        StatKey.RUSH_TD, 6.0, StatKey.REC, 0.5, StatKey.REC_YD, 0.1, StatKey.REC_TD, 6.0),
+                Map.of("TE", Map.of(StatKey.REC, 1.5)), List.of(new Bonus(StatKey.REC_YD, 50, 1.5)));
+        ResolvedRuleset rules = ResolvedRuleset.compile(ruleset);
+        var service = new ProjectionsService(db.jdbc, profilesFor(1L, 7L, ruleset), noAvailability(week),
+                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC));
+
+        var board = service.board(1, null, "", 0, 200, 7L).page().content();
+        assertThat(board).hasSize(40);
+        String columns = Arrays.stream(StatKey.values()).map(StatKey::json).collect(Collectors.joining(","));
+        for (ProjectionRow row : board) {
+            double[] stored = db.jdbc.queryForObject("SELECT " + columns + " FROM player_week_projection WHERE player_id = ?",
+                    (rs, n) -> {
+                        double[] values = new double[StatKey.COUNT];
+                        for (StatKey key : StatKey.values()) {
+                            values[key.index()] = rs.getDouble(key.json());
+                        }
+                        return values;
+                    }, row.playerId());
+            assertThat(row.rawPoints()).as("player %d", row.playerId())
+                    .isEqualTo(ScoringEngine.score(new StatLine(row.position(), stored), rules));
+        }
+    }
+
+    private static ScoringProfiles profilesFor(long profileId, Long userId, Ruleset ruleset) {
+        var profiles = mock(ScoringProfiles.class);
+        when(profiles.byId(profileId, userId)).thenReturn(ResolvedRuleset.compile(ruleset));
+        return profiles;
+    }
+
+    private static AvailabilityService noAvailability(SeasonWeek week) {
+        var availability = mock(AvailabilityService.class);
+        when(availability.forWeek(week)).thenReturn(Map.of());
+        return availability;
+    }
+
+    private static List<Long> ids(ProjectionBoard board) {
+        return board.page().content().stream().map(ProjectionRow::playerId).toList();
     }
 
     private static ProjectionRow row(long playerId, double rawPoints) {

@@ -50,8 +50,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * member's profile is a 404 -- must survive every later slice unchanged. The ones about
  * <em>shape</em> ({@link #theWireShapeIsPinned}) are the ones later slices rewrite deliberately.
  *
- * <p>Every projection is written to a season (2030) the fixture never touches, with kickoffs set
- * relative to the real clock, and torn down before each test.
+ * <p>Projections are written to season 2030 with kickoffs set relative to the real clock (one
+ * moved test copies a 2025 row instead), and the whole projection table is truncated before every
+ * test, so no test sees another's rows.
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -292,18 +293,21 @@ class ProjectionApiTests {
         assertThat(status(rest, detailPath(999_999_999L, ApiFixture.Seeded.HALF_PPR))).isEqualTo(404);
     }
 
-    /** A stored week is READY until every one of its games kicked off more than 48 hours ago. */
+    /**
+     * A stored week is READY until every one of its games kicked off more than 48 hours ago;
+     * pinned to five minutes either side (the test and the application share one JVM clock).
+     */
     @Test
     void aWeekIsStaleExactlyWhenEveryGameKickedOffOverFortyEightHoursAgo() {
         long wr = player("Stale Receiver", "WR", buf);
-        for (Object[] c : new Object[][] {{47, "READY", "PROJECTED"}, {49, "STALE", "STALE"}}) {
+        for (Object[] c : new Object[][] {{47 * 60 + 55, "READY", "PROJECTED"}, {48 * 60 + 5, "STALE", "STALE"}}) {
             clear();
-            long game = game(WEEK, buf, bal, Instant.now().minus(Duration.ofHours((int) c[0])));
+            long game = game(WEEK, buf, bal, Instant.now().minus(Duration.ofMinutes((int) c[0])));
             store(WEEK, new Proj(wr, game, buf, Map.of(StatKey.REC_YD, 60.0)));
             assertThat(getJson(rest, BOARD + "?profileId=1").get("state").asText())
-                    .as("board, kicked off %d h ago", c[0]).isEqualTo(c[1]);
+                    .as("board, kicked off %d min ago", c[0]).isEqualTo(c[1]);
             assertThat(getJson(rest, detailPath(wr, 1)).get("state").asText())
-                    .as("player, kicked off %d h ago", c[0]).isEqualTo(c[2]);
+                    .as("player, kicked off %d min ago", c[0]).isEqualTo(c[2]);
         }
     }
 
@@ -348,6 +352,93 @@ class ProjectionApiTests {
         assertThat(getJson(rest, detailPath(allen, 1)).get("state").asText()).isEqualTo("UNAVAILABLE");
         assertThat(getJson(rest, detailPath(unlisted, 1)).get("state").asText()).isEqualTo("NOT_ROSTERED");
         assertThat(getJson(rest, detailPath(onBye, 1)).get("projection").isNull()).isTrue();
+    }
+
+    /**
+     * Hand-computed from the V3 seed, so a wrong preset cannot hide behind the engine that is
+     * used to check the others: whole-number lines, four presets, TE premium's override included.
+     */
+    @Test
+    void thePresetsScoreAWholeLineToTheHandComputedValue() {
+        long game = game(WEEK, buf, bal, inDays(2));
+        long qb = player("Hand QB", "QB", buf);
+        long rb = player("Hand RB", "RB", buf);
+        long wr = player("Hand WR", "WR", buf);
+        long te = player("Hand TE", "TE", buf);
+        store(WEEK,
+                new Proj(qb, game, buf, Map.of(StatKey.PASS_YD, 300.0, StatKey.PASS_TD, 2.0,
+                        StatKey.PASS_INT, 1.0, StatKey.RUSH_YD, 20.0)),
+                new Proj(rb, game, buf, Map.of(StatKey.RUSH_YD, 80.0, StatKey.RUSH_TD, 1.0,
+                        StatKey.REC, 3.0, StatKey.REC_YD, 20.0)),
+                new Proj(wr, game, buf, Map.of(StatKey.REC, 5.0, StatKey.REC_YD, 60.0, StatKey.REC_TD, 1.0)),
+                new Proj(te, game, buf, Map.of(StatKey.REC, 5.0, StatKey.REC_YD, 60.0, StatKey.REC_TD, 1.0)));
+        // qb: 12 + 8 - 2 + 2 = 20 whatever a catch is worth. rb: 8 + 6 + 2 = 16, plus 3 catches.
+        // wr and te: 6 + 6 = 12, plus 5 catches; TE premium pays a tight end 1.5 a catch.
+        Map<Long, double[]> expected = Map.of(
+                qb, new double[] {20.0, 20.0, 20.0, 20.0},
+                rb, new double[] {16.0, 17.5, 19.0, 19.0},
+                wr, new double[] {12.0, 14.5, 17.0, 17.0},
+                te, new double[] {12.0, 14.5, 17.0, 19.5});
+        long[] presets = {ApiFixture.Seeded.STANDARD, ApiFixture.Seeded.HALF_PPR, ApiFixture.Seeded.FULL_PPR,
+                ApiFixture.Seeded.TE_PREMIUM};
+        for (int i = 0; i < presets.length; i++) {
+            JsonNode board = getJson(rest, BOARD + "?profileId=" + presets[i]);
+            for (Map.Entry<Long, double[]> line : expected.entrySet()) {
+                assertThat(rowOf(board, line.getKey()).get("points").asDouble())
+                        .as("preset %d, player %d", presets[i], line.getKey()).isEqualTo(line.getValue()[i]);
+            }
+        }
+    }
+
+    /**
+     * The week's state is read from every stored row, not from the rows the board ranks or the
+     * position that was asked for: an open game belonging to an Out player keeps the week READY
+     * even though the only ranked player's game is old.
+     */
+    @Test
+    void theWeeksStateIgnoresWhoIsRankedAndWhichPositionWasAsked() {
+        long old = game(WEEK, buf, bal, Instant.now().minus(Duration.ofHours(60)));
+        long open = game(WEEK, mia, bal, Instant.now().plus(Duration.ofHours(30)));
+        long ranked = player("Old Game Quarterback", "QB", buf);
+        long out = player("Open Game Receiver", "WR", mia);
+        store(WEEK, new Proj(ranked, old, buf, Map.of(StatKey.PASS_YD, 250.0)),
+                new Proj(out, open, mia, Map.of(StatKey.REC_YD, 60.0)));
+        roster(out, mia, "ACT");
+        injury(out, mia, "Out");
+
+        JsonNode everyone = getJson(rest, BOARD + "?profileId=1");
+        assertThat(rowOf(everyone, out)).as("the Out player is not on the board").isNull();
+        assertThat(rowOf(everyone, ranked)).isNotNull();
+        assertThat(everyone.get("state").asText()).isEqualTo("READY");
+        assertThat(getJson(rest, BOARD + "?profileId=1&position=QB").get("state").asText())
+                .as("a position filter that leaves out the open game").isEqualTo("READY");
+    }
+
+    /**
+     * A game the schedule dropped (nflverse deletes a moved or cancelled game) is not projected:
+     * its open row stays off the board until the job withdraws it. A row that locked at kickoff is
+     * the record of what was projected, and stays readable even if the game is later delisted.
+     */
+    @Test
+    void aDelistedGamesOpenRowIsHiddenButItsLockedRowStays() {
+        long kickedOff = game(WEEK, buf, bal, Instant.now().minus(Duration.ofHours(2)));
+        long upcomingDelisted = game(WEEK, mia, bal, Instant.now().plus(Duration.ofHours(30)));
+        long upcoming = game(WEEK, bal, mia, Instant.now().plus(Duration.ofHours(30)));
+        long record = player("Locked Receiver", "WR", buf);
+        long hidden = player("Delisted Receiver", "WR", mia);
+        long control = player("Control Receiver", "WR", bal);
+        store(WEEK, new Proj(record, kickedOff, buf, Map.of(StatKey.REC_YD, 60.0)),
+                new Proj(hidden, upcomingDelisted, mia, Map.of(StatKey.REC_YD, 60.0)),
+                new Proj(control, upcoming, bal, Map.of(StatKey.REC_YD, 60.0)));
+        assertThat(repository.lockKickedOff(Instant.now())).as("only the game that kicked off locks")
+                .isEqualTo(1);
+        jdbc.update("UPDATE games SET delisted_at = now() WHERE id IN (?, ?)", kickedOff, upcomingDelisted);
+
+        JsonNode board = getJson(rest, BOARD + "?profileId=1&position=WR");
+        assertThat(rowOf(board, hidden)).as("open row of a delisted game").isNull();
+        assertThat(rowOf(board, record)).as("locked row of a delisted game").isNotNull();
+        assertThat(rowOf(board, record).get("locked").asBoolean()).isTrue();
+        assertThat(rowOf(board, control)).as("an ordinary open game").isNotNull();
     }
 
     // ------------------------------------------------------------------ query safety
