@@ -11,8 +11,9 @@ import java.util.List;
  *
  * @param points      the scored total, rounded once, here
  * @param history     {@code LIMITED} under four games, else {@code ESTABLISHED}
- * @param bonusPoints the threshold bonuses' expected value: the total less
- *                    its linear parts, unrounded
+ * @param bonusPoints the threshold bonuses: the total less its linear parts, unrounded. On a
+ *                    projected line a bonus is all-or-nothing at the line's mean, a stated
+ *                    approximation and not an expected value
  * @param rawPoints   the unrounded total the board sorts on; never serialized
  */
 public record ProjectionRow(long playerId, String name, String position, String team, String opponent,

@@ -86,8 +86,10 @@ class ProjectionOrderingTests {
 
     /**
      * The same property through the board itself, so replacing {@code .sorted(BOARD_ORDER)} with a
-     * comparator that forgets the id is caught: the database here hands the rows back in the
-     * opposite of id order, and a stable sort would keep that order for a tie.
+     * comparator that forgets the id is caught. The stand-in below hands the service its lines in
+     * descending player id whatever order the database chose, and records what it handed over: a
+     * stable sort would keep that order for a tie, and the test fails loudly if the service ever
+     * stops reading through the overload the stand-in controls.
      */
     @Test void theBoardBreaksTiesOnPlayerIdEvenWhenTheDatabaseReturnsThemBackwards() {
         var db = ProjectionDatabase.get();
@@ -108,16 +110,17 @@ class ProjectionOrderingTests {
         }
         new ProjectionRepository(db.jdbc).replaceOpen(week, provider.source().id(), rows, now);
 
+        List<List<Long>> handedOver = new ArrayList<>();
         JdbcTemplate backwards = new JdbcTemplate(db.jdbc.getDataSource()) {
             @Override public <T> List<T> query(String sql, RowMapper<T> rowMapper, Object... args) {
                 List<T> result = new ArrayList<>(super.query(sql, rowMapper, args));
-                Collections.reverse(result);
+                if (!result.isEmpty() && result.getFirst() instanceof ProjectionRow) {
+                    result.sort(java.util.Comparator.comparingLong(line -> -((ProjectionRow) line).playerId()));
+                    handedOver.add(result.stream().map(line -> ((ProjectionRow) line).playerId()).toList());
+                }
                 return result;
             }
         };
-        // The overload the service calls (a RowMapper and bind arguments).
-        assertThat(backwards.query("SELECT player_id FROM player_week_projection WHERE week = ? ORDER BY player_id",
-                (rs, n) -> rs.getLong(1), 1)).as("the stand-in really reverses").containsExactly(top, c, b, a);
 
         var service = new ProjectionsService(backwards, profilesFor(1L, 7L,
                 new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())), noAvailability(week),
@@ -127,12 +130,22 @@ class ProjectionOrderingTests {
             assertThat(ids(service.board(1, null, "", page, 1, 7L))).as("page %d of size 1", page)
                     .containsExactly(List.of(top, a, b, c).get(page));
         }
+        assertThat(handedOver).as("the service read its lines through the stand-in, five times").hasSize(5);
+        assertThat(handedOver).allSatisfy(order -> assertThat(order).as("what the service was handed")
+                .containsExactly(top, c, b, a));
     }
 
     /**
-     * What the member is ranked on is the engine's unrounded score, bit for bit -- not the parts
-     * added back up (which differs in the last place for some lines). Forty fractional lines under
-     * a ruleset with a bonus, checked against {@code ScoringEngine} called directly.
+     * What the member is ranked on is the unrounded score of the stored line under the ruleset,
+     * bit for bit, over forty fractional lines (a position override and a bonus included). The
+     * expected value is an independent dot product written out here, in the engine's summation
+     * order, from the stored line and the player's position read from the players table, so it
+     * does not go through {@code ScoringEngine} or through the row under test.
+     *
+     * <p>What this does not catch, measured: re-summing the explanation's own parts in order
+     * ({@code sum(parts) + bonusPoints}) gives the same bits on these lines, because the bonus
+     * remainder is exact when it is small next to the linear sum. That variant is an equivalent
+     * mutation here. A compensated sum or a reordering is not, and is caught.
      */
     @Test void theUnroundedPointsAreTheEnginesScoreBitForBit() {
         var db = ProjectionDatabase.get();
@@ -178,9 +191,29 @@ class ProjectionOrderingTests {
                         }
                         return values;
                     }, row.playerId());
-            assertThat(row.rawPoints()).as("player %d", row.playerId())
-                    .isEqualTo(ScoringEngine.score(new StatLine(row.position(), stored), rules));
+            String position = db.jdbc.queryForObject("SELECT position FROM players WHERE id = ?", String.class,
+                    row.playerId());
+            assertThat(row.rawPoints()).as("player %d (%s)", row.playerId(), position)
+                    .isEqualTo(dotProduct(ruleset, position, stored));
+            assertThat(ScoringEngine.score(new StatLine(position, stored), rules))
+                    .as("and the engine agrees with the oracle").isEqualTo(dotProduct(ruleset, position, stored));
         }
+    }
+
+    /** The ruleset applied by hand: rate x value in {@link StatKey} order, then each bonus that is reached. */
+    private static double dotProduct(Ruleset ruleset, String position, double[] stored) {
+        Map<StatKey, Double> overrides = ruleset.positionOverrides().getOrDefault(position, Map.of());
+        double points = 0;
+        for (StatKey key : StatKey.values()) {
+            double rate = overrides.getOrDefault(key, ruleset.base().getOrDefault(key, 0.0));
+            points += stored[key.index()] * rate;
+        }
+        for (Bonus bonus : ruleset.bonuses()) {
+            if (stored[bonus.stat().index()] >= bonus.gte()) {
+                points += bonus.points();
+            }
+        }
+        return points;
     }
 
     private static ScoringProfiles profilesFor(long profileId, Long userId, Ruleset ruleset) {

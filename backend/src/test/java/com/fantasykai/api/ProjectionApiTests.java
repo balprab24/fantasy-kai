@@ -7,6 +7,7 @@ import com.fantasykai.auth.JwtService;
 import com.fantasykai.projections.ProjectionProvider;
 import com.fantasykai.projections.ProjectionRepository;
 import com.fantasykai.projections.ProjectionRepository.ProjectedRow;
+import com.fantasykai.projections.ProjectionSource;
 import com.fantasykai.projections.RawProjection;
 import com.fantasykai.projections.SeasonWeek;
 import com.fantasykai.scoring.ResolvedRuleset;
@@ -300,10 +301,17 @@ class ProjectionApiTests {
     @Test
     void aWeekIsStaleExactlyWhenEveryGameKickedOffOverFortyEightHoursAgo() {
         long wr = player("Stale Receiver", "WR", buf);
-        for (Object[] c : new Object[][] {{47 * 60 + 55, "READY", "PROJECTED"}, {48 * 60 + 5, "STALE", "STALE"}}) {
+        long unlisted = player("Unlisted Stale Receiver", "WR", buf);
+        for (Object[] c : new Object[][] {{47 * 60 + 55, "READY", "PROJECTED", "NOT_ROSTERED"},
+                {48 * 60 + 5, "STALE", "STALE", "UNAVAILABLE"}}) {
             clear();
             long game = game(WEEK, buf, bal, Instant.now().minus(Duration.ofMinutes((int) c[0])));
             store(WEEK, new Proj(wr, game, buf, Map.of(StatKey.REC_YD, 60.0)));
+            roster(wr, buf, "ACT");
+            // A player with no row: in the live week the roster says why; in a stale one it is not
+            // known to be the week being played, so no reason is given.
+            assertThat(getJson(rest, detailPath(unlisted, 1)).get("state").asText())
+                    .as("a player with no row, kicked off %d min ago", c[0]).isEqualTo(c[3]);
             assertThat(getJson(rest, BOARD + "?profileId=1").get("state").asText())
                     .as("board, kicked off %d min ago", c[0]).isEqualTo(c[1]);
             assertThat(getJson(rest, detailPath(wr, 1)).get("state").asText())
@@ -432,13 +440,110 @@ class ProjectionApiTests {
                 new Proj(control, upcoming, bal, Map.of(StatKey.REC_YD, 60.0)));
         assertThat(repository.lockKickedOff(Instant.now())).as("only the game that kicked off locks")
                 .isEqualTo(1);
-        jdbc.update("UPDATE games SET delisted_at = now() WHERE id IN (?, ?)", kickedOff, upcomingDelisted);
+        // With the job off, a game can kick off and be dropped from the schedule with its rows never
+        // locked (the 2022 BUF-CIN pattern). Such a row is kicked off but not locked: it must be
+        // hidden, which tells "locked" apart from "kicked off". replaceOpen keeps the locked row.
+        long neverLockedGame = game(WEEK, buf, mia, Instant.now().minus(Duration.ofHours(3)));
+        long neverLocked = player("Never Locked Receiver", "WR", buf);
+        store(WEEK, new Proj(hidden, upcomingDelisted, mia, Map.of(StatKey.REC_YD, 60.0)),
+                new Proj(control, upcoming, bal, Map.of(StatKey.REC_YD, 60.0)),
+                new Proj(neverLocked, neverLockedGame, buf, Map.of(StatKey.REC_YD, 60.0)));
+        jdbc.update("UPDATE games SET delisted_at = now() WHERE id IN (?, ?, ?)", kickedOff, upcomingDelisted,
+                neverLockedGame);
 
         JsonNode board = getJson(rest, BOARD + "?profileId=1&position=WR");
         assertThat(rowOf(board, hidden)).as("open row of a delisted game").isNull();
         assertThat(rowOf(board, record)).as("locked row of a delisted game").isNotNull();
         assertThat(rowOf(board, record).get("locked").asBoolean()).isTrue();
+        assertThat(rowOf(board, neverLocked)).as("a kicked-off row the job never locked, game delisted").isNull();
         assertThat(rowOf(board, control)).as("an ordinary open game").isNotNull();
+        assertThat(rowOf(board, control).get("locked").asBoolean()).isFalse();
+    }
+
+    /** The position filter and the name search narrow the board; punctuation and accents do not matter. */
+    @Test
+    void thePositionFilterAndTheNameSearchNarrowTheBoard() {
+        long game = game(WEEK, buf, bal, inDays(2));
+        long qb = player("Filter Quarterback", "QB", buf);
+        long wr = player("Ja'Marr Filter", "WR", buf);
+        long te = player("Filter Tight End", "TE", buf);
+        store(WEEK, new Proj(qb, game, buf, Map.of(StatKey.PASS_YD, 250.0)),
+                new Proj(wr, game, buf, Map.of(StatKey.REC_YD, 80.0)),
+                new Proj(te, game, buf, Map.of(StatKey.REC_YD, 40.0)));
+        String all = BOARD + "?profileId=1";
+
+        assertThat(ids(getJson(rest, all))).containsExactlyInAnyOrder(qb, wr, te);
+        assertThat(ids(getJson(rest, all + "&position=QB"))).containsExactly(qb);
+        assertThat(ids(getJson(rest, all + "&position=wr"))).as("case does not matter").containsExactly(wr);
+        assertThat(ids(getJson(rest, all + "&position=TE"))).containsExactly(te);
+        assertThat(ids(getJson(rest, all + "&q=jamarr"))).as("the apostrophe is dropped").containsExactly(wr);
+        assertThat(ids(getJson(rest, all + "&q=FILTER&position=WR"))).containsExactly(wr);
+        assertThat(ids(getJson(rest, all + "&q=nobody"))).isEmpty();
+    }
+
+    /** A row is locked once its game has kicked off, whether or not the job has locked it yet. */
+    @Test
+    void aRowIsLockedOnceItsGameHasKickedOff() {
+        long kickedOff = game(WEEK, buf, bal, Instant.now().minus(Duration.ofHours(1)));
+        long upcoming = game(WEEK, mia, bal, Instant.now().plus(Duration.ofHours(30)));
+        long playing = player("Playing Receiver", "WR", buf);
+        long waiting = player("Waiting Receiver", "WR", mia);
+        store(WEEK, new Proj(playing, kickedOff, buf, Map.of(StatKey.REC_YD, 60.0)),
+                new Proj(waiting, upcoming, mia, Map.of(StatKey.REC_YD, 60.0)));
+        JsonNode board = getJson(rest, BOARD + "?profileId=1");
+        assertThat(rowOf(board, playing).get("locked").asBoolean()).as("kicked off, never locked by the job").isTrue();
+        assertThat(rowOf(board, waiting).get("locked").asBoolean()).isFalse();
+    }
+
+    /** One provider's rows only, and the newest stored week of that provider's, not the oldest. */
+    @Test
+    void onlyTheConfiguredProvidersLatestStoredWeekIsServed() {
+        long oldGame = game(WEEK - 1, buf, bal, Instant.now().minus(Duration.ofDays(9)));
+        long game = game(WEEK, buf, bal, inDays(2));
+        long lastWeek = player("Last Week Receiver", "WR", buf);
+        long thisWeek = player("This Week Receiver", "WR", buf);
+        long other = player("Other Method Receiver", "WR", buf);
+        store(WEEK - 1, new Proj(lastWeek, oldGame, buf, Map.of(StatKey.REC_YD, 90.0)));
+        store(WEEK, new Proj(thisWeek, game, buf, Map.of(StatKey.REC_YD, 60.0)));
+        // Another method's rows in the same week (so the line query must filter on provider) and in a
+        // later one (so the week lookup must).
+        ProjectionSource another = new ProjectionSource("other-method-v1", "Another method", "A different method.");
+        for (int week : new int[] {WEEK, WEEK + 1}) {
+            repository.replaceOpen(new SeasonWeek(SEASON, week), another.id(), List.of(
+                    new ProjectedRow(other, game, buf, new RawProjection(another, new SeasonWeek(SEASON, week),
+                            new double[StatKey.COUNT], 0, 0, 0, 4, new SeasonWeek(SEASON - 1, 18)))), Instant.now());
+        }
+
+        JsonNode board = getJson(rest, BOARD + "?profileId=1");
+        assertThat(ids(board)).containsExactly(thisWeek);
+        assertThat(board.get("source").get("id").asText()).isEqualTo(provider.source().id());
+    }
+
+    /** A team whose only game of the week was dropped from the schedule is on a bye. */
+    @Test
+    void aTeamWhoseOnlyGameWasDelistedIsOnABye() {
+        long game = game(WEEK, buf, bal, inDays(2));
+        long dropped = game(WEEK, mia, bal, inDays(2));
+        jdbc.update("UPDATE games SET delisted_at = now() WHERE id = ?", dropped);
+        long projected = player("Bye Check Projected", "WR", buf);
+        long stranded = player("Bye Check Stranded", "WR", mia);
+        store(WEEK, new Proj(projected, game, buf, Map.of(StatKey.REC_YD, 60.0)));
+        roster(projected, buf, "ACT");
+        roster(stranded, mia, "ACT");
+        assertThat(getJson(rest, detailPath(stranded, 1)).get("state").asText()).isEqualTo("BYE");
+    }
+
+    /** Under four games of history a line is LIMITED; at four it is ESTABLISHED. */
+    @Test
+    void fourGamesOfHistoryMakeALineEstablished() {
+        long game = game(WEEK, buf, bal, inDays(2));
+        long thin = player("Thin History", "WR", buf);
+        long deep = player("Deep History", "WR", buf);
+        store(WEEK, new Proj(thin, game, buf, Map.of(StatKey.REC_YD, 60.0), 3),
+                new Proj(deep, game, buf, Map.of(StatKey.REC_YD, 60.0), 4));
+        JsonNode board = getJson(rest, BOARD + "?profileId=1");
+        assertThat(rowOf(board, thin).get("history").asText()).isEqualTo("LIMITED");
+        assertThat(rowOf(board, deep).get("history").asText()).isEqualTo("ESTABLISHED");
     }
 
     // ------------------------------------------------------------------ query safety
@@ -525,7 +630,11 @@ class ProjectionApiTests {
 
     // ------------------------------------------------------------------ helpers
 
-    private record Proj(long player, long game, int team, Map<StatKey, Double> stats) {}
+    private record Proj(long player, long game, int team, Map<StatKey, Double> stats, int gamesUsed) {
+        Proj(long player, long game, int team, Map<StatKey, Double> stats) {
+            this(player, game, team, stats, 4);
+        }
+    }
 
     private void store(int week, Proj... rows) {
         SeasonWeek target = new SeasonWeek(SEASON, week);
@@ -534,12 +643,17 @@ class ProjectionApiTests {
             double[] values = new double[StatKey.COUNT];
             row.stats().forEach((key, value) -> values[key.index()] = value);
             projected.add(new ProjectedRow(row.player(), row.game(), row.team(),
-                    new RawProjection(provider.source(), target, values, 0, 0, 0, 4,
+                    new RawProjection(provider.source(), target, values, 0, 0, 0, row.gamesUsed(),
                             new SeasonWeek(SEASON - 1, 18))));
         }
         repository.replaceOpen(target, provider.source().id(), projected, Instant.now());
     }
 
+    /**
+     * TRUNCATE, not DELETE, on purpose: a locked row cannot be deleted (its trigger refuses), and
+     * TRUNCATE does not fire row triggers. Season 2030's games go last, after the rows that point
+     * at them.
+     */
     private void clear() {
         jdbc.execute("TRUNCATE player_week_projection, player_week_projection_repairs");
         jdbc.update("DELETE FROM roster_week");
@@ -629,6 +743,12 @@ class ProjectionApiTests {
             }
         }
         return null;
+    }
+
+    private static List<Long> ids(JsonNode board) {
+        List<Long> ids = new ArrayList<>();
+        board.get("page").get("content").forEach(row -> ids.add(row.get("playerId").asLong()));
+        return ids;
     }
 
     private static List<String> names(JsonNode node) {

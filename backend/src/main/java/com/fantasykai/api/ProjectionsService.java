@@ -39,7 +39,8 @@ import org.springframework.stereotype.Service;
  *
  * <p>Not yet the full slice 5/6 contract in {@code docs/projections-v1-architecture.md}: the
  * target is the latest stored week, not a persisted run's target, and bonuses are explained as
- * one expected-value total. {@code docs/projections-slice-5-plan.md} lists what is owed.
+ * one remainder (the total less the linear parts), not one line each.
+ * {@code docs/projections-slice-5-plan.md} lists what is owed.
  */
 @Service
 public class ProjectionsService {
