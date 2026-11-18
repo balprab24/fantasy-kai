@@ -1,0 +1,155 @@
+package com.fantasykai.projections;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+
+/**
+ * The request path's view of the target week: the resolver's answer, asked at most once per
+ * time-to-live, and shared by every caller whose clock reads within the time-to-live of the
+ * entry on either side.
+ */
+class CurrentTargetWeekTests {
+
+    private static final Instant T0 = Instant.parse("2030-11-20T12:00:00Z");
+    private static final Optional<TargetWeek> WEEK_11 =
+            Optional.of(new TargetWeek(new SeasonWeek(2030, 11), List.of()));
+    private static final Optional<TargetWeek> WEEK_12 =
+            Optional.of(new TargetWeek(new SeasonWeek(2030, 12), List.of()));
+
+    private final TargetWeekResolver resolver = mock(TargetWeekResolver.class);
+
+    @Test
+    void answersFromTheCacheInsideTheTimeToLive() {
+        when(resolver.resolve(2030, T0)).thenReturn(WEEK_11);
+        var targets = new CurrentTargetWeek(resolver, 60);
+
+        assertThat(targets.resolve(2030, T0)).isEqualTo(WEEK_11);
+        assertThat(targets.resolve(2030, T0.plusSeconds(59))).as("one second short of the ttl").isEqualTo(WEEK_11);
+
+        verify(resolver, times(1)).resolve(2030, T0);
+        verify(resolver, times(1)).resolve(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void asksAgainOnceTheTimeToLiveHasPassed() {
+        when(resolver.resolve(2030, T0)).thenReturn(WEEK_11);
+        when(resolver.resolve(2030, T0.plusSeconds(60))).thenReturn(WEEK_12);
+        var targets = new CurrentTargetWeek(resolver, 60);
+
+        assertThat(targets.resolve(2030, T0)).isEqualTo(WEEK_11);
+        assertThat(targets.resolve(2030, T0.plusSeconds(60))).as("exactly the ttl later").isEqualTo(WEEK_12);
+    }
+
+    @Test
+    void anotherSeasonIsAnotherQuestion() {
+        when(resolver.resolve(2030, T0)).thenReturn(WEEK_11);
+        when(resolver.resolve(2031, T0)).thenReturn(Optional.empty());
+        var targets = new CurrentTargetWeek(resolver, 60);
+
+        assertThat(targets.resolve(2030, T0)).isEqualTo(WEEK_11);
+        assertThat(targets.resolve(2031, T0)).isEmpty();
+        assertThat(targets.resolve(2030, T0)).as("one slot: 2031 evicted 2030, so it is asked again")
+                .isEqualTo(WEEK_11);
+
+        verify(resolver, times(2)).resolve(2030, T0);
+        verify(resolver, times(1)).resolve(2031, T0);
+    }
+
+    /**
+     * Concurrent requests read the clock before they reach the lock, so one can arrive "earlier"
+     * than the entry another just stored. It shares the answer rather than asking again.
+     */
+    @Test
+    void aCallerWithinTheTimeToLiveEitherSideSharesTheAnswer() {
+        when(resolver.resolve(2030, T0.plusSeconds(30))).thenReturn(WEEK_12);
+        var targets = new CurrentTargetWeek(resolver, 60);
+
+        assertThat(targets.resolve(2030, T0.plusSeconds(30))).isEqualTo(WEEK_12);
+        assertThat(targets.resolve(2030, T0)).as("30 s earlier on the caller's clock").isEqualTo(WEEK_12);
+
+        verify(resolver, times(1)).resolve(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void aClockThatJumpedBackByTheTimeToLiveOrMoreAsksAgain() {
+        when(resolver.resolve(2030, T0.plusSeconds(60))).thenReturn(WEEK_12);
+        when(resolver.resolve(2030, T0)).thenReturn(WEEK_11);
+        var targets = new CurrentTargetWeek(resolver, 60);
+
+        assertThat(targets.resolve(2030, T0.plusSeconds(60))).isEqualTo(WEEK_12);
+        assertThat(targets.resolve(2030, T0)).as("a full ttl back").isEqualTo(WEEK_11);
+    }
+
+    @Test
+    void concurrentCallersShareOneResolution() throws Exception {
+        when(resolver.resolve(2030, T0)).thenAnswer(call -> {
+            Thread.sleep(150);
+            return WEEK_11;
+        });
+        var targets = new CurrentTargetWeek(resolver, 60);
+        int callers = 8;
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(callers);
+        try {
+            var answers = new java.util.ArrayList<java.util.concurrent.Future<Optional<TargetWeek>>>();
+            for (int i = 0; i < callers; i++) {
+                answers.add(pool.submit(() -> {
+                    start.await();
+                    return targets.resolve(2030, T0);
+                }));
+            }
+            start.countDown();
+            for (var answer : answers) {
+                assertThat(answer.get(10, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(WEEK_11);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+        verify(resolver, times(1)).resolve(2030, T0);
+    }
+
+    @Test
+    void anEmptyAnswerIsCachedToo() {
+        when(resolver.resolve(2030, T0)).thenReturn(Optional.empty());
+        var targets = new CurrentTargetWeek(resolver, 60);
+
+        assertThat(targets.resolve(2030, T0)).isEmpty();
+        assertThat(targets.resolve(2030, T0.plusSeconds(10))).isEmpty();
+
+        verify(resolver, times(1)).resolve(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void aTimeToLiveOfZeroAsksEveryTime() {
+        when(resolver.resolve(2030, T0)).thenReturn(WEEK_11);
+        var targets = new CurrentTargetWeek(resolver, 0);
+
+        targets.resolve(2030, T0);
+        targets.resolve(2030, T0);
+
+        verify(resolver, times(2)).resolve(2030, T0);
+    }
+
+    /** The one place the production default lives; nothing else repeats it. */
+    @Test
+    void theProductionTimeToLiveIsSixtySeconds() {
+        var yaml = new org.springframework.beans.factory.config.YamlPropertiesFactoryBean();
+        yaml.setResources(new org.springframework.core.io.ClassPathResource("application.yml"));
+        assertThat(yaml.getObject().getProperty("fantasykai.projections.target-cache-seconds")).isEqualTo("60");
+    }
+
+    @Test
+    void aNegativeTimeToLiveIsAConfigurationError() {
+        assertThatThrownBy(() -> new CurrentTargetWeek(resolver, -1))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("target-cache-seconds");
+    }
+}

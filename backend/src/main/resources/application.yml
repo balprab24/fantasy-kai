@@ -121,6 +121,11 @@ fantasykai:
     # production, run one backfill so player_game_appearances covers every season, not only the
     # current one (docs/projections-v1-architecture.md).
     job-enabled: false
+    # How long the member endpoints reuse the target week the resolver found. The resolver's
+    # query took about 105 ms warm on the local mirror (it walks player_game_stats' primary-key
+    # index once per candidate game; docs/perf/target-week-resolver-2026-11-18.md), so a process
+    # runs it at most about once per this many seconds. 0 asks every time (tests).
+    target-cache-seconds: 60
 
 # Honour X-Forwarded-* from the reverse proxy in front of this application.
 #

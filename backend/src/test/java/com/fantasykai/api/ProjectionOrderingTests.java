@@ -6,11 +6,13 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fantasykai.projections.AvailabilityService;
+import com.fantasykai.projections.CurrentTargetWeek;
 import com.fantasykai.projections.ProjectionDatabase;
 import com.fantasykai.projections.ProjectionProperties;
 import com.fantasykai.projections.ProjectionRepository;
 import com.fantasykai.projections.RawProjection;
 import com.fantasykai.projections.SeasonWeek;
+import com.fantasykai.projections.TargetWeekResolver;
 import com.fantasykai.projections.WeightedAverageProjectionProvider;
 import com.fantasykai.scoring.Bonus;
 import com.fantasykai.scoring.ResolvedRuleset;
@@ -58,7 +60,7 @@ class ProjectionOrderingTests {
         when(availability.forWeek(week)).thenReturn(Map.of());
         var controller = new ProjectionController(new ProjectionsService(db.jdbc, profiles, availability,
                 new ProjectionProperties(provider.source().id(), false), provider,
-                Clock.fixed(now, ZoneOffset.UTC)));
+                Clock.fixed(now, ZoneOffset.UTC), noCache(db)));
         var first = controller.board(1, null, "", 0, 1, 7L).page().content().getFirst();
         var second = controller.board(1, null, "", 1, 1, 7L).page().content().getFirst();
         assertThat(first.playerId()).isEqualTo(high);
@@ -124,7 +126,7 @@ class ProjectionOrderingTests {
 
         var service = new ProjectionsService(backwards, profilesFor(1L, 7L,
                 new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())), noAvailability(week),
-                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC));
+                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC), noCache(db));
         assertThat(ids(service.board(1, null, "", 0, 200, 7L))).containsExactly(top, a, b, c);
         for (int page = 0; page < 4; page++) {
             assertThat(ids(service.board(1, null, "", page, 1, 7L))).as("page %d of size 1", page)
@@ -177,7 +179,7 @@ class ProjectionOrderingTests {
                 Map.of("TE", Map.of(StatKey.REC, 1.5)), List.of(new Bonus(StatKey.REC_YD, 50, 1.5)));
         ResolvedRuleset rules = ResolvedRuleset.compile(ruleset);
         var service = new ProjectionsService(db.jdbc, profilesFor(1L, 7L, ruleset), noAvailability(week),
-                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC));
+                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC), noCache(db));
 
         var board = service.board(1, null, "", 0, 200, 7L).page().content();
         assertThat(board).hasSize(40);
@@ -214,6 +216,40 @@ class ProjectionOrderingTests {
             }
         }
         return points;
+    }
+
+    /** The resolver itself, uncached: these tests change the schedule between calls. */
+    private static CurrentTargetWeek noCache(ProjectionDatabase db) {
+        return new CurrentTargetWeek(new TargetWeekResolver(db.jdbc), 0);
+    }
+
+    /**
+     * The season is the job's: a January date belongs to the season that began the previous
+     * September (week 18 is played in January), not to the calendar year. Using the year would
+     * make the board ask about a season with no games while the job projects the real one.
+     */
+    @Test void theBoardAsksAboutTheSeasonTheJobProjectsInJanuary() {
+        var db = ProjectionDatabase.get();
+        db.reset();
+        int home = db.team("BUF"), away = db.team("NYJ");
+        Instant now = Instant.parse("2031-01-10T12:00:00Z");
+        long game = db.game(2030, 18, home, away, now.plusSeconds(86400));
+        var week = new SeasonWeek(2030, 18);
+        var provider = new WeightedAverageProjectionProvider();
+        long wr = db.player("January Receiver", "WR", home);
+        double[] stats = new double[StatKey.COUNT];
+        stats[StatKey.REC_YD.index()] = 80;
+        new ProjectionRepository(db.jdbc).replaceOpen(week, provider.source().id(), List.of(
+                new ProjectionRepository.ProjectedRow(wr, game, home, new RawProjection(provider.source(), week,
+                        stats, 0, 0, 0, 4, new SeasonWeek(2030, 17)))), now);
+        var service = new ProjectionsService(db.jdbc, profilesFor(1L, 7L,
+                new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())), noAvailability(week),
+                new ProjectionProperties(provider.source().id(), false), provider,
+                Clock.fixed(now, ZoneOffset.UTC), noCache(db));
+
+        var board = service.board(1, null, "", 0, 50, 7L);
+        assertThat(board.state()).as("2031-01-10 is in the 2030 season").isEqualTo("READY");
+        assertThat(ids(board)).containsExactly(wr);
     }
 
     private static ScoringProfiles profilesFor(long profileId, Long userId, Ruleset ruleset) {
