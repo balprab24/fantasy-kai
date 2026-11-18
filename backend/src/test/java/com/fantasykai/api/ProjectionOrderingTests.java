@@ -14,6 +14,7 @@ import com.fantasykai.projections.SeasonWeek;
 import com.fantasykai.projections.WeightedAverageProjectionProvider;
 import com.fantasykai.scoring.ResolvedRuleset;
 import com.fantasykai.scoring.Ruleset;
+import com.fantasykai.scoring.ScoringEngine;
 import com.fantasykai.scoring.ScoringProfiles;
 import com.fantasykai.scoring.StatKey;
 import java.time.Clock;
@@ -46,9 +47,9 @@ class ProjectionOrderingTests {
                 new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())));
         var availability = mock(AvailabilityService.class);
         when(availability.forWeek(week)).thenReturn(Map.of());
-        var controller = new ProjectionController(db.jdbc, profiles, availability,
+        var controller = new ProjectionController(new ProjectionsService(db.jdbc, profiles, availability,
                 new ProjectionProperties(provider.source().id(), false), provider,
-                Clock.fixed(now, ZoneOffset.UTC));
+                Clock.fixed(now, ZoneOffset.UTC)));
         var first = controller.board(1, null, "", 0, 1, 7L).page().content().getFirst();
         var second = controller.board(1, null, "", 1, 1, 7L).page().content().getFirst();
         assertThat(first.playerId()).isEqualTo(high);
@@ -62,5 +63,21 @@ class ProjectionOrderingTests {
                 .isEqualTo("{\"stat\":\"rec_yd\",\"value\":100.04,\"rate\":0.1,\"points\":" + (100.04 * 0.1) + "}");
         assertThat(json.get("bonusPoints").asDouble()).isEqualTo(0.0);
         assertThat(controller.player(high, 1, 7L).projection().points()).isEqualTo(first.points());
+    }
+
+    /** Ties break on player id however the rows arrive: the SQL promises no order of its own. */
+    @Test void breaksATieOnPlayerIdWhateverOrderTheRowsArriveIn() {
+        var rows = new java.util.ArrayList<>(List.of(row(30, 10.0), row(10, 10.0), row(20, 10.004), row(5, 9.0)));
+        for (int shuffle = 0; shuffle < 6; shuffle++) {
+            java.util.Collections.rotate(rows, shuffle);
+            assertThat(rows.stream().sorted(ProjectionsService.BOARD_ORDER).map(ProjectionRow::playerId).toList())
+                    .as("arrival order rotated by %d", shuffle).containsExactly(20L, 10L, 30L, 5L);
+        }
+    }
+
+    private static ProjectionRow row(long playerId, double rawPoints) {
+        return new ProjectionRow(playerId, "P" + playerId, "WR", "BUF", "NYJ", true, null, false,
+                ScoringEngine.roundForDisplay(rawPoints), 4, "ESTABLISHED", null, null, Instant.EPOCH,
+                List.of(), 0.0, 2030, 1, rawPoints);
     }
 }
