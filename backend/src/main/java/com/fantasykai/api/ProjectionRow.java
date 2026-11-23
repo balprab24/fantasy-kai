@@ -22,9 +22,12 @@ import java.util.List;
  * @param rawPoints   the unrounded total the board sorts on; never serialized
  * @param dataThrough the newest game this line was built from; never serialized on a row, only
  *                    summarised on the board's envelope
+ * @param stats       the stored raw line, indexed by {@code StatKey}: what the preset strip scores,
+ *                    so it is exactly the line the member was shown. Never serialized, never
+ *                    modified
  */
 public record ProjectionRow(long playerId, String name, String position, String team, String opponent,
         boolean home, Instant kickoff, boolean locked, double points, int gamesUsed,
         String history, Availability availability, String espnId, Instant generatedAt,
         List<ExplainedScore.Part> parts, List<ExplainedScore.BonusLine> bonuses, int season, int week,
-        @JsonIgnore double rawPoints, @JsonIgnore SeasonWeek dataThrough) {}
+        @JsonIgnore double rawPoints, @JsonIgnore SeasonWeek dataThrough, @JsonIgnore double[] stats) {}

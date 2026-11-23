@@ -16,6 +16,8 @@ import com.fantasykai.projections.SeasonWeek;
 import com.fantasykai.projections.TargetWeek;
 import com.fantasykai.projections.TargetWeekResolver;
 import com.fantasykai.query.ScoringPosition;
+import com.fantasykai.query.ScoringProfileQueryRepository;
+import com.fantasykai.query.ScoringProfileQueryRepository.ProfileRow;
 import com.fantasykai.scoring.ExplainedScore;
 import com.fantasykai.scoring.ResolvedRuleset;
 import com.fantasykai.scoring.ScoringEngine;
@@ -85,9 +87,10 @@ import org.springframework.stereotype.Service;
  * <p>Each line is explained in full ({@link ExplainedScore}): its stats as value x rate, and each
  * bonus that bears on it with whether the line reached it.
  *
+ * <p>A player's page also carries his line under each system preset ({@link #presets}).
+ *
  * <p>Not yet the full slice 5/6 contract in {@code docs/projections-v1-architecture.md}: the
- * preset comparison on the player response and the source's summary and typical error are owed.
- * The plan lists them.
+ * source's summary and typical error are owed. The plan lists them.
  */
 @Service
 public class ProjectionsService {
@@ -147,11 +150,12 @@ public class ProjectionsService {
     private final Clock clock;
     private final CurrentTargetWeek targets;
     private final JdbcProjectionInputs inputs;
+    private final ScoringProfileQueryRepository profileQueries;
 
     public ProjectionsService(JdbcTemplate jdbc, ScoringProfiles profiles,
             AvailabilityService availability, ProjectionProperties config,
             ProjectionProvider provider, Clock clock, CurrentTargetWeek targets,
-            JdbcProjectionInputs inputs) {
+            JdbcProjectionInputs inputs, ScoringProfileQueryRepository profileQueries) {
         this.jdbc = jdbc;
         this.profiles = profiles;
         this.availability = availability;
@@ -160,6 +164,7 @@ public class ProjectionsService {
         this.clock = clock;
         this.targets = targets;
         this.inputs = inputs;
+        this.profileQueries = profileQueries;
     }
 
     /**
@@ -268,7 +273,7 @@ public class ProjectionsService {
         ProjectionRow row = view.rows().stream().filter(r -> r.playerId() == id).findFirst().orElse(null);
         if (row != null) {
             return new PlayerProjectionResponse("STALE".equals(view.state()) ? "STALE" : "PROJECTED",
-                    provider.source(), row);
+                    provider.source(), row, presets(row, userId));
         }
         if (jdbc.queryForObject("SELECT count(*) FROM players WHERE id = ?", Long.class, id) == 0) {
             throw new PlayerNotFoundException(id);
@@ -280,7 +285,25 @@ public class ProjectionsService {
             case "READY" -> missingReason(id, view);
             default -> "UNAVAILABLE";
         };
-        return new PlayerProjectionResponse(missing, provider.source(), null);
+        return new PlayerProjectionResponse(missing, provider.source(), null, null);
+    }
+
+    /**
+     * The row's stored line scored under each system preset, in id order: "same line, different
+     * value" without a second scoring path in the browser. Each is the unmodified engine on the
+     * line the member was shown, rounded once, so it is the number the board would print for that
+     * preset (a test compares them). Only presets: another member's rulesets are not listed here,
+     * and the member's own is {@code row.points()}.
+     */
+    private List<PlayerProjectionResponse.PresetPoints> presets(ProjectionRow row, Long userId) {
+        StatLine line = new StatLine(row.position(), row.stats());
+        return profileQueries.findVisibleTo(userId).stream()
+                .filter(ProfileRow::preset)
+                .sorted(Comparator.comparingLong(ProfileRow::id))
+                .map(preset -> new PlayerProjectionResponse.PresetPoints(preset.id(), preset.name(),
+                        ScoringEngine.roundForDisplay(
+                                ScoringEngine.score(line, profiles.byId(preset.id(), userId)))))
+                .toList();
     }
 
     /**
@@ -392,7 +415,7 @@ public class ProjectionsService {
                 statuses.getOrDefault(id, Availability.unknown(week)), rs.getString("espn_id"),
                 rs.getTimestamp("generated_at").toInstant(), explained.parts(), explained.bonuses(),
                 week.season(), week.week(), points,
-                new SeasonWeek(rs.getInt("data_through_season"), rs.getInt("data_through_week")));
+                new SeasonWeek(rs.getInt("data_through_season"), rs.getInt("data_through_week")), stats);
     }
 
     /** {@code STALE} once every game of the target week's rows kicked off at least {@link #STALE_AFTER} ago. */

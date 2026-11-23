@@ -2,6 +2,7 @@ package com.fantasykai.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -17,6 +18,7 @@ import com.fantasykai.projections.RawProjection;
 import com.fantasykai.projections.SeasonWeek;
 import com.fantasykai.projections.TargetWeekResolver;
 import com.fantasykai.projections.WeightedAverageProjectionProvider;
+import com.fantasykai.query.ScoringProfileQueryRepository;
 import com.fantasykai.scoring.Bonus;
 import com.fantasykai.scoring.ResolvedRuleset;
 import com.fantasykai.scoring.Ruleset;
@@ -57,13 +59,13 @@ class ProjectionOrderingTests {
         }
         new ProjectionRepository(db.jdbc).replaceOpen(week, provider.source().id(), rows, now);
         var profiles = mock(ScoringProfiles.class);
-        when(profiles.byId(1L, 7L)).thenReturn(ResolvedRuleset.compile(
+        when(profiles.byId(anyLong(), eq(7L))).thenReturn(ResolvedRuleset.compile(
                 new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())));
         var availability = mock(AvailabilityService.class);
         when(availability.forWeek(eq(week), any())).thenReturn(Map.of());
         var controller = new ProjectionController(new ProjectionsService(db.jdbc, profiles, availability,
                 new ProjectionProperties(provider.source().id(), false), provider,
-                Clock.fixed(now, ZoneOffset.UTC), noCache(db), new JdbcProjectionInputs(db.jdbc)));
+                Clock.fixed(now, ZoneOffset.UTC), noCache(db), new JdbcProjectionInputs(db.jdbc), new ScoringProfileQueryRepository(db.jdbc)));
         var first = controller.board(1, null, "", 0, 1, 7L).page().content().getFirst();
         var second = controller.board(1, null, "", 1, 1, 7L).page().content().getFirst();
         assertThat(first.playerId()).isEqualTo(high);
@@ -130,7 +132,7 @@ class ProjectionOrderingTests {
 
         var service = new ProjectionsService(backwards, profilesFor(1L, 7L,
                 new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())), noAvailability(week),
-                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC), noCache(db), new JdbcProjectionInputs(db.jdbc));
+                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC), noCache(db), new JdbcProjectionInputs(db.jdbc), new ScoringProfileQueryRepository(db.jdbc));
         assertThat(ids(service.board(1, null, "", 0, 200, 7L))).containsExactly(top, a, b, c);
         for (int page = 0; page < 4; page++) {
             assertThat(ids(service.board(1, null, "", page, 1, 7L))).as("page %d of size 1", page)
@@ -183,7 +185,7 @@ class ProjectionOrderingTests {
                 Map.of("TE", Map.of(StatKey.REC, 1.5)), List.of(new Bonus(StatKey.REC_YD, 50, 1.5)));
         ResolvedRuleset rules = ResolvedRuleset.compile(ruleset);
         var service = new ProjectionsService(db.jdbc, profilesFor(1L, 7L, ruleset), noAvailability(week),
-                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC), noCache(db), new JdbcProjectionInputs(db.jdbc));
+                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC), noCache(db), new JdbcProjectionInputs(db.jdbc), new ScoringProfileQueryRepository(db.jdbc));
 
         var board = service.board(1, null, "", 0, 200, 7L).page().content();
         assertThat(board).hasSize(40);
@@ -249,7 +251,7 @@ class ProjectionOrderingTests {
         var service = new ProjectionsService(db.jdbc, profilesFor(1L, 7L,
                 new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())), noAvailability(week),
                 new ProjectionProperties(provider.source().id(), false), provider,
-                Clock.fixed(now, ZoneOffset.UTC), noCache(db), new JdbcProjectionInputs(db.jdbc));
+                Clock.fixed(now, ZoneOffset.UTC), noCache(db), new JdbcProjectionInputs(db.jdbc), new ScoringProfileQueryRepository(db.jdbc));
 
         var board = service.board(1, null, "", 0, 50, 7L);
         assertThat(board.state()).as("2031-01-10 is in the 2030 season").isEqualTo("READY");
@@ -275,6 +277,6 @@ class ProjectionOrderingTests {
     private static ProjectionRow row(long playerId, double rawPoints) {
         return new ProjectionRow(playerId, "P" + playerId, "WR", "BUF", "NYJ", true, null, false,
                 ScoringEngine.roundForDisplay(rawPoints), 4, "ESTABLISHED", null, null, Instant.EPOCH,
-                List.of(), List.of(), 2030, 1, rawPoints, null);
+                List.of(), List.of(), 2030, 1, rawPoints, null, new double[0]);
     }
 }

@@ -662,6 +662,133 @@ class ProjectionApiTests {
      * position that was asked for: an open game belonging to an Out player keeps the week READY
      * even though the only ranked player's game is old.
      */
+    /**
+     * "Same line, different value": a player's page carries his one stored line under each system
+     * preset, in id order -- Standard, Half PPR, Full PPR, TE Premium. The numbers are the
+     * hand-computed table above, so a wrong preset cannot hide behind the engine that produces the
+     * others; and each is exactly what the board prints for that preset (the unmodified engine,
+     * rounded once), for a fractional line as well, where a missing or a doubled rounding would show.
+     */
+    @Test
+    void aPlayersPageScoresHisOneLineUnderEveryPreset() {
+        long game = game(WEEK, buf, bal, inDays(2));
+        long qb = player("Strip QB", "QB", buf);
+        long rb = player("Strip RB", "RB", buf);
+        long wr = player("Strip WR", "WR", buf);
+        long te = player("Strip TE", "TE", buf);
+        long fractional = player("Strip Fractional", "TE", buf);
+        store(WEEK,
+                new Proj(qb, game, buf, Map.of(StatKey.PASS_YD, 300.0, StatKey.PASS_TD, 2.0,
+                        StatKey.PASS_INT, 1.0, StatKey.RUSH_YD, 20.0)),
+                new Proj(rb, game, buf, Map.of(StatKey.RUSH_YD, 80.0, StatKey.RUSH_TD, 1.0,
+                        StatKey.REC, 3.0, StatKey.REC_YD, 20.0)),
+                new Proj(wr, game, buf, Map.of(StatKey.REC, 5.0, StatKey.REC_YD, 60.0, StatKey.REC_TD, 1.0)),
+                new Proj(te, game, buf, Map.of(StatKey.REC, 5.0, StatKey.REC_YD, 60.0, StatKey.REC_TD, 1.0)),
+                new Proj(fractional, game, buf, Map.of(StatKey.REC, 5.15, StatKey.REC_YD, 63.7,
+                        StatKey.REC_TD, 0.45, StatKey.RUSH_YD, 3.3)));
+        long[] presets = {ApiFixture.Seeded.STANDARD, ApiFixture.Seeded.HALF_PPR, ApiFixture.Seeded.FULL_PPR,
+                ApiFixture.Seeded.TE_PREMIUM};
+        // The same hand-computed lines as thePresetsScoreAWholeLineToTheHandComputedValue.
+        Map<Long, double[]> expected = Map.of(
+                qb, new double[] {20.0, 20.0, 20.0, 20.0},
+                rb, new double[] {16.0, 17.5, 19.0, 19.0},
+                wr, new double[] {12.0, 14.5, 17.0, 17.0},
+                te, new double[] {12.0, 14.5, 17.0, 19.5});
+
+        for (Map.Entry<Long, double[]> line : expected.entrySet()) {
+            JsonNode strip = getJson(rest, detailPath(line.getKey(), ApiFixture.Seeded.STANDARD)).get("presets");
+            assertThat(strip).as("player %d", line.getKey()).hasSize(4);
+            for (int i = 0; i < presets.length; i++) {
+                assertThat(strip.get(i).get("profileId").asLong()).as("order, entry %d", i).isEqualTo(presets[i]);
+                assertThat(strip.get(i).get("points").asDouble()).as("preset %d, player %d", presets[i], line.getKey())
+                        .isEqualTo(line.getValue()[i]);
+            }
+        }
+        List<String> storedNames = jdbc.queryForList(
+                "SELECT name FROM scoring_profiles WHERE is_preset ORDER BY id", String.class);
+        JsonNode anyStrip = getJson(rest, detailPath(wr, ApiFixture.Seeded.STANDARD)).get("presets");
+        for (int i = 0; i < presets.length; i++) {
+            assertThat(anyStrip.get(i).get("name").asText()).isEqualTo(storedNames.get(i));
+        }
+
+        // Each entry is the number the board prints for that preset, for every line including the fractional one.
+        for (long preset : presets) {
+            JsonNode board = getJson(rest, BOARD + "?profileId=" + preset);
+            for (long id : List.of(qb, rb, wr, te, fractional)) {
+                assertThat(presetPoints(getJson(rest, detailPath(id, ApiFixture.Seeded.STANDARD)), preset))
+                        .as("preset %d, player %d: strip against board", preset, id)
+                        .isEqualTo(rowOf(board, id).get("points").asDouble());
+            }
+        }
+        // A full point per catch is worth the catches: PPR less 0 PPR, to the cent.
+        JsonNode strip = getJson(rest, detailPath(fractional, ApiFixture.Seeded.STANDARD));
+        assertThat(presetPoints(strip, ApiFixture.Seeded.FULL_PPR) - presetPoints(strip, ApiFixture.Seeded.STANDARD))
+                .isCloseTo(5.15, within(0.011));
+        // The strip does not depend on which ruleset the member asked under.
+        assertThat(getJson(rest, detailPath(te, ApiFixture.Seeded.TE_PREMIUM)).get("presets"))
+                .isEqualTo(getJson(rest, detailPath(te, ApiFixture.Seeded.STANDARD)).get("presets"));
+    }
+
+    /**
+     * Only the system presets, and only where there is a line: another member's ruleset is never
+     * listed, an Out player (whose line is kept) and a stale line have a strip, and a player with no
+     * line has none -- null, not an empty list.
+     */
+    @Test
+    void theStripIsOnlyThePresetsAndOnlyWhereThereIsALine() {
+        long other = ApiFixture.memberId(jdbc, "other-member@example.com");
+        ownedProfile(memberId, "My own ruleset");
+        ownedProfile(other, "Somebody else's ruleset");
+        long game = game(WEEK, buf, bal, inDays(2));
+        long out = player("Strip Out Receiver", "WR", buf);
+        long bye = player("Strip Bye Receiver", "WR", mia);
+        long rookie = player("Strip Rookie", "WR", buf);
+        store(WEEK, new Proj(out, game, buf, Map.of(StatKey.REC_YD, 60.0)));
+        roster(out, buf, "ACT");
+        injury(out, buf, "Out");
+        roster(bye, mia, "ACT");
+        roster(rookie, buf, "ACT");
+
+        JsonNode outPage = getJson(rest, detailPath(out, ApiFixture.Seeded.STANDARD));
+        assertThat(outPage.get("state").asText()).isEqualTo("PROJECTED");
+        assertThat(ids(outPage.get("presets"), "profileId")).as("presets, and nobody's own ruleset")
+                .containsExactly(ApiFixture.Seeded.STANDARD, ApiFixture.Seeded.HALF_PPR,
+                        ApiFixture.Seeded.FULL_PPR, ApiFixture.Seeded.TE_PREMIUM);
+        for (long noLine : List.of(bye, rookie)) {
+            JsonNode page = getJson(rest, detailPath(noLine, ApiFixture.Seeded.STANDARD));
+            assertThat(page.get("projection").isNull()).isTrue();
+            assertThat(page.get("presets").isNull()).as("%s: no line, no strip", page.get("state").asText()).isTrue();
+        }
+
+        // A stale line still has the strip: every game of the week is over 48 hours old.
+        clear();
+        long old = game(WEEK, buf, bal, NOW.minus(Duration.ofHours(48)));
+        game(WEEK, mia, bal, NOW.minus(Duration.ofHours(40)));
+        store(WEEK, new Proj(out, old, buf, Map.of(StatKey.REC_YD, 60.0)));
+        JsonNode stale = getJson(rest, detailPath(out, ApiFixture.Seeded.STANDARD));
+        assertThat(stale.get("state").asText()).isEqualTo("STALE");
+        assertThat(stale.get("presets")).hasSize(4);
+
+        // No week left: no line, no strip.
+        clear();
+        assertThat(getJson(rest, detailPath(out, ApiFixture.Seeded.STANDARD)).get("presets").isNull()).isTrue();
+    }
+
+    private static double presetPoints(JsonNode page, long presetId) {
+        for (JsonNode entry : page.get("presets")) {
+            if (entry.get("profileId").asLong() == presetId) {
+                return entry.get("points").asDouble();
+            }
+        }
+        throw new AssertionError("no preset " + presetId + " in " + page.get("presets"));
+    }
+
+    private static List<Long> ids(JsonNode array, String field) {
+        List<Long> found = new ArrayList<>();
+        array.forEach(entry -> found.add(entry.get(field).asLong()));
+        return found;
+    }
+
     @Test
     void theWeeksStateIgnoresWhoIsRankedAndWhichPositionWasAsked() {
         long old = game(WEEK, buf, bal, NOW.minus(Duration.ofHours(60)));
@@ -1200,7 +1327,8 @@ class ProjectionApiTests {
                 .containsExactly("stat", "gte", "value", "points", "triggered");
 
         JsonNode detail = getJson(rest, detailPath(wr, 1));
-        assertThat(names(detail)).containsExactly("state", "source", "projection");
+        assertThat(names(detail)).containsExactly("state", "source", "projection", "presets");
+        assertThat(names(detail.get("presets").get(0))).containsExactly("profileId", "name", "points");
     }
 
     // ------------------------------------------------------------------ helpers
