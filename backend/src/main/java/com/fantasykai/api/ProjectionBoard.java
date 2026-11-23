@@ -25,7 +25,10 @@ import java.time.Instant;
  * @param availabilityAsOf the older of the last successful roster pull and the last successful
  *                         injury pull: how current "who is out" can be. Null when either feed has
  *                         never succeeded, because one feed's freshness says nothing about the
- *                         other's. It is when the pull ran, not when anything was published
+ *                         other's. It is when the pull ran, not when anything was published or which week it covered:
+ *                         on a Tuesday after a successful pull, the week's injury report may not
+ *                         exist yet (reports start Wednesday), and every player then reads
+ *                         {@code UNKNOWN} under a recent time
  * @param excluded         who the board left out, and why
  * @param page             the ranked rows
  */
@@ -41,8 +44,11 @@ public record ProjectionBoard(String state, Integer season, Integer week, Projec
      * @param unavailable players with a stored projection the board does not rank: Out, on a
      *                    reserve list, or off the roster. Their line is kept, and their own
      *                    page shows it
-     * @param noHistory   rostered players the job would have projected but for having no NFL
-     *                    history at all. Null unless {@code state} is {@code READY}
+     * @param noHistory   rostered players the job would have projected but for having no
+     *                    regular-season game before the week (decided by the job's own reader, so
+     *                    a debut already played in this week does not remove him). Null unless
+     *                    {@code state} is {@code READY}, and null when a stored history is
+     *                    corrupt: the fault is logged by name and the count is not known
      * @param bye         rostered players whose team has no game in the week. Null unless
      *                    {@code state} is {@code READY}. Both are null otherwise because only the
      *                    week being played has a roster to count against, and zero would say "none"

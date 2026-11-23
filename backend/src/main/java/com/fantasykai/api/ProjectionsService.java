@@ -7,7 +7,9 @@ import com.fantasykai.projections.Availability;
 import com.fantasykai.projections.AvailabilityRules;
 import com.fantasykai.projections.AvailabilityService;
 import com.fantasykai.projections.AvailabilityService.RosterEntry;
+import com.fantasykai.projections.CorruptHistoryException;
 import com.fantasykai.projections.CurrentTargetWeek;
+import com.fantasykai.projections.JdbcProjectionInputs;
 import com.fantasykai.projections.ProjectionProperties;
 import com.fantasykai.projections.ProjectionProvider;
 import com.fantasykai.projections.SeasonWeek;
@@ -38,6 +40,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -74,8 +78,9 @@ import org.springframework.stereotype.Service;
  * job's own candidate rule would have projected -- a roster status in
  * {@link AvailabilityRules#PROJECTED_ROSTER_STATUSES}, a skill position -- who have no row, split
  * by the same two questions the player route asks: does his team play in the target week, and has
- * he any history at all. They need the week's roster, so they are known only for {@code READY};
- * in any other state they are {@code null}, never zero.
+ * he any history before it, as the job's own reader ({@link JdbcProjectionInputs}) decides. They
+ * need the week's roster, so they are known only for {@code READY}; in any other state, or when a
+ * stored history is corrupt, they are {@code null}, never zero.
  *
  * <p>Not yet the full slice 5/6 contract in {@code docs/projections-v1-architecture.md}:
  * bonuses are explained as one remainder (the total less the linear parts), not one
@@ -83,6 +88,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class ProjectionsService {
+
+    private static final Logger log = LoggerFactory.getLogger(ProjectionsService.class);
 
     /** A target week whose every stored game kicked off this long ago is reported {@code STALE}. */
     private static final Duration STALE_AFTER = TargetWeekResolver.UNREPORTED_AFTER;
@@ -136,10 +143,12 @@ public class ProjectionsService {
     private final ProjectionProvider provider;
     private final Clock clock;
     private final CurrentTargetWeek targets;
+    private final JdbcProjectionInputs inputs;
 
     public ProjectionsService(JdbcTemplate jdbc, ScoringProfiles profiles,
             AvailabilityService availability, ProjectionProperties config,
-            ProjectionProvider provider, Clock clock, CurrentTargetWeek targets) {
+            ProjectionProvider provider, Clock clock, CurrentTargetWeek targets,
+            JdbcProjectionInputs inputs) {
         this.jdbc = jdbc;
         this.profiles = profiles;
         this.availability = availability;
@@ -147,6 +156,7 @@ public class ProjectionsService {
         this.provider = provider;
         this.clock = clock;
         this.targets = targets;
+        this.inputs = inputs;
     }
 
     /**
@@ -220,9 +230,10 @@ public class ProjectionsService {
                 .filter(entry -> !projected.contains(entry.playerId()))
                 .toList();
         int bye = (int) unprojected.stream().filter(entry -> !playing.contains(entry.teamId())).count();
-        Set<Long> noHistory = withoutHistory(unprojected.stream()
-                .filter(entry -> playing.contains(entry.teamId())).map(RosterEntry::playerId).toList());
-        return new ProjectionBoard.Excluded(unavailable, noHistory.size(), bye);
+        Integer noHistory = withoutHistory(view.target().week(), unprojected.stream()
+                .filter(entry -> playing.contains(entry.teamId())).map(RosterEntry::playerId).toList())
+                .map(Set::size).orElse(null);
+        return new ProjectionBoard.Excluded(unavailable, noHistory, bye);
     }
 
     /**
@@ -283,7 +294,11 @@ public class ProjectionsService {
         if (!teamsPlaying(view.target()).contains(entry.teamId())) {
             return "BYE";
         }
-        return withoutHistory(List.of(id)).isEmpty() ? "UNAVAILABLE" : "NO_HISTORY";
+        if (!ScoringPosition.ALL.contains(entry.position())) {
+            return "UNAVAILABLE"; // v1 projects QB, RB, WR and TE: "no history" is about those four
+        }
+        Optional<Set<Long>> none = withoutHistory(view.target().week(), List.of(id));
+        return none.isPresent() && !none.get().isEmpty() ? "NO_HISTORY" : "UNAVAILABLE";
     }
 
     /** Teams with a regular-season game in the target week that the schedule still lists. */
@@ -297,22 +312,30 @@ public class ProjectionsService {
     }
 
     /**
-     * Of these players, those with no appearance and no stat line in any season: nothing to
-     * project from. Both tables lead their primary key with the player, so this is one index
-     * probe per player and never adds an index.
+     * Of these players, those the job would leave off for having no history: none of the
+     * regular-season games before {@code target}. Decided by the job's own reader
+     * ({@link JdbcProjectionInputs#histories(SeasonWeek, Collection)}), not by a second statement
+     * of the same rule, so a game on the target week itself (a rookie whose debut has been
+     * ingested while the week is still being played), a playoff game and a player who is not at a
+     * skill position are settled exactly as the job settles them.
+     *
+     * <p>Empty when the reader refuses a corrupt history (a player with two games in one week). The
+     * job fails its whole run on that, by owner decision; a request must not, so who has no
+     * history is then not known: the fault is logged by name and the caller says null.
      */
-    private Set<Long> withoutHistory(Collection<Long> playerIds) {
+    private Optional<Set<Long>> withoutHistory(SeasonWeek target, Collection<Long> playerIds) {
         if (playerIds.isEmpty()) {
-            return Set.of();
+            return Optional.of(Set.of());
         }
-        Long[] ids = playerIds.toArray(Long[]::new);
-        return new HashSet<>(jdbc.query("""
-                SELECT p.id FROM players p
-                 WHERE p.id = ANY (?)
-                   AND NOT EXISTS (SELECT 1 FROM player_game_appearances a WHERE a.player_id = p.id)
-                   AND NOT EXISTS (SELECT 1 FROM player_game_stats s WHERE s.player_id = p.id)
-                """, ps -> ps.setArray(1, ps.getConnection().createArrayOf("bigint", ids)),
-                (rs, n) -> rs.getLong(1)));
+        try {
+            Set<Long> withHistory = inputs.histories(target, playerIds).keySet();
+            return Optional.of(playerIds.stream().filter(id -> !withHistory.contains(id))
+                    .collect(Collectors.toSet()));
+        } catch (CorruptHistoryException fault) {
+            log.warn("projections: who has no history before {} is not known, a history is corrupt: {}",
+                    target, fault.getMessage());
+            return Optional.empty();
+        }
     }
 
     /** The state and every stored line of the week it is for, scored under the caller's ruleset. */

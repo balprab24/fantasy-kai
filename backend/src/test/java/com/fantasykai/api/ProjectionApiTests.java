@@ -31,11 +31,14 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.HttpStatus;
@@ -888,6 +891,87 @@ class ProjectionApiTests {
     }
 
     /**
+     * "No history" is the job's rule -- regular-season games before the target week -- and not
+     * "never played". A rookie whose debut has been ingested while the week is still being played
+     * stays counted: the job did not project him and his only game is not before the week. A
+     * player with only a playoff game is counted, a zero-stat appearance is a game, and a kicker is
+     * not a "no history" player at all (v1 projects four positions).
+     */
+    @Test
+    void noHistoryIsTheJobsRuleAndNotNeverPlayed() {
+        long thursday = game(WEEK, buf, bal, NOW.minus(Duration.ofHours(20))); // played, its stats are in
+        long sunday = game(WEEK, mia, bal, inDays(2));                         // not yet: holds the week open
+        long lastSeason = game(SEASON - 1, 5, buf, bal, NOW.minus(Duration.ofDays(300)));
+        long playoff = playoffGame(SEASON - 1, 18, "WC", buf, bal);
+        long projected = player("History Projected", "WR", mia);
+        store(WEEK, new Proj(projected, sunday, mia, Map.of(StatKey.REC_YD, 60.0)));
+        roster(projected, mia, "ACT");
+
+        long debut = player("Debut Rookie", "WR", buf);
+        long playoffOnly = player("Playoff Only Receiver", "WR", buf);
+        long veteran = player("Veteran Receiver", "WR", buf);
+        long zeroGame = player("Zero Stat Veteran", "WR", buf);
+        long kicker = player("Placekicker", "K", buf);
+        for (long id : List.of(debut, playoffOnly, veteran, zeroGame, kicker)) {
+            roster(id, buf, "ACT");
+        }
+        statLine(debut, thursday, buf);
+        statLine(playoffOnly, playoff, buf);
+        statLine(veteran, lastSeason, buf);
+        appearance(zeroGame, lastSeason, buf);
+
+        JsonNode board = getJson(rest, BOARD + "?profileId=1");
+        assertThat(board.get("state").asText()).isEqualTo("READY");
+        assertThat(board.get("week").asInt()).as("Thursday's stats are in, Sunday's are not").isEqualTo(WEEK);
+        assertThat(board.get("excluded").get("noHistory").asInt())
+                .as("the debut already played, and the playoff-only player").isEqualTo(2);
+        assertThat(board.get("excluded").get("bye").asInt()).isZero();
+        assertThat(board.get("excluded").get("unavailable").asInt()).isZero();
+        Map<Long, String> pages = Map.of(debut, "NO_HISTORY", playoffOnly, "NO_HISTORY",
+                veteran, "UNAVAILABLE", zeroGame, "UNAVAILABLE", kicker, "UNAVAILABLE");
+        pages.forEach((id, state) -> assertThat(getJson(rest, detailPath(id, 1)).get("state").asText())
+                .as("player %d", id).isEqualTo(state));
+    }
+
+    /**
+     * The job fails its whole run on a corrupt history (two games in one week) and says so; a
+     * request must not turn one player's data fault into a 500 for the whole board. The count that
+     * needed the history is unknown -- null, not zero -- the fault is logged by name, and
+     * everything that does not need it is still served.
+     */
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aCorruptHistoryMakesTheCountUnknownAndNotTheBoardAnError(CapturedOutput output) {
+        long sunday = game(WEEK, buf, bal, inDays(2));
+        long one = game(SEASON - 1, 5, buf, bal, NOW.minus(Duration.ofDays(300)));
+        long two = game(SEASON - 1, 5, mia, bal, NOW.minus(Duration.ofDays(300))); // the same week
+        long projected = player("Corrupt Case Projected", "WR", buf);
+        store(WEEK, new Proj(projected, sunday, buf, Map.of(StatKey.REC_YD, 60.0)));
+        roster(projected, buf, "ACT");
+        long corrupt = player("Two Games One Week", "WR", buf);
+        long rookie = player("Honest Rookie", "WR", bal);
+        long onBye = player("Bye Player", "WR", mia);
+        roster(corrupt, buf, "ACT");
+        roster(rookie, bal, "ACT");
+        roster(WEEK - 1, onBye, mia, "ACT");
+        statLine(corrupt, one, buf);
+        statLine(corrupt, two, mia);
+
+        JsonNode board = getJson(rest, BOARD + "?profileId=1");
+        assertThat(board.get("state").asText()).isEqualTo("READY");
+        assertThat(ids(board)).as("the board is still served").containsExactly(projected);
+        assertThat(board.get("excluded").get("noHistory").isNull()).as("not known, not zero").isTrue();
+        assertThat(board.get("excluded").get("bye").asInt()).as("needs no history").isEqualTo(1);
+        assertThat(getJson(rest, detailPath(corrupt, 1)).get("state").asText())
+                .as("his history cannot be read, so no reason is claimed").isEqualTo("UNAVAILABLE");
+        assertThat(getJson(rest, detailPath(rookie, 1)).get("state").asText())
+                .as("a page that asks only about him is unaffected").isEqualTo("NO_HISTORY");
+        String gsis = jdbc.queryForObject("SELECT gsis_id FROM players WHERE id = ?", String.class, corrupt);
+        assertThat(output.getAll()).as("the fault is logged by name").contains("history is corrupt")
+                .contains(gsis).contains((SEASON - 1) + " week 5");
+    }
+
+    /**
      * Where the week has no rows, or only its roster-less past, the envelope says what it does not
      * know. The board's one number that needs no roster, how many stored lines it declined to rank,
      * is still given; the two that need the roster are null and never zero. {@code season} and
@@ -1089,6 +1173,8 @@ class ProjectionApiTests {
         jdbc.update("DELETE FROM ingest_runs WHERE source IN (?, ?)", RosterWeekIngestor.SOURCE,
                 InjuryReportIngestor.SOURCE);
         jdbc.update("DELETE FROM player_game_stats WHERE season IN (?, ?)", SEASON - 1, SEASON);
+        jdbc.update("DELETE FROM player_game_appearances WHERE game_id IN "
+                + "(SELECT id FROM games WHERE season IN (?, ?))", SEASON - 1, SEASON);
         jdbc.update("DELETE FROM games WHERE season IN (?, ?)", SEASON - 1, SEASON);
     }
 
@@ -1108,6 +1194,32 @@ class ProjectionApiTests {
                 VALUES (?, ?, ?, 'REG', ?, ?, ?) RETURNING id
                 """, Long.class, "%d_%02d_%d_%d".formatted(season, week, away, home), season, week,
                 home, away, kickoff == null ? null : kickoff.atOffset(ZoneOffset.UTC));
+    }
+
+    /** A game he played, with a stat line, in {@code game}'s week. */
+    private void statLine(long player, long game, int team) {
+        jdbc.update("""
+                INSERT INTO player_game_stats (player_id, game_id, season, week, team_id, snap_pct, rec, rec_yd)
+                SELECT ?, ?, g.season, g.week, ?, 85.50, 4, 40 FROM games g WHERE g.id = ?
+                """, player, game, team, game);
+    }
+
+    /** A game he was on the field for and recorded nothing in: an appearance with no stat line. */
+    private void appearance(long player, long game, int team) {
+        jdbc.update("""
+                INSERT INTO player_game_appearances (player_id, game_id, team_id, offense_snaps)
+                VALUES (?, ?, ?, 20)
+                """, player, game, team);
+    }
+
+    /** A postseason game: {@code season_type} is the round ('WC', 'DIV'...), never 'POST'. */
+    private long playoffGame(int season, int week, String round, int home, int away) {
+        return jdbc.queryForObject("""
+                INSERT INTO games (nflverse_game_id, season, week, season_type, home_team_id,
+                                   away_team_id, kickoff_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id
+                """, Long.class, "%d_%02d_%s_%d_%d".formatted(season, week, round, away, home), season, week,
+                round, home, away, NOW.minus(Duration.ofDays(300)).atOffset(ZoneOffset.UTC));
     }
 
     /** Another method's row for {@code player}, in {@code week}: the provider filters must keep it out. */
