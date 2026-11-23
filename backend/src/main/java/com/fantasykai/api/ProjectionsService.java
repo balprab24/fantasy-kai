@@ -41,6 +41,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,15 +88,18 @@ import org.springframework.stereotype.Service;
  * <p>Each line is explained in full ({@link ExplainedScore}): its stats as value x rate, and each
  * bonus that bears on it with whether the line reached it.
  *
- * <p>A player's page also carries his line under each system preset ({@link #presets}).
- *
- * <p>Not yet the full slice 5/6 contract in {@code docs/projections-v1-architecture.md}: the
- * source's summary and typical error are owed. The plan lists them.
+ * <p>A player's page also carries his line under the three scoring formats ({@link #presets}),
+ * and the source it was made by with the baseline's measured error. That completes the contract
+ * of {@code docs/projections-v1-architecture.md} section 9 that Slice 5 owes ("as built" there);
+ * what remains is the UI (Slice 6) and the live-accuracy report (Slice 7).
  */
 @Service
 public class ProjectionsService {
 
     private static final Logger log = LoggerFactory.getLogger(ProjectionsService.class);
+
+    /** The same corrupt-history fault is logged at most this often. */
+    private static final Duration FAULT_LOG_EVERY = Duration.ofMinutes(10);
 
     /** A target week whose every stored game kicked off this long ago is reported {@code STALE}. */
     private static final Duration STALE_AFTER = TargetWeekResolver.UNREPORTED_AFTER;
@@ -151,6 +155,7 @@ public class ProjectionsService {
     private final CurrentTargetWeek targets;
     private final JdbcProjectionInputs inputs;
     private final ScoringProfileQueryRepository profileQueries;
+    private final AtomicReference<LoggedFault> lastFault = new AtomicReference<>();
 
     public ProjectionsService(JdbcTemplate jdbc, ScoringProfiles profiles,
             AvailabilityService availability, ProjectionProperties config,
@@ -233,7 +238,7 @@ public class ProjectionsService {
         Set<Long> projected = view.rows().stream().map(ProjectionRow::playerId).collect(Collectors.toSet());
         Set<Integer> playing = teamsPlaying(view.target());
         List<RosterEntry> unprojected = view.roster().values().stream()
-                .filter(entry -> AvailabilityRules.PROJECTED_ROSTER_STATUSES.contains(entry.status()))
+                .filter(ProjectionsService::projectable)
                 .filter(entry -> positions.contains(entry.position()))
                 .filter(entry -> !projected.contains(entry.playerId()))
                 .toList();
@@ -318,24 +323,40 @@ public class ProjectionsService {
     }
 
     /**
-     * Why a rostered or unrostered player has no line this week. The two questions here -- does his
-     * team play in the target week, has he any history at all -- are the ones {@link #excluded}
-     * asks of everyone, from the same roster and the same games, so a board's count and a
-     * player's answer cannot disagree.
+     * Why a rostered or unrostered player has no line this week. It asks the questions
+     * {@link #excluded} asks of everyone, in the same order, from the same roster and the same
+     * games: is he a player the job projects at all ({@link #projectable}), does his team play in
+     * the target week, has he any history before it. So for every candidate, the board's count and
+     * the player's own page are one rule, and a test compares them over everyone rostered.
+     * A player the job never projects -- practice squad, released, retired, or not at a skill
+     * position -- is not "bye" or "no history": he is not a candidate, and says so.
      */
     private String missingReason(long id, View view) {
         RosterEntry entry = view.roster().get(id);
         if (entry == null) {
             return view.roster().isEmpty() ? "UNAVAILABLE" : "NOT_ROSTERED";
         }
+        if (!AvailabilityRules.PROJECTED_ROSTER_STATUSES.contains(entry.status())) {
+            return "NOT_ROSTERED"; // on a practice squad, released or retired: not on the team's roster for the week
+        }
+        if (!ScoringPosition.ALL.contains(entry.position())) {
+            return "UNAVAILABLE"; // v1 projects QB, RB, WR and TE
+        }
         if (!teamsPlaying(view.target()).contains(entry.teamId())) {
             return "BYE";
         }
-        if (!ScoringPosition.ALL.contains(entry.position())) {
-            return "UNAVAILABLE"; // v1 projects QB, RB, WR and TE: "no history" is about those four
-        }
         Optional<Set<Long>> none = withoutHistory(view.target().week(), List.of(id));
         return none.isPresent() && !none.get().isEmpty() ? "NO_HISTORY" : "UNAVAILABLE";
+    }
+
+    /**
+     * The job's candidate rule, as far as a roster row decides it: a roster status it projects
+     * ({@link AvailabilityRules#PROJECTED_ROSTER_STATUSES}) and a skill position. {@link #excluded}
+     * counts by it and {@link #missingReason} answers by it.
+     */
+    private static boolean projectable(RosterEntry entry) {
+        return AvailabilityRules.PROJECTED_ROSTER_STATUSES.contains(entry.status())
+                && ScoringPosition.ALL.contains(entry.position());
     }
 
     /** Teams with a regular-season game in the target week that the schedule still lists. */
@@ -369,10 +390,30 @@ public class ProjectionsService {
             return Optional.of(playerIds.stream().filter(id -> !withHistory.contains(id))
                     .collect(Collectors.toSet()));
         } catch (CorruptHistoryException fault) {
-            log.warn("projections: who has no history before {} is not known, a history is corrupt: {}",
-                    target, fault.getMessage());
+            logCorruptHistory(target, fault);
             return Optional.empty();
         }
+    }
+
+    /** One fault, and when it was last logged: the same fault is not repeated inside {@link #FAULT_LOG_EVERY}. */
+    private record LoggedFault(String message, Instant at) {}
+
+    /**
+     * A corrupt history is logged by name, but once per distinct fault per {@link #FAULT_LOG_EVERY},
+     * not once per request: every member reading the board while it stands would otherwise write the
+     * same line at their read limit, a log flood from one bad row. The job's own run fails and says
+     * so loudly once a day; this is the request path's quieter echo.
+     */
+    private void logCorruptHistory(SeasonWeek target, CorruptHistoryException fault) {
+        Instant now = clock.instant();
+        LoggedFault last = lastFault.get();
+        if (last != null && last.message().equals(fault.getMessage())
+                && now.isBefore(last.at().plus(FAULT_LOG_EVERY))) {
+            return;
+        }
+        lastFault.set(new LoggedFault(fault.getMessage(), now));
+        log.warn("projections: who has no history before {} is not known, a history is corrupt: {}",
+                target, fault.getMessage());
     }
 
     /** The state and every stored line of the week it is for, scored under the caller's ruleset. */

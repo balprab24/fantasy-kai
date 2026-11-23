@@ -141,17 +141,26 @@ class ProjectionSourceTests {
                 .containsPattern(Pattern.compile("(?m)^\\| P-all \\(every player with history who played\\) \\| 5,746 \\| 4\\.509 \\|"));
         assertThat(report("docs/perf/projection-backtest/test-2025.md")).as("2025 board-wide")
                 .containsPattern(Pattern.compile("(?m)^\\| P-all \\(every player with history who played\\) \\| 5,914 \\| 4\\.470 \\|"));
+        // ...and with players who then sat counted as zeros (P0): the "5.8 to 5.9" the Javadoc and the
+        // architecture doc quote.
+        assertThat(report("docs/perf/projection-backtest/validate-2024.md")).as("2024 P0")
+                .containsPattern(Pattern.compile("(?m)^\\| P0 \\(played team's last game; DNP = 0\\) \\| 3,808 \\| 5\\.845 \\|"));
+        assertThat(report("docs/perf/projection-backtest/test-2025.md")).as("2025 P0")
+                .containsPattern(Pattern.compile("(?m)^\\| P0 \\(played team's last game; DNP = 0\\) \\| 3,808 \\| 5\\.887 \\|"));
     }
 
-    /** The copy says "about 5.5": that holds while the shipped measurements stay within 0.2 of it. */
+    /**
+     * The copy says "about 5.5" under full PPR. That the headline sits within 0.2 of every
+     * measurement is enforced where the figure is built (and fails class initialisation, so every
+     * test that touches the source), so it is not re-asserted here; this pins what the figure is
+     * called and says.
+     */
     @Test
-    void theShippedHeadlineSitsInsideTheToleranceOfEveryMeasurement() {
+    void theShippedHeadlineIsFivePointFiveInFullPpr() {
         TypicalError error = WeightedAverageProjectionProvider.SOURCE.typicalError();
 
         assertThat(error.metric()).isEqualTo("PPR MAE");
         assertThat(error.value()).isEqualTo(5.5);
-        assertThat(error.measured()).allSatisfy(m ->
-                assertThat(Math.abs(error.value() - m.mae())).isLessThanOrEqualTo(TypicalError.HEADLINE_TOLERANCE));
     }
 
     // ------------------------------------------------------------------ the wire

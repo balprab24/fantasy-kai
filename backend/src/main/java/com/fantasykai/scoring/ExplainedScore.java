@@ -21,8 +21,12 @@ import java.util.List;
  *                whether the line reached it: those on a stat the line has some of (so a near miss
  *                shows how far short it fell) and those that were paid. The same rule as
  *                {@code parts}, which lists a stat with a value or a rate. A bonus on a stat the
- *                line has none of -- passing yards on a running back -- explains nothing, so it is
- *                not a line. A bonus that pays nothing is not in the ruleset once compiled. On a
+ *                line has exactly none of -- passing yards on a running back who never threw --
+ *                explains nothing, so it is not a line. The rule prunes exact zeros only: a
+ *                projection is a decayed average whose weights never reach zero, so one old
+ *                carry by a receiver leaves a small rushing value on every later line, and a
+ *                client may choose to hide lines whose value is trivial beside the threshold.
+ *                A bonus that pays nothing is not in the ruleset once compiled. On a
  *                projected line a bonus is all-or-nothing at the line's mean -- a stated
  *                approximation, not an expected value
  */

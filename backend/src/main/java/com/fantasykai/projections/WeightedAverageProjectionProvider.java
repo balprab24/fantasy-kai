@@ -45,8 +45,8 @@ public final class WeightedAverageProjectionProvider implements ProjectionProvid
      * research's population P: each week's most-used skill players (top 32 QB, 64 RB, 96 WR and 32 TE
      * by opportunity, scaled by the teams playing) who played. It is <em>not</em> the board's
      * population: over every player with history who played the same baseline reads about 4.5
-     * (4.509 in 2024, 4.470 in 2025), and counting players who then sat as zeros about 5.9, so
-     * the population is part of the claim.
+     * (4.509 in 2024, 4.470 in 2025), and counting players who then sat as zeros 5.8 to 5.9
+     * (5.845 in 2024, 5.887 in 2025), so the population is part of the claim.
      *
      * <ul>
      *   <li>2024, 5.480 over 3,808 player-weeks: the tuning season ({@code docs/perf/

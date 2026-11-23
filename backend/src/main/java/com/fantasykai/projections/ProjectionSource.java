@@ -21,8 +21,7 @@ import java.util.regex.Pattern;
  *                     {@value #MAX_ID_LENGTH} characters
  * @param label        what a member sees
  * @param summary      one plain sentence on the method -- no "AI", no "model" for a baseline. The
- *                     API serves it as the method's description, so a provider swap updates the
- *                     copy
+ *                     API serves it as {@code source.summary}, so a provider swap updates the copy
  * @param typicalError how far off the method has been, measured; null for a source that has no
  *                     published figure. Its population says who the figure is about
  */
@@ -66,11 +65,13 @@ public record ProjectionSource(String id, String label, String summary, TypicalE
      * whoever re-runs the backtest, and later by the live accuracy report (Slice 7), not here.
      *
      * @param metric     what was measured, e.g. {@code PPR MAE}: the mean absolute error of a
-     *                   player-week's projected points under full PPR
+     *                   player-week's projected points under <em>full PPR</em>. Another scoring
+     *                   has another error (this baseline's 2024 error is 4.579 under 0 PPR and
+     *                   5.003 under Half PPR), so copy that shows the number says which
      * @param value      the headline; finite and positive
      * @param population exactly who the measurements are over. A different group has a different
      *                   error: on this baseline the board-wide population reads about 4.5 and
-     *                   one that counts players who then sat as zeros about 5.9, so the headline
+     *                   one that counts players who then sat as zeros 5.8 to 5.9, so the headline
      *                   must never be shown without this
      * @param measured   every measurement the headline summarises; at least one
      */

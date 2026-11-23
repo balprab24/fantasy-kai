@@ -45,6 +45,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -666,7 +667,7 @@ class ProjectionApiTests {
      * line as well, where a missing rounding would show.
      */
     @Test
-    void aPlayersPageScoresHisOneLineUnderEveryPreset() {
+    void aPlayersPageScoresHisOneLineUnderEachOfTheThreePresets() {
         long game = game(WEEK, buf, bal, inDays(2));
         long qb = player("Strip QB", "QB", buf);
         long rb = player("Strip RB", "RB", buf);
@@ -1070,9 +1071,15 @@ class ProjectionApiTests {
         assertThat(ids(getJson(rest, BOARD + "?profileId=1&q=nobody"))).as("the search still narrows the page")
                 .isEmpty();
 
-        // Each of the job's candidates with no line: his own page agrees with the board's count.
-        Map<Long, String> pages = Map.of(rookieWr, "NO_HISTORY", rookieTe, "NO_HISTORY", traded, "NO_HISTORY",
-                byeWr1, "BYE", byeWr2, "BYE", byeRb, "BYE", byeQb, "BYE", allen, "UNAVAILABLE");
+        // Everyone rostered who has no line -- the job's candidates and the ones it never projects --
+        // by his own page. The board's two counts are exactly the pages that say BYE and NO_HISTORY:
+        // a practice-squad player and a kicker are not "bye" or "no history", they are not candidates.
+        Map<Long, String> pages = Map.ofEntries(
+                Map.entry(rookieWr, "NO_HISTORY"), Map.entry(rookieTe, "NO_HISTORY"),
+                Map.entry(traded, "NO_HISTORY"), Map.entry(byeWr1, "BYE"), Map.entry(byeWr2, "BYE"),
+                Map.entry(byeRb, "BYE"), Map.entry(byeQb, "BYE"), Map.entry(allen, "UNAVAILABLE"),
+                Map.entry(squadWr, "NOT_ROSTERED"), Map.entry(byeSquad, "NOT_ROSTERED"),
+                Map.entry(byeKicker, "UNAVAILABLE"));
         pages.forEach((id, state) -> assertThat(getJson(rest, detailPath(id, 1)).get("state").asText())
                 .as("player %d", id).isEqualTo(state));
         JsonNode all = getJson(rest, BOARD + "?profileId=1").get("excluded");
@@ -1165,6 +1172,15 @@ class ProjectionApiTests {
         String gsis = jdbc.queryForObject("SELECT gsis_id FROM players WHERE id = ?", String.class, corrupt);
         assertThat(output.getAll()).as("the fault is logged by name").contains("history is corrupt")
                 .contains(gsis).contains((SEASON - 1) + " week 5");
+
+        // ...and once, not once per request: every member reading the board while the fault stands
+        // would otherwise write the same line at their read limit.
+        for (int i = 0; i < 3; i++) {
+            getJson(rest, BOARD + "?profileId=1");
+            getJson(rest, detailPath(corrupt, 1));
+        }
+        assertThat(StringUtils.countOccurrencesOf(output.getAll(), "history is corrupt"))
+                .as("one WARN for one fault, however many requests meet it").isEqualTo(1);
     }
 
     /**

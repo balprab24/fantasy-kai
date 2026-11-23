@@ -26,6 +26,7 @@ import com.fantasykai.scoring.ScoringProfiles;
 import com.fantasykai.scoring.StatKey;
 import com.fantasykai.scoring.StatLine;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -260,6 +261,50 @@ class ProjectionOrderingTests {
         var board = service.board(1, null, "", 0, 50, 7L);
         assertThat(board.state()).as("2031-01-10 is in the 2030 season").isEqualTo("READY");
         assertThat(ids(board)).containsExactly(wr);
+    }
+
+    /**
+     * The service with the cache the application runs (a 60 s time-to-live), which the HTTP tests
+     * bypass so they can change the schedule between calls. When the last stats of a week arrive the
+     * target moves to next week and last week's rows go STALE: with the cache, the board follows
+     * that at most one time-to-live late -- still READY half a minute after, STALE a minute after --
+     * and with no cache it follows at once.
+     */
+    @Test void theBoardFollowsAWeekRolloverOnceTheCachedAnswerExpires() {
+        var db = ProjectionDatabase.get();
+        db.reset();
+        int home = db.team("BUF"), away = db.team("NYJ");
+        Instant t0 = Instant.parse("2030-09-10T12:00:00Z");
+        long played = db.game(2030, 1, home, away, t0.minus(Duration.ofHours(20)));   // over; its stats are not in
+        db.game(2030, 2, home, away, t0.plus(Duration.ofDays(5)));
+        long receiver = db.player("Rollover Receiver", "WR", home);
+        long reporter = db.player("Reporting Receiver", "WR", away);
+        var provider = new WeightedAverageProjectionProvider();
+        var week1 = new SeasonWeek(2030, 1);
+        double[] stats = new double[StatKey.COUNT];
+        stats[StatKey.REC_YD.index()] = 80;
+        new ProjectionRepository(db.jdbc).replaceOpen(week1, provider.source().id(), List.of(
+                new ProjectionRepository.ProjectedRow(receiver, played, home, new RawProjection(provider.source(),
+                        week1, stats, 0, 0, 0, 4, new SeasonWeek(2029, 17)))), t0);
+        var cache = new CurrentTargetWeek(new TargetWeekResolver(db.jdbc), 60);
+        var ruleset = new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of());
+        java.util.function.BiFunction<CurrentTargetWeek, Instant, ProjectionsService> serviceAt = (targets, now) ->
+                new ProjectionsService(db.jdbc, profilesFor(1L, 7L, ruleset), noAvailability(week1),
+                        new ProjectionProperties(provider.source().id(), false), provider,
+                        Clock.fixed(now, ZoneOffset.UTC), targets, new JdbcProjectionInputs(db.jdbc),
+                        new ScoringProfileQueryRepository(db.jdbc));
+
+        assertThat(serviceAt.apply(cache, t0).board(1, null, "", 0, 50, 7L).state()).isEqualTo("READY");
+
+        db.played(reporter, played, away); // Monday night's last stats arrive: week 1 is finished
+
+        assertThat(serviceAt.apply(cache, t0.plus(Duration.ofSeconds(30))).board(1, null, "", 0, 50, 7L).state())
+                .as("inside the time-to-live the cached answer is still week 1").isEqualTo("READY");
+        assertThat(serviceAt.apply(cache, t0.plus(Duration.ofSeconds(61))).board(1, null, "", 0, 50, 7L).state())
+                .as("a minute on the cache has expired: the target is week 2 and week 1's rows are stale")
+                .isEqualTo("STALE");
+        assertThat(serviceAt.apply(noCache(db), t0.plus(Duration.ofSeconds(30))).board(1, null, "", 0, 50, 7L).state())
+                .as("with no cache the board follows at once").isEqualTo("STALE");
     }
 
     /** The stored line a row carries for the preset strip is read, never changed, by whoever asks. */
