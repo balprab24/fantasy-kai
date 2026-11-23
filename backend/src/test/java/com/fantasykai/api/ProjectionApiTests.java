@@ -1316,7 +1316,10 @@ class ProjectionApiTests {
                 "generatedAt", "availabilityAsOf", "excluded", "page");
         assertThat(names(board.get("dataThrough"))).containsExactly("season", "week");
         assertThat(names(board.get("excluded"))).containsExactly("unavailable", "noHistory", "bye");
-        assertThat(names(board.get("source"))).containsExactly("id", "label", "description");
+        assertThat(names(board.get("source"))).containsExactly("id", "label", "summary", "typicalError");
+        assertThat(board.get("source").get("summary").asText()).isEqualTo(provider.source().summary());
+        assertThat(board.get("source").get("typicalError").get("value").asDouble()).isEqualTo(5.5);
+        assertThat(board.get("source").get("typicalError").get("measured")).as("the three measurements").hasSize(3);
         assertThat(names(board.get("page"))).containsExactly("content", "page", "size", "total", "totalPages");
         assertThat(names(rowOf(board, wr))).containsExactly("playerId", "name", "position", "team", "opponent",
                 "home", "kickoff", "locked", "points", "gamesUsed", "history", "availability", "espnId",
@@ -1329,6 +1332,7 @@ class ProjectionApiTests {
 
         JsonNode detail = getJson(rest, detailPath(wr, 1));
         assertThat(names(detail)).containsExactly("state", "source", "projection", "presets");
+        assertThat(detail.get("source")).as("the same source on both routes").isEqualTo(board.get("source"));
         assertThat(names(detail.get("presets").get(0))).containsExactly("profileId", "name", "points");
     }
 

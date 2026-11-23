@@ -1,13 +1,24 @@
 package com.fantasykai.projections;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fantasykai.projections.ProjectionSource.Measurement;
+import com.fantasykai.projections.ProjectionSource.TypicalError;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 /**
  * A source id the database cannot hold is refused where the source is defined -- at startup,
- * for a provider's constant -- not by the first night's insert.
+ * for a provider's constant -- not by the first night's insert. The same goes for an error
+ * figure that the measurements behind it no longer support.
  */
 class ProjectionSourceTests {
 
@@ -33,5 +44,118 @@ class ProjectionSourceTests {
     void theShippedIdIsWellInside() {
         assertThat(WeightedAverageProjectionProvider.SOURCE.id().length())
                 .isLessThanOrEqualTo(ProjectionSource.MAX_ID_LENGTH);
+    }
+
+    @Test
+    void aSourceNeedsALabelAndASummary() {
+        assertThatThrownBy(() -> new ProjectionSource("a-v1", " ", "A summary."))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("label and a summary");
+        assertThatThrownBy(() -> new ProjectionSource("a-v1", "A label", null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("label and a summary");
+    }
+
+    // ------------------------------------------------------------------ the error figure
+
+    /** The headline may sit exactly 0.2 from a measurement and no further. */
+    @Test
+    void aHeadlineIsHeldToWithinPointTwoOfEveryMeasurement() {
+        assertThatCode(() -> new TypicalError("PPR MAE", 5.5, "players who appeared",
+                List.of(new Measurement(2024, null, 5.3, null), new Measurement(2025, null, 5.7, null))))
+                .as("0.2 either side is the edge, and inside").doesNotThrowAnyException();
+
+        assertThatThrownBy(() -> new TypicalError("PPR MAE", 5.5, "players who appeared",
+                List.of(new Measurement(2024, null, 5.5, null), new Measurement(2026, "1-4", 5.71, 896))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("5.5").hasMessageContaining("5.71").hasMessageContaining("2026 weeks 1-4");
+        assertThatThrownBy(() -> new TypicalError("PPR MAE", 5.5, "players who appeared",
+                List.of(new Measurement(2024, null, 5.29, null))))
+                .as("the other side of the edge").isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void aTypicalErrorNeedsItsMetricItsPopulationAndAMeasurement() {
+        List<Measurement> one = List.of(new Measurement(2025, null, 5.5, 3807));
+        assertThatThrownBy(() -> new TypicalError(" ", 5.5, "players who appeared", one))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new TypicalError("PPR MAE", 5.5, null, one))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new TypicalError("PPR MAE", 5.5, "players who appeared", List.of()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("at least one measurement");
+        assertThatThrownBy(() -> new Measurement(2025, null, 0, null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new Measurement(2025, null, Double.NaN, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /**
+     * The shipped figures are the committed reports', row by row -- not a number that merely looks
+     * right. A figure edited without its report, or a report re-run without the figure, fails here.
+     * The reports are read from the repository (tests run in {@code backend/}); a missing file is a
+     * failure, not a skip.
+     */
+    @Test
+    void theShippedErrorFiguresAreTheCommittedReportsRows() throws IOException {
+        TypicalError error = WeightedAverageProjectionProvider.SOURCE.typicalError();
+        String accuracy = report("docs/perf/projection-accuracy.md");
+        String prospective = report("docs/perf/projection-backtest/v2-prospective-2026.md");
+
+        assertThat(error.measured()).as("exactly the three measurements D3 approved").containsExactly(
+                new Measurement(2024, null, 5.480, null),
+                new Measurement(2025, null, 5.512, 3807),
+                new Measurement(2026, "1-4", 5.688, 896));
+        // 2024, the tuning season: "Best baseline: D, EWMA with half-life 4 games. PPR MAE 5.480."
+        assertThat(accuracy).containsPattern(Pattern.compile("Best baseline: D, EWMA with half-life 4 games\\.\\*\\* PPR MAE "
+                + Pattern.quote(format(error.measured().get(0).mae()))));
+        // 2025, the test season: the baseline's row of the results table, and the population's size.
+        assertThat(accuracy).containsPattern(Pattern.compile("(?m)^\\| \\*\\*D, EWMA h=4 \\(best baseline\\)\\*\\*"
+                + "(?: \\| [-+0-9.]+){2} \\| " + Pattern.quote(format(error.measured().get(1).mae())) + " \\|"));
+        assertThat(accuracy).contains("Population P: 3,807");
+        // 2026 weeks 1-4, official population P: the baseline's row, and the sample's size.
+        assertThat(prospective).containsPattern(Pattern.compile("(?m)^\\| D EWMA h=4(?: \\| [-+0-9.]+){2} \\| "
+                + Pattern.quote(format(error.measured().get(2).mae())) + " \\|"));
+        assertThat(prospective).containsPattern(Pattern.compile("(?m)^\\| 2026 \\| 4 \\| 896 \\|"));
+    }
+
+    /** The copy says "about 5.5": that holds while the shipped measurements stay within 0.2 of it. */
+    @Test
+    void theShippedHeadlineSitsInsideTheToleranceOfEveryMeasurement() {
+        TypicalError error = WeightedAverageProjectionProvider.SOURCE.typicalError();
+
+        assertThat(error.metric()).isEqualTo("PPR MAE");
+        assertThat(error.value()).isEqualTo(5.5);
+        assertThat(error.measured()).allSatisfy(m ->
+                assertThat(Math.abs(error.value() - m.mae())).isLessThanOrEqualTo(TypicalError.HEADLINE_TOLERANCE));
+    }
+
+    // ------------------------------------------------------------------ the wire
+
+    @Test
+    void theSourceSerializesItsSummaryAndItsMeasurementsAndOmitsWhatIsNotKnown() {
+        ObjectMapper json = new ObjectMapper().findAndRegisterModules();
+
+        JsonNode shipped = json.valueToTree(WeightedAverageProjectionProvider.SOURCE);
+        assertThat(names(shipped)).containsExactly("id", "label", "summary", "typicalError");
+        assertThat(names(shipped.get("typicalError"))).containsExactly("metric", "value", "population", "measured");
+        assertThat(names(shipped.get("typicalError").get("measured").get(0))).as("2024: no n known")
+                .containsExactly("season", "mae");
+        assertThat(names(shipped.get("typicalError").get("measured").get(1))).containsExactly("season", "mae", "n");
+        assertThat(names(shipped.get("typicalError").get("measured").get(2)))
+                .containsExactly("season", "weeks", "mae", "n");
+
+        JsonNode bare = json.valueToTree(new ProjectionSource("bare-v1", "Bare", "No published error."));
+        assertThat(bare.get("typicalError").isNull()).as("a source with no figure says so").isTrue();
+    }
+
+    private static String format(double mae) {
+        return String.format(java.util.Locale.ROOT, "%.3f", mae);
+    }
+
+    private static String report(String fromRepoRoot) throws IOException {
+        return Files.readString(Path.of("..").resolve(fromRepoRoot));
+    }
+
+    private static List<String> names(JsonNode node) {
+        List<String> names = new java.util.ArrayList<>();
+        node.fieldNames().forEachRemaining(names::add);
+        return names;
     }
 }
