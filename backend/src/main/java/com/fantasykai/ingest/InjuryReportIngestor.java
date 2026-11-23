@@ -36,7 +36,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Component
 public class InjuryReportIngestor {
 
-    static final String SOURCE = "nflverse.injuries";
+    public static final String SOURCE = "nflverse.injuries";
 
     static final Set<String> REQUIRED_COLUMNS = Set.of("season", "week", "game_type", "team", "gsis_id",
             "report_status", "practice_status", "report_primary_injury");

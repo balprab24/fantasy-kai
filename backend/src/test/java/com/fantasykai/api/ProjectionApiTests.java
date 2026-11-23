@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
 import com.fantasykai.auth.JwtService;
+import com.fantasykai.ingest.InjuryReportIngestor;
+import com.fantasykai.ingest.RosterWeekIngestor;
 import com.fantasykai.projections.ProjectionProvider;
 import com.fantasykai.projections.ProjectionRepository;
 import com.fantasykai.projections.ProjectionRepository.ProjectedRow;
@@ -727,6 +729,244 @@ class ProjectionApiTests {
         assertThat(rowOf(board, deep).get("history").asText()).isEqualTo("ESTABLISHED");
     }
 
+    // ------------------------------------------------------------------ the envelope
+
+    /**
+     * The week, the data and the feeds behind a board, none of them derived from what the member
+     * asked for. The newest line here is an Out player's, so it is not on the board: a version
+     * that read the envelope off the ranked rows, or off the filtered page, takes an older line's
+     * values instead.
+     */
+    @Test
+    void theEnvelopeNamesTheWeekTheDataAndTheFeeds() {
+        long game = game(WEEK, buf, bal, inDays(2));
+        long early = player("Early Data Receiver", "WR", buf);
+        long newest = player("Newest Data Receiver", "WR", buf);
+        long oldest = player("Oldest Data Receiver", "WR", buf);
+        store(WEEK,
+                new Proj(early, game, buf, Map.of(StatKey.REC_YD, 60.0), 4, new SeasonWeek(SEASON, 1)),
+                new Proj(newest, game, buf, Map.of(StatKey.REC_YD, 60.0), 4, new SeasonWeek(SEASON, 2)),
+                new Proj(oldest, game, buf, Map.of(StatKey.REC_YD, 60.0), 4, new SeasonWeek(SEASON - 1, 18)));
+        roster(newest, buf, "ACT");
+        injury(newest, buf, "Out");
+        generatedAt(early, NOW.minus(Duration.ofHours(5)));
+        generatedAt(newest, NOW.minus(Duration.ofHours(1)));
+        generatedAt(oldest, NOW.minus(Duration.ofHours(9)));
+        // Each feed's newest success; a skipped or failed run, however recent, read nothing.
+        pull(RosterWeekIngestor.SOURCE, "SUCCESS", NOW.minus(Duration.ofHours(10)));
+        pull(RosterWeekIngestor.SOURCE, "SUCCESS", NOW.minus(Duration.ofHours(3)));
+        pull(RosterWeekIngestor.SOURCE, "SKIPPED", NOW.minus(Duration.ofHours(1)));
+        pull(InjuryReportIngestor.SOURCE, "SUCCESS", NOW.minus(Duration.ofHours(5)));
+        pull(InjuryReportIngestor.SOURCE, "FAILED", NOW.minus(Duration.ofMinutes(30)));
+
+        for (String filter : List.of("", "&position=QB", "&q=nobody")) {
+            JsonNode board = getJson(rest, BOARD + "?profileId=1" + filter);
+            assertThat(board.get("state").asText()).as(filter).isEqualTo("READY");
+            assertThat(board.get("season").asInt()).as("season, %s", filter).isEqualTo(SEASON);
+            assertThat(board.get("week").asInt()).as("week, %s", filter).isEqualTo(WEEK);
+            assertThat(board.get("dataThrough").get("season").asInt()).as("dataThrough, %s", filter)
+                    .isEqualTo(SEASON);
+            assertThat(board.get("dataThrough").get("week").asInt()).as("dataThrough, %s", filter).isEqualTo(2);
+            assertThat(Instant.parse(board.get("generatedAt").asText())).as("generatedAt, %s", filter)
+                    .isEqualTo(NOW.minus(Duration.ofHours(1)));
+            assertThat(Instant.parse(board.get("availabilityAsOf").asText())).as("availabilityAsOf, %s", filter)
+                    .isEqualTo(NOW.minus(Duration.ofHours(5)));
+        }
+    }
+
+    /**
+     * One feed's freshness says nothing about the other's: with either never having succeeded the
+     * board does not know how current "who is out" is, and says null rather than the other's time.
+     */
+    @Test
+    void availabilityAsOfIsNullUnlessBothFeedsHaveSucceeded() {
+        long game = game(WEEK, buf, bal, inDays(2));
+        store(WEEK, new Proj(player("As Of Receiver", "WR", buf), game, buf, Map.of(StatKey.REC_YD, 60.0)));
+        String path = BOARD + "?profileId=1";
+        assertThat(getJson(rest, path).get("availabilityAsOf").isNull()).as("nothing has ever run").isTrue();
+
+        pull(RosterWeekIngestor.SOURCE, "SUCCESS", NOW.minus(Duration.ofHours(2)));
+        assertThat(getJson(rest, path).get("availabilityAsOf").isNull()).as("only the roster feed").isTrue();
+
+        pull(InjuryReportIngestor.SOURCE, "SKIPPED", NOW.minus(Duration.ofHours(1)));
+        pull(InjuryReportIngestor.SOURCE, "FAILED", NOW.minus(Duration.ofMinutes(10)));
+        assertThat(getJson(rest, path).get("availabilityAsOf").isNull()).as("skipped and failed are no pull")
+                .isTrue();
+
+        pull(InjuryReportIngestor.SOURCE, "SUCCESS", NOW.minus(Duration.ofMinutes(30)));
+        assertThat(Instant.parse(getJson(rest, path).get("availabilityAsOf").asText()))
+                .as("both have succeeded: the older of the two").isEqualTo(NOW.minus(Duration.ofHours(2)));
+    }
+
+    /**
+     * Who the board left out, by kind, for the position asked and ignoring the search -- and in
+     * agreement with what each player's own page says. The roster here has every kind of player the
+     * count must include or skip: a reserve player and a released one (stored, not ranked); rookies
+     * with no history; a whole bye team carried from the week before; a player traded off that
+     * team into one that plays (counted once, on the team that plays); and ones the job would
+     * never project (practice squad, a kicker).
+     */
+    @Test
+    void excludedCountsWhoTheBoardLeftOutAndWhyAndAgreesWithEachPlayersOwnPage() {
+        long game = game(WEEK, buf, bal, inDays(2)); // BUF and BAL play; MIA is on its bye
+        long ranked = player("Ranked Receiver", "WR", buf);
+        long questionable = player("Questionable Receiver", "WR", bal);
+        long outWr = player("Out Receiver", "WR", buf);
+        long reserveWr = player("Reserve Receiver", "WR", bal);
+        long cutWr = player("Cut Receiver", "WR", buf);
+        long outQb = player("Out Quarterback", "QB", buf);
+        store(WEEK, List.of(ranked, questionable, outWr, reserveWr, cutWr, outQb).stream()
+                .map(id -> new Proj(id, game, buf, Map.of(StatKey.REC_YD, 50.0 + id % 7))).toArray(Proj[]::new));
+        roster(ranked, buf, "ACT");
+        roster(questionable, bal, "ACT");
+        injury(questionable, bal, "Questionable");
+        roster(outWr, buf, "ACT");
+        injury(outWr, buf, "Out");
+        roster(reserveWr, bal, "RES");
+        roster(cutWr, buf, "CUT");
+        roster(outQb, buf, "ACT");
+        injury(outQb, buf, "Out");
+
+        // On a team that plays, rostered, no line, never played: NO_HISTORY.
+        long rookieWr = player("Rookie Receiver", "WR", buf);
+        long rookieTe = player("Rookie Tight End", "TE", bal);
+        long traded = player("Traded Receiver", "WR", buf);
+        long squadWr = player("Practice Squad Receiver", "WR", buf);
+        roster(rookieWr, buf, "ACT");
+        roster(rookieTe, bal, "ACT");
+        roster(WEEK - 1, traded, mia, "ACT"); // last on the team now on its bye ...
+        roster(WEEK, traded, buf, "ACT");     // ... and this week on one that plays
+        roster(squadWr, buf, "DEV");          // not a candidate: never projected, so never "left out"
+        // Has history, no line: neither count (his own page says UNAVAILABLE).
+        long allen = seeded.allen();
+        roster(allen, buf, "ACT");
+        // MIA's players, carried from the last week its roster was published.
+        long byeWr1 = player("Bye Receiver One", "WR", mia);
+        long byeWr2 = player("Bye Receiver Two", "WR", mia);
+        long byeRb = player("Bye Reserve Back", "RB", mia);
+        long byeQb = player("Bye Quarterback", "QB", mia);
+        long byeSquad = player("Bye Practice Squad", "WR", mia);
+        long byeKicker = player("Bye Kicker", "K", mia);
+        roster(WEEK - 1, byeWr1, mia, "ACT");
+        roster(WEEK - 1, byeWr2, mia, "ACT");
+        roster(WEEK - 1, byeRb, mia, "RES");
+        roster(WEEK - 1, byeQb, mia, "ACT");
+        roster(WEEK - 1, byeSquad, mia, "DEV");
+        roster(WEEK - 1, byeKicker, mia, "ACT");
+
+        // The board's counts, by position asked ({unavailable, noHistory, bye}).
+        Map<String, List<Integer>> expected = Map.of(
+                "", List.of(4, 3, 4),
+                "&position=WR", List.of(3, 2, 2),
+                "&position=QB", List.of(1, 0, 1),
+                "&position=TE", List.of(0, 1, 0),
+                "&position=RB", List.of(0, 0, 1),
+                "&q=nobody", List.of(4, 3, 4),
+                "&position=WR&q=zzz", List.of(3, 2, 2));
+        expected.forEach((filter, counts) -> {
+            JsonNode excluded = getJson(rest, BOARD + "?profileId=1" + filter).get("excluded");
+            assertThat(List.of(excluded.get("unavailable").asInt(), excluded.get("noHistory").asInt(),
+                    excluded.get("bye").asInt())).as("excluded, filter '%s'", filter).isEqualTo(counts);
+        });
+        assertThat(ids(getJson(rest, BOARD + "?profileId=1&q=nobody"))).as("the search still narrows the page")
+                .isEmpty();
+
+        // Each of the job's candidates with no line: his own page agrees with the board's count.
+        Map<Long, String> pages = Map.of(rookieWr, "NO_HISTORY", rookieTe, "NO_HISTORY", traded, "NO_HISTORY",
+                byeWr1, "BYE", byeWr2, "BYE", byeRb, "BYE", byeQb, "BYE", allen, "UNAVAILABLE");
+        pages.forEach((id, state) -> assertThat(getJson(rest, detailPath(id, 1)).get("state").asText())
+                .as("player %d", id).isEqualTo(state));
+        JsonNode all = getJson(rest, BOARD + "?profileId=1").get("excluded");
+        assertThat(all.get("bye").asInt()).isEqualTo((int) pages.values().stream().filter("BYE"::equals).count());
+        assertThat(all.get("noHistory").asInt())
+                .isEqualTo((int) pages.values().stream().filter("NO_HISTORY"::equals).count());
+        // The stored-but-unranked keep their line on their own page.
+        for (long id : List.of(outWr, reserveWr, cutWr, outQb)) {
+            assertThat(getJson(rest, detailPath(id, 1)).get("state").asText()).as("player %d", id)
+                    .isEqualTo("PROJECTED");
+        }
+    }
+
+    /**
+     * Where the week has no rows, or only its roster-less past, the envelope says what it does not
+     * know. The board's one number that needs no roster, how many stored lines it declined to rank,
+     * is still given; the two that need the roster are null and never zero. {@code season} and
+     * {@code week} are the week being projected, and in a stale board the rows say their own.
+     */
+    @Test
+    void whereTheWeekHasNoRowsOrNoRosterTheEnvelopeSaysWhatItDoesNotKnow() {
+        // No week left: no season, no week, no data, and nobody left out of nothing.
+        pullBoth(Duration.ofHours(4), Duration.ofHours(4));
+        JsonNode none = getJson(rest, BOARD + "?profileId=1");
+        assertThat(none.get("state").asText()).isEqualTo("NO_UPCOMING_WEEK");
+        assertNothingServed(none);
+        assertThat(none.get("season").isNull()).isTrue();
+        assertThat(none.get("week").isNull()).isTrue();
+        assertThat(none.get("excluded").get("unavailable").asInt()).isZero();
+        assertThat(Instant.parse(none.get("availabilityAsOf").asText()))
+                .as("the feeds' freshness does not depend on there being a week").isEqualTo(NOW.minus(Duration.ofHours(4)));
+
+        // A week to project, nothing stored.
+        clear();
+        pullBoth(Duration.ofHours(4), Duration.ofHours(4));
+        game(WEEK, buf, bal, inDays(2));
+        JsonNode unavailable = getJson(rest, BOARD + "?profileId=1");
+        assertThat(unavailable.get("state").asText()).isEqualTo("UNAVAILABLE");
+        assertNothingServed(unavailable);
+        assertThat(unavailable.get("season").asInt()).isEqualTo(SEASON);
+        assertThat(unavailable.get("week").asInt()).isEqualTo(WEEK);
+
+        // Tuesday: stats are in, the target is next week, the rows are last week's.
+        clear();
+        pullBoth(Duration.ofHours(4), Duration.ofHours(4));
+        long played = game(WEEK, buf, bal, NOW.minus(Duration.ofHours(30)));
+        game(WEEK + 1, buf, bal, inDays(5));
+        long kept = player("Stale Kept Receiver", "WR", buf);
+        long out = player("Stale Out Receiver", "WR", buf);
+        long reporter = player("Stale Reporting Receiver", "WR", bal);
+        store(WEEK, new Proj(kept, played, buf, Map.of(StatKey.REC_YD, 60.0), 4, new SeasonWeek(SEASON, 1)),
+                new Proj(out, played, buf, Map.of(StatKey.REC_YD, 60.0), 4, new SeasonWeek(SEASON, 2)));
+        roster(out, buf, "ACT"); // the rows' week, WEEK: the week whose availability a stale board uses
+        injury(out, buf, "Out");
+        jdbc.update("""
+                INSERT INTO player_game_stats (player_id, game_id, season, week, team_id, snap_pct, rec, rec_yd)
+                SELECT ?, ?, g.season, g.week, ?, 85.50, 4, 40 FROM games g WHERE g.id = ?
+                """, reporter, played, bal, played);
+        JsonNode stale = getJson(rest, BOARD + "?profileId=1");
+        assertThat(stale.get("state").asText()).isEqualTo("STALE");
+        assertThat(stale.get("season").asInt()).isEqualTo(SEASON);
+        assertThat(stale.get("week").asInt()).as("the week being projected").isEqualTo(WEEK + 1);
+        assertThat(rowOf(stale, kept).get("week").asInt()).as("the rows' own week").isEqualTo(WEEK);
+        assertThat(stale.get("dataThrough").get("week").asInt()).isEqualTo(2);
+        assertThat(Instant.parse(stale.get("generatedAt").asText())).isEqualTo(NOW);
+        assertThat(stale.get("excluded").get("unavailable").asInt()).isEqualTo(1);
+        assertThat(stale.get("excluded").get("noHistory").isNull()).isTrue();
+        assertThat(stale.get("excluded").get("bye").isNull()).isTrue();
+
+        // The target week itself, every game of it over 48 hours old.
+        clear();
+        long old = game(WEEK, buf, bal, NOW.minus(Duration.ofHours(48)));
+        game(WEEK, mia, bal, NOW.minus(Duration.ofHours(40))); // unreported: holds the week
+        long oldOut = player("Old Out Receiver", "WR", buf);
+        store(WEEK, new Proj(oldOut, old, buf, Map.of(StatKey.REC_YD, 60.0)));
+        roster(oldOut, buf, "ACT");
+        injury(oldOut, buf, "Out");
+        JsonNode old48 = getJson(rest, BOARD + "?profileId=1");
+        assertThat(old48.get("state").asText()).isEqualTo("STALE");
+        assertThat(old48.get("week").asInt()).isEqualTo(WEEK);
+        assertThat(old48.get("excluded").get("unavailable").asInt()).isEqualTo(1);
+        assertThat(old48.get("excluded").get("noHistory").isNull()).as("not the week being played").isTrue();
+        assertThat(old48.get("excluded").get("bye").isNull()).isTrue();
+    }
+
+    private static void assertNothingServed(JsonNode board) {
+        assertThat(board.get("dataThrough").isNull()).as("dataThrough with no rows").isTrue();
+        assertThat(board.get("generatedAt").isNull()).as("generatedAt with no rows").isTrue();
+        assertThat(board.get("page").get("content")).isEmpty();
+        assertThat(board.get("excluded").get("noHistory").isNull()).as("noHistory is unknown, not zero").isTrue();
+        assertThat(board.get("excluded").get("bye").isNull()).as("bye is unknown, not zero").isTrue();
+    }
+
     // ------------------------------------------------------------------ query safety
 
     /** §8: every parameter is validated or bound; hostile values change nothing and break nothing. */
@@ -791,7 +1031,10 @@ class ProjectionApiTests {
         store(WEEK, new Proj(wr, game, buf, Map.of(StatKey.REC, 5.0, StatKey.REC_YD, 60.0)));
 
         JsonNode board = getJson(rest, BOARD + "?profileId=1");
-        assertThat(names(board)).containsExactly("state", "source", "page");
+        assertThat(names(board)).containsExactly("state", "season", "week", "source", "dataThrough",
+                "generatedAt", "availabilityAsOf", "excluded", "page");
+        assertThat(names(board.get("dataThrough"))).containsExactly("season", "week");
+        assertThat(names(board.get("excluded"))).containsExactly("unavailable", "noHistory", "bye");
         assertThat(names(board.get("source"))).containsExactly("id", "label", "description");
         assertThat(names(board.get("page"))).containsExactly("content", "page", "size", "total", "totalPages");
         assertThat(names(rowOf(board, wr))).containsExactly("playerId", "name", "position", "team", "opponent",
@@ -805,9 +1048,15 @@ class ProjectionApiTests {
 
     // ------------------------------------------------------------------ helpers
 
-    private record Proj(long player, long game, int team, Map<StatKey, Double> stats, int gamesUsed) {
+    /** {@code lastGame} is the newest game the line was built from; null is last season's finale. */
+    private record Proj(long player, long game, int team, Map<StatKey, Double> stats, int gamesUsed,
+            SeasonWeek lastGame) {
         Proj(long player, long game, int team, Map<StatKey, Double> stats) {
-            this(player, game, team, stats, 4);
+            this(player, game, team, stats, 4, null);
+        }
+
+        Proj(long player, long game, int team, Map<StatKey, Double> stats, int gamesUsed) {
+            this(player, game, team, stats, gamesUsed, null);
         }
     }
 
@@ -823,7 +1072,7 @@ class ProjectionApiTests {
             row.stats().forEach((key, value) -> values[key.index()] = value);
             projected.add(new ProjectedRow(row.player(), row.game(), row.team(),
                     new RawProjection(provider.source(), target, values, 0, 0, 0, row.gamesUsed(),
-                            new SeasonWeek(season - 1, 18))));
+                            row.lastGame() == null ? new SeasonWeek(season - 1, 18) : row.lastGame())));
         }
         repository.replaceOpen(target, provider.source().id(), projected, NOW);
     }
@@ -837,6 +1086,8 @@ class ProjectionApiTests {
         jdbc.execute("TRUNCATE player_week_projection, player_week_projection_repairs");
         jdbc.update("DELETE FROM roster_week");
         jdbc.update("DELETE FROM injury_report");
+        jdbc.update("DELETE FROM ingest_runs WHERE source IN (?, ?)", RosterWeekIngestor.SOURCE,
+                InjuryReportIngestor.SOURCE);
         jdbc.update("DELETE FROM player_game_stats WHERE season IN (?, ?)", SEASON - 1, SEASON);
         jdbc.update("DELETE FROM games WHERE season IN (?, ?)", SEASON - 1, SEASON);
     }
@@ -875,10 +1126,34 @@ class ProjectionApiTests {
     }
 
     private void roster(long player, int team, String rosterStatus) {
+        roster(WEEK, player, team, rosterStatus);
+    }
+
+    /** A roster row for another week: a team on its bye has none for the week, so its last one is carried. */
+    private void roster(int week, long player, int team, String rosterStatus) {
         jdbc.update("""
                 INSERT INTO roster_week (season, week, player_id, team_id, status, status_detail, ingested_at)
                 VALUES (?, ?, ?, ?, ?, NULL, now())
-                """, SEASON, WEEK, player, team, rosterStatus);
+                """, SEASON, week, player, team, rosterStatus);
+    }
+
+    /** One ingest run of a feed, as {@code IngestRunRecorder} leaves it: it finished at {@code finishedAt}. */
+    private void pull(String source, String status, Instant finishedAt) {
+        jdbc.update("""
+                INSERT INTO ingest_runs (source, started_at, status, finished_at)
+                VALUES (?, ?, ?, ?)
+                """, source, finishedAt.minusSeconds(60).atOffset(ZoneOffset.UTC), status,
+                finishedAt.atOffset(ZoneOffset.UTC));
+    }
+
+    private void pullBoth(Duration rosterAgo, Duration injuriesAgo) {
+        pull(RosterWeekIngestor.SOURCE, "SUCCESS", NOW.minus(rosterAgo));
+        pull(InjuryReportIngestor.SOURCE, "SUCCESS", NOW.minus(injuriesAgo));
+    }
+
+    private void generatedAt(long player, Instant at) {
+        jdbc.update("UPDATE player_week_projection SET generated_at = ? WHERE player_id = ?",
+                at.atOffset(ZoneOffset.UTC), player);
     }
 
     private void injury(long player, int team, String reportStatus) {

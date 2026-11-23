@@ -1,7 +1,10 @@
 package com.fantasykai.api;
 
 import com.fantasykai.ingest.IngestProperties;
+import com.fantasykai.ingest.InjuryReportIngestor;
+import com.fantasykai.ingest.RosterWeekIngestor;
 import com.fantasykai.projections.Availability;
+import com.fantasykai.projections.AvailabilityRules;
 import com.fantasykai.projections.AvailabilityService;
 import com.fantasykai.projections.AvailabilityService.RosterEntry;
 import com.fantasykai.projections.CurrentTargetWeek;
@@ -25,11 +28,16 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -59,6 +67,15 @@ import org.springframework.stereotype.Service;
  *       lookup does not consult readability, so a target week whose rows are all hidden is
  *       {@code UNAVAILABLE} even if an earlier week has readable rows.</li>
  * </ul>
+ *
+ * <p><strong>Who the board left out.</strong> {@link ProjectionBoard.Excluded} counts three
+ * kinds, so nobody disappears unexplained. {@code unavailable} is read off the served rows
+ * (a stored line the board does not rank). {@code noHistory} and {@code bye} are the players the
+ * job's own candidate rule would have projected -- a roster status in
+ * {@link AvailabilityRules#PROJECTED_ROSTER_STATUSES}, a skill position -- who have no row, split
+ * by the same two questions the player route asks: does his team play in the target week, and has
+ * he any history at all. They need the week's roster, so they are known only for {@code READY};
+ * in any other state they are {@code null}, never zero.
  *
  * <p>Not yet the full slice 5/6 contract in {@code docs/projections-v1-architecture.md}:
  * bonuses are explained as one remainder (the total less the linear parts), not one
@@ -133,26 +150,103 @@ public class ProjectionsService {
     }
 
     /**
-     * What a request sees: the state, the week the rows are for (null when there are none), and
-     * the rows, scored.
+     * What a request sees.
+     *
+     * @param target the resolver's week with its games; null with {@code NO_UPCOMING_WEEK}
+     * @param week   the week the rows are for: the target's, or an earlier week of its season
+     *               when {@code STALE}; null when nothing is stored
+     * @param rows   every readable stored line of that week, scored, whoever may see it
+     * @param roster that week's roster, read once and shared by the availability classification
+     *               and the answers about players with no row; empty when no week is stored
      */
-    private record View(String state, SeasonWeek week, List<ProjectionRow> rows) {}
+    private record View(String state, TargetWeek target, SeasonWeek week, List<ProjectionRow> rows,
+            Map<Long, RosterEntry> roster) {
+
+        static View empty(String state, TargetWeek target) {
+            return new View(state, target, null, List.of(), Map.of());
+        }
+
+        /** The newest game any row was built from; null with no rows. */
+        SeasonWeek dataThrough() {
+            return rows.stream().map(ProjectionRow::dataThrough).max(Comparator.naturalOrder()).orElse(null);
+        }
+
+        /** When the newest row was written; null with no rows. */
+        Instant generatedAt() {
+            return rows.stream().map(ProjectionRow::generatedAt).max(Comparator.naturalOrder()).orElse(null);
+        }
+    }
 
     public ProjectionBoard board(long profileId, String position, String q, int page, int size,
             Long userId) {
         List<String> positions = ScoringPosition.resolve(position);
         String needle = normalize(q);
         View view = read(profileId, userId);
-        List<ProjectionRow> ranked = view.rows().stream()
+        // The week's lines for this position, before the member's search: what "excluded" counts.
+        List<ProjectionRow> inPosition = view.rows().stream()
                 .filter(row -> positions.contains(row.position()))
+                .toList();
+        List<ProjectionRow> ranked = inPosition.stream()
                 .filter(row -> row.availability().ranked())
                 .filter(row -> normalize(row.name()).contains(needle))
                 .sorted(BOARD_ORDER)
                 .toList();
         int start = (int) Math.min((long) page * size, ranked.size());
         int end = Math.min(start + size, ranked.size());
-        return new ProjectionBoard(view.state(), provider.source(),
+        SeasonWeek goal = view.target() == null ? null : view.target().week();
+        return new ProjectionBoard(view.state(),
+                goal == null ? null : goal.season(), goal == null ? null : goal.week(),
+                provider.source(), view.dataThrough(), view.generatedAt(), availabilityAsOf(),
+                excluded(view, inPosition, positions),
                 PageResponse.of(ranked.subList(start, end), page, size, ranked.size()));
+    }
+
+    /**
+     * Who the board left out. The unranked are counted from the served lines; the two kinds
+     * with no line at all are the job's candidates (a roster status it projects, a skill
+     * position) who have none, split exactly as {@link #missingReason} splits one player.
+     */
+    private ProjectionBoard.Excluded excluded(View view, List<ProjectionRow> inPosition,
+            List<String> positions) {
+        int unavailable = (int) inPosition.stream().filter(row -> !row.availability().ranked()).count();
+        if (!"READY".equals(view.state())) {
+            return new ProjectionBoard.Excluded(unavailable, null, null);
+        }
+        Set<Long> projected = view.rows().stream().map(ProjectionRow::playerId).collect(Collectors.toSet());
+        Set<Integer> playing = teamsPlaying(view.target());
+        List<RosterEntry> unprojected = view.roster().values().stream()
+                .filter(entry -> AvailabilityRules.PROJECTED_ROSTER_STATUSES.contains(entry.status()))
+                .filter(entry -> positions.contains(entry.position()))
+                .filter(entry -> !projected.contains(entry.playerId()))
+                .toList();
+        int bye = (int) unprojected.stream().filter(entry -> !playing.contains(entry.teamId())).count();
+        Set<Long> noHistory = withoutHistory(unprojected.stream()
+                .filter(entry -> playing.contains(entry.teamId())).map(RosterEntry::playerId).toList());
+        return new ProjectionBoard.Excluded(unavailable, noHistory.size(), bye);
+    }
+
+    /**
+     * The older of the last successful roster pull and the last successful injury pull, or null if
+     * either has never succeeded. A skipped or failed run read nothing, so it is not a pull.
+     */
+    private Instant availabilityAsOf() {
+        Map<String, Instant> lastSuccess = new HashMap<>();
+        jdbc.query("""
+                SELECT source, max(finished_at) AS finished FROM ingest_runs
+                 WHERE status = 'SUCCESS' AND source IN (?, ?)
+                 GROUP BY source
+                """, rs -> {
+                    Timestamp finished = rs.getTimestamp("finished");
+                    if (finished != null) {
+                        lastSuccess.put(rs.getString("source"), finished.toInstant());
+                    }
+                }, RosterWeekIngestor.SOURCE, InjuryReportIngestor.SOURCE);
+        Instant roster = lastSuccess.get(RosterWeekIngestor.SOURCE);
+        Instant injuries = lastSuccess.get(InjuryReportIngestor.SOURCE);
+        if (roster == null || injuries == null) {
+            return null;
+        }
+        return roster.isBefore(injuries) ? roster : injuries;
     }
 
     public PlayerProjectionResponse player(long id, long profileId, Long userId) {
@@ -169,31 +263,56 @@ public class ProjectionsService {
         // roster evidence to back it; anything less is plain UNAVAILABLE.
         String missing = switch (view.state()) {
             case "NO_UPCOMING_WEEK" -> "NO_UPCOMING_WEEK";
-            case "READY" -> missingReason(id, view.week());
+            case "READY" -> missingReason(id, view);
             default -> "UNAVAILABLE";
         };
         return new PlayerProjectionResponse(missing, provider.source(), null);
     }
 
-    private String missingReason(long id, SeasonWeek target) {
-        Map<Long, RosterEntry> roster = availability.roster(target);
-        RosterEntry entry = roster.get(id);
+    /**
+     * Why a rostered or unrostered player has no line this week. The two questions here -- does his
+     * team play in the target week, has he any history at all -- are the ones {@link #excluded}
+     * asks of everyone, from the same roster and the same games, so a board's count and a
+     * player's answer cannot disagree.
+     */
+    private String missingReason(long id, View view) {
+        RosterEntry entry = view.roster().get(id);
         if (entry == null) {
-            return roster.isEmpty() ? "UNAVAILABLE" : "NOT_ROSTERED";
+            return view.roster().isEmpty() ? "UNAVAILABLE" : "NOT_ROSTERED";
         }
-        Long games = jdbc.queryForObject("""
-                SELECT count(*) FROM games
-                 WHERE season = ? AND week = ? AND season_type = 'REG' AND delisted_at IS NULL
-                   AND (home_team_id = ? OR away_team_id = ?)
-                """, Long.class, target.season(), target.week(), entry.teamId(), entry.teamId());
-        if (games == 0) {
+        if (!teamsPlaying(view.target()).contains(entry.teamId())) {
             return "BYE";
         }
-        Long appearances = jdbc.queryForObject(
-                "SELECT count(*) FROM player_game_appearances WHERE player_id = ?", Long.class, id);
-        Long statLines = jdbc.queryForObject(
-                "SELECT count(*) FROM player_game_stats WHERE player_id = ?", Long.class, id);
-        return appearances == 0 && statLines == 0 ? "NO_HISTORY" : "UNAVAILABLE";
+        return withoutHistory(List.of(id)).isEmpty() ? "UNAVAILABLE" : "NO_HISTORY";
+    }
+
+    /** Teams with a regular-season game in the target week that the schedule still lists. */
+    private static Set<Integer> teamsPlaying(TargetWeek target) {
+        Set<Integer> teams = new HashSet<>();
+        for (TargetWeek.Game game : target.games()) {
+            teams.add(game.homeTeamId());
+            teams.add(game.awayTeamId());
+        }
+        return teams;
+    }
+
+    /**
+     * Of these players, those with no appearance and no stat line in any season: nothing to
+     * project from. Both tables lead their primary key with the player, so this is one index
+     * probe per player and never adds an index.
+     */
+    private Set<Long> withoutHistory(Collection<Long> playerIds) {
+        if (playerIds.isEmpty()) {
+            return Set.of();
+        }
+        Long[] ids = playerIds.toArray(Long[]::new);
+        return new HashSet<>(jdbc.query("""
+                SELECT p.id FROM players p
+                 WHERE p.id = ANY (?)
+                   AND NOT EXISTS (SELECT 1 FROM player_game_appearances a WHERE a.player_id = p.id)
+                   AND NOT EXISTS (SELECT 1 FROM player_game_stats s WHERE s.player_id = p.id)
+                """, ps -> ps.setArray(1, ps.getConnection().createArrayOf("bigint", ids)),
+                (rs, n) -> rs.getLong(1)));
     }
 
     /** The state and every stored line of the week it is for, scored under the caller's ruleset. */
@@ -201,25 +320,27 @@ public class ProjectionsService {
         // Through the ownership filter first: someone else's profile is a 404.
         ResolvedRuleset rules = profiles.byId(profileId, userId);
         Instant now = clock.instant();
-        Optional<TargetWeek> target = targets.resolve(IngestProperties.seasonFor(LocalDate.now(clock)), now);
-        if (target.isEmpty()) {
-            return new View("NO_UPCOMING_WEEK", null, List.of());
+        Optional<TargetWeek> found = targets.resolve(IngestProperties.seasonFor(LocalDate.now(clock)), now);
+        if (found.isEmpty()) {
+            return View.empty("NO_UPCOMING_WEEK", null);
         }
-        SeasonWeek goal = target.get().week();
+        TargetWeek target = found.get();
+        SeasonWeek goal = target.week();
         List<SeasonWeek> stored = jdbc.query(STORED_WEEK,
                 (rs, n) -> new SeasonWeek(rs.getInt("season"), rs.getInt("week")),
                 config.provider(), goal.season(), goal.week());
         if (stored.isEmpty()) {
-            return new View("UNAVAILABLE", null, List.of());
+            return View.empty("UNAVAILABLE", target);
         }
         SeasonWeek week = stored.getFirst();
-        Map<Long, Availability> statuses = availability.forWeek(week);
+        Map<Long, RosterEntry> roster = availability.roster(week);
+        Map<Long, Availability> statuses = availability.forWeek(week, roster);
         List<ProjectionRow> rows = jdbc.query(WEEK_LINES, (rs, n) -> scored(rs, rules, week, statuses, now),
                 config.provider(), week.season(), week.week());
         if (rows.isEmpty()) {
-            return new View("UNAVAILABLE", week, rows);
+            return new View("UNAVAILABLE", target, week, rows, roster);
         }
-        return new View(week.equals(goal) ? readyOrStale(rows, now) : "STALE", week, rows);
+        return new View(week.equals(goal) ? readyOrStale(rows, now) : "STALE", target, week, rows, roster);
     }
 
     private ProjectionRow scored(ResultSet rs, ResolvedRuleset rules, SeasonWeek week,
@@ -244,7 +365,8 @@ public class ProjectionsService {
                 gamesUsed < ESTABLISHED_GAMES ? "LIMITED" : "ESTABLISHED",
                 statuses.getOrDefault(id, Availability.unknown(week)), rs.getString("espn_id"),
                 rs.getTimestamp("generated_at").toInstant(), explained.parts(), explained.bonusPoints(),
-                week.season(), week.week(), points);
+                week.season(), week.week(), points,
+                new SeasonWeek(rs.getInt("data_through_season"), rs.getInt("data_through_week")));
     }
 
     /** {@code STALE} once every game of the target week's rows kicked off at least {@link #STALE_AFTER} ago. */

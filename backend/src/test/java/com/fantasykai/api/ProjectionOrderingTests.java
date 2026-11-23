@@ -1,6 +1,8 @@
 package com.fantasykai.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -57,7 +59,7 @@ class ProjectionOrderingTests {
         when(profiles.byId(1L, 7L)).thenReturn(ResolvedRuleset.compile(
                 new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())));
         var availability = mock(AvailabilityService.class);
-        when(availability.forWeek(week)).thenReturn(Map.of());
+        when(availability.forWeek(eq(week), any())).thenReturn(Map.of());
         var controller = new ProjectionController(new ProjectionsService(db.jdbc, profiles, availability,
                 new ProjectionProperties(provider.source().id(), false), provider,
                 Clock.fixed(now, ZoneOffset.UTC), noCache(db)));
@@ -260,7 +262,7 @@ class ProjectionOrderingTests {
 
     private static AvailabilityService noAvailability(SeasonWeek week) {
         var availability = mock(AvailabilityService.class);
-        when(availability.forWeek(week)).thenReturn(Map.of());
+        when(availability.forWeek(eq(week), any())).thenReturn(Map.of());
         return availability;
     }
 
@@ -271,6 +273,6 @@ class ProjectionOrderingTests {
     private static ProjectionRow row(long playerId, double rawPoints) {
         return new ProjectionRow(playerId, "P" + playerId, "WR", "BUF", "NYJ", true, null, false,
                 ScoringEngine.roundForDisplay(rawPoints), 4, "ESTABLISHED", null, null, Instant.EPOCH,
-                List.of(), 0.0, 2030, 1, rawPoints);
+                List.of(), 0.0, 2030, 1, rawPoints, null);
     }
 }

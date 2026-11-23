@@ -39,7 +39,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Component
 public class RosterWeekIngestor {
 
-    static final String SOURCE = "nflverse.weekly_rosters";
+    public static final String SOURCE = "nflverse.weekly_rosters";
 
     static final Set<String> REQUIRED_COLUMNS = Set.of(
             "season", "week", "game_type", "team", "gsis_id", "status", "status_description_abbr");
