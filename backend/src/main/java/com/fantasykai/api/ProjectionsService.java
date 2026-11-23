@@ -82,9 +82,12 @@ import org.springframework.stereotype.Service;
  * need the week's roster, so they are known only for {@code READY}; in any other state, or when a
  * stored history is corrupt, they are {@code null}, never zero.
  *
- * <p>Not yet the full slice 5/6 contract in {@code docs/projections-v1-architecture.md}:
- * bonuses are explained as one remainder (the total less the linear parts), not one
- * line each. The plan lists what is owed.
+ * <p>Each line is explained in full ({@link ExplainedScore}): its stats as value x rate, and every
+ * bonus of the ruleset with whether the line reached it.
+ *
+ * <p>Not yet the full slice 5/6 contract in {@code docs/projections-v1-architecture.md}: the
+ * preset comparison on the player response and the source's summary and typical error are owed.
+ * The plan lists them.
  */
 @Service
 public class ProjectionsService {
@@ -387,7 +390,7 @@ public class ProjectionsService {
                 ScoringEngine.roundForDisplay(points), gamesUsed,
                 gamesUsed < ESTABLISHED_GAMES ? "LIMITED" : "ESTABLISHED",
                 statuses.getOrDefault(id, Availability.unknown(week)), rs.getString("espn_id"),
-                rs.getTimestamp("generated_at").toInstant(), explained.parts(), explained.bonusPoints(),
+                rs.getTimestamp("generated_at").toInstant(), explained.parts(), explained.bonuses(),
                 week.season(), week.week(), points,
                 new SeasonWeek(rs.getInt("data_through_season"), rs.getInt("data_through_week")));
     }

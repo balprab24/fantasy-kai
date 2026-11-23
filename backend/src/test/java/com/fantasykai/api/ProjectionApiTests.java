@@ -203,12 +203,12 @@ class ProjectionApiTests {
     }
 
     /**
-     * What the explanation promises today: the parts and the bonus remainder add back to the
+     * What the explanation promises: the parts plus the bonuses that were reached add back to the
      * total, and a bonus pays <em>at</em> its threshold ({@code >=}), not past it. The century
-     * profile pays 3 for 100+ rushing yards.
+     * profile pays 3 for 100+ rushing yards; the line is listed whether or not it was reached.
      */
     @Test
-    void partsAndTheBonusAddUpToThePointsAndAThresholdPaysAtExactlyTheThreshold() {
+    void partsAndTheReachedBonusesAddUpToThePointsAndAThresholdPaysAtExactlyTheThreshold() {
         long game = game(WEEK, buf, bal, inDays(2));
         long atThreshold = player("Exactly Hundred", "RB", buf);
         long justShort = player("Just Short", "RB", buf);
@@ -218,20 +218,79 @@ class ProjectionApiTests {
         JsonNode board = getJson(rest, BOARD + "?profileId=" + seeded.centuryProfile());
 
         JsonNode paid = rowOf(board, atThreshold);
-        assertThat(paid.get("bonusPoints").asDouble()).isCloseTo(3.0, within(1e-9));
+        assertThat(paid.get("bonuses")).hasSize(1);
+        assertBonus(paid.get("bonuses").get(0), "rush_yd", 100, 100.0, 3.0, true);
         assertThat(paid.get("points").asDouble()).isEqualTo(13.0);
         JsonNode missed = rowOf(board, justShort);
-        assertThat(missed.get("bonusPoints").asDouble()).isCloseTo(0.0, within(1e-9));
+        assertThat(missed.get("bonuses")).as("a bonus not reached is still listed").hasSize(1);
+        assertBonus(missed.get("bonuses").get(0), "rush_yd", 100, 99.9, 3.0, false);
         assertThat(missed.get("points").asDouble()).isEqualTo(9.99);
 
         for (JsonNode row : List.of(paid, missed)) {
-            double sum = 0;
-            for (JsonNode part : row.get("parts")) {
-                sum += part.get("points").asDouble();
-            }
-            assertThat(ScoringEngine.roundForDisplay(sum + row.get("bonusPoints").asDouble()))
-                    .as("parts + bonus, rounded once").isEqualTo(row.get("points").asDouble());
+            assertThat(ScoringEngine.roundForDisplay(partsPlusReachedBonuses(row)))
+                    .as("parts + reached bonuses, rounded once").isEqualTo(row.get("points").asDouble());
         }
+    }
+
+    /**
+     * Two bonuses on two stats: each is its own line, in the ruleset's order, with the line's own
+     * value against its own threshold -- so a member sees which one a line crossed and how far the
+     * other was. One line reaches the first and not the second, the other the reverse.
+     */
+    @Test
+    void everyBonusOfTheRulesetIsListedWithWhetherTheLineReachedIt() {
+        long owned = ownedProfile(memberId, "Two bonuses", """
+                {"version":1,"base":{"rush_yd":0.1,"rec_yd":0.1},
+                 "bonuses":[{"stat":"rush_yd","gte":100,"points":3},{"stat":"rec_yd","gte":100,"points":2.5}]}
+                """);
+        long game = game(WEEK, buf, bal, inDays(2));
+        long runner = player("Runner Of A Hundred", "RB", buf);
+        long catcher = player("Catcher Of A Hundred", "RB", buf);
+        store(WEEK, new Proj(runner, game, buf, Map.of(StatKey.RUSH_YD, 100.0, StatKey.REC_YD, 40.0)),
+                new Proj(catcher, game, buf, Map.of(StatKey.RUSH_YD, 99.9, StatKey.REC_YD, 100.0)));
+        JsonNode board = getJson(rest, BOARD + "?profileId=" + owned);
+
+        JsonNode run = rowOf(board, runner);
+        assertThat(run.get("bonuses")).hasSize(2);
+        assertBonus(run.get("bonuses").get(0), "rush_yd", 100, 100.0, 3.0, true);
+        assertBonus(run.get("bonuses").get(1), "rec_yd", 100, 40.0, 2.5, false);
+        assertThat(run.get("points").asDouble()).isEqualTo(17.0);
+
+        JsonNode catches = rowOf(board, catcher);
+        assertThat(catches.get("bonuses")).hasSize(2);
+        assertBonus(catches.get("bonuses").get(0), "rush_yd", 100, 99.9, 3.0, false);
+        assertBonus(catches.get("bonuses").get(1), "rec_yd", 100, 100.0, 2.5, true);
+        assertThat(catches.get("points").asDouble()).isEqualTo(22.49);
+
+        for (JsonNode row : List.of(run, catches)) {
+            assertThat(ScoringEngine.roundForDisplay(partsPlusReachedBonuses(row)))
+                    .as("parts + reached bonuses, rounded once").isEqualTo(row.get("points").asDouble());
+        }
+        // The same stored lines under a ruleset with no bonus: no bonus lines, and nothing else moved.
+        JsonNode plain = getJson(rest, BOARD + "?profileId=" + ApiFixture.Seeded.STANDARD);
+        assertThat(rowOf(plain, runner).get("bonuses")).isEmpty();
+    }
+
+    private static double partsPlusReachedBonuses(JsonNode row) {
+        double sum = 0;
+        for (JsonNode part : row.get("parts")) {
+            sum += part.get("points").asDouble();
+        }
+        for (JsonNode bonus : row.get("bonuses")) {
+            if (bonus.get("triggered").asBoolean()) {
+                sum += bonus.get("points").asDouble();
+            }
+        }
+        return sum;
+    }
+
+    private static void assertBonus(JsonNode bonus, String stat, int gte, double value, double points,
+            boolean triggered) {
+        assertThat(bonus.get("stat").asText()).isEqualTo(stat);
+        assertThat(bonus.get("gte").asInt()).as("%s gte", stat).isEqualTo(gte);
+        assertThat(bonus.get("value").asDouble()).as("%s value", stat).isEqualTo(value);
+        assertThat(bonus.get("points").asDouble()).as("%s points", stat).isEqualTo(points);
+        assertThat(bonus.get("triggered").asBoolean()).as("%s triggered", stat).isEqualTo(triggered);
     }
 
     // ------------------------------------------------------------------ the board's order
@@ -1123,8 +1182,12 @@ class ProjectionApiTests {
         assertThat(names(board.get("page"))).containsExactly("content", "page", "size", "total", "totalPages");
         assertThat(names(rowOf(board, wr))).containsExactly("playerId", "name", "position", "team", "opponent",
                 "home", "kickoff", "locked", "points", "gamesUsed", "history", "availability", "espnId",
-                "generatedAt", "parts", "bonusPoints", "season", "week");
+                "generatedAt", "parts", "bonuses", "season", "week");
         assertThat(names(rowOf(board, wr).get("parts").get(0))).containsExactly("stat", "value", "rate", "points");
+        assertThat(rowOf(board, wr).get("bonuses")).as("no bonus in this ruleset").isEmpty();
+        JsonNode century = getJson(rest, BOARD + "?profileId=" + seeded.centuryProfile());
+        assertThat(names(rowOf(century, wr).get("bonuses").get(0)))
+                .containsExactly("stat", "gte", "value", "points", "triggered");
 
         JsonNode detail = getJson(rest, detailPath(wr, 1));
         assertThat(names(detail)).containsExactly("state", "source", "projection");
@@ -1276,10 +1339,14 @@ class ProjectionApiTests {
     }
 
     private long ownedProfile(long owner, String name) {
+        return ownedProfile(owner, name, "{\"version\":1,\"base\":{\"rec_yd\":0.1}}");
+    }
+
+    private long ownedProfile(long owner, String name, String rules) {
         return jdbc.queryForObject("""
                 INSERT INTO scoring_profiles (user_id, name, is_preset, rules)
                 VALUES (?, ?, FALSE, ?::jsonb) RETURNING id
-                """, Long.class, owner, name, "{\"version\":1,\"base\":{\"rec_yd\":0.1}}");
+                """, Long.class, owner, name, rules);
     }
 
     /** What {@code ScoringEngine} says for the stored line, read back from the table, rounded once. */

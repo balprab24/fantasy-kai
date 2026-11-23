@@ -71,11 +71,12 @@ class ProjectionOrderingTests {
         assertThat(first.points()).isEqualTo(second.points()).isEqualTo(10.0);
         var json = new ObjectMapper().findAndRegisterModules().<com.fasterxml.jackson.databind.JsonNode>valueToTree(first);
         assertThat(json.has("rawPoints")).isFalse();
-        // The explanation's wire shape, unchanged since it moved into scoring.ExplainedScore.
+        // The explanation's wire shape: the parts, and one line per bonus (none in this ruleset).
         assertThat(json.get("parts")).hasSize(1);
         assertThat(json.get("parts").get(0).toString())
                 .isEqualTo("{\"stat\":\"rec_yd\",\"value\":100.04,\"rate\":0.1,\"points\":" + (100.04 * 0.1) + "}");
-        assertThat(json.get("bonusPoints").asDouble()).isEqualTo(0.0);
+        assertThat(json.get("bonuses")).isEmpty();
+        assertThat(json.has("bonusPoints")).as("the one-number remainder is gone").isFalse();
         assertThat(controller.player(high, 1, 7L).projection().points()).isEqualTo(first.points());
     }
 
@@ -147,10 +148,10 @@ class ProjectionOrderingTests {
      * order, from the stored line and the player's position read from the players table, so it
      * does not go through {@code ScoringEngine} or through the row under test.
      *
-     * <p>What this does not catch, measured: re-summing the explanation's own parts in order
-     * ({@code sum(parts) + bonusPoints}) gives the same bits on these lines, because the bonus
-     * remainder is exact when it is small next to the linear sum. That variant is an equivalent
-     * mutation here. A compensated sum or a reordering is not, and is caught.
+     * <p>What this does not catch: re-summing the explanation's own parts in order, then the bonuses
+     * that were reached, gives the engine's bits by construction ({@code ExplainedScoreTests} pins
+     * that), so a row whose total were built that way would also pass. A compensated sum or a
+     * reordering is not the engine's sum, and is caught.
      */
     @Test void theUnroundedPointsAreTheEnginesScoreBitForBit() {
         var db = ProjectionDatabase.get();
@@ -274,6 +275,6 @@ class ProjectionOrderingTests {
     private static ProjectionRow row(long playerId, double rawPoints) {
         return new ProjectionRow(playerId, "P" + playerId, "WR", "BUF", "NYJ", true, null, false,
                 ScoringEngine.roundForDisplay(rawPoints), 4, "ESTABLISHED", null, null, Instant.EPOCH,
-                List.of(), 0.0, 2030, 1, rawPoints, null);
+                List.of(), List.of(), 2030, 1, rawPoints, null);
     }
 }

@@ -12,9 +12,12 @@ import java.util.List;
  *
  * @param points      the scored total, rounded once, here
  * @param history     {@code LIMITED} under four games, else {@code ESTABLISHED}
- * @param bonusPoints the threshold bonuses: the total less its linear parts, unrounded. On a
- *                    projected line a bonus is all-or-nothing at the line's mean, a stated
- *                    approximation and not an expected value
+ * @param parts       each stat as value x rate = points
+ * @param bonuses     every threshold bonus the ruleset pays, with whether this line reached it. The
+ *                    parts plus the points of the bonuses that were reached are the total, which is
+ *                    then rounded once, in {@code points}. On a projected line a bonus is
+ *                    all-or-nothing at the line's mean, a stated approximation and not an
+ *                    expected value
  * @param rawPoints   the unrounded total the board sorts on; never serialized
  * @param dataThrough the newest game this line was built from; never serialized on a row, only
  *                    summarised on the board's envelope
@@ -22,5 +25,5 @@ import java.util.List;
 public record ProjectionRow(long playerId, String name, String position, String team, String opponent,
         boolean home, Instant kickoff, boolean locked, double points, int gamesUsed,
         String history, Availability availability, String espnId, Instant generatedAt,
-        List<ExplainedScore.Part> parts, double bonusPoints, int season, int week,
+        List<ExplainedScore.Part> parts, List<ExplainedScore.BonusLine> bonuses, int season, int week,
         @JsonIgnore double rawPoints, @JsonIgnore SeasonWeek dataThrough) {}
