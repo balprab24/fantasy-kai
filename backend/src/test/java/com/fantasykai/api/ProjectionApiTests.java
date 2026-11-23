@@ -658,16 +658,12 @@ class ProjectionApiTests {
     }
 
     /**
-     * The week's state is read from every stored row, not from the rows the board ranks or the
-     * position that was asked for: an open game belonging to an Out player keeps the week READY
-     * even though the only ranked player's game is old.
-     */
-    /**
-     * "Same line, different value": a player's page carries his one stored line under each system
-     * preset, in id order -- Standard, Half PPR, Full PPR, TE Premium. The numbers are the
-     * hand-computed table above, so a wrong preset cannot hide behind the engine that produces the
-     * others; and each is exactly what the board prints for that preset (the unmodified engine,
-     * rounded once), for a fractional line as well, where a missing or a doubled rounding would show.
+     * "Same line, different value": a player's page carries his one stored line under the three
+     * scoring formats, in id order -- Standard, Half PPR, Full PPR (decision D2; TE Premium, the
+     * fourth system preset, is not one of them). The numbers are the hand-computed table above, so
+     * a wrong preset cannot hide behind the engine that produces the others; and each is exactly
+     * what the board prints for that preset (the unmodified engine, rounded once), for a fractional
+     * line as well, where a missing rounding would show.
      */
     @Test
     void aPlayersPageScoresHisOneLineUnderEveryPreset() {
@@ -686,30 +682,29 @@ class ProjectionApiTests {
                 new Proj(te, game, buf, Map.of(StatKey.REC, 5.0, StatKey.REC_YD, 60.0, StatKey.REC_TD, 1.0)),
                 new Proj(fractional, game, buf, Map.of(StatKey.REC, 5.15, StatKey.REC_YD, 63.7,
                         StatKey.REC_TD, 0.45, StatKey.RUSH_YD, 3.3)));
-        long[] presets = {ApiFixture.Seeded.STANDARD, ApiFixture.Seeded.HALF_PPR, ApiFixture.Seeded.FULL_PPR,
-                ApiFixture.Seeded.TE_PREMIUM};
-        // The same hand-computed lines as thePresetsScoreAWholeLineToTheHandComputedValue.
+        long[] presets = {ApiFixture.Seeded.STANDARD, ApiFixture.Seeded.HALF_PPR, ApiFixture.Seeded.FULL_PPR};
+        // The first three columns of the hand-computed lines in
+        // thePresetsScoreAWholeLineToTheHandComputedValue (its fourth, TE Premium, is not on the strip).
         Map<Long, double[]> expected = Map.of(
-                qb, new double[] {20.0, 20.0, 20.0, 20.0},
-                rb, new double[] {16.0, 17.5, 19.0, 19.0},
-                wr, new double[] {12.0, 14.5, 17.0, 17.0},
-                te, new double[] {12.0, 14.5, 17.0, 19.5});
+                qb, new double[] {20.0, 20.0, 20.0},
+                rb, new double[] {16.0, 17.5, 19.0},
+                wr, new double[] {12.0, 14.5, 17.0},
+                te, new double[] {12.0, 14.5, 17.0});
 
         for (Map.Entry<Long, double[]> line : expected.entrySet()) {
             JsonNode strip = getJson(rest, detailPath(line.getKey(), ApiFixture.Seeded.STANDARD)).get("presets");
-            assertThat(strip).as("player %d", line.getKey()).hasSize(4);
+            assertThat(strip).as("player %d", line.getKey()).hasSize(3);
             for (int i = 0; i < presets.length; i++) {
                 assertThat(strip.get(i).get("profileId").asLong()).as("order, entry %d", i).isEqualTo(presets[i]);
                 assertThat(strip.get(i).get("points").asDouble()).as("preset %d, player %d", presets[i], line.getKey())
                         .isEqualTo(line.getValue()[i]);
             }
         }
-        List<String> storedNames = jdbc.queryForList(
-                "SELECT name FROM scoring_profiles WHERE is_preset ORDER BY id", String.class);
         JsonNode anyStrip = getJson(rest, detailPath(wr, ApiFixture.Seeded.STANDARD)).get("presets");
-        for (int i = 0; i < presets.length; i++) {
-            assertThat(anyStrip.get(i).get("name").asText()).isEqualTo(storedNames.get(i));
-        }
+        assertThat(List.of(anyStrip.get(0).get("name").asText(), anyStrip.get(1).get("name").asText(),
+                anyStrip.get(2).get("name").asText())).isEqualTo(List.of("Standard", "Half PPR", "Full PPR"));
+        assertThat(ids(anyStrip, "profileId")).as("TE Premium is not one of the three")
+                .doesNotContain(ApiFixture.Seeded.TE_PREMIUM);
 
         // Each entry is the number the board prints for that preset, for every line including the fractional one.
         for (long preset : presets) {
@@ -720,10 +715,10 @@ class ProjectionApiTests {
                         .isEqualTo(rowOf(board, id).get("points").asDouble());
             }
         }
-        // A full point per catch is worth the catches: PPR less 0 PPR, to the cent.
+        // A full point per catch is worth the catches: PPR less 0 PPR, to within the cent each is rounded to.
         JsonNode strip = getJson(rest, detailPath(fractional, ApiFixture.Seeded.STANDARD));
         assertThat(presetPoints(strip, ApiFixture.Seeded.FULL_PPR) - presetPoints(strip, ApiFixture.Seeded.STANDARD))
-                .isCloseTo(5.15, within(0.011));
+                .isCloseTo(5.15, within(0.0101));
         // The strip does not depend on which ruleset the member asked under.
         assertThat(getJson(rest, detailPath(te, ApiFixture.Seeded.TE_PREMIUM)).get("presets"))
                 .isEqualTo(getJson(rest, detailPath(te, ApiFixture.Seeded.STANDARD)).get("presets"));
@@ -738,6 +733,7 @@ class ProjectionApiTests {
     void theStripIsOnlyThePresetsAndOnlyWhereThereIsALine() {
         long other = ApiFixture.memberId(jdbc, "other-member@example.com");
         ownedProfile(memberId, "My own ruleset");
+        ownedProfile(memberId, "Half PPR"); // a member's ruleset may carry a preset's name: it is not the preset
         ownedProfile(other, "Somebody else's ruleset");
         long game = game(WEEK, buf, bal, inDays(2));
         long out = player("Strip Out Receiver", "WR", buf);
@@ -751,9 +747,9 @@ class ProjectionApiTests {
 
         JsonNode outPage = getJson(rest, detailPath(out, ApiFixture.Seeded.STANDARD));
         assertThat(outPage.get("state").asText()).isEqualTo("PROJECTED");
-        assertThat(ids(outPage.get("presets"), "profileId")).as("presets, and nobody's own ruleset")
+        assertThat(ids(outPage.get("presets"), "profileId")).as("the three presets, and nobody's own ruleset")
                 .containsExactly(ApiFixture.Seeded.STANDARD, ApiFixture.Seeded.HALF_PPR,
-                        ApiFixture.Seeded.FULL_PPR, ApiFixture.Seeded.TE_PREMIUM);
+                        ApiFixture.Seeded.FULL_PPR);
         for (long noLine : List.of(bye, rookie)) {
             JsonNode page = getJson(rest, detailPath(noLine, ApiFixture.Seeded.STANDARD));
             assertThat(page.get("projection").isNull()).isTrue();
@@ -767,7 +763,7 @@ class ProjectionApiTests {
         store(WEEK, new Proj(out, old, buf, Map.of(StatKey.REC_YD, 60.0)));
         JsonNode stale = getJson(rest, detailPath(out, ApiFixture.Seeded.STANDARD));
         assertThat(stale.get("state").asText()).isEqualTo("STALE");
-        assertThat(stale.get("presets")).hasSize(4);
+        assertThat(stale.get("presets")).hasSize(3);
 
         // No week left: no line, no strip.
         clear();
@@ -789,6 +785,11 @@ class ProjectionApiTests {
         return found;
     }
 
+    /**
+     * The week's state is read from every stored row, not from the rows the board ranks or the
+     * position that was asked for: an open game belonging to an Out player keeps the week READY
+     * even though the only ranked player's game is old.
+     */
     @Test
     void theWeeksStateIgnoresWhoIsRankedAndWhichPositionWasAsked() {
         long old = game(WEEK, buf, bal, NOW.minus(Duration.ofHours(60)));

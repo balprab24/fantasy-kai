@@ -8,10 +8,11 @@ import java.util.List;
  * projection; otherwise {@code UNAVAILABLE}, {@code NO_UPCOMING_WEEK}, {@code BYE},
  * {@code NO_HISTORY} or {@code NOT_ROSTERED}, and none.
  *
- * @param presets the same stored line scored under each of the system presets, in id order
- *                (Standard, Half PPR, Full PPR, TE Premium): "same line, different value". Present
- *                exactly when {@code projection} is, and null otherwise. The member's own ruleset
- *                is {@code projection.points}, not an entry here
+ * @param presets the same stored line scored under the three scoring formats, in id order
+ *                (Standard, Half PPR, Full PPR): "same line, different value". Present exactly
+ *                when {@code projection} is, and null otherwise. TE Premium, the fourth system
+ *                preset, is not listed; the member's own ruleset, whichever it is, is
+ *                {@code projection.points}, not an entry here
  */
 public record PlayerProjectionResponse(String state, ProjectionSource source, ProjectionRow projection,
         List<PresetPoints> presets) {

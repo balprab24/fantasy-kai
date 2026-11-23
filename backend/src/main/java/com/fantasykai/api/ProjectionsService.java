@@ -289,16 +289,27 @@ public class ProjectionsService {
     }
 
     /**
-     * The row's stored line scored under each system preset, in id order: "same line, different
-     * value" without a second scoring path in the browser. Each is the unmodified engine on the
-     * line the member was shown, rounded once, so it is the number the board would print for that
-     * preset (a test compares them). Only presets: another member's rulesets are not listed here,
-     * and the member's own is {@code row.points()}.
+     * The scoring formats the preset strip shows, by the names {@code V3} seeds: "0 PPR · Half ·
+     * PPR" (decision D2, approved as three). TE Premium is a fourth system preset and is not one of
+     * them on purpose: it scores every position as Full PPR does except a tight end, so for a
+     * receiver it would repeat the PPR figure, and a member who scores under it already has that
+     * number as {@code projection.points}.
+     */
+    private static final List<String> STRIP_PRESETS = List.of("Standard", "Half PPR", "Full PPR");
+
+    /**
+     * The row's stored line scored under each of the {@link #STRIP_PRESETS}, in id order: "same
+     * line, different value" without a second scoring path in the browser. Each is the unmodified
+     * engine on the line the member was shown, rounded once, so it is the number the board would
+     * print for that preset (a test compares them). A system preset only -- a member's own ruleset
+     * named "Half PPR" is not one -- and another member's rulesets are not reachable here; the
+     * member's own is {@code row.points()}.
      */
     private List<PlayerProjectionResponse.PresetPoints> presets(ProjectionRow row, Long userId) {
         StatLine line = new StatLine(row.position(), row.stats());
         return profileQueries.findVisibleTo(userId).stream()
                 .filter(ProfileRow::preset)
+                .filter(profile -> STRIP_PRESETS.contains(profile.name()))
                 .sorted(Comparator.comparingLong(ProfileRow::id))
                 .map(preset -> new PlayerProjectionResponse.PresetPoints(preset.id(), preset.name(),
                         ScoringEngine.roundForDisplay(

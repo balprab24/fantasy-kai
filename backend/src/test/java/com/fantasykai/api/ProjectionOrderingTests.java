@@ -2,7 +2,6 @@ package com.fantasykai.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -59,8 +58,13 @@ class ProjectionOrderingTests {
         }
         new ProjectionRepository(db.jdbc).replaceOpen(week, provider.source().id(), rows, now);
         var profiles = mock(ScoringProfiles.class);
-        when(profiles.byId(anyLong(), eq(7L))).thenReturn(ResolvedRuleset.compile(
-                new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())));
+        // The board asks for profile 1. The player page below also scores the line under the three
+        // presets (ids 1-3), and no other id is stubbed: a board that resolved the wrong profile gets
+        // null from the mock and fails, as it did before the strip existed.
+        for (long id : List.of(1L, 2L, 3L)) {
+            when(profiles.byId(id, 7L)).thenReturn(ResolvedRuleset.compile(
+                    new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())));
+        }
         var availability = mock(AvailabilityService.class);
         when(availability.forWeek(eq(week), any())).thenReturn(Map.of());
         var controller = new ProjectionController(new ProjectionsService(db.jdbc, profiles, availability,
@@ -256,6 +260,16 @@ class ProjectionOrderingTests {
         var board = service.board(1, null, "", 0, 50, 7L);
         assertThat(board.state()).as("2031-01-10 is in the 2030 season").isEqualTo("READY");
         assertThat(ids(board)).containsExactly(wr);
+    }
+
+    /** The stored line a row carries for the preset strip is read, never changed, by whoever asks. */
+    @Test void aRowsStoredLineCannotBeChangedThroughItsAccessor() {
+        var row = new ProjectionRow(1L, "P1", "WR", "BUF", "NYJ", true, null, false, 0.0, 4, "ESTABLISHED",
+                null, null, Instant.EPOCH, List.of(), List.of(), 2030, 1, 0.0, null, new double[] {1, 2, 3});
+
+        row.stats()[0] = 99;
+
+        assertThat(row.stats()).containsExactly(1, 2, 3);
     }
 
     private static ScoringProfiles profilesFor(long profileId, Long userId, Ruleset ruleset) {

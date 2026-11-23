@@ -105,6 +105,9 @@ the freshness alert (**Slice 7**); **switching the job on** (§7); any model cha
 { "state": "PROJECTED | STALE | BYE | NO_HISTORY | NOT_ROSTERED | NO_UPCOMING_WEEK | UNAVAILABLE",
   "source": { ... }, "projection": { /* row, or null */ },
   "presets": [ { "profileId": 1, "name": "Standard", "points": 9.8 }, ... ]   // D2; null unless PROJECTED/STALE
+  // built as 5.5: three entries, as D2 says -- Standard, Half PPR, Full PPR. TE Premium, the fourth system
+  // preset, is not on the strip: it equals Full PPR for every position but TE, and a member who scores under
+  // it has the number as projection.points. (Amending D2 to four is one name in ProjectionsService.STRIP_PRESETS.)
 }
 ```
 

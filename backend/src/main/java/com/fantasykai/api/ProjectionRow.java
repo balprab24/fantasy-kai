@@ -30,4 +30,12 @@ public record ProjectionRow(long playerId, String name, String position, String 
         boolean home, Instant kickoff, boolean locked, double points, int gamesUsed,
         String history, Availability availability, String espnId, Instant generatedAt,
         List<ExplainedScore.Part> parts, List<ExplainedScore.BonusLine> bonuses, int season, int week,
-        @JsonIgnore double rawPoints, @JsonIgnore SeasonWeek dataThrough, @JsonIgnore double[] stats) {}
+        @JsonIgnore double rawPoints, @JsonIgnore SeasonWeek dataThrough, @JsonIgnore double[] stats) {
+
+    /** A copy: the row's line is read, never modified, by whoever asks. */
+    @Override
+    @JsonIgnore
+    public double[] stats() {
+        return stats == null ? null : stats.clone();
+    }
+}
