@@ -82,8 +82,8 @@ import org.springframework.stereotype.Service;
  * need the week's roster, so they are known only for {@code READY}; in any other state, or when a
  * stored history is corrupt, they are {@code null}, never zero.
  *
- * <p>Each line is explained in full ({@link ExplainedScore}): its stats as value x rate, and every
- * bonus of the ruleset with whether the line reached it.
+ * <p>Each line is explained in full ({@link ExplainedScore}): its stats as value x rate, and each
+ * bonus that bears on it with whether the line reached it.
  *
  * <p>Not yet the full slice 5/6 contract in {@code docs/projections-v1-architecture.md}: the
  * preset comparison on the player response and the source's summary and typical error are owed.

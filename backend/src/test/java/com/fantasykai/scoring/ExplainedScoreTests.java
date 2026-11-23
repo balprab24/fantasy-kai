@@ -69,8 +69,28 @@ class ExplainedScoreTests {
         assertThat(back.total()).isCloseTo(15.0, within(1e-12));
         assertThat(end.parts()).filteredOn(p -> p.stat().equals("rec")).singleElement()
                 .satisfies(p -> assertThat(p.rate()).isEqualTo(1.5));
-        assertThat(end.bonuses()).as("listed though not reached").singleElement()
-                .isEqualTo(new ExplainedScore.BonusLine("rush_yd", 100, 0.0, 3.0, false));
+        assertThat(end.bonuses()).as("a tight end with no rushing line has no rushing bonus to explain")
+                .isEmpty();
+    }
+
+    /**
+     * A bonus is a line when the line has some of its stat (so a near miss shows how far short it
+     * fell) or when it was paid -- the rule {@code parts} already follows. One on a stat the line
+     * has none of explains nothing and is left out; the total is unaffected, since it was not paid.
+     */
+    @Test
+    void aBonusOnAStatTheLineHasNoneOfIsNotListedUnlessItWasPaid() {
+        ResolvedRuleset rules = rules(Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of(
+                new Bonus(StatKey.PASS_YD, 300, 3), new Bonus(StatKey.REC_YD, 100, 2.5),
+                new Bonus(StatKey.REC, 0, 1)));
+
+        ExplainedScore explained = ExplainedScore.of(line("RB", Map.of(StatKey.REC_YD, 40.0)), rules);
+
+        assertThat(explained.bonuses()).containsExactly(
+                new ExplainedScore.BonusLine("rec_yd", 100, 40.0, 2.5, false),
+                new ExplainedScore.BonusLine("rec", 0, 0.0, 1.0, true));
+        assertThat(explained.total()).isEqualTo(5.0);
+        assertThat(sumOfParts(explained)).isEqualTo(explained.total());
     }
 
     /** A bonus pays at its threshold and not before it; the line says so, and so does the total. */
@@ -146,8 +166,10 @@ class ExplainedScoreTests {
             Map<StatKey, Double> values = new EnumMap<>(StatKey.class);
             for (StatKey key : StatKey.values()) {
                 if (random.nextBoolean()) {
-                    // One decimal, as a projected line carries, and a quarter of them dead on a threshold.
-                    double value = Math.round(random.nextDouble() * 4000) / 10.0;
+                    // One decimal, as a projected line carries, on a scale a game could have (so
+                    // some lines fall short of a threshold with something to show), and a quarter
+                    // of them dead on a threshold.
+                    double value = Math.round(random.nextDouble() * scaleFor(key) * 10) / 10.0;
                     values.put(key, random.nextInt(4) == 0 ? thresholdFor(key, value) : value);
                 }
             }
@@ -165,6 +187,15 @@ class ExplainedScoreTests {
         }
     }
 
+    private static double scaleFor(StatKey key) {
+        return switch (key) {
+            case PASS_YD -> 400;
+            case RUSH_YD, REC_YD -> 150;
+            case PASS_INT -> 5;
+            default -> 10;
+        };
+    }
+
     private static double thresholdFor(StatKey key, double fallback) {
         return switch (key) {
             case PASS_YD -> 300;
@@ -172,19 +203,5 @@ class ExplainedScoreTests {
             case PASS_INT -> 3;
             default -> fallback;
         };
-    }
-
-    @Test
-    void aWeekNotPlayedScalesEveryPartAndEveryBonusToZero() {
-        ResolvedRuleset rules = rules(Map.of(StatKey.REC, 1.0), Map.of(), List.of(new Bonus(StatKey.REC, 5, 2)));
-        ExplainedScore zero = ExplainedScore.of(line("WR", Map.of(StatKey.REC, 5.0)), rules).times(0);
-
-        assertThat(zero.total()).isZero();
-        assertThat(zero.parts()).allSatisfy(p -> assertThat(p.points()).isZero());
-        assertThat(zero.bonuses()).singleElement().satisfies(b -> {
-            assertThat(b.points()).as("what it would pay, times nothing").isZero();
-            assertThat(b.triggered()).as("it was reached by the line as it stood").isTrue();
-        });
-        assertThat(sumOfParts(zero)).isEqualTo(zero.total());
     }
 }

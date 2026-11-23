@@ -235,10 +235,12 @@ class ProjectionApiTests {
     /**
      * Two bonuses on two stats: each is its own line, in the ruleset's order, with the line's own
      * value against its own threshold -- so a member sees which one a line crossed and how far the
-     * other was. One line reaches the first and not the second, the other the reverse.
+     * other was. One line reaches the first and not the second, the other the reverse. A bonus on
+     * a stat the line has none of is not a line: a receiver who never rushes is not told about the
+     * rushing bonus.
      */
     @Test
-    void everyBonusOfTheRulesetIsListedWithWhetherTheLineReachedIt() {
+    void theBonusesThatBearOnALineAreListedWithWhetherItReachedThem() {
         long owned = ownedProfile(memberId, "Two bonuses", """
                 {"version":1,"base":{"rush_yd":0.1,"rec_yd":0.1},
                  "bonuses":[{"stat":"rush_yd","gte":100,"points":3},{"stat":"rec_yd","gte":100,"points":2.5}]}
@@ -246,8 +248,10 @@ class ProjectionApiTests {
         long game = game(WEEK, buf, bal, inDays(2));
         long runner = player("Runner Of A Hundred", "RB", buf);
         long catcher = player("Catcher Of A Hundred", "RB", buf);
+        long receiver = player("Receiver Who Never Rushes", "WR", buf);
         store(WEEK, new Proj(runner, game, buf, Map.of(StatKey.RUSH_YD, 100.0, StatKey.REC_YD, 40.0)),
-                new Proj(catcher, game, buf, Map.of(StatKey.RUSH_YD, 99.9, StatKey.REC_YD, 100.0)));
+                new Proj(catcher, game, buf, Map.of(StatKey.RUSH_YD, 99.9, StatKey.REC_YD, 100.0)),
+                new Proj(receiver, game, buf, Map.of(StatKey.REC_YD, 100.0)));
         JsonNode board = getJson(rest, BOARD + "?profileId=" + owned);
 
         JsonNode run = rowOf(board, runner);
@@ -262,7 +266,12 @@ class ProjectionApiTests {
         assertBonus(catches.get("bonuses").get(1), "rec_yd", 100, 100.0, 2.5, true);
         assertThat(catches.get("points").asDouble()).isEqualTo(22.49);
 
-        for (JsonNode row : List.of(run, catches)) {
+        JsonNode catchOnly = rowOf(board, receiver);
+        assertThat(catchOnly.get("bonuses")).as("the rushing bonus does not bear on him").hasSize(1);
+        assertBonus(catchOnly.get("bonuses").get(0), "rec_yd", 100, 100.0, 2.5, true);
+        assertThat(catchOnly.get("points").asDouble()).isEqualTo(12.5);
+
+        for (JsonNode row : List.of(run, catches, catchOnly)) {
             assertThat(ScoringEngine.roundForDisplay(partsPlusReachedBonuses(row)))
                     .as("parts + reached bonuses, rounded once").isEqualTo(row.get("points").asDouble());
         }
@@ -1171,7 +1180,8 @@ class ProjectionApiTests {
     void theWireShapeIsPinned() {
         long game = game(WEEK, buf, bal, inDays(2));
         long wr = player("Shape Receiver", "WR", buf);
-        store(WEEK, new Proj(wr, game, buf, Map.of(StatKey.REC, 5.0, StatKey.REC_YD, 60.0)));
+        // A little rushing, so the century profile's rushing bonus bears on the line and is listed.
+        store(WEEK, new Proj(wr, game, buf, Map.of(StatKey.REC, 5.0, StatKey.REC_YD, 60.0, StatKey.RUSH_YD, 5.0)));
 
         JsonNode board = getJson(rest, BOARD + "?profileId=1");
         assertThat(names(board)).containsExactly("state", "season", "week", "source", "dataThrough",

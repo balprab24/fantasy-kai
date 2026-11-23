@@ -98,6 +98,9 @@ the freshness alert (**Slice 7**); **switching the job on** (§7); any model cha
 "parts":   [ { "stat": "rec", "value": 5.1, "rate": 1.0, "points": 5.1 }, ... ],
 "bonuses": [ { "stat": "rec_yd", "gte": 100, "value": 61.4, "points": 3.0, "triggered": false } ]
 //   invariant: sum(parts.points) + sum(bonuses where triggered .points) == total, then rounded once
+//   (built as 5.4: a bonus is listed when the line has some of its stat or it was paid -- the rule `parts`
+//   follows -- so a running back carries no passing-yards line; the new type is `BonusLine`, since
+//   `scoring.Bonus` is the rule record)
 // GET /api/v1/players/{id}/projection?profileId=
 { "state": "PROJECTED | STALE | BYE | NO_HISTORY | NOT_ROSTERED | NO_UPCOMING_WEEK | UNAVAILABLE",
   "source": { ... }, "projection": { /* row, or null */ },

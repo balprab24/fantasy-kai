@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A scored line with its parts: each stat's value x rate = points, and each threshold bonus the
- * ruleset pays, whether or not the line reached it. "Why is he ranked here" is the product
+ * A scored line with its parts: each stat's value x rate = points, and each threshold bonus that
+ * bears on the line, whether or not it reached it. "Why is he ranked here" is the product
  * (architecture.md: every ranked number carries its parts), so a number that reaches a member
  * travels as this, not as a bare double.
  *
@@ -17,10 +17,14 @@ import java.util.List;
  *
  * @param total   the scored line
  * @param parts   every stat with a value or a rate, in {@link StatKey} order
- * @param bonuses every bonus of the ruleset, in the ruleset's order, with whether this line
- *                reached it. A bonus that pays nothing is not in the ruleset once compiled, so it
- *                is not here. On a projected line a bonus is all-or-nothing at the line's mean --
- *                a stated approximation, not an expected value
+ * @param bonuses the ruleset's bonuses that bear on this line, in the ruleset's order, each with
+ *                whether the line reached it: those on a stat the line has some of (so a near miss
+ *                shows how far short it fell) and those that were paid. The same rule as
+ *                {@code parts}, which lists a stat with a value or a rate. A bonus on a stat the
+ *                line has none of -- passing yards on a running back -- explains nothing, so it is
+ *                not a line. A bonus that pays nothing is not in the ruleset once compiled. On a
+ *                projected line a bonus is all-or-nothing at the line's mean -- a stated
+ *                approximation, not an expected value
  */
 public record ExplainedScore(double total, List<Part> parts, List<BonusLine> bonuses) {
 
@@ -58,13 +62,21 @@ public record ExplainedScore(double total, List<Part> parts, List<BonusLine> bon
         List<BonusLine> bonuses = new ArrayList<>();
         for (Bonus bonus : rules.bonuses()) {
             double value = values[bonus.stat().index()];
-            bonuses.add(new BonusLine(bonus.stat().json(), bonus.gte(), value, bonus.points(),
-                    bonus.reachedBy(value)));
+            boolean triggered = bonus.reachedBy(value);
+            if (triggered || value != 0) {
+                bonuses.add(new BonusLine(bonus.stat().json(), bonus.gte(), value, bonus.points(), triggered));
+            }
         }
         return new ExplainedScore(ScoringEngine.score(line, rules), parts, bonuses);
     }
 
-    /** What the bonuses that were reached add to the total: their points, summed in order. */
+    /**
+     * What the bonuses that were reached add to the total: their points, summed together. Exact,
+     * unlike the remainder (total less the linear parts) it replaces, which carried rounding
+     * noise. Added to the parts' sum it can still differ from the total in the last bit when two
+     * or more bonuses fire, because the engine adds them one at a time to the running total;
+     * the lines, summed in order, are the engine's sum exactly.
+     */
     public double bonusPoints() {
         double points = 0;
         for (BonusLine bonus : bonuses) {
@@ -73,18 +85,5 @@ public record ExplainedScore(double total, List<Part> parts, List<BonusLine> bon
             }
         }
         return points;
-    }
-
-    /**
-     * The same explanation for a scaled line -- a week the player is expected to miss is 0 x it.
-     * Every quantity and every worth is scaled, so the parts and the reached bonuses still add up
-     * to the scaled total; whether a bonus was reached is a fact about the line as it stood and is
-     * kept.
-     */
-    public ExplainedScore times(double factor) {
-        return new ExplainedScore(total * factor, parts.stream()
-                .map(p -> new Part(p.stat(), p.value() * factor, p.rate(), p.points() * factor)).toList(),
-                bonuses.stream().map(b -> new BonusLine(b.stat(), b.gte(), b.value() * factor,
-                        b.points() * factor, b.triggered())).toList());
     }
 }

@@ -13,9 +13,10 @@ import java.util.List;
  * @param points      the scored total, rounded once, here
  * @param history     {@code LIMITED} under four games, else {@code ESTABLISHED}
  * @param parts       each stat as value x rate = points
- * @param bonuses     every threshold bonus the ruleset pays, with whether this line reached it. The
- *                    parts plus the points of the bonuses that were reached are the total, which is
- *                    then rounded once, in {@code points}. On a projected line a bonus is
+ * @param bonuses     the threshold bonuses that bear on this line (it has some of the stat, or
+ *                    the bonus was paid), each with whether it was reached. The parts plus the
+ *                    points of the bonuses that were reached are the total, which is then
+ *                    rounded once, in {@code points}. On a projected line a bonus is
  *                    all-or-nothing at the line's mean, a stated approximation and not an
  *                    expected value
  * @param rawPoints   the unrounded total the board sorts on; never serialized
