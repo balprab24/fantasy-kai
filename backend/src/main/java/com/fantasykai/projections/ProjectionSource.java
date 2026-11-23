@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
  *                     API serves it as the method's description, so a provider swap updates the
  *                     copy
  * @param typicalError how far off the method has been, measured; null for a source that has no
- *                     published figure
+ *                     published figure. Its population says who the figure is about
  */
 public record ProjectionSource(String id, String label, String summary, TypicalError typicalError) {
 
@@ -55,15 +55,23 @@ public record ProjectionSource(String id, String label, String summary, TypicalE
 
     /**
      * How far off a method has been, as a headline and the measurements it summarises. The number
-     * is printed beside the label ("about 5.5 points per player-week"), so it is held to what was
-     * measured: a headline is only constructible while every measurement is within
-     * {@link #HEADLINE_TOLERANCE} of it. When a new season drifts past that, the application
-     * refuses to start with the copy rather than keep saying a number it no longer supports.
+     * is shown in the method's popover ("about 5.5 points per player-week"), so it is held to what
+     * was measured: a headline is only constructible while every measurement is within
+     * {@link #HEADLINE_TOLERANCE} of it.
+     *
+     * <p>What that guards, and what it does not. It stops a headline and its measurements being
+     * edited out of step -- the build fails, and so would the application -- and the committed
+     * reports pin the measurements themselves ({@code ProjectionSourceTests}). It does not watch
+     * new seasons: nothing feeds a result into this class, so a method that drifts is noticed by
+     * whoever re-runs the backtest, and later by the live accuracy report (Slice 7), not here.
      *
      * @param metric     what was measured, e.g. {@code PPR MAE}: the mean absolute error of a
      *                   player-week's projected points under full PPR
-     * @param value      the headline, to the half point
-     * @param population who it was measured over
+     * @param value      the headline; finite and positive
+     * @param population exactly who the measurements are over. A different group has a different
+     *                   error: on this baseline the board-wide population reads about 4.5 and
+     *                   one that counts players who then sat as zeros about 5.9, so the headline
+     *                   must never be shown without this
      * @param measured   every measurement the headline summarises; at least one
      */
     public record TypicalError(String metric, double value, String population, List<Measurement> measured) {
@@ -74,6 +82,9 @@ public record ProjectionSource(String id, String label, String summary, TypicalE
         public TypicalError {
             if (metric == null || metric.isBlank() || population == null || population.isBlank()) {
                 throw new IllegalArgumentException("a typical error names its metric and its population");
+            }
+            if (!(value > 0) || Double.isInfinite(value)) {
+                throw new IllegalArgumentException("a headline error is a positive number; got " + value);
             }
             if (measured == null || measured.isEmpty()) {
                 throw new IllegalArgumentException("a typical error rests on at least one measurement");
