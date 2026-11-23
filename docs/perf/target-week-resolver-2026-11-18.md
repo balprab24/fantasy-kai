@@ -32,7 +32,7 @@ Seven runs of the query above, in order (the first is the output reproduced belo
 | 6 | 104.3 ms | hit 108,270 | |
 | 7 | 102.1 ms | hit 108,270 | |
 
-**Warm, the call takes about 105 ms** (102 to 108 over five runs), which is about 0.83 to 0.87 ms per candidate game.
+**Warm, the call takes about 105 ms** (102 to 108 over five runs), which is about 0.83 to 0.88 ms per candidate game.
 The 196 ms I first quoted is run 1. No `JIT:` block appeared in run 1's output (the full output of the other runs was not kept, only their timing and buffer lines). Run 1, verbatim:
 
 ```

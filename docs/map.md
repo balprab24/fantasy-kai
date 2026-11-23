@@ -48,7 +48,7 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | `IngestOnceRunner` | One-shot current-season pull, `once=true`; exits 0 or 1 |
 | `IngestResult` · `IngestException` · `AssetNotPublishedException` | Result record and the two exception types. The 404 → `SKIPPED` path lives here |
 
-#### `scoring/` — Phase 2 · 11 files
+#### `scoring/` — Phase 2 · 12 files
 
 | Class | Does |
 |---|---|
