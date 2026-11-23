@@ -76,11 +76,15 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | `Usage` | Attempts, completions, carries, targets — volume, **deliberately not `StatKey`s**. The only place those four columns are named on the read path |
 | `InvalidQueryParameterException` | A name that isn't on a whitelist |
 
-#### `api/` — Phase 3 · 19 files
+#### `api/` — Phase 3 onward · 25 files
 
 | Class | Does |
 |---|---|
 | `RankingsController` · `PlayerController` · `ScoringProfileController` | **Nine endpoints** — 6 public `GET` plus, since Phase 5, three profile mutations behind `@PreAuthorize` |
+| `BoardController` | The member board: `/rankings`' rows plus what the board shows beside them — position ranks, recent form, the last four weeks, volume |
+| `ProjectionController` | `GET /projections` and `GET /players/{id}/projection` (Phase 6, members only): routing and parameter validation, nothing else |
+| `ProjectionsService` | Reads the provider's latest stored week and scores each raw line on request under the caller's ruleset; availability decides who the board ranks, never the line; sorts on the unrounded total then player id (`BOARD_ORDER`), then pages |
+| `ProjectionRow` · `ProjectionBoard` · `PlayerProjectionResponse` | The projection response records. `ProjectionRow.rawPoints` is the unrounded sort key and is never serialized |
 | `RankingsService` | Scores every player-week in Java, aggregates per player, sorts, pages; then looks up the page's ESPN ids by primary key |
 | `PlayerService` | Player list, detail, the scored game log, and the **career** — regular-season totals plus season and weekly positional ranks from one position-wide scan |
 | `PointsTally` | One player's points, **summed in week order**, and the one ranking comparator (points desc, id asc). Shared by rankings and career, so a career's positional rank equals the board's by construction |
