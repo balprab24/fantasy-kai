@@ -50,3 +50,7 @@ CLAUDE.local.md
 
 # nflverse files the backtest downloads (scripts/backtest.sh): research inputs, never committed.
 .cache/
+
+# Claude Code: private notes and runtime state (never commit)
+.claude/local/
+.claude/scheduled_tasks.lock
