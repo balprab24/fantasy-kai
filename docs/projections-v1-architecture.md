@@ -497,6 +497,42 @@ history of `nflverse/nfldata`'s `data/games.csv`, which the schedules release is
   whitelist; `roundForDisplay` once at the boundary.
 - **No week or season parameter in V1**, because it is next week only.
 
+**As built (Slice 5, [`projections-slice-5-plan.md`](projections-slice-5-plan.md)).** Where the
+sketch above and the code differ, this is the code:
+
+- **State** is `READY`, `STALE`, `UNAVAILABLE` or `NO_UPCOMING_WEEK` on the board, and the player
+  route adds `PROJECTED`, `BYE`, `NO_HISTORY` and `NOT_ROSTERED`. The week comes from the job's own
+  resolver, per request (decision D1), so there is no `projection_run` table. The board also takes
+  `q` (a name search, which `excluded` ignores).
+- **Nothing is guessed.** `season` and `week` are the week being projected (null with
+  `NO_UPCOMING_WEEK`; on a `STALE` board each row says its own week); `dataThrough` and
+  `generatedAt` are the newest game and the newest write over every readable stored row, whatever
+  the member asked for; `availabilityAsOf` is the older of the last *successful* roster pull and
+  the last successful injury pull, and null if either never succeeded. It is when a pull ran, not
+  which week it covered.
+- **`excluded`.** `unavailable` counts stored lines the board does not rank. `noHistory` and `bye`
+  count the job's candidates (a `PROJECTED_ROSTER_STATUSES` status, a skill position) with no
+  line, and are known only for `READY`: `null` otherwise, and `null` when a stored history is
+  corrupt (logged by name; the job fails its whole run on that, a request must not). "No history"
+  is the job's own reader's answer (regular-season games before the target week), and the player
+  route answers `BYE` and `NO_HISTORY` from the same roster and games, so the two cannot disagree.
+  A rostered player with history and no line (the job has not run since a roster change, or his
+  game had kicked off before its first run) is in no count: his page says `UNAVAILABLE`.
+- **Explanation.** `parts` are each stat as value × rate = points; `bonuses` are the bonuses that
+  bear on the line (it has some of the stat, or the bonus was paid), each with its threshold, the
+  line's value, what it pays and whether it was reached. Parts then reached bonuses, summed in
+  order, are the engine's total to the bit; `points` is that, rounded once.
+- **`presets`** on the player route: the same stored line under Standard, Half PPR and Full PPR
+  (decision D2, three), scored by the unmodified engine, so each is the number the board prints
+  for that preset. Null when there is no line. TE Premium is the fourth system preset and is not
+  on the strip.
+- **`source`** is `{id, label, summary, typicalError}`, the same on both routes. `typicalError` is
+  the baseline's measured PPR MAE (headline 5.5) with its three measurements, each pinned to a
+  committed report, and **the population they are over**: the research's P, each week's top 32 QB,
+  64 RB, 96 WR and 32 TE by opportunity who played. That is not the board's population (the same
+  baseline reads about 4.5 over every player with history who played, and about 5.9 when players
+  who then sat count as zeros), so the headline is never shown without it.
+
 ## 10. Rankings semantics (follow `/rankings` where possible)
 
 - The ranked set is projected and available players for W: OUT and RESERVE are excluded and
@@ -558,7 +594,7 @@ who played. The number is in the popover, not on rows. The copy comes from the A
 | **2** | `projections/` domain, `WeightedAverageProjectionProvider` (pure, no DB) | Hand-computed tests; randomized bit-parity against research baseline D; `backtest.sh parity` exact on every 2024–25 player-week |
 | **3** | `V7`, `JdbcProjectionInputs`, `TargetWeekResolver`, `ProjectionJob` (lock at kickoff, `ingest_runs`, headless) | Schema test (all `StatKey` columns, no points column); lifecycle tests (mid-week, MNF stats missing, rollover, bye, after week 18, preseason); a locked row survives a rerun; `OneShotContextTests` with the job. **Built 2026-10-12** on `feat/projections-job`. Also shipped: zero-stat appearances (§15), schedule reconciliation (`V8`), the audited locked-row repair, and the provider-id limit. The job is switched off until Slice 4 |
 | **4** | `V9`, `RosterWeekIngestor`, `InjuryIngestor`, `AvailabilityResolver`, roster-team eligibility | Real 2025 rows as fixtures; header check; 404 → `SKIPPED`; Out/reserve/Q/D/unknown resolution; missing data → UNKNOWN, never a failure. **Built 2026-10-12** on `feat/projections-availability`: `AvailabilityRules`/`AvailabilityService` (the resolver), `RosterWeekIngestor`, `InjuryReportIngestor`, real 2024–26 rows; 2025 check reproduced 153 / 0 (§6) |
-| **5** | The two endpoints and `ExplainedScore` | 401 anonymous; another member's profile 404 (warm cache); `QuerySafetyTests`; points bit-identical to `ScoringEngine.score`; PPR − 0 PPR = rec; parts sum to total; Out not ranked; states for bye, no history, no week |
+| **5** | The two endpoints and `ExplainedScore` | 401 anonymous; another member's profile 404 (warm cache); `QuerySafetyTests`; points bit-identical to `ScoringEngine.score`; PPR − 0 PPR = rec; parts sum to total; Out not ranked; states for bye, no history, no week. **Built 2026-11-23** on `feat/projections-slice5-contract` (PR #101; 5.0–5.1 were PR #100): the envelope and `excluded`, the resolver-derived week and states, a line per bonus, the preset strip and the source's measured error; each assertion in the plan's §6.1 table was broken on purpose and the test failed. The job is still switched off (`docs/projections-slice-5-plan.md` §7) |
 | **6** | Board "Next week" and the player panel | lint/test/build; browser-verified at 390 and 1440; other pages unchanged |
 | **7** | QA and monitoring | A weekly live-accuracy report (locked rows against actuals); a freshness alert; deploy runbook; acceptance checks; docs |
 

@@ -1,7 +1,9 @@
 # Projections Slice 5 — plan
 
 **Status: approved by the owner on 2026-11-18 (D1 to D5 as recommended; PR #98). Built so far: 5.0 (the HTTP
-characterization tests; confirming the 14,906-week parity command of §6.2 is still open), 5.1, 5.2, 5.3, 5.4, 5.5 and 5.6.**
+characterization tests; confirming the 14,906-week parity command of §6.2 is still open), 5.1 to 5.7 (2026-11-23,
+PR #101). The switch-on work of §7 has not started: the job is off, and the R2 production backfill, the R3
+rehearsal and the R4 config line are owed.**
 Written 2026-11-17 against `main` at `5a05dd6` (production runs the same commit).
 It extends [`projections-v1-architecture.md`](projections-v1-architecture.md) (approved 2026-10-09) and does
 not replace it; where they differ, §3 below asks for a decision.

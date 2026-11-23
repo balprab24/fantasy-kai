@@ -59,7 +59,8 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | `ResolvedRuleset` | Compiled form — a `double[]` per position. Version-dispatched `compile()` |
 | `ScoringEngine` | Static and pure: one dot product + threshold bonuses. **Never rounds** except in `roundForDisplay` |
 | `ScoringProfiles` | Loads a profile, validates, compiles, caches by id |
-| `StatLine` · `Bonus` | Records: one player-week, one threshold bonus |
+| `StatLine` · `Bonus` | Records: one player-week, one threshold bonus. `Bonus.reachedBy` is the one definition of "the line reaches the threshold" (at it, not past it): the engine pays by it and `ExplainedScore` reports by it |
+| `ExplainedScore` | A scored line with its parts: each stat as value × rate = points, and a `BonusLine` for each bonus that bears on the line (it has some of the stat, or the bonus was paid) with whether it was reached. Parts, then reached bonuses, summed in order, are the engine's total to the bit |
 | `InvalidRulesetException` · `NoSuchProfileException` | Drive the 422-vs-404 split |
 
 #### `query/` — Phase 3 · 14 files
@@ -83,8 +84,9 @@ allowlist, `RateLimitConfig` owns the bucket store. **No cache config yet** — 
 | `RankingsController` · `PlayerController` · `ScoringProfileController` | **Nine endpoints** — 6 public `GET` plus, since Phase 5, three profile mutations behind `@PreAuthorize` |
 | `BoardController` | The member board: `/rankings`' rows plus what the board shows beside them — position ranks, recent form, the last four weeks, volume |
 | `ProjectionController` | `GET /projections` and `GET /players/{id}/projection` (Phase 6, members only): routing and parameter validation, nothing else |
-| `ProjectionsService` | Takes the week from `CurrentTargetWeek` (the job's resolver, cached 60 s), reads that week's stored lines or else the newest earlier week of the season (`STALE`), and scores each raw line on request under the caller's ruleset; availability decides who the board ranks, never the line; sorts on the unrounded total then player id (`BOARD_ORDER`), then pages |
-| `ProjectionRow` · `ProjectionBoard` · `PlayerProjectionResponse` | The projection response records. `ProjectionRow.rawPoints` is the unrounded sort key and is never serialized |
+| `ProjectionsService` | Takes the week from `CurrentTargetWeek` (the job's resolver, cached 60 s), reads that week's stored lines or else the newest earlier week of the season (`STALE`), and scores each raw line on request under the caller's ruleset; availability decides who the board ranks, never the line; sorts on the unrounded total then player id (`BOARD_ORDER`), then pages. Builds the board's envelope (week, `dataThrough`, `generatedAt`, `availabilityAsOf` from `ingest_runs`) and `excluded` (unavailable from the served lines; `noHistory` and `bye` from the roster, the target week's games and `JdbcProjectionInputs`' own history reader, known only for `READY`, `null` otherwise). A player's page also carries his line under Standard, Half PPR and Full PPR (`presets`). A corrupt history makes `noHistory` unknown and is logged, never a 500 |
+| `ProjectionRow` · `ProjectionBoard` · `PlayerProjectionResponse` | The projection response records. `ProjectionRow` carries `parts` and `bonuses`; its `rawPoints` (the unrounded sort key), `dataThrough` and `stats` (the stored line the preset strip scores) are never serialized. `ProjectionBoard.Excluded`, `PlayerProjectionResponse.PresetPoints` |
+| `ProjectionSource` | Which method made a projection: id (≤ 40 chars, versioned), label, `summary`, and a `TypicalError` (the baseline's measured PPR MAE, 5.5, over the research's population P, with the three measurements pinned to the committed reports). The headline is constructible only within 0.2 of every measurement |
 | `RankingsService` | Scores every player-week in Java, aggregates per player, sorts, pages; then looks up the page's ESPN ids by primary key |
 | `PlayerService` | Player list, detail, the scored game log, and the **career** — regular-season totals plus season and weekly positional ranks from one position-wide scan |
 | `PointsTally` | One player's points, **summed in week order**, and the one ranking comparator (points desc, id asc). Shared by rankings and career, so a career's positional rank equals the board's by construction |
