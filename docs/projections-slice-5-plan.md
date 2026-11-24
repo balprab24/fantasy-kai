@@ -1,7 +1,12 @@
 # Projections Slice 5 — plan
 
-**Status: a proposal for the owner's approval. No feature code has been written, and none starts until
-this is approved.** Written 2026-11-17 against `main` at `5a05dd6` (production runs the same commit).
+**Status: approved by the owner on 2026-11-18 (D1 to D5 as recommended; PR #98). Built: 5.0 (the HTTP
+characterization tests; confirming the 14,906-week parity command of §6.2 is still open) and 5.1 in PR #100 (merged),
+5.2 to 5.7 in PR #101 (2026-11-23). This plan was written on 2026-11-17: where a section says what `main` does
+"today", or what "will" be measured or pinned, that is the day's snapshot, and the notes marked "built as" and
+`docs/projections-v1-architecture.md` §9 "as built" say what was built. The switch-on work of §7 has not
+started: the job is off, and the R2 production backfill, the R3 rehearsal and the R4 config line are owed.**
+Written 2026-11-17 against `main` at `5a05dd6` (production runs the same commit).
 It extends [`projections-v1-architecture.md`](projections-v1-architecture.md) (approved 2026-10-09) and does
 not replace it; where they differ, §3 below asks for a decision.
 
@@ -18,7 +23,10 @@ not replace it; where they differ, §3 below asks for a decision.
   bonus (today a single remainder), the preset comparison the player panel needs, and HTTP-level tests for
   §13's "done when" row (only a few exist).
 - **No migration is proposed** (decision D1 recommends reading the target week from `TargetWeekResolver` at
-  request time). Slice 5 touches no ingest, no job, no scoring-engine core and no frontend.
+  request time). Slice 5 touches no migration, no job and no frontend. Two small touches outside the API, both
+  behaviour-neutral (built as 5.3 and 5.4): the two ingestors' `SOURCE` names became public, so the as-of query reads
+  the strings the pulls record; and the engine's threshold comparison moved into `Bonus.reachedBy`, which the
+  explanation shares, with the arithmetic unchanged.
 - **Switching the job on is a separate step** with its own prerequisites (§7). One is already measured: production
   has appearance rows for 2026 only. One is newly found: the production backfill has no way to exit
   (`BackfillRunner` never ends the JVM).
@@ -69,11 +77,24 @@ the freshness alert (**Slice 7**); **switching the job on** (§7); any model cha
 
 | # | Question | Options | Recommendation |
 |---|---|---|---|
-| **D1** | How does the API know which week it is, and that there is none? | **(a)** call `TargetWeekResolver.resolve(season, now)` per request (the job's own rule, one place); **(b)** a new `V12` table `projection_run` written by the job | **(a).** No migration, no job change, and it is the request-time truth: if the resolver says week 11 and there are no rows for it, the state is `UNAVAILABLE`; if it says none, `NO_UPCOMING_WEEK`; if the rows are for an older week, `STALE`. (b) buys one thing — a record of a run that wrote zero rows — and `ingest_runs` already holds one row per run (`fantasykai.projections`). Cost of (a): about three small queries per request; I would measure them on the 500-row board and report, not gate |
+| **D1** | How does the API know which week it is, and that there is none? | **(a)** call `TargetWeekResolver.resolve(season, now)` per request (the job's own rule, one place); **(b)** a new `V12` table `projection_run` written by the job | **(a).** No migration, no job change, and it is the request-time truth: if the resolver says week 11 and there are no rows for it, the state is `UNAVAILABLE`; if it says none, `NO_UPCOMING_WEEK`; if the rows are for an older week, `STALE`. (b) buys one thing — a record of a run that wrote zero rows — and `ingest_runs` already holds one row per run (`fantasykai.projections`). Cost of (a): I expected about three small queries per request; measured (`docs/perf/target-week-resolver-2026-11-18.md`), the resolver is ~105 ms warm on the local mirror (123 candidate games), so it is cached for 60 s (`CurrentTargetWeek`) and not asked per request. Not yet measured on production (R3) |
 | **D2** | Where does the "same line, different value" strip come from? | **(a)** the API returns the three presets' points on the player response; **(b)** the browser derives them from `parts` | **(a).** (b) puts a second scoring path in TypeScript, which breaks the one invariant this product is built on. (a) uses the unmodified `ScoringEngine`, so the strip is bit-identical to the number under the member's own ruleset by construction (and by test) |
 | **D3** | How is the error disclosed? | `source.typicalError` = the measured PPR MAE, with its population and season; the popover text says "about 5.5" (§11) | Store **three** measured values beside the label — 2024 **5.480** (tuning season), 2025 **5.512** (test, n = 3,807), 2026 weeks 1–4 **5.688** (n = 896) — and let the copy say "about 5.5" only while all three stay inside 5.5 ± 0.2. The number lives in one place, pinned by `ProjectionSourceTests` to the committed report |
 | **D4** | When is the job switched on, relative to the UI? | **(a)** as soon as §7's prerequisites are met, before Slice 6; **(b)** only when Slice 6 can show it | **(a).** The endpoints are members-only and nothing calls them, and every week the job is off is a week of live-accuracy record lost: the next target week is 11 (week 10 still has a game outstanding) and the regular season ends at week 18. Cost: rows accrue before the UI exists, and the first row freezes `weighted-average-v1`'s meaning (§7) |
 | **D5** | How is the production appearance backfill run? | **(a)** from the laptop through an SSH tunnel with the existing `BackfillRunner`; **(b)** add a `backfill-once` path that exits, then run it from the image like `ingest-once` | **(a)** for the single run it is needed for: no new code. **(b)** only if you want it repeatable. Either one is rehearsed on a restored copy first |
+
+**Follow-ups raised after approval (2026-11-23), not decided here:**
+
+- **D3: which population does "about 5.5" describe?** The figure is over the research's P (a fixed top-224-by-opportunity
+  group who played). Over every player the board ranks (P-all) the same baseline reads about 4.5 (4.509 in 2024,
+  4.470 in 2025), and counting players who then sat as zeros (P0) 5.8 to 5.9 (5.845, 5.887). It is also a *PPR*
+  figure (2024: 4.579 under 0 PPR, 5.003 under Half). The API now says exactly which P it is, but the owner decides
+  what the popover headlines before Slice 6 prints it; Slice 7's live accuracy will measure whatever the board
+  ranks, and the two should not be left to disagree unexplained.
+- **D2 as built is three presets, not four.** TE Premium is not on the strip (§4's note). Amending is one name.
+- **`excluded` has no bucket for a rostered player who has history and no line** (the job has not run since a roster
+  change, or his game kicked off before its first run). His page says `UNAVAILABLE`, and he is in no count. In the
+  first week after switch-on (R5) this will be everyone on an early game.
 
 ## 4. The contract (additive; nothing here exists as a consumer yet)
 
@@ -84,9 +105,13 @@ the freshness alert (**Slice 7**); **switching the job on** (§7); any model cha
   "season": 2026, "week": 11,          // the resolver's target (null when NO_UPCOMING_WEEK)
   "source": { "id": "weighted-average-v1", "label": "Fantasy-Kai Baseline",
               "summary": "A weighted average of recent games ...",
-              "typicalError": { "metric": "PPR MAE", "value": 5.5, "population": "players who appeared",
-                                "measured": [ {"season":2024,"mae":5.480}, {"season":2025,"mae":5.512,"n":3807},
+              "typicalError": { "metric": "PPR MAE", "value": 5.5,
+                                "population": "each week's most-used skill players (top 32 QB, 64 RB, 96 WR, 32 TE by opportunity) who played",
+                                "measured": [ {"season":2024,"mae":5.480,"n":3808}, {"season":2025,"mae":5.512,"n":3807},
                                               {"season":2026,"weeks":"1-4","mae":5.688,"n":896} ] } },
+  // built as 5.6. The population is the research's P, spelled out: the first draft said "players who appeared",
+  // which is not the board's population (the same baseline reads ~4.5 over every player with history who played).
+  // The three rows are different dataset versions (2026's P holds 33 zero-stat appearances of 896).
   "dataThrough": { "season": 2026, "week": 10 },        // latest game any row was built from
   "generatedAt": "2026-11-18T11:00:12Z",                // newest row; null if none
   "availabilityAsOf": "2026-11-18T11:00:09Z",           // the older of the last successful roster and injury pulls
@@ -97,16 +122,32 @@ the freshness alert (**Slice 7**); **switching the job on** (§7); any model cha
 "parts":   [ { "stat": "rec", "value": 5.1, "rate": 1.0, "points": 5.1 }, ... ],
 "bonuses": [ { "stat": "rec_yd", "gte": 100, "value": 61.4, "points": 3.0, "triggered": false } ]
 //   invariant: sum(parts.points) + sum(bonuses where triggered .points) == total, then rounded once
+//   (built as 5.4: a bonus is listed when the line has some of its stat or it was paid -- the rule `parts`
+//   follows -- so a running back carries no passing-yards line; the new type is `BonusLine`, since
+//   `scoring.Bonus` is the rule record)
 // GET /api/v1/players/{id}/projection?profileId=
 { "state": "PROJECTED | STALE | BYE | NO_HISTORY | NOT_ROSTERED | NO_UPCOMING_WEEK | UNAVAILABLE",
   "source": { ... }, "projection": { /* row, or null */ },
   "presets": [ { "profileId": 1, "name": "Standard", "points": 9.8 }, ... ]   // D2; null unless PROJECTED/STALE
+  // built as 5.5: three entries, as D2 says -- Standard, Half PPR, Full PPR. TE Premium, the fourth system
+  // preset, is not on the strip: it equals Full PPR for every position but TE, and a member who scores under
+  // it has the number as projection.points. (Amending D2 to four is one name in ProjectionsService.STRIP_PRESETS.)
 }
 ```
 
+**D1(a) as built (5.2).** The resolver's query took **about 105 ms warm** in `EXPLAIN ANALYZE` on the 2026-11-18 local
+mirror (102 to 108 ms over five runs; 143 ms on the next and 196 ms on the first, which still read 11 pages from disk;
+122,755 stat rows, 123 candidate games, 108,270 buffer hits: it walks `player_game_stats`' primary-key index once per
+candidate game, and that table must not get another index before Phase 11; evidence in
+`docs/perf/target-week-resolver-2026-11-18.md`). It was **not measured on production**. It scales with the games left
+in the season (about twice as much in week 1, an extrapolation), and the resolver's own Javadoc said a request path
+must never call it. D1(a) stands, with the call behind `CurrentTargetWeek`, a per-process cache keyed by season with a
+60-second time-to-live (`fantasykai.projections.target-cache-seconds`, `0` = ask every time). No migration, no job
+change. A week rolls over at most a minute after the ingest lands its last stat row.
+
 State rules, with the resolver as the single authority (D1a): no weeks left → `NO_UPCOMING_WEEK`; target week
-has rows → `READY`, or `STALE` if every game of it kicked off over 48 h ago; target week has no rows →
-`UNAVAILABLE`; rows exist only for an older week → `STALE`. The 48-hour constant moves from the controller to
+has rows → `READY`, or `STALE` if every game of it kicked off at least 48 h ago; target week has no rows →
+`UNAVAILABLE`; rows exist only for an older week of the same season → `STALE`. The 48-hour constant moves from the controller to
 `TargetWeekResolver`, where the job's matching 48-hour rule already lives.
 
 ## 5. Files touched
@@ -115,16 +156,19 @@ has rows → `READY`, or `STALE` if every game of it kicked off over 48 h ago; t
 |---|---|
 | `backend/src/main/java/com/fantasykai/api/ProjectionController.java` | shrinks to routing; the two methods delegate |
 | `…/api/ProjectionsService.java`, `ProjectionBoard.java`, `ProjectionRow.java`, `PlayerProjectionResponse.java` (new) | the names §12 already lists (the existing controller keeps its name, `ProjectionController`); scoring, state and counts move here |
-| `…/scoring/ExplainedScore.java` | add the per-bonus line (`Bonus`: stat, gte, value, points, triggered), keep `total` = `ScoringEngine.score` itself; `times(factor)` follows |
+| `…/scoring/ExplainedScore.java` | built as 5.4: the per-bonus line is `BonusLine` (stat, gte, value, points, triggered; `scoring.Bonus` is the rule record), `total` stays `ScoringEngine.score` itself. `times(factor)` was deleted: no caller, and it has no coherent meaning once bonuses are all-or-nothing |
+| `…/scoring/Bonus.java`, `ScoringEngine.java` | `Bonus.reachedBy` is the one definition of "the line reaches the threshold"; the engine pays by it and the explanation reports by it. The engine's arithmetic is unchanged |
 | `…/projections/ProjectionSource.java` | `description` → `summary`; `typicalError`; the id/length checks stay |
 | `…/projections/WeightedAverageProjectionProvider.java` (`source()`) | supplies the measured values |
-| `…/projections/TargetWeekResolver.java` | the shared 48-hour constant; a read-only "current target" entry point |
-| `…/projections/AvailabilityService.java` | a small count helper for `excluded` if the service cannot already express it |
-| Tests: `api/ProjectionApiTests` (new), `api/ProjectionOrderingTests`, `api/RankingsTests` (lines 448–461 move to the new class), `api/ReadApiTests` and `api/QuerySafetyTests` (add the two routes), `scoring/ExplainedScoreTests`, `projections/ProjectionSourceTests` | §6.1 |
+| `…/projections/TargetWeekResolver.java`, `CurrentTargetWeek.java` (new), `application.yml` | the shared 48-hour constant, public; the per-request entry point is the new `CurrentTargetWeek`, a 60 s cache over the resolver (`fantasykai.projections.target-cache-seconds`), with `CurrentTargetWeekTests` |
+| `…/projections/AvailabilityService.java` | a `forWeek(target, roster)` overload, so the roster is read once and shared with the counts (not a count helper) |
+| `…/ingest/RosterWeekIngestor.java`, `InjuryReportIngestor.java` | `SOURCE` made `public`, so `availabilityAsOf` reads the strings the pulls record. Nothing else |
+| Tests: `api/ProjectionApiTests` (new), `api/ProjectionOrderingTests`, `api/RankingsTests` (lines 448–461 move to the new class), `scoring/ExplainedScoreTests`, `projections/ProjectionSourceTests`, `projections/CurrentTargetWeekTests` (new). The anonymous and hostile-parameter checks for the two routes are in `ProjectionApiTests`; `ReadApiTests` and `QuerySafetyTests` were not touched | §6.1 |
 | `docs/projections-v1-architecture.md` (§9, §13), `docs/map.md`, `scripts/session-check.sh` (`EXPECT_TESTS`, `EXPECT_BACKEND_FILES`) | `EXPECT_ENDPOINTS` stays 25 and `EXPECT_MIGRATIONS` stays 11 under D1a |
 
-**Not touched:** any migration, `ProjectionJob`, `ProjectionRepository`, ingest, `ScoringEngine`'s arithmetic, `StatKey`,
-`player_game_stats`, the frontend.
+**Not touched:** any migration, `ProjectionJob`, `ProjectionRepository`, `StatKey`, `player_game_stats`, the frontend,
+and `ScoringEngine`'s arithmetic. Touched without changing behaviour: the two ingestors (a `public` on `SOURCE`) and
+`ScoringEngine` (its comparison is `Bonus.reachedBy`).
 
 ## 6. How projections are validated
 
@@ -146,7 +190,7 @@ test must fail (this project's own rule: *a test that passes is not a test that 
 | Each state is reachable: `READY`, `STALE` (47 h vs 49 h), `UNAVAILABLE`, `NO_UPCOMING_WEEK`; `BYE`, `NO_HISTORY`, `NOT_ROSTERED` | change the 48-hour constant |
 | `excluded` respects `position` and ignores `q`; a bye is counted once | count the wrong team |
 | Query safety: `DROP TABLE` in `position`, `size=5000`, a non-numeric `profileId` → 400, and the tables survive | remove a whitelist call |
-| Presets (D2) equal the engine's score under each seeded profile | score with the wrong profile id |
+| Presets (D2) equal the engine's score under each of the three presets, and the strip is only presets | score with the wrong profile id |
 
 Gates reported as the CONTRIBUTING review pass requires: `./mvnw -B verify`, `session-check.sh`, the frontend
 suite (unchanged, so "nothing here touches it" with the build still run).
@@ -166,8 +210,10 @@ The shipped function must be research baseline D, **bit for bit**. Both checks a
 
 ### 6.3 How good is it, and how will we know? (the metric, the evidence, the threshold)
 
-**Metric.** PPR mean absolute error over **P**, the players who appeared (a stat row or offensive snaps),
-unrounded, per week and pooled, with **bias** and RMSE beside it; also under 0 PPR and Half PPR. This is the
+**Metric.** PPR mean absolute error over **P**: each week's top 32 QB / 64 RB / 96 WR / 32 TE by opportunity who
+played (a stat row or offensive snaps; `projection-accuracy.md` defines it, and "players who appeared" is only its
+shorthand: the board's own population, P-all, reads about 4.5 on the same baseline), unrounded, per week and
+pooled, with **bias** and RMSE beside it; also under 0 PPR and Half PPR. This is the
 metric the project pre-registered (`projection-accuracy.md`, "Metrics and the pre-registered ship rule"); MAE has a
 known flaw (it rewards projecting a point below the mean, v2 found), so it is reported with bias and RMSE and is
 **not** the acceptance metric for any future model (decision C item 4 stays open).
@@ -214,11 +260,11 @@ only deliberately, because a row the job writes locks for good at kickoff"*. It 
 
 | # | Requirement | Why | Status, with evidence |
 |---|---|---|---|
-| R1 | **Slice 5 merged and deployed** (D4 may relax this to "before Slice 6") | the contract members' tools will read | after approval |
+| R1 | **Slice 5 merged and deployed** (D4 may relax this to "before Slice 6") | the contract members' tools will read | approved and built (PR #101); **not merged, not deployed** as of 2026-11-23 |
 | R2 | **Production appearance backfill, 2020–2025** | the architecture says so: *"The daily pull fetches only the current season, so `player_game_appearances` would otherwise lack every earlier season's zero games"*; the baseline reads history across seasons | **Verified gap, 2026-11-17.** Production holds appearances for **2026 only**: 3,219 rows (355 zero-stat, regular season). The local mirror, backfilled, holds 2020–2026: regular-season rows 6,000 / 6,461 / 6,402 / 6,474 / 6,454 / 6,381 / 3,508 |
 | R2a | Its acceptance test | a backfill is only proven by counts | production's per-season regular-season counts equal the mirror's. **Do not assert equality with research**: the mirror's zero-stat counts are **746 / 816 / 812 / 854 / 823 / 689** against the research's **730 / 796 / 806 / 851 / 818 / 687** that Slice 3 recorded as reproduced exactly on 2026-10-12 — 2 to 20 higher. The cause is **not established** (a hypothesis: players-master revisions since October resolve more pfr ids, and the research listed 29–46 unplaced snap rows per season). Explaining or bounding that gap is the first task of R2 |
 | R2b | A way to run it | `BackfillRunner` is an `ApplicationRunner` that returns; it does not end the JVM, while the scheduler's non-daemon threads keep it alive (`IngestOnceRunner` calls `System.exit` for exactly that reason, and `deploy/README.md` documents the "second backend with its own scheduler" trap). So the README's one-shot command **cannot run a backfill as written** | D5. Rehearsed on a restored copy either way, after a §7-step-2 backup |
-| R3 | **Rehearse the job on a restored production copy** with `job-enabled=true` | the first production run writes rows that lock | expect: `candidates` ≈ rostered skill players on teams with an open game; `written` ≤ `candidates`; `locked` 0; a second run writes identical rows (`ProjectionJobTests` proves it on synthetic data; this proves it on real data); 20 sampled raw lines equal the local mirror's, same code and data |
+| R3 | **Rehearse the job on a restored production copy** with `job-enabled=true`, and time `TargetWeekResolver`'s query there (`docs/perf/target-week-resolver-2026-11-18.md`) | the first production run writes rows that lock; the cache's premise has only been measured on the laptop | expect: `candidates` ≈ rostered skill players on teams with an open game; `written` ≤ `candidates`; `locked` 0; a second run writes identical rows (`ProjectionJobTests` proves it on synthetic data; this proves it on real data); 20 sampled raw lines equal the local mirror's, same code and data |
 | R4 | **Config**: `compose.prod.yml` sets the backend's environment explicitly, so the flag needs a line there (`FANTASYKAI_PROJECTIONS_JOB_ENABLED: ${PROJECTIONS_JOB_ENABLED:-false}`) and `PROJECTIONS_JOB_ENABLED=true` in `deploy/.env` | no runtime override exists today (2026-11-12 report) | a backend redeploy, §7 of the runbook; Caddy untouched |
 | R5 | **Time the first run early in a week** | the job writes rows **only for games that have not kicked off** and locks them at kickoff. A game that kicked off before the first run gets no row, and its players have no projection that week | run it Tuesday or Wednesday after the 06:00 ET ingest, before Thursday night |
 | R6 | **Monitoring exists** | the job reports as `ingest_runs.source = 'fantasykai.projections'`, so `ingestFreshness` covers it | verify the row appears daily after switch-on, with the SELECT in `docs/development.md` |
@@ -261,7 +307,8 @@ all. Switch-on work (R2–R5) is separate: R2 about **M**, R3 **S**, R4 **S**.
 ## 10. Not verified
 
 - That the per-request `TargetWeekResolver` always agrees with what the job resolved at 06:00 (same class, same
-  inputs; a test will pin it, nothing here has run it).
+  inputs). **Still not pinned:** no test runs the job and the board together over a week, and nothing has run it on
+  production data (R3 does).
 - The cause of the +2 to +20 zero-stat difference against research (R2a).
 - The command that reproduces Slice 3's 14,906-week input parity (§6.2). `backtest.sh parity` and
   `ProviderParityTests` are confirmed to exist; I did not run either for this plan.

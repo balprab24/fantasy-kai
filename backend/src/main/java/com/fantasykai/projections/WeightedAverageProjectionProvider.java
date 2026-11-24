@@ -38,11 +38,41 @@ import java.util.Optional;
  */
 public final class WeightedAverageProjectionProvider implements ProjectionProvider {
 
+    /**
+     * What a member is told about the method, and how far off it has been. The error is this
+     * baseline's measured PPR MAE per player-week -- the one place the figure lives, pinned by
+     * {@code ProjectionSourceTests} to the committed reports. Each is research baseline D over the
+     * research's population P: each week's most-used skill players (top 32 QB, 64 RB, 96 WR and 32 TE
+     * by opportunity, scaled by the teams playing) who played. It is <em>not</em> the board's
+     * population: over every player with history who played the same baseline reads about 4.5
+     * (4.509 in 2024, 4.470 in 2025), and counting players who then sat as zeros 5.8 to 5.9
+     * (5.845 in 2024, 5.887 in 2025), so the population is part of the claim.
+     *
+     * <ul>
+     *   <li>2024, 5.480 over 3,808 player-weeks: the tuning season ({@code docs/perf/
+     *       projection-backtest/validate-2024.md});</li>
+     *   <li>2025, 5.512 over 3,807: the pre-registered test season
+     *       ({@code docs/perf/projection-accuracy.md});</li>
+     *   <li>2026 weeks 1-4, 5.688 over 896: the prospective check, on the corrected dataset that
+     *       also counts zero-stat appearances ({@code docs/perf/projection-backtest/
+     *       v2-prospective-2026.md}).</li>
+     * </ul>
+     *
+     * The headline "about 5.5" is constructible only while all three stay within 0.2 of it
+     * ({@link ProjectionSource.TypicalError}). Changing a figure here is a new report first.
+     */
     public static final ProjectionSource SOURCE = new ProjectionSource(
             "weighted-average-v1",
             "Fantasy-Kai Baseline",
             "A weighted average of the player's recent games: the latest counts most, "
-                    + "and a game four games older counts half as much.");
+                    + "and a game four games older counts half as much.",
+            new ProjectionSource.TypicalError("PPR MAE", 5.5,
+                    "each week's most-used skill players (top 32 QB, 64 RB, 96 WR, 32 TE by opportunity) "
+                            + "who played",
+                    List.of(
+                            new ProjectionSource.Measurement(2024, null, 5.480, 3808),
+                            new ProjectionSource.Measurement(2025, null, 5.512, 3807),
+                            new ProjectionSource.Measurement(2026, "1-4", 5.688, 896))));
 
     /** Half-life in games. A double, as in the research, so the division is the same one. */
     static final double HALF_LIFE_GAMES = 4.0;

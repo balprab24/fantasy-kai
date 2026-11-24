@@ -1,17 +1,23 @@
 package com.fantasykai.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fantasykai.projections.AvailabilityService;
+import com.fantasykai.projections.CurrentTargetWeek;
 import com.fantasykai.projections.ProjectionDatabase;
+import com.fantasykai.projections.JdbcProjectionInputs;
 import com.fantasykai.projections.ProjectionProperties;
 import com.fantasykai.projections.ProjectionRepository;
 import com.fantasykai.projections.RawProjection;
 import com.fantasykai.projections.SeasonWeek;
+import com.fantasykai.projections.TargetWeekResolver;
 import com.fantasykai.projections.WeightedAverageProjectionProvider;
+import com.fantasykai.query.ScoringProfileQueryRepository;
 import com.fantasykai.scoring.Bonus;
 import com.fantasykai.scoring.ResolvedRuleset;
 import com.fantasykai.scoring.Ruleset;
@@ -20,6 +26,7 @@ import com.fantasykai.scoring.ScoringProfiles;
 import com.fantasykai.scoring.StatKey;
 import com.fantasykai.scoring.StatLine;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -52,13 +59,18 @@ class ProjectionOrderingTests {
         }
         new ProjectionRepository(db.jdbc).replaceOpen(week, provider.source().id(), rows, now);
         var profiles = mock(ScoringProfiles.class);
-        when(profiles.byId(1L, 7L)).thenReturn(ResolvedRuleset.compile(
-                new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())));
+        // The board asks for profile 1. The player page below also scores the line under the three
+        // presets (ids 1-3), and no other id is stubbed: a board that resolved the wrong profile gets
+        // null from the mock and fails, as it did before the strip existed.
+        for (long id : List.of(1L, 2L, 3L)) {
+            when(profiles.byId(id, 7L)).thenReturn(ResolvedRuleset.compile(
+                    new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())));
+        }
         var availability = mock(AvailabilityService.class);
-        when(availability.forWeek(week)).thenReturn(Map.of());
+        when(availability.forWeek(eq(week), any())).thenReturn(Map.of());
         var controller = new ProjectionController(new ProjectionsService(db.jdbc, profiles, availability,
                 new ProjectionProperties(provider.source().id(), false), provider,
-                Clock.fixed(now, ZoneOffset.UTC)));
+                Clock.fixed(now, ZoneOffset.UTC), noCache(db), new JdbcProjectionInputs(db.jdbc), new ScoringProfileQueryRepository(db.jdbc)));
         var first = controller.board(1, null, "", 0, 1, 7L).page().content().getFirst();
         var second = controller.board(1, null, "", 1, 1, 7L).page().content().getFirst();
         assertThat(first.playerId()).isEqualTo(high);
@@ -66,11 +78,12 @@ class ProjectionOrderingTests {
         assertThat(first.points()).isEqualTo(second.points()).isEqualTo(10.0);
         var json = new ObjectMapper().findAndRegisterModules().<com.fasterxml.jackson.databind.JsonNode>valueToTree(first);
         assertThat(json.has("rawPoints")).isFalse();
-        // The explanation's wire shape, unchanged since it moved into scoring.ExplainedScore.
+        // The explanation's wire shape: the parts, and one line per bonus (none in this ruleset).
         assertThat(json.get("parts")).hasSize(1);
         assertThat(json.get("parts").get(0).toString())
                 .isEqualTo("{\"stat\":\"rec_yd\",\"value\":100.04,\"rate\":0.1,\"points\":" + (100.04 * 0.1) + "}");
-        assertThat(json.get("bonusPoints").asDouble()).isEqualTo(0.0);
+        assertThat(json.get("bonuses")).isEmpty();
+        assertThat(json.has("bonusPoints")).as("the one-number remainder is gone").isFalse();
         assertThat(controller.player(high, 1, 7L).projection().points()).isEqualTo(first.points());
     }
 
@@ -124,7 +137,7 @@ class ProjectionOrderingTests {
 
         var service = new ProjectionsService(backwards, profilesFor(1L, 7L,
                 new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())), noAvailability(week),
-                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC));
+                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC), noCache(db), new JdbcProjectionInputs(db.jdbc), new ScoringProfileQueryRepository(db.jdbc));
         assertThat(ids(service.board(1, null, "", 0, 200, 7L))).containsExactly(top, a, b, c);
         for (int page = 0; page < 4; page++) {
             assertThat(ids(service.board(1, null, "", page, 1, 7L))).as("page %d of size 1", page)
@@ -142,10 +155,10 @@ class ProjectionOrderingTests {
      * order, from the stored line and the player's position read from the players table, so it
      * does not go through {@code ScoringEngine} or through the row under test.
      *
-     * <p>What this does not catch, measured: re-summing the explanation's own parts in order
-     * ({@code sum(parts) + bonusPoints}) gives the same bits on these lines, because the bonus
-     * remainder is exact when it is small next to the linear sum. That variant is an equivalent
-     * mutation here. A compensated sum or a reordering is not, and is caught.
+     * <p>What this does not catch: re-summing the explanation's own parts in order, then the bonuses
+     * that were reached, gives the engine's bits by construction ({@code ExplainedScoreTests} pins
+     * that), so a row whose total were built that way would also pass. A compensated sum or a
+     * reordering is not the engine's sum, and is caught.
      */
     @Test void theUnroundedPointsAreTheEnginesScoreBitForBit() {
         var db = ProjectionDatabase.get();
@@ -177,7 +190,7 @@ class ProjectionOrderingTests {
                 Map.of("TE", Map.of(StatKey.REC, 1.5)), List.of(new Bonus(StatKey.REC_YD, 50, 1.5)));
         ResolvedRuleset rules = ResolvedRuleset.compile(ruleset);
         var service = new ProjectionsService(db.jdbc, profilesFor(1L, 7L, ruleset), noAvailability(week),
-                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC));
+                new ProjectionProperties(provider.source().id(), false), provider, Clock.fixed(now, ZoneOffset.UTC), noCache(db), new JdbcProjectionInputs(db.jdbc), new ScoringProfileQueryRepository(db.jdbc));
 
         var board = service.board(1, null, "", 0, 200, 7L).page().content();
         assertThat(board).hasSize(40);
@@ -216,6 +229,94 @@ class ProjectionOrderingTests {
         return points;
     }
 
+    /** The resolver itself, uncached: these tests change the schedule between calls. */
+    private static CurrentTargetWeek noCache(ProjectionDatabase db) {
+        return new CurrentTargetWeek(new TargetWeekResolver(db.jdbc), 0);
+    }
+
+    /**
+     * The season is the job's: a January date belongs to the season that began the previous
+     * September (week 18 is played in January), not to the calendar year. Using the year would
+     * make the board ask about a season with no games while the job projects the real one.
+     */
+    @Test void theBoardAsksAboutTheSeasonTheJobProjectsInJanuary() {
+        var db = ProjectionDatabase.get();
+        db.reset();
+        int home = db.team("BUF"), away = db.team("NYJ");
+        Instant now = Instant.parse("2031-01-10T12:00:00Z");
+        long game = db.game(2030, 18, home, away, now.plusSeconds(86400));
+        var week = new SeasonWeek(2030, 18);
+        var provider = new WeightedAverageProjectionProvider();
+        long wr = db.player("January Receiver", "WR", home);
+        double[] stats = new double[StatKey.COUNT];
+        stats[StatKey.REC_YD.index()] = 80;
+        new ProjectionRepository(db.jdbc).replaceOpen(week, provider.source().id(), List.of(
+                new ProjectionRepository.ProjectedRow(wr, game, home, new RawProjection(provider.source(), week,
+                        stats, 0, 0, 0, 4, new SeasonWeek(2030, 17)))), now);
+        var service = new ProjectionsService(db.jdbc, profilesFor(1L, 7L,
+                new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of())), noAvailability(week),
+                new ProjectionProperties(provider.source().id(), false), provider,
+                Clock.fixed(now, ZoneOffset.UTC), noCache(db), new JdbcProjectionInputs(db.jdbc), new ScoringProfileQueryRepository(db.jdbc));
+
+        var board = service.board(1, null, "", 0, 50, 7L);
+        assertThat(board.state()).as("2031-01-10 is in the 2030 season").isEqualTo("READY");
+        assertThat(ids(board)).containsExactly(wr);
+    }
+
+    /**
+     * The service with the cache the application runs (a 60 s time-to-live), which the HTTP tests
+     * bypass so they can change the schedule between calls. When the last stats of a week arrive the
+     * target moves to next week and last week's rows go STALE: with the cache, the board follows
+     * that at most one time-to-live late -- still READY half a minute after, STALE a minute after --
+     * and with no cache it follows at once.
+     */
+    @Test void theBoardFollowsAWeekRolloverOnceTheCachedAnswerExpires() {
+        var db = ProjectionDatabase.get();
+        db.reset();
+        int home = db.team("BUF"), away = db.team("NYJ");
+        Instant t0 = Instant.parse("2030-09-10T12:00:00Z");
+        long played = db.game(2030, 1, home, away, t0.minus(Duration.ofHours(20)));   // over; its stats are not in
+        db.game(2030, 2, home, away, t0.plus(Duration.ofDays(5)));
+        long receiver = db.player("Rollover Receiver", "WR", home);
+        long reporter = db.player("Reporting Receiver", "WR", away);
+        var provider = new WeightedAverageProjectionProvider();
+        var week1 = new SeasonWeek(2030, 1);
+        double[] stats = new double[StatKey.COUNT];
+        stats[StatKey.REC_YD.index()] = 80;
+        new ProjectionRepository(db.jdbc).replaceOpen(week1, provider.source().id(), List.of(
+                new ProjectionRepository.ProjectedRow(receiver, played, home, new RawProjection(provider.source(),
+                        week1, stats, 0, 0, 0, 4, new SeasonWeek(2029, 17)))), t0);
+        var cache = new CurrentTargetWeek(new TargetWeekResolver(db.jdbc), 60);
+        var ruleset = new Ruleset(1, Map.of(StatKey.REC_YD, 0.1), Map.of(), List.of());
+        java.util.function.BiFunction<CurrentTargetWeek, Instant, ProjectionsService> serviceAt = (targets, now) ->
+                new ProjectionsService(db.jdbc, profilesFor(1L, 7L, ruleset), noAvailability(week1),
+                        new ProjectionProperties(provider.source().id(), false), provider,
+                        Clock.fixed(now, ZoneOffset.UTC), targets, new JdbcProjectionInputs(db.jdbc),
+                        new ScoringProfileQueryRepository(db.jdbc));
+
+        assertThat(serviceAt.apply(cache, t0).board(1, null, "", 0, 50, 7L).state()).isEqualTo("READY");
+
+        db.played(reporter, played, away); // Monday night's last stats arrive: week 1 is finished
+
+        assertThat(serviceAt.apply(cache, t0.plus(Duration.ofSeconds(30))).board(1, null, "", 0, 50, 7L).state())
+                .as("inside the time-to-live the cached answer is still week 1").isEqualTo("READY");
+        assertThat(serviceAt.apply(cache, t0.plus(Duration.ofSeconds(61))).board(1, null, "", 0, 50, 7L).state())
+                .as("a minute on the cache has expired: the target is week 2 and week 1's rows are stale")
+                .isEqualTo("STALE");
+        assertThat(serviceAt.apply(noCache(db), t0.plus(Duration.ofSeconds(30))).board(1, null, "", 0, 50, 7L).state())
+                .as("with no cache the board follows at once").isEqualTo("STALE");
+    }
+
+    /** The stored line a row carries for the preset strip is read, never changed, by whoever asks. */
+    @Test void aRowsStoredLineCannotBeChangedThroughItsAccessor() {
+        var row = new ProjectionRow(1L, "P1", "WR", "BUF", "NYJ", true, null, false, 0.0, 4, "ESTABLISHED",
+                null, null, Instant.EPOCH, List.of(), List.of(), 2030, 1, 0.0, null, new double[] {1, 2, 3});
+
+        row.stats()[0] = 99;
+
+        assertThat(row.stats()).containsExactly(1, 2, 3);
+    }
+
     private static ScoringProfiles profilesFor(long profileId, Long userId, Ruleset ruleset) {
         var profiles = mock(ScoringProfiles.class);
         when(profiles.byId(profileId, userId)).thenReturn(ResolvedRuleset.compile(ruleset));
@@ -224,7 +325,7 @@ class ProjectionOrderingTests {
 
     private static AvailabilityService noAvailability(SeasonWeek week) {
         var availability = mock(AvailabilityService.class);
-        when(availability.forWeek(week)).thenReturn(Map.of());
+        when(availability.forWeek(eq(week), any())).thenReturn(Map.of());
         return availability;
     }
 
@@ -235,6 +336,6 @@ class ProjectionOrderingTests {
     private static ProjectionRow row(long playerId, double rawPoints) {
         return new ProjectionRow(playerId, "P" + playerId, "WR", "BUF", "NYJ", true, null, false,
                 ScoringEngine.roundForDisplay(rawPoints), 4, "ESTABLISHED", null, null, Instant.EPOCH,
-                List.of(), 0.0, 2030, 1, rawPoints);
+                List.of(), List.of(), 2030, 1, rawPoints, null, new double[0]);
     }
 }

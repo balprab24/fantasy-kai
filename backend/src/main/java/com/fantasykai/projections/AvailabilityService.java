@@ -76,7 +76,15 @@ public class AvailabilityService {
 
     /** Known availability for every player with a roster row or a designation for {@code target}. */
     public Map<Long, Availability> forWeek(SeasonWeek target) {
-        Map<Long, RosterEntry> roster = roster(target);
+        return forWeek(target, roster(target));
+    }
+
+    /**
+     * The same, for a caller that already read {@code roster(target)} and needs it again: a
+     * request that classifies players and also counts the ones with no projection reads the
+     * roster once, so both answers come from the same rows.
+     */
+    public Map<Long, Availability> forWeek(SeasonWeek target, Map<Long, RosterEntry> roster) {
         Map<Long, String> reports = new HashMap<>();
         Map<Long, Instant> reportedAt = new HashMap<>();
         jdbc.query(REPORT_FOR_WEEK, rs -> {

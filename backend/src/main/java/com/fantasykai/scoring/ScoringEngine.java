@@ -33,7 +33,7 @@ public final class ScoringEngine {
             points += values[i] * rates[i];
         }
         for (Bonus bonus : rules.bonuses()) {
-            if (values[bonus.stat().index()] >= bonus.gte()) {
+            if (bonus.reachedBy(values[bonus.stat().index()])) {
                 points += bonus.points();
             }
         }

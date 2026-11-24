@@ -145,7 +145,7 @@ class WeightedAverageProjectionProviderTests {
         ProjectionSource source = PROVIDER.source();
         assertThat(source.id()).isEqualTo("weighted-average-v1");
         assertThat(source.label()).isEqualTo("Fantasy-Kai Baseline");
-        assertThat(source.description()).doesNotContainIgnoringCase("AI").doesNotContainIgnoringCase("model");
+        assertThat(source.summary()).doesNotContainIgnoringCase("AI").doesNotContainIgnoringCase("model");
         assertThat(project(2025, 2, receptions(2025, 1, 1)).source()).isEqualTo(source);
     }
 }

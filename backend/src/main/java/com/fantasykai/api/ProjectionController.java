@@ -17,8 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
  * why, is {@link ProjectionsService}'s; nothing here writes, and generation never runs inside a
  * request -- the job does that, and is off.
  *
- * <p>Not yet the full slice 5/6 contract in {@code docs/projections-v1-architecture.md}; the plan
- * for the rest is {@code docs/projections-slice-5-plan.md}.
+ * <p>The contract is {@code docs/projections-v1-architecture.md} section 9, "as built", and the
+ * plan that built it is {@code docs/projections-slice-5-plan.md}.
  */
 @RestController
 @RequestMapping("/api/v1")
