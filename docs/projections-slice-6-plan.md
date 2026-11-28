@@ -1,6 +1,7 @@
 # Projections Slice 6 — plan
 
-**Status: approved by the owner on 2026-11-27, with D6.1 to D6.9 decided as recommended; 6.0 started the same day.**
+**Status: approved by the owner on 2026-11-27, with D6.1 to D6.9 decided as recommended. 6.0 is built and open as PR #108**
+(its own fresh-context review found nothing wrong in the code; §4 notes the three places the build refined this plan).
 Written 2026-11-27 against `main` at `395cbe1`, **revised the same day after a fresh-context review**
 (see §10 for what it changed). The revision itself had no fresh review. It builds on the approved UX in
 [`projections-v1-architecture.md`](projections-v1-architecture.md) §11 and on Slice 5's contract (§9 "as built");
@@ -111,11 +112,23 @@ record built in `scored()`; both constructors in `ProjectionOrderingTests` chang
 "Next week" wording and the one figure) and §15 (the open population item, now decided), `docs/map.md`, the Slice 5
 plan's `typicalError` text, and `HANDOFF.md` items 1, 3, 5 and 6; and `session-check.sh`'s counts. Size **M**, backend only.
 
+**As built (PR #108), and where it refined this plan:**
+- **`usage` has no `passCmp`**, so it is its own type (§5.1), and the Javadoc and architecture §9 say so.
+- **The 5.9 figure's claim is smaller than this plan's wording.** The population is "counting each who then did not
+  play as a zero". That the sitters include Out players is from `docs/perf/projection-accuracy.md` (153 of 2025's 406
+  projected-but-absent player-weeks), and that 5.9 is *probably* above what the board shows is an **inference**: no
+  report measures the board's own population with sitters as zeros. The popover copy must not call it a bound.
+- **`HANDOFF.md` is not edited by 6.0**, because #106 edits the same lines; its items 1, 3, 5 and 6 are still owed,
+  and #106's "surprise absences" wording should become "counting every player who then sat as a zero".
+
 ## 5. The UI
 
 ### 5.1 Data layer (6.1, **S–M**)
 - `lib/types.ts`: the interfaces, by hand (the frontend validates no responses and says so). To keep them honest, one
-  **captured real response** is committed as a fixture and a test checks the keys the UI reads.
+  **captured real response** is committed as a fixture and a test checks the keys the UI reads. **A projection's
+  `usage` is a type of its own** (`passAtt`, `rushAtt`, `targets`, fractional), **not the season board's `Usage`**,
+  which requires `passCmp` and holds whole counts (found by 6.0's review). And a `rank` follows the unrounded total,
+  so two rows that both read 10.0 can differ by a place: the UI must not infer a tie from equal points.
 - `lib/queries.ts`: `useProjectionBoard(profileId, position)`, an infinite query at the API's page cap of 200 (a real
   week is a few hundred ranked rows: an estimate), loading every page so search can be client-side (D6.2); and
   `usePlayerProjection(id, profileId)`. Both are gated on a resolved profile. The board's `Scope` type is **not**
