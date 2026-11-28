@@ -10,8 +10,10 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param jobEnabled whether the daily pull runs {@link ProjectionJob} after the ingest. Off by
  *                   default (owner decision 2026-10-12), and turned on only deliberately: a row
  *                   the job writes is locked for good at kickoff, so production needs its one-time
- *                   backfill first ({@code DEPLOY-STEPS.md}). Since Slice 4 the job projects from
- *                   weekly rosters, not the interim {@code players.team_id}.
+ *                   backfill first. Set in production by {@code PROJECTIONS_JOB_ENABLED}; the
+ *                   preconditions and the rollback are {@code deploy/README.md} section 9. Since
+ *                   Slice 4 the job projects from weekly rosters, not the interim
+ *                   {@code players.team_id}.
  */
 @ConfigurationProperties(prefix = "fantasykai.projections")
 public record ProjectionProperties(

@@ -120,7 +120,10 @@ fantasykai:
     # replaced the interim players.team_id candidates with weekly rosters. Before turning it on in
     # production, run one backfill so player_game_appearances covers every season, not only the
     # current one (docs/projections-v1-architecture.md).
-    job-enabled: false
+    # Set by PROJECTIONS_JOB_ENABLED (deploy/.env on the VM, passed through compose.prod.yml) so
+    # production can be switched on and off without a rebuild; unset means off. The procedure,
+    # its preconditions and its rollback are deploy/README.md section 9.
+    job-enabled: ${PROJECTIONS_JOB_ENABLED:false}
     # How long the member endpoints reuse the target week the resolver found. The resolver's
     # query took about 105 ms warm on the local mirror (it walks player_game_stats' primary-key
     # index once per candidate game; docs/perf/target-week-resolver-2026-11-18.md), so a process

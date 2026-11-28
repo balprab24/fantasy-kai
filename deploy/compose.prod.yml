@@ -75,6 +75,11 @@ services:
       # Comma-separated. The browser origins, not this machine's -- see
       # CorsBindingTests for why this is one variable and not a yml list.
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?set ALLOWED_ORIGINS in deploy/.env}
+      # Whether the daily pull also writes next week's projections. OFF unless deploy/.env says
+      # true, and not required: an unset or empty value is "off". Turning it on is a deliberate,
+      # preconditioned step (deploy/README.md section 9): a row the job writes locks at kickoff
+      # and is never rewritten.
+      PROJECTIONS_JOB_ENABLED: ${PROJECTIONS_JOB_ENABLED:-false}
     # 1 GB because StatIngestor materialises a whole season of CSV records and
     # then a second full-size batch: the daily pull sets the ceiling, not a
     # request. The Dockerfile's -XX:MaxRAMPercentage=70 reads this limit from the

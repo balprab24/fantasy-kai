@@ -33,9 +33,12 @@ import org.springframework.stereotype.Component;
  * {@code BacktestData.addAppearances}): the snap file calls him QB, RB, WR or TE;
  * {@code offense_snaps > 0}; his pfr id and the game both resolve; and his team is one side of
  * that game. Research also required the game to have been played, which a snap row implies.
- * Measured equal rather than assumed: the stored zero-stat appearances reproduce research's
- * per-season counts for 2020-25, and {@code backtest.sh parity} matches its histories game by
- * game.
+ * Measured equal rather than assumed: the stored zero-stat appearances, counted the way the job
+ * counts them (only players whose <em>current</em> {@code players.position} is QB, RB, WR or TE),
+ * reproduce research's per-season counts for 2020-25 exactly: 730, 796, 806, 851, 818, 687.
+ * Without that position filter the same table gives 746, 816, 812, 854, 823, 689, the difference
+ * being 11 players the snap file calls TE or RB and the players master now calls FB or LB. And
+ * {@code backtest.sh parity} matches its histories game by game.
  */
 @Component
 public class SnapCountIngestor {

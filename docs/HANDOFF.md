@@ -55,7 +55,7 @@ its usage cap mid-review (resets 15:30 CT). The security review (Opus) finished 
 
 ## 3. Open decisions (the plan does not make these)
 
-1. **D3, which population "about 5.5" describes.** The figure is over the research's P (a fixed
+1. **D3, which population "about 5.5" describes. Decided 2026-11-27: show both figures, labelled PPR** ("about 5.5 if he plays, about 5.9 counting every player who then sat as a zero"). The API carries only the first today, so Slice 6 starts with a small contract change to carry the second (its 2024 and 2025 figures are pinned in `ProjectionSourceTests`; 2026's is in the v2 prospective report). Original question: The figure is over the research's P (a fixed
    top-224-by-opportunity group who played). Over every player the board ranks the same baseline reads
    about **4.5**; counting players who then sat as zeros, **5.8 to 5.9**; and it is a *PPR* figure (4.579
    under 0 PPR, 5.003 under Half in 2024). The API now says which P it is. Decide what the popover leads
@@ -79,7 +79,7 @@ its usage cap mid-review (resets 15:30 CT). The security review (Opus) finished 
 
 ## 4. D4: the earliest date the projection job can be switched on
 
-**Earliest realistic first run: Tue 2026-12-01 06:00 ET (week 13).** Last clean slot for week 13: Thu
+**Decided 2026-11-27: the first run is Tue 2026-12-08 06:00 ET (week 14, first game Thu 12-10 20:15 ET).** Earliest possible was: Tue 2026-12-01 06:00 ET (week 13). Last clean slot for week 13: Thu
 12-03 06:00 ET (TNF kicks off 20:15 ET). The week-12 slot (last pull before its first game: **Wed
 11-25 06:00 ET**, GB-LA kicks off Wed 20:00 ET, then Thanksgiving) is theoretically open but needs all of
 the list below finished and verified in about 39 hours, with production writes and a deploy in between.
@@ -97,9 +97,9 @@ projection for the week (R5; and hole 3 above).
 | | Status | Evidence |
 |---|---|---|
 | R2 production appearance backfill, 2020 to 2025 | **Owed.** Production holds 2026 only (3,219 rows) as of 2026-11-17; I did not re-check production | plan section 7; a production write is yours (D5(a): laptop, SSH tunnel, existing `BackfillRunner`, which never exits the JVM: stop it after "backfill finished") |
-| R2a the +2 to +20 zero-stat gap against research | **Unexplained**, first task of R2 | plan section 7 |
+| R2a the +2 to +20 zero-stat gap against research | **Resolved 2026-11-27: two predicates, nothing wrong.** The job's predicate (current position QB/RB/WR/TE) gives 730 / 796 / 806 / 851 / 818 / 687, identical to research; 746 / 816 / ... was the count without the position filter | verified by query; the plan's R2a row |
 | R3 rehearsal on a restored production copy | **Not done.** Also time the resolver (105 ms warm locally) and the history read (`withoutHistory`, one index probe per rowless candidate) on production-sized data | plan section 7; security review |
-| R4 a way to set the flag in production | **Absent.** No `PROJECTIONS_JOB_ENABLED` in `deploy/compose.prod.yml` or `.env.example` (grepped today): needs the line, `deploy/.env`, and a backend redeploy per `deploy/README.md` section 7 | grep |
+| R4 a way to set the flag in production | **Was absent on 2026-11-23; built 2026-11-27** on `chore/projections-job-flag` (yml placeholder, compose line defaulting off, `.env.example`, `deploy/README.md` sections 8 and 9). **Not merged and not deployed**: it takes effect only after a backend redeploy per `deploy/README.md` section 7 | grep; `ProjectionConfigTests` |
 | R1 Slice 5 merged and deployed | PR #101 open, not merged, not deployed. D4(a) lets the plan relax it to "before Slice 6", which I read as not binding for switch-on; if you read it as binding, it is on the path | plan R1 |
 | R8 your sign-off on the first board | after R3's top 20 | plan section 7 |
 | Re-run the parity checks on `main` immediately before | `scripts/backtest.sh parity` and `ProviderParityTests`. **The command behind the "14,906-week" input parity of plan section 6.2 was never confirmed** (5.0's task, still open) | plan section 10 |
@@ -141,4 +141,4 @@ or availability semantics must be a new id).
 
 1. Review PR #101 (retargeted to `main`) and decide the open items above, D3 first if Slice 6 is next.
 2. Merge, and deploy the backend when you want the endpoints live (they are members-only and nothing calls them).
-3. Either Slice 6 (the UI), or the switch-on work in section 4 (R2a, R2, R3, R4, R8), in that order.
+3. Either Slice 6 (the UI), or the switch-on work in section 4 (R2, R3, R8; R2a is explained and R4 is built), in that order.
