@@ -336,3 +336,132 @@ $C up -d --no-build --wait backend
 default, because the checkout is the new code and a build from it would undo the rollback. If the
 Caddyfile moved too, `git checkout <running-sha> -- deploy/Caddyfile` and repeat step 6. The
 rollback's *image* half is proven by step 1; these two commands have not yet been run on the VM.
+
+## 8. Repairing a locked projection
+
+A projection row **locks at its game's kickoff** and is from then on the record of what was
+projected before the game: the live-accuracy report compares it with what happened. A trigger on
+`player_week_projection` (`V7`, `guard_locked_projection`) refuses any `UPDATE` or `DELETE` of a
+locked row, from any code path. Genuine corruption, such as a projection for a game that never
+existed, has one deliberate escape: **one row, one transaction, a stated reason, the old row kept.**
+On the VM, from `~/fantasy-kai`, with `$C` as in section 7:
+
+```bash
+$C exec -T postgres psql -U fantasykai fantasykai <<'SQL'
+BEGIN;
+SET LOCAL fantasykai.projection_repair_reason = '<why, one sentence, at least 10 characters>';
+DELETE FROM player_week_projection
+ WHERE season = <season> AND week = <week> AND provider = 'weighted-average-v1' AND player_id = <id>;
+COMMIT;
+SQL
+$C exec -T postgres psql -U fantasykai fantasykai -c \
+  "SELECT id, repaired_at, operation, reason, db_user, old_row FROM player_week_projection_repairs ORDER BY id DESC LIMIT 5;"
+```
+
+What is guaranteed, each checked on 2026-11-27 against the real trigger on a **local** database
+inside a transaction that was rolled back (not on production):
+
+- Without the setting, the `DELETE` (or `UPDATE`) is refused: *"projection for player ... was
+  locked at ... and is never rewritten by the application; a repair needs
+  fantasykai.projection_repair_reason"*.
+- A reason shorter than 10 characters is refused by the repair log's check constraint
+  (`ck_repairs_reason`), and the repair does not happen.
+- With a reason it succeeds, and the row as it stood, `locked_at` included, is kept as JSONB in
+  `player_week_projection_repairs`, with who ran it and when.
+- The setting is `SET LOCAL`: it lasts one transaction. No application code sets it
+  (`ProjectionSchemaTests` checks `src/main`).
+
+Do not `TRUNCATE` (it does not fire row triggers; it is for an empty test database), do not repair
+many rows under one vague reason, and do not set the reason for the session. A deleted locked row
+does not come back: the job writes only for games that have not kicked off, and this one has.
+
+## 9. Switching the projection job on (and off)
+
+**Not yet done on production as of 2026-11-27: this is a procedure, not a record.** Rehearse it on
+a restored copy first (step 3 below).
+
+**What you are committing to.** With the flag on, the daily 06:00 ET pull, after the ingest, writes
+next week's raw stat lines for every rostered skill player whose team has a game that has not
+kicked off, and locks each row at its game's kickoff. Locked rows are never rewritten (section 8 is
+the only repair). The **first stored row fixes the meaning of `weighted-average-v1` for good**: any
+later change to its weighting, window, roster eligibility or availability semantics must be a new id
+(`weighted-average-v2`), because a stored projection has to keep saying how it was made.
+
+**Preconditions** (the plan's section 7, `docs/projections-slice-5-plan.md`; R-numbers are its rows):
+
+1. **The backend is current `main`** (the member endpoints and this flag): section 7. (R1, R4)
+2. **`player_game_appearances` covers 2020 to the current season.** The baseline reads history across
+   seasons, and production held the current season only as of 2026-11-17. Run the backfill (R2).
+   The players ingest must have run before it: a snap row whose pfr id has no `players` row is
+   silently dropped. Accept it on **both** of these, for seasons 2020 to 2025 only (2026 changes
+   daily):
+
+   *The job's zero-stat count* (a player whose **current** position is QB/RB/WR/TE; without that
+   filter the counts are 746 / 816 / 812 / 854 / 823 / 689, which is the confusion the plan's R2a was):
+
+   ```sql
+   SELECT g.season, count(*) FROM player_game_appearances a
+     JOIN players p ON p.id = a.player_id JOIN games g ON g.id = a.game_id
+    WHERE g.season_type = 'REG' AND g.season BETWEEN 2020 AND 2025
+      AND p.position IN ('QB','RB','WR','TE')
+      AND NOT EXISTS (SELECT 1 FROM player_game_stats s WHERE s.player_id = a.player_id AND s.game_id = a.game_id)
+    GROUP BY 1 ORDER BY 1;     -- expect 730, 796, 806, 851, 818, 687: the research's counts exactly
+   ```
+
+   *A checksum over natural keys*, because equal counts can hide offsetting differences, and surrogate
+   ids differ between databases. `COLLATE "C"` makes it independent of the database's collation:
+
+   ```sql
+   SELECT g.season, count(*) AS rows,
+          md5(string_agg(g.nflverse_game_id || '|' || (p.external_ids->>'pfr') || '|' || t.abbr || '|' || a.offense_snaps,
+                         ',' ORDER BY g.nflverse_game_id COLLATE "C", (p.external_ids->>'pfr') COLLATE "C")) AS checksum
+     FROM player_game_appearances a JOIN players p ON p.id = a.player_id
+     JOIN games g ON g.id = a.game_id JOIN teams t ON t.id = a.team_id
+    WHERE g.season <= 2025 GROUP BY 1 ORDER BY 1;
+   -- expected, measured on the local mirror 2026-11-27 (rows include postseason games):
+   -- 2020  6298  ff14796f33417f1f481c0be17477d85c     2021  6748  6be15bb6c4ea0af81d6f6c69570d2e2e
+   -- 2022  6701  beb92dedec31fc9e7b07c76c21877216     2023  6773  c297e8195d19de30ddec7a5eabf1060d
+   -- 2024  6771  2c160b447cfc6a7c7f3a94c9e23c6314     2025  6678  f6315b17588363a6e2e819724c556f01
+   ```
+
+   If production's checksum differs, find the rows before anything else (compare per game): the
+   expected values are the snap files' content (their sha256 values are in the v2 backtest reports)
+   resolved through the players master, so a difference is a real difference.
+3. **Rehearse on a restored production copy with the flag on** (R3): `candidates` about the rostered
+   skill players on teams with an open game, `written` no more than `candidates`, `locked` 0, a second
+   run writes identical rows, twenty sampled lines equal the mirror's, and the board request is timed
+   at production size.
+4. **The week's rosters are published for every playing team** (`roster_week`), or there are fewer
+   candidates than there should be.
+5. **Time it** (R5): the first run must be Tuesday to Thursday morning, before the week's first
+   kickoff. A game that kicked off before the first run gets no row, and its players have no
+   projection that week.
+6. **Your sign-off on the rehearsal's board** (R8): the top 20 under PPR.
+
+**Turn on:**
+
+```bash
+# deploy/.env on the VM:  PROJECTIONS_JOB_ENABLED=true
+$C up -d --wait backend        # recreates the container with the new environment
+$C exec -T backend printenv PROJECTIONS_JOB_ENABLED     # must print true
+```
+
+**Verify after the first 06:00 ET pull** (or after the one-shot in section 6, which runs the whole
+daily pull, the job included):
+
+```sql
+SELECT source, status, started_at, finished_at, rows_read, rows_upserted, error
+  FROM ingest_runs WHERE source = 'fantasykai.projections' ORDER BY id DESC LIMIT 3;
+SELECT season, week, count(*) AS rows, count(*) FILTER (WHERE locked_at IS NOT NULL) AS locked,
+       min(generated_at) AS first_written, max(generated_at) AS last_written
+  FROM player_week_projection GROUP BY season, week ORDER BY season DESC, week DESC LIMIT 3;
+```
+
+Expect a `SUCCESS` row each morning, rows for the target week, and `locked` at 0 until the week's
+first kickoff, then growing as games start. The freshness check reads each source's latest run, so a
+`FAILED` projection run turns the aggregate `/actuator/health` DOWN (liveness is separate, so
+nothing restarts) and `scripts/session-check.sh` reports it as a FAIL.
+
+**Turn off:** `PROJECTIONS_JOB_ENABLED=false` (or remove it) and `$C up -d --wait backend`. Open rows
+stop regenerating, and the API reports `STALE` once every game of the stored week is at least 48
+hours old. Locked rows stay, and nothing is deleted: turning it off does not undo, it stops.
