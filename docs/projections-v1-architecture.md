@@ -505,28 +505,30 @@ sketch above and the code differ, this is the code:
   resolver, asked per request through a 60 s cache (decision D1: the resolver measured ~105 ms
   warm), so there is no `projection_run` table. The board also takes `q` (a name search, which
   `excluded` ignores).
-- **Not built from the sketch above:** `rank` (a row's rank is its position in the page; the
-  client counts), a "target game" object (a row carries `opponent`, `home` and `kickoff`), and the
-  "usage counts" (the stored `pass_att`, `rush_att` and `targets` are not served; §11's "6.1
-  targets" needs them, so they are owed to Slice 6).
+- **Not built from the sketch above:** a "target game" object (a row carries `opponent`, `home` and
+  `kickoff`). Slice 5 also left out `rank` (the client was to count) and the "usage counts" (the
+  stored `pass_att`, `rush_att` and `targets`); **Slice 6.0 built both, 2026-11-27**, after
+  reading §11 against the API found that neither a ranked board nor "6.1 targets" could be drawn
+  without them (see "Added in Slice 6.0" below).
 - **Nothing is guessed.** `season` and `week` are the week being projected (null with
   `NO_UPCOMING_WEEK`; on a `STALE` board each row says its own week); `dataThrough` and
   `generatedAt` are the newest game and the newest write over every readable stored row, whatever
   the member asked for; `availabilityAsOf` is the older of the last *successful* roster pull and
   the last successful injury pull, and null if either never succeeded. It is when a pull ran, not
   which week it covered.
-- **`excluded`.** `unavailable` counts stored lines the board does not rank. `noHistory` and `bye`
-  count the job's candidates (a `PROJECTED_ROSTER_STATUSES` status, a skill position) with no
-  line, and are known only for `READY`: `null` otherwise, and `null` when a stored history is
-  corrupt (logged by name; the job fails its whole run on that, a request must not). "No history"
-  is the job's own reader's answer (regular-season games before the target week). The player
-  route applies the same candidate rule in the same order, from the same roster and games: not a
-  status the job projects (practice squad, released, retired) is `NOT_ROSTERED`; not a skill
-  position is `UNAVAILABLE`; a team on its bye is `BYE`; no history is `NO_HISTORY`. So the board's
-  two counts are exactly the pages that say `BYE` and `NO_HISTORY`, and a test compares them over
-  everyone rostered. A rostered player with history and no line (the job has not run since a roster
-  change, or his game had kicked off before its first run) is in no count: his page says
-  `UNAVAILABLE`.
+- **`excluded`.** `unavailable` counts stored lines the board does not rank. `noHistory`, `bye` and
+  (from Slice 6.0) `notProjected` count the job's candidates (a `PROJECTED_ROSTER_STATUSES` status,
+  a skill position) with no line, and are known only for `READY`: `null` otherwise, and `null` when
+  a stored history is corrupt (logged by name; the job fails its whole run on that, a request must
+  not). "No history" is the job's own reader's answer (regular-season games before the target
+  week). The player route applies the same candidate rule in the same order, from the same roster
+  and games: not a status the job projects (practice squad, released, retired) is `NOT_ROSTERED`;
+  not a skill position is `UNAVAILABLE`; a team on its bye is `BYE`; no history is `NO_HISTORY`. So
+  the board's counts are exactly the pages that say `BYE` and `NO_HISTORY`, and a test compares
+  them over everyone rostered. A rostered player on a team that plays, with history and no line
+  (the job has not run since a roster change, or his game had kicked off before its first run) was,
+  until Slice 6.0, in no count and his page says `UNAVAILABLE`; he is now `notProjected`, the
+  remainder, so no candidate is in none of the counts.
 - **Explanation.** `parts` are each stat as value × rate = points; `bonuses` are the bonuses that
   bear on the line (it has some of the stat, or the bonus was paid), each with its threshold, the
   line's value, what it pays and whether it was reached. Parts then reached bonuses, summed in
@@ -535,15 +537,34 @@ sketch above and the code differ, this is the code:
   (decision D2, three), scored by the unmodified engine, so each is the number the board prints
   for that preset. Null when there is no line. TE Premium is the fourth system preset and is not
   on the strip.
-- **`source`** is `{id, label, summary, typicalError}`, the same on both routes. `typicalError` is
-  the baseline's measured PPR MAE (headline 5.5) with its three measurements, each pinned to a
-  committed report, and **the population they are over**: the research's P, each week's top 32 QB,
-  64 RB, 96 WR and 32 TE by opportunity who played. That is not the board's population (the same
-  baseline reads about 4.5 over every player with history who played, and 5.8 to 5.9 when players
-  who then sat count as zeros: 4.509 and 5.845 in 2024, 4.470 and 5.887 in 2025, each pinned to its
-  report), so the headline is never shown without it. It is also a full-PPR figure: the 2024 error
-  is 4.579 under 0 PPR and 5.003 under Half PPR. Which population the popover headlines is open
-  (§15).
+- **`source`** is `{id, label, summary, typicalError}`, the same on both routes. Since Slice 6.0
+  `typicalError` is `{metric, figures[]}`, and each figure is `{kind, value, population, measured[]}`:
+  `IF_HE_PLAYS` (headline 5.5: the research's P, each week's top 32 QB, 64 RB, 96 WR and 32 TE by
+  opportunity who played; measured 5.480 in 2024, 5.512 in 2025, 5.688 in 2026 weeks 1-4) and
+  `BEFORE_KICKOFF` (headline 5.9: the same players chosen before kickoff, each who then did not play
+  counted as a zero, the research's P0; measured 5.845, 5.887 and 5.934, the last from the 2026
+  report's availability table). Every measurement is pinned to a committed report row, with its
+  sample size, and a headline is constructible only while all of its measurements are within 0.2 of
+  it. Neither is the board's population (the same baseline reads about 4.5 over every player with
+  history who played: 4.509 in 2024, 4.470 in 2025), and `BEFORE_KICKOFF` includes players the
+  injury report lists as Out, whom the board does not rank, so it is an upper bound for what a
+  member reads. A headline is never shown without its population. Both are full-PPR figures: the
+  2024 error is 4.579 under 0 PPR and 5.003 under Half PPR. (Before 6.0 `typicalError` was one
+  figure, `{metric, value, population, measured}`; nothing read it.)
+- **Added in Slice 6.0** (decisions D6.1, D6.2 and D6.7 of
+  [`projections-slice-6-plan.md`](projections-slice-6-plan.md)):
+  - each row carries `rank` and `positionRank`: its 1-based place among **every ranked line of the
+    week**, in the board's order (points, then player id), and among its position's. They are
+    computed once over the whole week, before the position filter and the name search, so a filter,
+    a search or a page never renumbers anyone, and the player route carries the same place. Both are
+    `null` for a line the board does not rank (Out, reserve, off the roster): his line is kept, he
+    has no place. A place is per ruleset, because the total is;
+  - each row carries `usage {passAtt, rushAtt, targets}`: the stored projected volume, unrounded like
+    `parts`, scored by nothing;
+  - the envelope carries `rowsWeek`: the week the served rows are for (the target week, or an earlier
+    one when `STALE`; `null` with no row stored), so the caption can say which week a stale board
+    shows even when a filter leaves the page empty;
+  - `excluded.notProjected`, above.
 
 ## 10. Rankings semantics (follow `/rankings` where possible)
 
@@ -559,11 +580,16 @@ sketch above and the code differ, this is the code:
 
 **Board.**
 
-- The existing scope control gains a fourth option, **"Next week"**, beside Season, Per game and
-  Last 4. It switches the data source to `/projections` and hides the season selector.
+- The existing scope control gains a fourth option, **"This week"** (named "Next week" in the first
+  draft of this section; changed by decision D6.3 of the Slice 6 plan, because the target week is the
+  first week with an unfinished game, so from Thursday's kickoff until the Tuesday pull it is the
+  week *being played*, with kicked-off rows locked), beside Season, Per game and Last 4. It switches
+  the data source to `/projections` and hides the season selector.
 - Rows show "@ KC · Sun 1:00", a lock when kicked off, and status badges (Out rows don't appear;
   Q/D badges do).
-- One caption line: "Week 6 · Fantasy-Kai Baseline ⓘ · injury report as of Sat 6:00 AM ET".
+- One caption line: "Week 6 · Fantasy-Kai Baseline ⓘ · availability checked Sat 6:00 AM ET" (the
+  time is `availabilityAsOf`, when the last roster and injury pulls ran, not when a report was
+  published; null reads "not checked yet").
 - **The scoring switch re-ranks live off the same raw lines.** This is the product's whole
   argument.
 
@@ -581,9 +607,10 @@ sketch above and the code differ, this is the code:
 half."*
 
 The ⓘ popover holds the method, what it ignores (matchups, game script, injuries beyond the
-official report), and its typical miss: about 5.5 PPR points per player-week in 2025 for players
-who played. The number is in the popover, not on rows. The copy comes from the API's
-`source.summary`, so a provider swap updates it.
+official report), and its typical miss, **both figures, labelled PPR** (decided 2026-11-27): about
+5.5 points per player-week if he plays, about 5.9 counting every player who then sat as a zero, each
+with the population the API states. The numbers are in the popover, not on rows. The copy comes from
+the API's `source.summary` and `source.typicalError.figures`, so a provider swap updates it.
 
 ## 12. Files likely to change
 
@@ -687,11 +714,12 @@ Slices 3 and 4 can run in parallel; 5 needs both.
     - Request-time state is what we believe now; the lock-time snapshot is what we knew before
       kickoff.
 
-- **Which population "about 5.5" describes (open, raised 2026-11-23).** The headline is the baseline's
-  PPR MAE over the research's P: each week's top 32 QB / 64 RB / 96 WR / 32 TE by opportunity who
-  played. The board ranks everyone with history who played (P-all), where the same baseline reads about
-  4.5, and a member who counts the players who then sat reads 5.8 to 5.9 (P0). `source.typicalError`
-  says exactly which population it is, so the figure cannot be shown as something it is not, but
-  which one the popover leads with, and in which scoring, is product copy: decide it before Slice 6
-  prints it, and so that Slice 7's live accuracy (measured over what the board ranks) and the
-  popover do not disagree unexplained. See `docs/projections-slice-5-plan.md` §3, "Follow-ups".
+- **Which population "about 5.5" describes (decided 2026-11-27; raised 2026-11-23).** The headline
+  is the baseline's PPR MAE over the research's P: each week's top 32 QB / 64 RB / 96 WR / 32 TE by
+  opportunity who played. The board ranks everyone with history who played (P-all), where the same
+  baseline reads about 4.5, and a member who counts the players who then sat reads 5.8 to 5.9 (P0).
+  **The popover shows both** the P figure (5.5, "if he plays") and the P0 figure (5.9, "counting every
+  player who then sat as a zero"), labelled PPR, each with its population from
+  `source.typicalError.figures`; Slice 6.0 added the second. What remains open is Slice 7: its live
+  accuracy is measured over what the board ranks, and the popover and that report must be reconciled
+  so they do not disagree unexplained. See `docs/projections-slice-5-plan.md` §3, "Follow-ups".

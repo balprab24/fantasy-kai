@@ -7,7 +7,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fantasykai.projections.Availability;
 import com.fantasykai.projections.AvailabilityService;
+import com.fantasykai.projections.AvailabilityStatus;
 import com.fantasykai.projections.CurrentTargetWeek;
 import com.fantasykai.projections.ProjectionDatabase;
 import com.fantasykai.projections.JdbcProjectionInputs;
@@ -310,11 +312,59 @@ class ProjectionOrderingTests {
     /** The stored line a row carries for the preset strip is read, never changed, by whoever asks. */
     @Test void aRowsStoredLineCannotBeChangedThroughItsAccessor() {
         var row = new ProjectionRow(1L, "P1", "WR", "BUF", "NYJ", true, null, false, 0.0, 4, "ESTABLISHED",
-                null, null, Instant.EPOCH, List.of(), List.of(), 2030, 1, 0.0, null, new double[] {1, 2, 3});
+                null, null, Instant.EPOCH, List.of(), List.of(), 2030, 1, null, null, null, 0.0, null,
+                new double[] {1, 2, 3});
 
         row.stats()[0] = 99;
 
         assertThat(row.stats()).containsExactly(1, 2, 3);
+    }
+
+    // ------------------------------------------------------------------ a line's place in the week
+
+    /**
+     * A place is an ordinal in the board's own order over every ranked line of the week, and a
+     * second one within the position. The Out receiver has the best total and no place at all:
+     * he must not push anyone down, and he must not be given one.
+     */
+    @Test void aPlaceIsTheOrdinalInTheBoardsOrderOverTheRankedLinesAndTheUnrankedHaveNone() {
+        var lines = List.of(placed(1, "WR", 10.0), placed(2, "QB", 20.0), placed(3, "WR", 15.0),
+                placed(4, "TE", 12.0), unranked(5, "WR", 99.0));
+
+        var byId = ProjectionsService.withRanks(lines).stream()
+                .collect(Collectors.toMap(ProjectionRow::playerId, line -> line));
+
+        assertThat(List.of(byId.get(2L).rank(), byId.get(3L).rank(), byId.get(4L).rank(), byId.get(1L).rank()))
+                .as("QB 20, WR 15, TE 12, WR 10").containsExactly(1, 2, 3, 4);
+        assertThat(List.of(byId.get(2L).positionRank(), byId.get(3L).positionRank(),
+                byId.get(4L).positionRank(), byId.get(1L).positionRank()))
+                .as("first QB, first WR, first TE, second WR").containsExactly(1, 1, 1, 2);
+        assertThat(byId.get(5L).rank()).as("Out: his line is kept, he has no place").isNull();
+        assertThat(byId.get(5L).positionRank()).isNull();
+    }
+
+    /** Two lines never share a place, and a tie is broken as the board breaks it: by player id. */
+    @Test void aTieGetsConsecutivePlacesInPlayerIdOrderWhateverTheArrivalOrder() {
+        var lines = new ArrayList<>(List.of(placed(30, "WR", 10.0), placed(10, "WR", 10.0),
+                placed(20, "WR", 10.004), placed(5, "WR", 9.0)));
+        for (int turn = 1; turn <= lines.size(); turn++) {
+            Collections.rotate(lines, 1);
+            var placedIds = ProjectionsService.withRanks(lines).stream()
+                    .sorted(java.util.Comparator.comparingInt(ProjectionRow::rank)).map(ProjectionRow::playerId).toList();
+            assertThat(placedIds).as("arrival order after %d rotations", turn).containsExactly(20L, 10L, 30L, 5L);
+        }
+    }
+
+    /** Placing lines returns them in the order given, changed in nothing but their place. */
+    @Test void placingLinesKeepsTheirOrderAndTheirLine() {
+        var lines = List.of(placed(1, "WR", 10.0), placed(2, "WR", 20.0));
+
+        var out = ProjectionsService.withRanks(lines);
+
+        assertThat(out.stream().map(ProjectionRow::playerId).toList()).containsExactly(1L, 2L);
+        assertThat(out.get(0).points()).isEqualTo(lines.get(0).points());
+        assertThat(out.get(0).stats()).isEqualTo(lines.get(0).stats());
+        assertThat(lines.get(0).rank()).as("the input is not modified").isNull();
     }
 
     private static ScoringProfiles profilesFor(long profileId, Long userId, Ruleset ruleset) {
@@ -336,6 +386,26 @@ class ProjectionOrderingTests {
     private static ProjectionRow row(long playerId, double rawPoints) {
         return new ProjectionRow(playerId, "P" + playerId, "WR", "BUF", "NYJ", true, null, false,
                 ScoringEngine.roundForDisplay(rawPoints), 4, "ESTABLISHED", null, null, Instant.EPOCH,
-                List.of(), List.of(), 2030, 1, rawPoints, null, new double[0]);
+                List.of(), List.of(), 2030, 1, null, null, null, rawPoints, null, new double[0]);
+    }
+
+    /** A line of a given position and total that the board ranks (nothing known about him: ranked). */
+    private static ProjectionRow placed(long playerId, String position, double rawPoints) {
+        return withStatus(playerId, position, rawPoints, AvailabilityStatus.UNKNOWN);
+    }
+
+    /** A line the board does not rank: officially Out. */
+    private static ProjectionRow unranked(long playerId, String position, double rawPoints) {
+        return withStatus(playerId, position, rawPoints, AvailabilityStatus.OUT);
+    }
+
+    private static ProjectionRow withStatus(long playerId, String position, double rawPoints,
+            AvailabilityStatus status) {
+        var week = new SeasonWeek(2030, 1);
+        return new ProjectionRow(playerId, "P" + playerId, position, "BUF", "NYJ", true, null, false,
+                ScoringEngine.roundForDisplay(rawPoints), 4, "ESTABLISHED",
+                new Availability(week, status, null, null, null, null, null, null, null), null, Instant.EPOCH,
+                List.of(), List.of(), 2030, 1, null, null, new ProjectionRow.Usage(0, 0, 0), rawPoints, week,
+                new double[] {1, 2, 3});
     }
 }

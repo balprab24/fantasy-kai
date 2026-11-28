@@ -520,6 +520,9 @@ class ProjectionApiTests {
         JsonNode board = getJson(rest, BOARD + "?profileId=1");
         assertThat(board.get("state").asText()).isEqualTo("UNAVAILABLE");
         assertThat(board.get("page").get("content")).isEmpty();
+        assertThat(board.get("rowsWeek").isNull())
+                .as("a week is stored and none of it is readable: there are no served rows to name a week for")
+                .isTrue();
     }
 
     /** A game the schedule has no date for is open: the week stays READY and the row has no kickoff. */
@@ -1037,7 +1040,8 @@ class ProjectionApiTests {
         roster(WEEK - 1, traded, mia, "ACT"); // last on the team now on its bye ...
         roster(WEEK, traded, buf, "ACT");     // ... and this week on one that plays
         roster(squadWr, buf, "DEV");          // not a candidate: never projected, so never "left out"
-        // Has history, no line: neither count (his own page says UNAVAILABLE).
+        // Has history, no line: neither of those two (his own page says UNAVAILABLE), and the
+        // fourth count, so that he is not in none of them.
         long allen = seeded.allen();
         roster(allen, buf, "ACT");
         // MIA's players, carried from the last week its roster was published.
@@ -1054,19 +1058,21 @@ class ProjectionApiTests {
         roster(WEEK - 1, byeSquad, mia, "DEV");
         roster(WEEK - 1, byeKicker, mia, "ACT");
 
-        // The board's counts, by position asked ({unavailable, noHistory, bye}).
+        // The board's counts, by position asked ({unavailable, noHistory, bye, notProjected}). The one
+        // not projected is the quarterback with history, so only the all-position and QB counts hold him.
         Map<String, List<Integer>> expected = Map.of(
-                "", List.of(4, 3, 4),
-                "&position=WR", List.of(3, 2, 2),
-                "&position=QB", List.of(1, 0, 1),
-                "&position=TE", List.of(0, 1, 0),
-                "&position=RB", List.of(0, 0, 1),
-                "&q=nobody", List.of(4, 3, 4),
-                "&position=WR&q=zzz", List.of(3, 2, 2));
+                "", List.of(4, 3, 4, 1),
+                "&position=WR", List.of(3, 2, 2, 0),
+                "&position=QB", List.of(1, 0, 1, 1),
+                "&position=TE", List.of(0, 1, 0, 0),
+                "&position=RB", List.of(0, 0, 1, 0),
+                "&q=nobody", List.of(4, 3, 4, 1),
+                "&position=WR&q=zzz", List.of(3, 2, 2, 0));
         expected.forEach((filter, counts) -> {
             JsonNode excluded = getJson(rest, BOARD + "?profileId=1" + filter).get("excluded");
             assertThat(List.of(excluded.get("unavailable").asInt(), excluded.get("noHistory").asInt(),
-                    excluded.get("bye").asInt())).as("excluded, filter '%s'", filter).isEqualTo(counts);
+                    excluded.get("bye").asInt(), excluded.get("notProjected").asInt()))
+                    .as("excluded, filter '%s'", filter).isEqualTo(counts);
         });
         assertThat(ids(getJson(rest, BOARD + "?profileId=1&q=nobody"))).as("the search still narrows the page")
                 .isEmpty();
@@ -1086,6 +1092,10 @@ class ProjectionApiTests {
         assertThat(all.get("bye").asInt()).isEqualTo((int) pages.values().stream().filter("BYE"::equals).count());
         assertThat(all.get("noHistory").asInt())
                 .isEqualTo((int) pages.values().stream().filter("NO_HISTORY"::equals).count());
+        // The fourth count is the pages that can only say UNAVAILABLE for a candidate: all of them
+        // but the kicker, whom the job never projects at all.
+        assertThat(all.get("notProjected").asInt()).isEqualTo((int) pages.entrySet().stream()
+                .filter(page -> "UNAVAILABLE".equals(page.getValue()) && page.getKey() != byeKicker).count());
         // The stored-but-unranked keep their line on their own page.
         for (long id : List.of(outWr, reserveWr, cutWr, outQb)) {
             assertThat(getJson(rest, detailPath(id, 1)).get("state").asText()).as("player %d", id)
@@ -1130,6 +1140,9 @@ class ProjectionApiTests {
                 .as("the debut already played, and the playoff-only player").isEqualTo(2);
         assertThat(board.get("excluded").get("bye").asInt()).isZero();
         assertThat(board.get("excluded").get("unavailable").asInt()).isZero();
+        assertThat(board.get("excluded").get("notProjected").asInt())
+                .as("the veteran with a stat line and the one with only an appearance: history, no line")
+                .isEqualTo(2);
         Map<Long, String> pages = Map.of(debut, "NO_HISTORY", playoffOnly, "NO_HISTORY",
                 veteran, "UNAVAILABLE", zeroGame, "UNAVAILABLE", kicker, "UNAVAILABLE");
         pages.forEach((id, state) -> assertThat(getJson(rest, detailPath(id, 1)).get("state").asText())
@@ -1164,6 +1177,8 @@ class ProjectionApiTests {
         assertThat(board.get("state").asText()).isEqualTo("READY");
         assertThat(ids(board)).as("the board is still served").containsExactly(projected);
         assertThat(board.get("excluded").get("noHistory").isNull()).as("not known, not zero").isTrue();
+        assertThat(board.get("excluded").get("notProjected").isNull())
+                .as("a difference with noHistory: unknown when it is, not a number built on a guess").isTrue();
         assertThat(board.get("excluded").get("bye").asInt()).as("needs no history").isEqualTo(1);
         assertThat(getJson(rest, detailPath(corrupt, 1)).get("state").asText())
                 .as("his history cannot be read, so no reason is claimed").isEqualTo("UNAVAILABLE");
@@ -1198,6 +1213,7 @@ class ProjectionApiTests {
         assertNothingServed(none);
         assertThat(none.get("season").isNull()).isTrue();
         assertThat(none.get("week").isNull()).isTrue();
+        assertThat(none.get("rowsWeek").isNull()).as("no rows, so no rows' week").isTrue();
         assertThat(none.get("excluded").get("unavailable").asInt()).isZero();
         assertThat(Instant.parse(none.get("availabilityAsOf").asText()))
                 .as("the feeds' freshness does not depend on there being a week").isEqualTo(NOW.minus(Duration.ofHours(4)));
@@ -1232,12 +1248,16 @@ class ProjectionApiTests {
         assertThat(stale.get("state").asText()).isEqualTo("STALE");
         assertThat(stale.get("season").asInt()).isEqualTo(SEASON);
         assertThat(stale.get("week").asInt()).as("the week being projected").isEqualTo(WEEK + 1);
+        assertThat(stale.get("rowsWeek").asInt()).as("the week the rows are for, at the envelope").isEqualTo(WEEK);
+        assertThat(getJson(rest, BOARD + "?profileId=1&q=nobody").get("rowsWeek").asInt())
+                .as("still known when a search leaves the page empty").isEqualTo(WEEK);
         assertThat(rowOf(stale, kept).get("week").asInt()).as("the rows' own week").isEqualTo(WEEK);
         assertThat(stale.get("dataThrough").get("week").asInt()).isEqualTo(2);
         assertThat(Instant.parse(stale.get("generatedAt").asText())).isEqualTo(NOW);
         assertThat(stale.get("excluded").get("unavailable").asInt()).isEqualTo(1);
         assertThat(stale.get("excluded").get("noHistory").isNull()).isTrue();
         assertThat(stale.get("excluded").get("bye").isNull()).isTrue();
+        assertThat(stale.get("excluded").get("notProjected").isNull()).isTrue();
 
         // The target week itself, every game of it over 48 hours old.
         clear();
@@ -1250,9 +1270,11 @@ class ProjectionApiTests {
         JsonNode old48 = getJson(rest, BOARD + "?profileId=1");
         assertThat(old48.get("state").asText()).isEqualTo("STALE");
         assertThat(old48.get("week").asInt()).isEqualTo(WEEK);
+        assertThat(old48.get("rowsWeek").asInt()).as("the target week's own rows").isEqualTo(WEEK);
         assertThat(old48.get("excluded").get("unavailable").asInt()).isEqualTo(1);
         assertThat(old48.get("excluded").get("noHistory").isNull()).as("not the week being played").isTrue();
         assertThat(old48.get("excluded").get("bye").isNull()).isTrue();
+        assertThat(old48.get("excluded").get("notProjected").isNull()).isTrue();
     }
 
     private static void assertNothingServed(JsonNode board) {
@@ -1261,6 +1283,9 @@ class ProjectionApiTests {
         assertThat(board.get("page").get("content")).isEmpty();
         assertThat(board.get("excluded").get("noHistory").isNull()).as("noHistory is unknown, not zero").isTrue();
         assertThat(board.get("excluded").get("bye").isNull()).as("bye is unknown, not zero").isTrue();
+        assertThat(board.get("excluded").get("notProjected").isNull()).as("notProjected is unknown, not zero")
+                .isTrue();
+        assertThat(board.get("rowsWeek").isNull()).as("no row is stored or none is readable").isTrue();
     }
 
     // ------------------------------------------------------------------ query safety
@@ -1313,6 +1338,104 @@ class ProjectionApiTests {
                 Double.class, seeded.allen())).isEqualTo(4);
     }
 
+    // ------------------------------------------------------------------ a line's place and its usage
+
+    /**
+     * A place belongs to the week, not to the page: asking for one position, searching a name or
+     * taking a later page must not renumber anyone, or "WR2" would read as "WR1" the moment a member
+     * filtered. The Out receiver has the best total of the week, no place, and no row on the board;
+     * his own page keeps his line and says he has none.
+     */
+    @Test
+    void aLinesPlaceIsTheWeeksAndNoFilterSearchOrPageRenumbersIt() {
+        long game = game(WEEK, buf, bal, inDays(2));
+        long qb = player("Place Quarterback", "QB", buf);
+        long wrOne = player("Place Receiver One", "WR", buf);
+        long wrTwo = player("Place Receiver Two", "WR", buf);
+        long te = player("Place Tight End", "TE", buf);
+        long out = player("Place Out Receiver", "WR", buf);
+        store(WEEK, new Proj(qb, game, buf, Map.of(StatKey.PASS_YD, 300.0)),        // 12
+                new Proj(wrOne, game, buf, Map.of(StatKey.REC_YD, 90.0)),            // 9
+                new Proj(te, game, buf, Map.of(StatKey.REC_YD, 60.0)),               // 6
+                new Proj(wrTwo, game, buf, Map.of(StatKey.REC_YD, 40.0)),            // 4
+                new Proj(out, game, buf, Map.of(StatKey.REC_YD, 200.0)));            // 20, and Out
+        for (long id : List.of(qb, wrOne, wrTwo, te, out)) {
+            roster(id, buf, "ACT");
+        }
+        injury(out, buf, "Out");
+
+        Map<Long, List<Integer>> places = Map.of(qb, List.of(1, 1), wrOne, List.of(2, 1), te, List.of(3, 1),
+                wrTwo, List.of(4, 2));
+        for (String filter : List.of("", "&position=WR", "&position=QB&q=", "&q=Receiver", "&q=Two",
+                "&size=1&page=3", "&position=WR&size=1&page=1")) {
+            JsonNode board = getJson(rest, BOARD + "?profileId=1" + filter);
+            assertThat(board.get("page").get("content")).as("filter '%s'", filter).isNotEmpty();
+            for (JsonNode row : board.get("page").get("content")) {
+                long id = row.get("playerId").asLong();
+                assertThat(List.of(row.get("rank").asInt(), row.get("positionRank").asInt()))
+                        .as("player %d under filter '%s'", id, filter).isEqualTo(places.get(id));
+            }
+        }
+        assertThat(ids(getJson(rest, BOARD + "?profileId=1"))).as("the Out receiver is not on the board")
+                .doesNotContain(out);
+
+        for (Map.Entry<Long, List<Integer>> place : places.entrySet()) {
+            JsonNode page = getJson(rest, detailPath(place.getKey(), 1)).get("projection");
+            assertThat(List.of(page.get("rank").asInt(), page.get("positionRank").asInt()))
+                    .as("his own page says what the board says, player %d", place.getKey())
+                    .isEqualTo(place.getValue());
+        }
+        JsonNode outPage = getJson(rest, detailPath(out, 1));
+        assertThat(outPage.get("state").asText()).as("his line is kept").isEqualTo("PROJECTED");
+        assertThat(outPage.get("projection").get("rank").isNull()).as("he has no place").isTrue();
+        assertThat(outPage.get("projection").get("positionRank").isNull()).isTrue();
+    }
+
+    /** A place is a function of the ruleset the line is scored under: catches reorder two receivers. */
+    @Test
+    void aLinesPlaceFollowsTheRulesetItIsScoredUnder() {
+        long game = game(WEEK, buf, bal, inDays(2));
+        long catcher = player("Place Catcher", "WR", buf);
+        long deep = player("Place Deep Threat", "WR", buf);
+        store(WEEK, new Proj(catcher, game, buf, Map.of(StatKey.REC, 10.0, StatKey.REC_YD, 60.0)), // 6 | 16
+                new Proj(deep, game, buf, Map.of(StatKey.REC, 2.0, StatKey.REC_YD, 90.0)));        // 9 | 11
+
+        JsonNode standard = getJson(rest, BOARD + "?profileId=" + ApiFixture.Seeded.STANDARD);
+        JsonNode full = getJson(rest, BOARD + "?profileId=" + ApiFixture.Seeded.FULL_PPR);
+        assertThat(rowOf(standard, deep).get("rank").asInt()).isEqualTo(1);
+        assertThat(rowOf(standard, catcher).get("rank").asInt()).isEqualTo(2);
+        assertThat(rowOf(full, catcher).get("rank").asInt()).isEqualTo(1);
+        assertThat(rowOf(full, deep).get("rank").asInt()).isEqualTo(2);
+        assertThat(getJson(rest, detailPath(catcher, ApiFixture.Seeded.FULL_PPR)).get("projection").get("rank")
+                .asInt()).as("the player's page agrees under the same ruleset").isEqualTo(1);
+    }
+
+    /**
+     * Usage is the volume the line was projected from, as stored: it is served for display and no
+     * ruleset reads it, so two different volumes with one stat line score the same.
+     */
+    @Test
+    void usageIsTheStoredVolumeAndNoRulesetScoresIt() {
+        long game = game(WEEK, buf, bal, inDays(2));
+        long wr = player("Usage Receiver", "WR", buf);
+        store(WEEK, new Proj(wr, game, buf, Map.of(StatKey.REC_YD, 60.0)));
+        String update = "UPDATE player_week_projection SET pass_att = ?, rush_att = ?, targets = ? WHERE player_id = ?";
+
+        jdbc.update(update, 0.0, 12.5, 7.25, wr);
+        JsonNode first = rowOf(getJson(rest, BOARD + "?profileId=1"), wr);
+        assertThat(first.get("usage").get("passAtt").asDouble()).isEqualTo(0.0);
+        assertThat(first.get("usage").get("rushAtt").asDouble()).isEqualTo(12.5);
+        assertThat(first.get("usage").get("targets").asDouble()).isEqualTo(7.25);
+        assertThat(getJson(rest, detailPath(wr, 1)).get("projection").get("usage")).as("the same on his page")
+                .isEqualTo(first.get("usage"));
+
+        jdbc.update(update, 31.5, 3.0, 11.0, wr);
+        JsonNode second = rowOf(getJson(rest, BOARD + "?profileId=1"), wr);
+        assertThat(second.get("usage").get("passAtt").asDouble()).isEqualTo(31.5);
+        assertThat(second.get("points")).as("the volume moved, the points did not").isEqualTo(first.get("points"));
+        assertThat(second.get("parts")).as("and no part of the explanation mentions it").isEqualTo(first.get("parts"));
+    }
+
     // ------------------------------------------------------------------ shape
 
     /**
@@ -1328,18 +1451,26 @@ class ProjectionApiTests {
         store(WEEK, new Proj(wr, game, buf, Map.of(StatKey.REC, 5.0, StatKey.REC_YD, 60.0, StatKey.RUSH_YD, 5.0)));
 
         JsonNode board = getJson(rest, BOARD + "?profileId=1");
-        assertThat(names(board)).containsExactly("state", "season", "week", "source", "dataThrough",
+        assertThat(names(board)).containsExactly("state", "season", "week", "rowsWeek", "source", "dataThrough",
                 "generatedAt", "availabilityAsOf", "excluded", "page");
         assertThat(names(board.get("dataThrough"))).containsExactly("season", "week");
-        assertThat(names(board.get("excluded"))).containsExactly("unavailable", "noHistory", "bye");
+        assertThat(names(board.get("excluded"))).containsExactly("unavailable", "noHistory", "bye", "notProjected");
         assertThat(names(board.get("source"))).containsExactly("id", "label", "summary", "typicalError");
         assertThat(board.get("source").get("summary").asText()).isEqualTo(provider.source().summary());
-        assertThat(board.get("source").get("typicalError").get("value").asDouble()).isEqualTo(5.5);
-        assertThat(board.get("source").get("typicalError").get("measured")).as("the three measurements").hasSize(3);
+        JsonNode typical = board.get("source").get("typicalError");
+        assertThat(names(typical)).containsExactly("metric", "figures");
+        assertThat(typical.get("metric").asText()).isEqualTo("PPR MAE");
+        assertThat(typical.get("figures")).as("both figures the popover shows").hasSize(2);
+        assertThat(typical.get("figures").get(0).get("kind").asText()).isEqualTo("IF_HE_PLAYS");
+        assertThat(typical.get("figures").get(0).get("value").asDouble()).isEqualTo(5.5);
+        assertThat(typical.get("figures").get(1).get("kind").asText()).isEqualTo("BEFORE_KICKOFF");
+        assertThat(typical.get("figures").get(1).get("value").asDouble()).isEqualTo(5.9);
+        assertThat(typical.get("figures").get(1).get("measured")).as("the three measurements").hasSize(3);
         assertThat(names(board.get("page"))).containsExactly("content", "page", "size", "total", "totalPages");
         assertThat(names(rowOf(board, wr))).containsExactly("playerId", "name", "position", "team", "opponent",
                 "home", "kickoff", "locked", "points", "gamesUsed", "history", "availability", "espnId",
-                "generatedAt", "parts", "bonuses", "season", "week");
+                "generatedAt", "parts", "bonuses", "season", "week", "rank", "positionRank", "usage");
+        assertThat(names(rowOf(board, wr).get("usage"))).containsExactly("passAtt", "rushAtt", "targets");
         assertThat(names(rowOf(board, wr).get("parts").get(0))).containsExactly("stat", "value", "rate", "points");
         assertThat(rowOf(board, wr).get("bonuses")).as("no bonus in this ruleset").isEmpty();
         JsonNode century = getJson(rest, BOARD + "?profileId=" + seeded.centuryProfile());
