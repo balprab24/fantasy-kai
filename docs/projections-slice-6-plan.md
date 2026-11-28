@@ -1,8 +1,8 @@
 # Projections Slice 6 — plan
 
-**Status: a proposal for the owner's approval. No UI code has been written, and none starts until this is
-approved.** Written 2026-11-27 against `main` at `395cbe1`, **revised the same day after a fresh-context review**
-(see §10 for what it changed). It builds on the approved UX in
+**Status: approved by the owner on 2026-11-27, with D6.1 to D6.9 decided as recommended; 6.0 started the same day.**
+Written 2026-11-27 against `main` at `395cbe1`, **revised the same day after a fresh-context review**
+(see §10 for what it changed). The revision itself had no fresh review. It builds on the approved UX in
 [`projections-v1-architecture.md`](projections-v1-architecture.md) §11 and on Slice 5's contract (§9 "as built");
 where this plan and either differ, §3 asks for a decision.
 
