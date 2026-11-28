@@ -1252,6 +1252,12 @@ class ProjectionApiTests {
         assertThat(getJson(rest, BOARD + "?profileId=1&q=nobody").get("rowsWeek").asInt())
                 .as("still known when a search leaves the page empty").isEqualTo(WEEK);
         assertThat(rowOf(stale, kept).get("week").asInt()).as("the rows' own week").isEqualTo(WEEK);
+        assertThat(List.of(rowOf(stale, kept).get("rank").asInt(), rowOf(stale, kept).get("positionRank").asInt()))
+                .as("a stale board places its rows too: the Out receiver beside him has no place").containsExactly(1, 1);
+        JsonNode keptPage = getJson(rest, detailPath(kept, 1));
+        assertThat(keptPage.get("state").asText()).isEqualTo("STALE");
+        assertThat(keptPage.get("projection").get("rank").asInt()).as("and so does his own page").isEqualTo(1);
+        assertThat(getJson(rest, detailPath(out, 1)).get("projection").get("rank").isNull()).isTrue();
         assertThat(stale.get("dataThrough").get("week").asInt()).isEqualTo(2);
         assertThat(Instant.parse(stale.get("generatedAt").asText())).isEqualTo(NOW);
         assertThat(stale.get("excluded").get("unavailable").asInt()).isEqualTo(1);

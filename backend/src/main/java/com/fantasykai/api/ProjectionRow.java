@@ -23,7 +23,9 @@ import java.util.List;
  *                    the board's order: before the position filter and the name search, so it does
  *                    not restart under either. Null for a line the board does not rank (Out, on a
  *                    reserve list, off the roster), on the player's own page too: his line is
- *                    shown and he has no place
+ *                    shown and he has no place. The unrounded total decides, so two lines whose
+ *                    displayed points are equal can differ by a place (10.004 and 10.000 both
+ *                    read 10.0): a screen must not infer a tie from equal points
  * @param positionRank likewise among his own position's ranked lines; null when {@code rank} is
  * @param usage       the volume the line was projected from, as stored and never scored
  * @param rawPoints   the unrounded total the board sorts on; never serialized
@@ -43,8 +45,10 @@ public record ProjectionRow(long playerId, String name, String position, String 
     /**
      * Projected volume, display only: the stored {@code pass_att}, {@code rush_att} and
      * {@code targets}, unrounded like {@code parts}. No rate applies to them and no ruleset reads
-     * them. Named as the frontend's {@code Usage} type names them, without completions, which a
-     * projection does not carry.
+     * them. The field names are the frontend's {@code Usage} type's, minus {@code passCmp}, which a
+     * projection does not carry. That type requires {@code passCmp} and its values are whole
+     * counts, so a screen reading this must have its own type and must not reuse it: these are
+     * fractional expectations (12.5 carries).
      */
     public record Usage(double passAtt, double rushAtt, double targets) {}
 

@@ -24,7 +24,7 @@ import java.time.Instant;
  *                         stored. {@code week} says what is being played and this says what the
  *                         member is looking at, which is not the same thing when {@code STALE}, and
  *                         stays known when a position filter or a search leaves the page empty
- * @param dataThrough     the newest game any served row was built from, whatever the member's
+ * @param dataThrough      the newest game any served row was built from, whatever the member's
  *                         position or search; null when no row is served
  * @param generatedAt      when the newest served row was written, likewise; null when none is
  * @param availabilityAsOf the older of the last successful roster pull and the last successful

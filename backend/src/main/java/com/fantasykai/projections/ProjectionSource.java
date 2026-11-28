@@ -84,6 +84,9 @@ public record ProjectionSource(String id, String label, String summary, TypicalE
             if (figures == null || figures.isEmpty()) {
                 throw new IllegalArgumentException("a typical error carries at least one figure");
             }
+            if (figures.stream().anyMatch(figure -> figure == null)) {
+                throw new IllegalArgumentException("a typical error's figures are all present");
+            }
             figures = List.copyOf(figures);
             if (figures.stream().map(ErrorFigure::kind).distinct().count() != figures.size()) {
                 throw new IllegalArgumentException("a typical error has at most one figure of each kind");
@@ -126,6 +129,9 @@ public record ProjectionSource(String id, String label, String summary, TypicalE
             }
             if (measured == null || measured.isEmpty()) {
                 throw new IllegalArgumentException("a typical error rests on at least one measurement");
+            }
+            if (measured.stream().anyMatch(measurement -> measurement == null)) {
+                throw new IllegalArgumentException("a figure's measurements are all present");
             }
             measured = List.copyOf(measured);
             for (Measurement measurement : measured) {

@@ -58,15 +58,21 @@ public final class WeightedAverageProjectionProvider implements ProjectionProvid
      *       v2-prospective-2026.md}).</li>
      * </ul>
      *
-     * <p>{@code BEFORE_KICKOFF}, the research's P0, the same players chosen before kickoff, each
-     * who then did not play counted as a zero. It includes players the injury report lists as
-     * Out, whom the board does not rank, so it is an upper bound for what a member reads:
+     * <p>{@code BEFORE_KICKOFF}, the research's P0, the same players chosen before kickoff (those
+     * who played their team's previous game), each who then did not play counted as a zero:
      * <ul>
      *   <li>2024, 5.845 over 3,808 ({@code validate-2024.md}); 2025, 5.887 over 3,808
      *       ({@code projection-backtest/test-2025.md});</li>
      *   <li>2026 weeks 1-4, 5.934 over 896: the availability table of
-     *       {@code v2-prospective-2026.md}, which defines "all projected" as P0.</li>
+     *       {@code v2-prospective-2026.md}, which defines "all projected" as P0. That table is
+     *       headed "diagnostic, never the acceptance population", so it has a different standing
+     *       from the two season rows.</li>
      * </ul>
+     * Players the injury report lists as Out are among those who sat (2025: Out or a reserve list
+     * flagged 153 of the 406 projected-but-absent player-weeks, {@code docs/perf/
+     * projection-accuracy.md}), and the board does not rank them. So this is probably above what
+     * a member reads on the board, but that is an inference: no report measures the board's own
+     * population with sitters counted as zeros, and the figure must not be called a bound.
      *
      * Each headline ("about 5.5", "about 5.9") is constructible only while all of its measurements
      * stay within 0.2 of it ({@link ProjectionSource.ErrorFigure}). Changing a figure here is a new

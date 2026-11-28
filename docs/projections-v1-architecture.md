@@ -545,22 +545,30 @@ sketch above and the code differ, this is the code:
   counted as a zero, the research's P0; measured 5.845, 5.887 and 5.934, the last from the 2026
   report's availability table). Every measurement is pinned to a committed report row, with its
   sample size, and a headline is constructible only while all of its measurements are within 0.2 of
-  it. Neither is the board's population (the same baseline reads about 4.5 over every player with
-  history who played: 4.509 in 2024, 4.470 in 2025), and `BEFORE_KICKOFF` includes players the
-  injury report lists as Out, whom the board does not rank, so it is an upper bound for what a
-  member reads. A headline is never shown without its population. Both are full-PPR figures: the
+  it (a headline is not the rounding of each: 5.845 rounds to 5.8). The 2026 `BEFORE_KICKOFF`
+  measurement is from a table its report headlines "diagnostic, never the acceptance population".
+  Neither figure is the board's population (the same baseline reads about 4.5 over every player with
+  history who played: 4.509 in 2024, 4.470 in 2025). The players `BEFORE_KICKOFF` counts as zeros
+  include ones the injury report lists as Out (in 2025, Out or a reserve list flagged 153 of the 406
+  projected-but-absent player-weeks, `docs/perf/projection-accuracy.md`), whom the board does not
+  rank, so it is probably above what a member reads; **that is an inference, and no report
+  measures the board's own population with sitters counted as zeros**. A headline is never shown
+  without its population. Both are full-PPR figures: the
   2024 error is 4.579 under 0 PPR and 5.003 under Half PPR. (Before 6.0 `typicalError` was one
   figure, `{metric, value, population, measured}`; nothing read it.)
-- **Added in Slice 6.0** (decisions D6.1, D6.2 and D6.7 of
-  [`projections-slice-6-plan.md`](projections-slice-6-plan.md)):
+- **Added in Slice 6.0** (decisions D6.1, D6.2 and D6.7 of the Slice 6 plan,
+  `docs/projections-slice-6-plan.md`, which lands with PR #107):
   - each row carries `rank` and `positionRank`: its 1-based place among **every ranked line of the
     week**, in the board's order (points, then player id), and among its position's. They are
     computed once over the whole week, before the position filter and the name search, so a filter,
     a search or a page never renumbers anyone, and the player route carries the same place. Both are
     `null` for a line the board does not rank (Out, reserve, off the roster): his line is kept, he
-    has no place. A place is per ruleset, because the total is;
+    has no place. A place is per ruleset, because the total is, and it follows the unrounded total,
+    so two lines that both display 10.0 (10.004 and 10.000) can differ by a place: a screen must not
+    infer a tie from equal points;
   - each row carries `usage {passAtt, rushAtt, targets}`: the stored projected volume, unrounded like
-    `parts`, scored by nothing;
+    `parts`, scored by nothing. It is fractional (12.5 carries) and has no `passCmp`, so a screen must
+    not reuse the season board's `Usage` type, which requires one and holds whole counts;
   - the envelope carries `rowsWeek`: the week the served rows are for (the target week, or an earlier
     one when `STALE`; `null` with no row stored), so the caption can say which week a stale board
     shows even when a filter leaves the page empty;

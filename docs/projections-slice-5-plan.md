@@ -118,7 +118,7 @@ the freshness alert (**Slice 7**); **switching the job on** (§7); any model cha
   "dataThrough": { "season": 2026, "week": 10 },        // latest game any row was built from
   "generatedAt": "2026-11-18T11:00:12Z",                // newest row; null if none
   "availabilityAsOf": "2026-11-18T11:00:09Z",           // the older of the last successful roster and injury pulls
-  "excluded": { "unavailable": 31, "noHistory": 12, "bye": 74 },   // respect `position`, ignore `q`
+  "excluded": { "unavailable": 31, "noHistory": 12, "bye": 74 },   // respect `position`, ignore `q` (+ notProjected, 6.0)
   "page": { "content": [ /* rows */ ], "page": 0, "size": 50, "total": 412, "totalPages": 9 }
 }
 // a row = today's Row, with `bonusPoints` replaced by:

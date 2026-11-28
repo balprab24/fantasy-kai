@@ -99,6 +99,22 @@ class ProjectionSourceTests {
         }
     }
 
+    /** A missing element is refused by name, not by a bare NullPointerException at class initialisation. */
+    @Test
+    void aMissingFigureOrMeasurementIsRefusedWithAMessage() {
+        ErrorFigure plays = figure(5.5, "players who played", List.of(new Measurement(2025, null, 5.5, 3807)));
+
+        List<ErrorFigure> withHole = new java.util.ArrayList<>(List.of(plays));
+        withHole.add(null);
+        assertThatThrownBy(() -> new TypicalError("PPR MAE", withHole))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("figures are all present");
+
+        List<Measurement> measurements = new java.util.ArrayList<>(List.of(new Measurement(2025, null, 5.5, 3807)));
+        measurements.add(null);
+        assertThatThrownBy(() -> figure(5.5, "players who played", measurements))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("measurements are all present");
+    }
+
     @Test
     void aTypicalErrorNeedsItsMetricAndOneFigureOfEachKindAtMost() {
         ErrorFigure plays = figure(5.5, "players who played", List.of(new Measurement(2025, null, 5.5, 3807)));
@@ -156,14 +172,19 @@ class ProjectionSourceTests {
      * the first figure's row comes from.
      */
     @Test
-    void theBeforeKickoffFigureIsTheReportsP0RowsAndItsHeadlineIsTheirRounding() throws IOException {
+    void theBeforeKickoffFigureIsTheReportsP0Rows() throws IOException {
         ErrorFigure sat = figureOf(WeightedAverageProjectionProvider.SOURCE.typicalError(), FigureKind.BEFORE_KICKOFF);
 
         assertThat(sat.measured()).containsExactly(
                 new Measurement(2024, null, 5.845, 3808),
                 new Measurement(2025, null, 5.887, 3808),
                 new Measurement(2026, "1-4", 5.934, 896));
-        assertThat(sat.value()).as("about 5.9: within 0.2 of all three, and what the popover says").isEqualTo(5.9);
+        // Not "the rounding of each": 5.845 rounds to 5.8. A headline of 5.9 is the popover's number
+        // and is held only to being within 0.2 of every measurement, by the constructor.
+        assertThat(sat.value()).as("what the popover says").isEqualTo(5.9);
+        assertThat(report("docs/perf/projection-accuracy.md"))
+                .as("the one report that says Out players are among the sitters P0 counts as zeros")
+                .contains("flagged 153 of 2025's 406");
         assertThat(report("docs/perf/projection-backtest/validate-2024.md")).as("2024")
                 .containsPattern(Pattern.compile("(?m)^\\| P0 \\(played team's last game; DNP = 0\\) \\| 3,808 \\| "
                         + Pattern.quote(format(sat.measured().get(0).mae())) + " \\|"));
