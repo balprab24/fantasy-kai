@@ -85,7 +85,7 @@ the freshness alert (**Slice 7**); **switching the job on** (§7); any model cha
 
 **Follow-ups raised after approval (2026-11-23), not decided here:**
 
-- **D3: which population does "about 5.5" describe?** *Decided 2026-11-27: show both, labelled PPR (5.5 if he plays, 5.9 counting surprise absences); the second figure needs a small contract change at the start of Slice 6.* Original question: The figure is over the research's P (a fixed top-224-by-opportunity
+- **D3: which population does "about 5.5" describe?** *Decided 2026-11-27: show both, labelled PPR (5.5 if he plays, 5.9 counting every player who then sat as a zero); the second figure needs a small contract change at the start of Slice 6.* Original question: The figure is over the research's P (a fixed top-224-by-opportunity
   group who played). Over every player the board ranks (P-all) the same baseline reads about 4.5 (4.509 in 2024,
   4.470 in 2025), and counting players who then sat as zeros (P0) 5.8 to 5.9 (5.845, 5.887). It is also a *PPR*
   figure (2024: 4.579 under 0 PPR, 5.003 under Half). The API now says exactly which P it is, but the owner decides

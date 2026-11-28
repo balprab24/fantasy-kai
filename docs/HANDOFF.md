@@ -55,7 +55,7 @@ its usage cap mid-review (resets 15:30 CT). The security review (Opus) finished 
 
 ## 3. Open decisions (the plan does not make these)
 
-1. **D3, which population "about 5.5" describes. Decided 2026-11-27: show both figures, labelled PPR** ("about 5.5 if he plays, about 5.9 counting surprise absences"). The API carries only the first today, so Slice 6 starts with a small contract change to carry the second (its 2024 and 2025 figures are pinned in `ProjectionSourceTests`; 2026's is in the v2 prospective report). Original question: The figure is over the research's P (a fixed
+1. **D3, which population "about 5.5" describes. Decided 2026-11-27: show both figures, labelled PPR** ("about 5.5 if he plays, about 5.9 counting every player who then sat as a zero"). The API carries only the first today, so Slice 6 starts with a small contract change to carry the second (its 2024 and 2025 figures are pinned in `ProjectionSourceTests`; 2026's is in the v2 prospective report). Original question: The figure is over the research's P (a fixed
    top-224-by-opportunity group who played). Over every player the board ranks the same baseline reads
    about **4.5**; counting players who then sat as zeros, **5.8 to 5.9**; and it is a *PPR* figure (4.579
    under 0 PPR, 5.003 under Half in 2024). The API now says which P it is. Decide what the popover leads
