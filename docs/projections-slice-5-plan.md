@@ -112,10 +112,13 @@ the freshness alert (**Slice 7**); **switching the job on** (§7); any model cha
   // built as 5.6. The population is the research's P, spelled out: the first draft said "players who appeared",
   // which is not the board's population (the same baseline reads ~4.5 over every player with history who played).
   // The three rows are different dataset versions (2026's P holds 33 zero-stat appearances of 896).
+  // SUPERSEDED in Slice 6.0 (2026-11-27): `typicalError` is now {metric, figures[{kind, value, population,
+  // measured}]} with a second figure, BEFORE_KICKOFF (P0, 5.9); the board also gained `rowsWeek` and
+  // `excluded.notProjected`, and each row `rank`, `positionRank` and `usage`. See architecture §9.
   "dataThrough": { "season": 2026, "week": 10 },        // latest game any row was built from
   "generatedAt": "2026-11-18T11:00:12Z",                // newest row; null if none
   "availabilityAsOf": "2026-11-18T11:00:09Z",           // the older of the last successful roster and injury pulls
-  "excluded": { "unavailable": 31, "noHistory": 12, "bye": 74 },   // respect `position`, ignore `q`
+  "excluded": { "unavailable": 31, "noHistory": 12, "bye": 74 },   // respect `position`, ignore `q` (+ notProjected, 6.0)
   "page": { "content": [ /* rows */ ], "page": 0, "size": 50, "total": 412, "totalPages": 9 }
 }
 // a row = today's Row, with `bonusPoints` replaced by:

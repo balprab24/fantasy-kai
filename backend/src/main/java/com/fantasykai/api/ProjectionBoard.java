@@ -19,6 +19,11 @@ import java.time.Instant;
  *                         projects by; null with {@code NO_UPCOMING_WEEK}. When {@code state} is
  *                         {@code STALE} the rows are for an earlier week, and each row says which
  * @param week             that week
+ * @param rowsWeek         the week the served rows are for: {@code week} when {@code READY}, an
+ *                         earlier week of the same season when {@code STALE}; null when no row is
+ *                         stored. {@code week} says what is being played and this says what the
+ *                         member is looking at, which is not the same thing when {@code STALE}, and
+ *                         stays known when a position filter or a search leaves the page empty
  * @param dataThrough      the newest game any served row was built from, whatever the member's
  *                         position or search; null when no row is served
  * @param generatedAt      when the newest served row was written, likewise; null when none is
@@ -32,12 +37,12 @@ import java.time.Instant;
  * @param excluded         who the board left out, and why
  * @param page             the ranked rows
  */
-public record ProjectionBoard(String state, Integer season, Integer week, ProjectionSource source,
-        SeasonWeek dataThrough, Instant generatedAt, Instant availabilityAsOf, Excluded excluded,
-        PageResponse<ProjectionRow> page) {
+public record ProjectionBoard(String state, Integer season, Integer week, Integer rowsWeek,
+        ProjectionSource source, SeasonWeek dataThrough, Instant generatedAt, Instant availabilityAsOf,
+        Excluded excluded, PageResponse<ProjectionRow> page) {
 
     /**
-     * Who is missing from the board, so that no player disappears without being counted. All three
+     * Who is missing from the board, so that no player disappears without being counted. All four
      * respect the position filter and ignore the name search: the count is of the week's board,
      * not of what the member typed.
      *
@@ -50,9 +55,15 @@ public record ProjectionBoard(String state, Integer season, Integer week, Projec
      *                    {@code state} is {@code READY}, and null when a stored history is
      *                    corrupt: the fault is logged by name and the count is not known
      * @param bye         rostered players whose team has no game in the week. Null unless
-     *                    {@code state} is {@code READY}. Both are null otherwise because only the
-     *                    week being played has a roster to count against, and zero would say "none"
-     *                    where the truth is "not known"
+     *                    {@code state} is {@code READY}. The three that need the roster are null
+     *                    otherwise because only the week being played has a roster to count
+     *                    against, and zero would say "none" where the truth is "not known"
+     * @param notProjected rostered players the job would have projected, on a team that plays,
+     *                    who have history and still have no line: the job did not write one (a
+     *                    game that kicked off before its first run, for one). The remainder, so
+     *                    that the four counts and the page cover everyone the job could have
+     *                    projected, and his own page says {@code UNAVAILABLE}. Null exactly when
+     *                    {@code noHistory} is, because it is a difference with it
      */
-    public record Excluded(int unavailable, Integer noHistory, Integer bye) {}
+    public record Excluded(int unavailable, Integer noHistory, Integer bye, Integer notProjected) {}
 }

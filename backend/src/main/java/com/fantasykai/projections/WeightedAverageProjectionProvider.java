@@ -39,15 +39,15 @@ import java.util.Optional;
 public final class WeightedAverageProjectionProvider implements ProjectionProvider {
 
     /**
-     * What a member is told about the method, and how far off it has been. The error is this
-     * baseline's measured PPR MAE per player-week -- the one place the figure lives, pinned by
-     * {@code ProjectionSourceTests} to the committed reports. Each is research baseline D over the
-     * research's population P: each week's most-used skill players (top 32 QB, 64 RB, 96 WR and 32 TE
-     * by opportunity, scaled by the teams playing) who played. It is <em>not</em> the board's
-     * population: over every player with history who played the same baseline reads about 4.5
-     * (4.509 in 2024, 4.470 in 2025), and counting players who then sat as zeros 5.8 to 5.9
-     * (5.845 in 2024, 5.887 in 2025), so the population is part of the claim.
+     * What a member is told about the method, and how far off it has been. The errors are this
+     * baseline's measured PPR MAE per player-week -- the one place the figures live, pinned by
+     * {@code ProjectionSourceTests} to the committed reports. Both are research baseline D over the
+     * research's population: each week's most-used skill players (top 32 QB, 64 RB, 96 WR and 32 TE
+     * by opportunity, scaled by the teams playing). Neither is the board's population: over every
+     * player with history who played the same baseline reads about 4.5 (4.509 in 2024, 4.470 in
+     * 2025), so the population is part of each claim.
      *
+     * <p>{@code IF_HE_PLAYS}, the research's P, the players among them who then played:
      * <ul>
      *   <li>2024, 5.480 over 3,808 player-weeks: the tuning season ({@code docs/perf/
      *       projection-backtest/validate-2024.md});</li>
@@ -58,21 +58,46 @@ public final class WeightedAverageProjectionProvider implements ProjectionProvid
      *       v2-prospective-2026.md}).</li>
      * </ul>
      *
-     * The headline "about 5.5" is constructible only while all three stay within 0.2 of it
-     * ({@link ProjectionSource.TypicalError}). Changing a figure here is a new report first.
+     * <p>{@code BEFORE_KICKOFF}, the research's P0, the same players chosen before kickoff (those
+     * who played their team's previous game), each who then did not play counted as a zero:
+     * <ul>
+     *   <li>2024, 5.845 over 3,808 ({@code validate-2024.md}); 2025, 5.887 over 3,808
+     *       ({@code projection-backtest/test-2025.md});</li>
+     *   <li>2026 weeks 1-4, 5.934 over 896: the availability table of
+     *       {@code v2-prospective-2026.md}, which defines "all projected" as P0. That table is
+     *       headed "diagnostic, never the acceptance population", so it has a different standing
+     *       from the two season rows.</li>
+     * </ul>
+     * Players the injury report lists as Out are among those who sat (2025: Out or a reserve list
+     * flagged 153 of the 406 projected-but-absent player-weeks, {@code docs/perf/
+     * projection-accuracy.md}), and the board does not rank them. So this is probably above what
+     * a member reads on the board, but that is an inference: no report measures the board's own
+     * population with sitters counted as zeros, and the figure must not be called a bound.
+     *
+     * Each headline ("about 5.5", "about 5.9") is constructible only while all of its measurements
+     * stay within 0.2 of it ({@link ProjectionSource.ErrorFigure}). Changing a figure here is a new
+     * report first.
      */
     public static final ProjectionSource SOURCE = new ProjectionSource(
             "weighted-average-v1",
             "Fantasy-Kai Baseline",
             "A weighted average of the player's recent games: the latest counts most, "
                     + "and a game four games older counts half as much.",
-            new ProjectionSource.TypicalError("PPR MAE", 5.5,
-                    "each week's most-used skill players (top 32 QB, 64 RB, 96 WR, 32 TE by opportunity) "
-                            + "who played",
-                    List.of(
-                            new ProjectionSource.Measurement(2024, null, 5.480, 3808),
-                            new ProjectionSource.Measurement(2025, null, 5.512, 3807),
-                            new ProjectionSource.Measurement(2026, "1-4", 5.688, 896))));
+            new ProjectionSource.TypicalError("PPR MAE", List.of(
+                    new ProjectionSource.ErrorFigure(ProjectionSource.FigureKind.IF_HE_PLAYS, 5.5,
+                            "each week's most-used skill players (top 32 QB, 64 RB, 96 WR, 32 TE by opportunity) "
+                                    + "who played",
+                            List.of(
+                                    new ProjectionSource.Measurement(2024, null, 5.480, 3808),
+                                    new ProjectionSource.Measurement(2025, null, 5.512, 3807),
+                                    new ProjectionSource.Measurement(2026, "1-4", 5.688, 896))),
+                    new ProjectionSource.ErrorFigure(ProjectionSource.FigureKind.BEFORE_KICKOFF, 5.9,
+                            "the same players, chosen before kickoff (those who played their team's previous "
+                                    + "game), counting each who then did not play as a zero",
+                            List.of(
+                                    new ProjectionSource.Measurement(2024, null, 5.845, 3808),
+                                    new ProjectionSource.Measurement(2025, null, 5.887, 3808),
+                                    new ProjectionSource.Measurement(2026, "1-4", 5.934, 896))))));
 
     /** Half-life in games. A double, as in the research, so the division is the same one. */
     static final double HALF_LIFE_GAMES = 4.0;

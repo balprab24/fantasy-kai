@@ -75,15 +75,22 @@ import org.springframework.stereotype.Service;
  *       {@code UNAVAILABLE} even if an earlier week has readable rows.</li>
  * </ul>
  *
- * <p><strong>Who the board left out.</strong> {@link ProjectionBoard.Excluded} counts three
+ * <p><strong>Who the board left out.</strong> {@link ProjectionBoard.Excluded} counts four
  * kinds, so nobody disappears unexplained. {@code unavailable} is read off the served rows
- * (a stored line the board does not rank). {@code noHistory} and {@code bye} are the players the
- * job's own candidate rule would have projected -- a roster status in
+ * (a stored line the board does not rank). The other three are the players the job's own
+ * candidate rule would have projected -- a roster status in
  * {@link AvailabilityRules#PROJECTED_ROSTER_STATUSES}, a skill position -- who have no row, split
- * by the same two questions the player route asks: does his team play in the target week, and has
- * he any history before it, as the job's own reader ({@link JdbcProjectionInputs}) decides. They
- * need the week's roster, so they are known only for {@code READY}; in any other state, or when a
- * stored history is corrupt, they are {@code null}, never zero.
+ * by the same two questions the player route asks: does his team play in the target week
+ * ({@code bye} if not), and has he any history before it, as the job's own reader
+ * ({@link JdbcProjectionInputs}) decides ({@code noHistory} if not). One who plays and has
+ * history and still has no line is {@code notProjected}: the remainder, so that no candidate is
+ * in none of the counts. They need the week's roster, so they are known only for {@code READY};
+ * in any other state, or when a stored history is corrupt, they are {@code null}, never zero.
+ *
+ * <p><strong>Where a line stands.</strong> Each ranked line carries its place in the week's whole
+ * ranked set and in its position's ({@link ProjectionRow#rank()}), computed once over every
+ * ranked line before any position filter or search, in the board's order, so a page never
+ * renumbers itself. The player's own page reads the same rows, so it carries the same place.
  *
  * <p>Each line is explained in full ({@link ExplainedScore}): its stats as value x rate, and each
  * bonus that bears on it with whether the line reached it.
@@ -217,23 +224,25 @@ public class ProjectionsService {
         int start = (int) Math.min((long) page * size, ranked.size());
         int end = Math.min(start + size, ranked.size());
         SeasonWeek goal = view.target() == null ? null : view.target().week();
+        Integer rowsWeek = view.week() == null || view.rows().isEmpty() ? null : view.week().week();
         return new ProjectionBoard(view.state(),
-                goal == null ? null : goal.season(), goal == null ? null : goal.week(),
+                goal == null ? null : goal.season(), goal == null ? null : goal.week(), rowsWeek,
                 provider.source(), view.dataThrough(), view.generatedAt(), availabilityAsOf(),
                 excluded(view, inPosition, positions),
                 PageResponse.of(ranked.subList(start, end), page, size, ranked.size()));
     }
 
     /**
-     * Who the board left out. The unranked are counted from the served lines; the two kinds
+     * Who the board left out. The unranked are counted from the served lines; the three kinds
      * with no line at all are the job's candidates (a roster status it projects, a skill
-     * position) who have none, split exactly as {@link #missingReason} splits one player.
+     * position) who have none, split exactly as {@link #missingReason} splits one player, the
+     * last kind being the ones his page can only call {@code UNAVAILABLE}.
      */
     private ProjectionBoard.Excluded excluded(View view, List<ProjectionRow> inPosition,
             List<String> positions) {
         int unavailable = (int) inPosition.stream().filter(row -> !row.availability().ranked()).count();
         if (!"READY".equals(view.state())) {
-            return new ProjectionBoard.Excluded(unavailable, null, null);
+            return new ProjectionBoard.Excluded(unavailable, null, null, null);
         }
         Set<Long> projected = view.rows().stream().map(ProjectionRow::playerId).collect(Collectors.toSet());
         Set<Integer> playing = teamsPlaying(view.target());
@@ -243,10 +252,12 @@ public class ProjectionsService {
                 .filter(entry -> !projected.contains(entry.playerId()))
                 .toList();
         int bye = (int) unprojected.stream().filter(entry -> !playing.contains(entry.teamId())).count();
-        Integer noHistory = withoutHistory(view.target().week(), unprojected.stream()
-                .filter(entry -> playing.contains(entry.teamId())).map(RosterEntry::playerId).toList())
-                .map(Set::size).orElse(null);
-        return new ProjectionBoard.Excluded(unavailable, noHistory, bye);
+        List<Long> onPlayingTeams = unprojected.stream()
+                .filter(entry -> playing.contains(entry.teamId())).map(RosterEntry::playerId).toList();
+        Optional<Set<Long>> none = withoutHistory(view.target().week(), onPlayingTeams);
+        // The difference is only known when "no history" is: a corrupt history makes both unknown.
+        return new ProjectionBoard.Excluded(unavailable, none.map(Set::size).orElse(null), bye,
+                none.map(noHistory -> onPlayingTeams.size() - noHistory.size()).orElse(null));
     }
 
     /**
@@ -436,8 +447,8 @@ public class ProjectionsService {
         SeasonWeek week = stored.getFirst();
         Map<Long, RosterEntry> roster = availability.roster(week);
         Map<Long, Availability> statuses = availability.forWeek(week, roster);
-        List<ProjectionRow> rows = jdbc.query(WEEK_LINES, (rs, n) -> scored(rs, rules, week, statuses, now),
-                config.provider(), week.season(), week.week());
+        List<ProjectionRow> rows = withRanks(jdbc.query(WEEK_LINES,
+                (rs, n) -> scored(rs, rules, week, statuses, now), config.provider(), week.season(), week.week()));
         if (rows.isEmpty()) {
             return new View("UNAVAILABLE", target, week, rows, roster);
         }
@@ -466,8 +477,30 @@ public class ProjectionsService {
                 gamesUsed < ESTABLISHED_GAMES ? "LIMITED" : "ESTABLISHED",
                 statuses.getOrDefault(id, Availability.unknown(week)), rs.getString("espn_id"),
                 rs.getTimestamp("generated_at").toInstant(), explained.parts(), explained.bonuses(),
-                week.season(), week.week(), points,
-                new SeasonWeek(rs.getInt("data_through_season"), rs.getInt("data_through_week")), stats);
+                week.season(), week.week(), null, null,
+                new ProjectionRow.Usage(rs.getDouble("pass_att"), rs.getDouble("rush_att"),
+                        rs.getDouble("targets")),
+                points, new SeasonWeek(rs.getInt("data_through_season"), rs.getInt("data_through_week")),
+                stats);
+    }
+
+    /**
+     * Each ranked line's place: 1-based in {@link #BOARD_ORDER} over every ranked line of the
+     * week, and the same within its position. Computed here, over the whole week, so that a
+     * position filter, a search or a page boundary never renumbers anyone. A line the board does
+     * not rank keeps null, and so is never given a place that someone else's would shift. Ties in
+     * points are broken by player id, as the board's order does, so two lines never share a place.
+     */
+    static List<ProjectionRow> withRanks(List<ProjectionRow> rows) {
+        List<ProjectionRow> order = rows.stream().filter(row -> row.availability().ranked())
+                .sorted(BOARD_ORDER).toList();
+        Map<Long, ProjectionRow> placed = new HashMap<>();
+        Map<String, Integer> perPosition = new HashMap<>();
+        for (int i = 0; i < order.size(); i++) {
+            ProjectionRow row = order.get(i);
+            placed.put(row.playerId(), row.withRanks(i + 1, perPosition.merge(row.position(), 1, Integer::sum)));
+        }
+        return rows.stream().map(row -> placed.getOrDefault(row.playerId(), row)).toList();
     }
 
     /** {@code STALE} once every game of the target week's rows kicked off at least {@link #STALE_AFTER} ago. */

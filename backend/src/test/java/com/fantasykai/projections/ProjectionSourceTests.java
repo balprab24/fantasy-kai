@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fantasykai.projections.ProjectionSource.ErrorFigure;
+import com.fantasykai.projections.ProjectionSource.FigureKind;
 import com.fantasykai.projections.ProjectionSource.Measurement;
 import com.fantasykai.projections.ProjectionSource.TypicalError;
 import java.io.IOException;
@@ -56,30 +58,34 @@ class ProjectionSourceTests {
 
     // ------------------------------------------------------------------ the error figure
 
+    private static ErrorFigure figure(double value, String population, List<Measurement> measured) {
+        return new ErrorFigure(FigureKind.IF_HE_PLAYS, value, population, measured);
+    }
+
     /** The headline may sit exactly 0.2 from a measurement and no further. */
     @Test
     void aHeadlineIsHeldToWithinPointTwoOfEveryMeasurement() {
-        assertThatCode(() -> new TypicalError("PPR MAE", 5.5, "players who appeared",
+        assertThatCode(() -> figure(5.5, "players who appeared",
                 List.of(new Measurement(2024, null, 5.3, null), new Measurement(2025, null, 5.7, null))))
                 .as("0.2 either side is the edge, and inside").doesNotThrowAnyException();
 
-        assertThatThrownBy(() -> new TypicalError("PPR MAE", 5.5, "players who appeared",
+        assertThatThrownBy(() -> figure(5.5, "players who appeared",
                 List.of(new Measurement(2024, null, 5.5, null), new Measurement(2026, "1-4", 5.71, 896))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("5.5").hasMessageContaining("5.71").hasMessageContaining("2026 weeks 1-4");
-        assertThatThrownBy(() -> new TypicalError("PPR MAE", 5.5, "players who appeared",
+        assertThatThrownBy(() -> figure(5.5, "players who appeared",
                 List.of(new Measurement(2024, null, 5.29, null))))
                 .as("the other side of the edge").isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    void aTypicalErrorNeedsItsMetricItsPopulationAndAMeasurement() {
+    void aFigureNeedsItsKindItsPopulationAndAMeasurement() {
         List<Measurement> one = List.of(new Measurement(2025, null, 5.5, 3807));
-        assertThatThrownBy(() -> new TypicalError(" ", 5.5, "players who appeared", one))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new TypicalError("PPR MAE", 5.5, null, one))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new TypicalError("PPR MAE", 5.5, "players who appeared", List.of()))
+        assertThatThrownBy(() -> new ErrorFigure(null, 5.5, "players who appeared", one))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("what it is about");
+        assertThatThrownBy(() -> figure(5.5, null, one)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> figure(5.5, " ", one)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> figure(5.5, "players who appeared", List.of()))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("at least one measurement");
         assertThatThrownBy(() -> new Measurement(2025, null, 0, null)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new Measurement(2025, null, Double.NaN, null))
@@ -87,10 +93,42 @@ class ProjectionSourceTests {
         // A headline that is not a number is not "within 0.2" of anything: NaN fails every comparison,
         // so without its own check it would sail through the tolerance test and print as "about NaN".
         for (double notAHeadline : new double[] {Double.NaN, Double.POSITIVE_INFINITY, 0, -5.5}) {
-            assertThatThrownBy(() -> new TypicalError("PPR MAE", notAHeadline, "players who played", one))
+            assertThatThrownBy(() -> figure(notAHeadline, "players who played", one))
                     .as("headline %s", notAHeadline).isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("positive number");
         }
+    }
+
+    /** A missing element is refused by name, not by a bare NullPointerException at class initialisation. */
+    @Test
+    void aMissingFigureOrMeasurementIsRefusedWithAMessage() {
+        ErrorFigure plays = figure(5.5, "players who played", List.of(new Measurement(2025, null, 5.5, 3807)));
+
+        List<ErrorFigure> withHole = new java.util.ArrayList<>(List.of(plays));
+        withHole.add(null);
+        assertThatThrownBy(() -> new TypicalError("PPR MAE", withHole))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("figures are all present");
+
+        List<Measurement> measurements = new java.util.ArrayList<>(List.of(new Measurement(2025, null, 5.5, 3807)));
+        measurements.add(null);
+        assertThatThrownBy(() -> figure(5.5, "players who played", measurements))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("measurements are all present");
+    }
+
+    @Test
+    void aTypicalErrorNeedsItsMetricAndOneFigureOfEachKindAtMost() {
+        ErrorFigure plays = figure(5.5, "players who played", List.of(new Measurement(2025, null, 5.5, 3807)));
+        ErrorFigure sat = new ErrorFigure(FigureKind.BEFORE_KICKOFF, 5.9, "the same, sitters as zeros",
+                List.of(new Measurement(2025, null, 5.887, 3808)));
+
+        assertThatThrownBy(() -> new TypicalError(" ", List.of(plays))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new TypicalError("PPR MAE", null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new TypicalError("PPR MAE", List.of()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("at least one figure");
+        assertThatThrownBy(() -> new TypicalError("PPR MAE", List.of(plays, plays)))
+                .as("two of one kind would give the popover two answers to one question")
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("one figure of each kind");
+        assertThat(new TypicalError("PPR MAE", List.of(plays, sat)).figures()).containsExactly(plays, sat);
     }
 
     /**
@@ -106,23 +144,59 @@ class ProjectionSourceTests {
         String tuning = report("docs/perf/projection-backtest/validate-2024.md");
         String test2025 = report("docs/perf/projection-backtest/test-2025.md");
         String prospective = report("docs/perf/projection-backtest/v2-prospective-2026.md");
+        ErrorFigure plays = figureOf(error, FigureKind.IF_HE_PLAYS);
 
-        assertThat(error.measured()).as("exactly the three measurements D3 approved").containsExactly(
+        assertThat(plays.measured()).as("exactly the three measurements D3 approved").containsExactly(
                 new Measurement(2024, null, 5.480, 3808),
                 new Measurement(2025, null, 5.512, 3807),
                 new Measurement(2026, "1-4", 5.688, 896));
         // 2024, the tuning season: the baseline's row of the generated report, and the sample's size.
         assertThat(tuning).containsPattern(Pattern.compile("(?m)^\\| D EWMA h=4(?: \\| [-+0-9.]+){2} \\| "
-                + Pattern.quote(format(error.measured().get(0).mae())) + " \\|"));
+                + Pattern.quote(format(plays.measured().get(0).mae())) + " \\|"));
         assertThat(tuning).containsPattern(Pattern.compile("(?m)^\\| 2024 \\| 18 \\| 3,808 \\|"));
         // 2025, the test season: the baseline's row of the results table, and the population's size.
         assertThat(accuracy).containsPattern(Pattern.compile("(?m)^\\| \\*\\*D, EWMA h=4 \\(best baseline\\)\\*\\*"
-                + "(?: \\| [-+0-9.]+){2} \\| " + Pattern.quote(format(error.measured().get(1).mae())) + " \\|"));
+                + "(?: \\| [-+0-9.]+){2} \\| " + Pattern.quote(format(plays.measured().get(1).mae())) + " \\|"));
         assertThat(accuracy).contains("Population P: 3,807");
         // 2026 weeks 1-4, official population P: the baseline's row, and the sample's size.
         assertThat(prospective).containsPattern(Pattern.compile("(?m)^\\| D EWMA h=4(?: \\| [-+0-9.]+){2} \\| "
-                + Pattern.quote(format(error.measured().get(2).mae())) + " \\|"));
+                + Pattern.quote(format(plays.measured().get(2).mae())) + " \\|"));
         assertThat(prospective).containsPattern(Pattern.compile("(?m)^\\| 2026 \\| 4 \\| 896 \\|"));
+    }
+
+    /**
+     * The second figure is the research's P0: the same players, each who then did not play counted
+     * as a zero. Each measurement is a row of the report it names, with its sample size, so the
+     * figure cannot be edited without the report or the report re-run without the figure. The 2026
+     * one lives in the availability table, which the report itself defines as P0, not in the table
+     * the first figure's row comes from.
+     */
+    @Test
+    void theBeforeKickoffFigureIsTheReportsP0Rows() throws IOException {
+        ErrorFigure sat = figureOf(WeightedAverageProjectionProvider.SOURCE.typicalError(), FigureKind.BEFORE_KICKOFF);
+
+        assertThat(sat.measured()).containsExactly(
+                new Measurement(2024, null, 5.845, 3808),
+                new Measurement(2025, null, 5.887, 3808),
+                new Measurement(2026, "1-4", 5.934, 896));
+        // Not "the rounding of each": 5.845 rounds to 5.8. A headline of 5.9 is the popover's number
+        // and is held only to being within 0.2 of every measurement, by the constructor.
+        assertThat(sat.value()).as("what the popover says").isEqualTo(5.9);
+        assertThat(report("docs/perf/projection-accuracy.md"))
+                .as("the one report that says Out players are among the sitters P0 counts as zeros")
+                .contains("flagged 153 of 2025's 406");
+        assertThat(report("docs/perf/projection-backtest/validate-2024.md")).as("2024")
+                .containsPattern(Pattern.compile("(?m)^\\| P0 \\(played team's last game; DNP = 0\\) \\| 3,808 \\| "
+                        + Pattern.quote(format(sat.measured().get(0).mae())) + " \\|"));
+        assertThat(report("docs/perf/projection-backtest/test-2025.md")).as("2025")
+                .containsPattern(Pattern.compile("(?m)^\\| P0 \\(played team's last game; DNP = 0\\) \\| 3,808 \\| "
+                        + Pattern.quote(format(sat.measured().get(1).mae())) + " \\|"));
+        String prospective = report("docs/perf/projection-backtest/v2-prospective-2026.md");
+        assertThat(prospective).as("2026: the availability table's baseline row, all projected")
+                .containsPattern(Pattern.compile("(?m)^\\| D EWMA h=4 \\| 896 / 792 / 104 \\| "
+                        + Pattern.quote(format(sat.measured().get(2).mae())) + " \\|"));
+        assertThat(prospective).as("...which the report defines as P0").contains("All projected = P0")
+                .containsPattern(Pattern.compile("(?m)^\\| 2026 \\| 4 \\| 896 \\| 33 \\| 896 \\(104 inactive\\) \\|"));
     }
 
     /**
@@ -132,8 +206,14 @@ class ProjectionSourceTests {
      */
     @Test
     void thePopulationIsTheReportsAndTheBoardWideFiguresAreTheReportsToo() throws IOException {
-        String population = WeightedAverageProjectionProvider.SOURCE.typicalError().population();
+        TypicalError error = WeightedAverageProjectionProvider.SOURCE.typicalError();
+        String population = figureOf(error, FigureKind.IF_HE_PLAYS).population();
 
+        assertThat(figureOf(error, FigureKind.BEFORE_KICKOFF).population())
+                .as("says who the zeros are, in the report's words")
+                .contains("did not play as a zero").contains("played their team's previous game");
+        assertThat(report("docs/perf/projection-backtest/v2-prospective-2026.md"))
+                .contains("who played their team's previous game, before kickoff");
         assertThat(population).contains("top 32 QB, 64 RB, 96 WR, 32 TE").contains("who played");
         assertThat(report("docs/perf/projection-accuracy.md")).as("the report's own definition of P")
                 .contains("top QB 32 / RB 64 / WR 96 / TE 32").contains("P is conditional on");
@@ -156,11 +236,15 @@ class ProjectionSourceTests {
      * called and says.
      */
     @Test
-    void theShippedHeadlineIsFivePointFiveInFullPpr() {
+    void theShippedHeadlinesAreFivePointFiveAndFivePointNineInFullPpr() {
         TypicalError error = WeightedAverageProjectionProvider.SOURCE.typicalError();
 
         assertThat(error.metric()).isEqualTo("PPR MAE");
-        assertThat(error.value()).isEqualTo(5.5);
+        assertThat(error.figures().stream().map(ErrorFigure::kind))
+                .as("the order the popover reads them in").containsExactly(FigureKind.IF_HE_PLAYS,
+                        FigureKind.BEFORE_KICKOFF);
+        assertThat(figureOf(error, FigureKind.IF_HE_PLAYS).value()).isEqualTo(5.5);
+        assertThat(figureOf(error, FigureKind.BEFORE_KICKOFF).value()).isEqualTo(5.9);
     }
 
     // ------------------------------------------------------------------ the wire
@@ -171,18 +255,29 @@ class ProjectionSourceTests {
 
         JsonNode shipped = json.valueToTree(WeightedAverageProjectionProvider.SOURCE);
         assertThat(names(shipped)).containsExactly("id", "label", "summary", "typicalError");
-        assertThat(names(shipped.get("typicalError"))).containsExactly("metric", "value", "population", "measured");
-        assertThat(names(shipped.get("typicalError").get("measured").get(0))).as("a full season: no weeks")
-                .containsExactly("season", "mae", "n");
-        assertThat(names(shipped.get("typicalError").get("measured").get(1))).containsExactly("season", "mae", "n");
-        assertThat(names(shipped.get("typicalError").get("measured").get(2)))
-                .containsExactly("season", "weeks", "mae", "n");
+        JsonNode typical = shipped.get("typicalError");
+        assertThat(names(typical)).containsExactly("metric", "figures");
+        assertThat(typical.get("figures")).hasSize(2);
+        assertThat(typical.get("figures").get(0).get("kind").asText()).isEqualTo("IF_HE_PLAYS");
+        assertThat(typical.get("figures").get(1).get("kind").asText()).isEqualTo("BEFORE_KICKOFF");
+        for (JsonNode figure : typical.get("figures")) {
+            assertThat(names(figure)).containsExactly("kind", "value", "population", "measured");
+            assertThat(figure.get("measured")).as("the three measurements each").hasSize(3);
+            assertThat(names(figure.get("measured").get(0))).as("a full season: no weeks")
+                    .containsExactly("season", "mae", "n");
+            assertThat(names(figure.get("measured").get(1))).containsExactly("season", "mae", "n");
+            assertThat(names(figure.get("measured").get(2))).containsExactly("season", "weeks", "mae", "n");
+        }
         // What a report does not state is left out of the JSON, not sent as null.
         JsonNode unstated = json.valueToTree(new Measurement(2025, null, 5.5, null));
         assertThat(names(unstated)).containsExactly("season", "mae");
 
         JsonNode bare = json.valueToTree(new ProjectionSource("bare-v1", "Bare", "No published error."));
         assertThat(bare.get("typicalError").isNull()).as("a source with no figure says so").isTrue();
+    }
+
+    private static ErrorFigure figureOf(TypicalError error, FigureKind kind) {
+        return error.figures().stream().filter(figure -> figure.kind() == kind).findFirst().orElseThrow();
     }
 
     private static String format(double mae) {
